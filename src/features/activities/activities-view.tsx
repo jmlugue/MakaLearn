@@ -4,22 +4,14 @@ import { FormEvent, useMemo, useState } from "react";
 import { Dices, Play, Plus, Save } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
+import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
+import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { activities as mockActivities, learners, learningItems } from "@/data/mock-data";
 import { useDemoUser } from "@/features/auth/use-demo-user";
+import { activityTypeLabels } from "@/utils/activity-labels";
 import type { Activity, ActivityQuestion, ActivityType } from "@/types";
-
-const activityTypeLabels: Record<ActivityType, string> = {
-  "match-word-symbol": "Match word to symbol",
-  "choose-correct-symbol": "Choose correct symbol",
-  "fill-blank": "Fill in the blank",
-  "drag-drop-symbol": "Drag and drop symbol cards",
-  "gesture-practice": "Gesture practice activity",
-  "simple-quiz": "Simple quiz"
-};
 
 const activityTypes = Object.keys(activityTypeLabels) as ActivityType[];
 
@@ -152,7 +144,7 @@ export function ActivitiesView() {
       />
       <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
         <div className="space-y-4">
-          <Card>
+          <Card className="bg-[#fbfdff]">
             <CardTitle>Create activity</CardTitle>
             <CardDescription>Teachers and admins can manually create shared or private activities.</CardDescription>
             <form className="mt-4 space-y-4" onSubmit={createActivity}>
@@ -164,14 +156,24 @@ export function ActivitiesView() {
               <div>
                 <Label htmlFor="activity-type">Activity type</Label>
                 <Select id="activity-type" value={type} onChange={(event) => setType(event.target.value as ActivityType)}>
-                  {activityTypes.map((item) => (
-                    <option key={item} value={item}>
-                      {activityTypeLabels[item]}
-                    </option>
-                  ))}
+                  <optgroup label="Symbol and word activities">
+                    {activityTypes.slice(0, 4).map((item) => (
+                      <option key={item} value={item}>
+                        {activityTypeLabels[item]}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Guided practice">
+                    {activityTypes.slice(4).map((item) => (
+                      <option key={item} value={item}>
+                        {activityTypeLabels[item]}
+                      </option>
+                    ))}
+                  </optgroup>
                 </Select>
+                <FieldHint>The underlying activity type value stays typed for future database records.</FieldHint>
               </div>
-              <label className="flex items-center gap-3 rounded-lg bg-skywash p-3 text-sm font-semibold">
+              <label className="flex min-h-12 items-center gap-3 rounded-lg border border-blue-100 bg-skywash p-3 text-sm font-semibold">
                 <input
                   type="checkbox"
                   checked={privateActivity}
@@ -190,13 +192,13 @@ export function ActivitiesView() {
 
           <Card>
             <CardTitle>Activity Library</CardTitle>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 max-h-[34rem] space-y-3 overflow-y-auto pr-1 clean-scrollbar">
               {activities.map((activity) => (
                 <button
                   key={activity.id}
                   type="button"
                   onClick={() => resetPlayer(activity.id)}
-                  className={`w-full rounded-lg border p-3 text-left transition ${
+                  className={`flex min-h-24 w-full flex-col justify-between rounded-lg border p-3 text-left transition ${
                     selectedActivity.id === activity.id
                       ? "border-blue-500 bg-skywash"
                       : "border-blue-100 bg-white hover:bg-skywash"
@@ -230,6 +232,7 @@ export function ActivitiesView() {
                   </option>
                 ))}
               </Select>
+              <FieldHint>Select a learner only when the result should be saved later.</FieldHint>
             </div>
           </div>
 
@@ -263,7 +266,7 @@ export function ActivitiesView() {
             </div>
           ) : null}
 
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <CardFooter className="mt-5 flex flex-col gap-2 sm:flex-row">
             <Button onClick={scoreActivity}>
               <Play className="h-4 w-4" aria-hidden="true" />
               Score activity
@@ -275,7 +278,7 @@ export function ActivitiesView() {
               <Save className="h-4 w-4" aria-hidden="true" />
               Save edits
             </Button>
-          </div>
+          </CardFooter>
         </Card>
       </section>
     </>
@@ -339,7 +342,7 @@ function ActivityPlayer({
   return (
     <div className="mt-5 space-y-4">
       {activity.questions.map((question, index) => (
-        <div key={question.id} className="rounded-lg border border-blue-100 bg-white p-4">
+        <div key={question.id} className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
           <p className="text-sm font-semibold text-blue-700">Question {index + 1}</p>
           <p className="mt-1 text-lg font-semibold">{question.prompt}</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-3">

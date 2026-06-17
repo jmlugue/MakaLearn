@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Activity, BookOpen, Clock, Upload, UserRound, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/common/stat-card";
 import { PageHeader } from "@/components/layout/page-header";
@@ -77,7 +77,7 @@ function AdminDashboard() {
         <StatCard icon={Activity} label="Attempts" value={practiceAttempts.length} />
       </section>
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card>
+        <Card className="overflow-hidden">
           <CardTitle>Recent learner activity</CardTitle>
           <CardDescription>Local activity and practice records used for the dashboard.</CardDescription>
           <div className="mt-4 h-72">
@@ -98,7 +98,7 @@ function AdminDashboard() {
             {demoUsers
               .filter((item) => item.role === "teacher")
               .map((teacher) => (
-                <div key={teacher.id} className="flex items-center justify-between gap-3 rounded-lg bg-skywash p-3">
+                <div key={teacher.id} className="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
                   <div>
                     <p className="font-semibold">{teacher.name}</p>
                     <p className="text-sm text-slate-600">{teacher.email}</p>
@@ -112,12 +112,12 @@ function AdminDashboard() {
         </Card>
       </section>
       <section className="grid gap-4 lg:grid-cols-3">
-        <Card>
+        <Card className="flex h-full flex-col">
           <CardTitle>Recent uploads</CardTitle>
           <div className="mt-4 space-y-3">
             {mediaAssets.slice(0, 3).map((asset) => (
-              <div key={asset.id} className="flex gap-3">
-                <Upload className="mt-1 h-5 w-5 text-blue-600" aria-hidden="true" />
+              <div key={asset.id} className="flex gap-3 rounded-lg border border-blue-50 bg-[#f8fbff] p-3">
+                <Upload className="mt-1 h-5 w-5 shrink-0 text-blue-600" aria-hidden="true" />
                 <div>
                   <p className="font-semibold">{asset.title}</p>
                   <p className="text-sm text-slate-600">{formatDate(asset.uploadedAt)}</p>
@@ -129,13 +129,13 @@ function AdminDashboard() {
         <Card className="lg:col-span-2">
           <CardTitle>System reminders</CardTitle>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-lg bg-skywash p-4">
+            <div className="rounded-lg border border-blue-100 bg-skywash p-4">
               <p className="font-semibold">Supabase setup pending</p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 Connect Auth, database tables, Storage buckets, and RLS in a later phase.
               </p>
             </div>
-            <div className="rounded-lg bg-skywash p-4">
+            <div className="rounded-lg border border-blue-100 bg-skywash p-4">
               <p className="font-semibold">Approved content pending</p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 Placeholder labels and media should be replaced with approved content later.
@@ -158,9 +158,9 @@ function TeacherDashboard({ assignedCount }: { assignedCount: number }) {
         <StatCard icon={Clock} label="Recommended lessons" value={lessons.length} />
       </section>
       <section className="grid gap-4 lg:grid-cols-3">
-        <Card>
+        <Card className="flex h-full flex-col">
           <CardTitle>Quick actions</CardTitle>
-          <div className="mt-4 grid gap-3">
+          <CardFooter className="mt-4 grid gap-3 border-t-0 pt-0">
             <Link href="/learners">
               <Button className="w-full justify-start" variant="secondary">
                 Add or update learner
@@ -176,15 +176,15 @@ function TeacherDashboard({ assignedCount }: { assignedCount: number }) {
                 Review progress
               </Button>
             </Link>
-          </div>
+          </CardFooter>
         </Card>
-        <Card>
+        <Card className="flex h-full flex-col">
           <CardTitle>Recent practice attempts</CardTitle>
           <div className="mt-4 space-y-3">
             {practiceAttempts.map((attempt) => {
               const item = learningItems.find((learningItem) => learningItem.id === attempt.learningItemId);
               return (
-                <div key={attempt.id} className="rounded-lg bg-skywash p-3">
+                <div key={attempt.id} className="rounded-lg border border-blue-100 bg-skywash p-3">
                   <p className="font-semibold">{item?.label}</p>
                   <p className="text-sm text-slate-600">{attempt.status}</p>
                 </div>
@@ -192,11 +192,11 @@ function TeacherDashboard({ assignedCount }: { assignedCount: number }) {
             })}
           </div>
         </Card>
-        <Card>
+        <Card className="flex h-full flex-col">
           <CardTitle>Learner progress alerts</CardTitle>
           <div className="mt-4 space-y-3">
             {activityResults.map((result) => (
-              <div key={result.id} className="rounded-lg bg-coral p-3">
+              <div key={result.id} className="rounded-lg border border-orange-100 bg-coral p-3">
                 <p className="font-semibold">{result.scorePercentage}% activity score</p>
                 <p className="text-sm text-slate-600">Review missed items in the next guided session.</p>
               </div>

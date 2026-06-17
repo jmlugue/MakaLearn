@@ -45,8 +45,10 @@ export function HelpView() {
       />
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {guides.map((guide) => (
-          <Card key={guide.title}>
-            <guide.icon className="h-8 w-8 text-blue-600" aria-hidden="true" />
+          <Card key={guide.title} className="flex h-full flex-col bg-[#fbfdff]">
+            <span className="grid h-12 w-12 place-items-center rounded-lg border border-blue-100 bg-white text-blue-600 shadow-sm">
+              <guide.icon className="h-6 w-6" aria-hidden="true" />
+            </span>
             <CardTitle className="mt-4">{guide.title}</CardTitle>
             <CardDescription>{guide.text}</CardDescription>
           </Card>

@@ -16,7 +16,7 @@ export function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 border-r border-blue-100 bg-white/92 p-5 shadow-soft backdrop-blur lg:flex lg:flex-col">
       <Link href="/" className="mb-8 flex items-center gap-3">
-        <span className="grid h-11 w-11 place-items-center rounded-lg bg-blue-600 text-white">
+        <span className="grid h-11 w-11 place-items-center rounded-lg bg-blue-600 text-white shadow-sm shadow-blue-900/20">
           <Sparkles className="h-5 w-5" aria-hidden="true" />
         </span>
         <span>
@@ -33,7 +33,9 @@ export function Sidebar() {
               href={item.href}
               className={cn(
                 "flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold transition",
-                active ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-skywash hover:text-blue-700"
+                active
+                  ? "bg-blue-600 text-white shadow-sm shadow-blue-900/10"
+                  : "text-slate-700 hover:bg-skywash hover:text-blue-700"
               )}
             >
               <item.icon className="h-5 w-5" aria-hidden="true" />
@@ -42,7 +44,7 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="rounded-lg border border-blue-100 bg-skywash p-3">
+      <div className="rounded-lg border border-blue-100 bg-[#f7fbff] p-3">
         <p className="text-sm font-semibold text-ink">{user.name}</p>
         <p className="text-xs capitalize text-slate-600">{user.role}</p>
       </div>

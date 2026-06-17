@@ -11,11 +11,11 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "primary", size = "md", ...props }, ref) => {
     const variants: Record<ButtonVariant, string> = {
-      primary: "bg-primary text-white hover:bg-blue-700",
-      secondary: "bg-white text-ink shadow-sm hover:bg-skywash",
-      outline: "border border-blue-200 bg-white text-ink hover:bg-skywash",
+      primary: "bg-primary text-white shadow-sm shadow-blue-900/10 hover:bg-blue-700",
+      secondary: "border border-blue-100 bg-white text-ink shadow-sm hover:border-blue-200 hover:bg-skywash",
+      outline: "border border-blue-200 bg-white text-ink hover:border-blue-300 hover:bg-skywash",
       ghost: "text-ink hover:bg-skywash",
-      danger: "bg-red-600 text-white hover:bg-red-700"
+      danger: "bg-red-600 text-white shadow-sm shadow-red-900/10 hover:bg-red-700"
     };
     const sizes = {
       sm: "min-h-9 px-3 text-sm",

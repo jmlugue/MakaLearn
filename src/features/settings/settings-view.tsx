@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Accessibility, Info, Lock, Palette, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import { Input, Label, Select } from "@/components/ui/form";
+import { FieldHint, Input, Label, Select } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { useDemoUser } from "@/features/auth/use-demo-user";
@@ -31,7 +31,7 @@ export function SettingsView() {
         description="Manage local profile details, accessibility options, account placeholders, and display preferences."
       />
       <section className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="bg-[#fbfdff]">
           <div className="flex items-center gap-2">
             <UserRound className="h-5 w-5 text-blue-600" aria-hidden="true" />
             <CardTitle>Profile settings</CardTitle>
@@ -51,7 +51,7 @@ export function SettingsView() {
           </Button>
         </Card>
 
-        <Card>
+        <Card className="bg-[#fbfdff]">
           <div className="flex items-center gap-2">
             <Accessibility className="h-5 w-5 text-blue-600" aria-hidden="true" />
             <CardTitle>Accessibility settings</CardTitle>
@@ -64,7 +64,7 @@ export function SettingsView() {
           </div>
         </Card>
 
-        <Card>
+        <Card className="bg-[#fbfdff]">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-blue-600" aria-hidden="true" />
             <CardTitle>Account and password</CardTitle>
@@ -79,7 +79,7 @@ export function SettingsView() {
           </Button>
         </Card>
 
-        <Card>
+        <Card className="bg-[#fbfdff]">
           <div className="flex items-center gap-2">
             <Palette className="h-5 w-5 text-blue-600" aria-hidden="true" />
             <CardTitle>Theme and display</CardTitle>
@@ -87,11 +87,12 @@ export function SettingsView() {
           <div className="mt-4">
             <Label htmlFor="theme">Theme</Label>
             <Select id="theme">
-              <option>Soft blue</option>
-              <option>High contrast</option>
+              <option value="soft-blue">Soft blue</option>
+              <option value="high-contrast">High contrast</option>
             </Select>
+            <FieldHint>Display preferences are local until account settings are connected.</FieldHint>
           </div>
-          <div className="mt-4 flex items-start gap-2 rounded-lg bg-skywash p-3">
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-blue-100 bg-skywash p-3">
             <Info className="mt-0.5 h-5 w-5 text-blue-600" aria-hidden="true" />
             <p className="text-sm leading-6 text-slate-600">MakaLearn uses local demo data until backend integration is connected.</p>
           </div>
@@ -111,9 +112,21 @@ function Toggle({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-12 items-center justify-between gap-3 rounded-lg bg-skywash p-3 text-sm font-semibold">
+    <label className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-blue-100 bg-skywash p-3 text-sm font-semibold">
       <span>{label}</span>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5" />
+      <span className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-blue-600" : "bg-white ring-1 ring-blue-200"}`}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+          className="peer sr-only"
+        />
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-focus:ring-4 peer-focus:ring-blue-100 ${
+            checked ? "left-6" : "left-1 bg-blue-100"
+          }`}
+        />
+      </span>
     </label>
   );
 }

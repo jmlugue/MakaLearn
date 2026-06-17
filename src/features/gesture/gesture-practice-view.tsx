@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, RotateCcw, Save, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import { Label, Select } from "@/components/ui/form";
+import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
+import { FieldHint, Label, Select } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { categories, learners, learningItems } from "@/data/mock-data";
@@ -89,7 +89,7 @@ export function GesturePracticeView() {
         description="Use webcam preview and simulated teacher controls. Demo mode runs without saving results when no learner is selected."
       />
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card>
+        <Card className="overflow-hidden">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle>Webcam preview</CardTitle>
@@ -100,7 +100,7 @@ export function GesturePracticeView() {
               {practiceStarted ? "Restart camera" : "Start practice"}
             </Button>
           </div>
-          <div className="mt-5 overflow-hidden rounded-lg bg-ink">
+          <div className="mt-5 overflow-hidden rounded-lg bg-ink shadow-inner">
             {practiceStarted ? (
               <video ref={videoRef} autoPlay playsInline muted className="aspect-video w-full object-cover" />
             ) : (
@@ -115,7 +115,7 @@ export function GesturePracticeView() {
         </Card>
 
         <div className="grid gap-4">
-          <Card>
+          <Card className="bg-[#fbfdff]">
             <CardTitle>Session setup</CardTitle>
             <div className="mt-4 grid gap-4">
               <div>
@@ -123,10 +123,11 @@ export function GesturePracticeView() {
                 <Select id="learning-item" value={selectedItemId} onChange={(event) => setSelectedItemId(event.target.value)}>
                   {learningItems.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.label}
+                      {item.label} - {categories.find((category) => category.id === item.categoryId)?.name ?? "Uncategorized"}
                     </option>
                   ))}
                 </Select>
+                <FieldHint>Choose the cue the learner will practice.</FieldHint>
               </div>
               <div>
                 <Label htmlFor="learner-select">Learner</Label>
@@ -138,20 +139,21 @@ export function GesturePracticeView() {
                     </option>
                   ))}
                 </Select>
+                <FieldHint>Leave in demo mode when you do not want to save results.</FieldHint>
               </div>
             </div>
           </Card>
 
-          <Card>
+          <Card className="flex h-full flex-col">
             <Badge>{selectedCategory?.name}</Badge>
             <CardTitle className="mt-3">{selectedItem.label}</CardTitle>
             <p className="mt-3 text-sm leading-6 text-slate-600">{selectedItem.instruction}</p>
-            <div className="mt-4 grid min-h-24 place-items-center rounded-lg bg-skywash text-2xl font-bold text-blue-700">
+            <div className="mt-4 grid min-h-24 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] text-2xl font-bold text-blue-700 shadow-inner">
               {selectedItem.symbolImageUrl}
             </div>
           </Card>
 
-          <Card>
+          <Card className="flex h-full flex-col">
             <CardTitle>Simulated result</CardTitle>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {statuses.map((item) => (
@@ -171,7 +173,7 @@ export function GesturePracticeView() {
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-600">{feedback}</p>
             </div>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <CardFooter className="mt-4 flex flex-col gap-2 sm:flex-row">
               <Button variant="secondary" onClick={reset}>
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 Reset attempt
@@ -180,7 +182,7 @@ export function GesturePracticeView() {
                 <Save className="h-4 w-4" aria-hidden="true" />
                 Save attempt
               </Button>
-            </div>
+            </CardFooter>
           </Card>
         </div>
       </section>

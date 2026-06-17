@@ -44,7 +44,9 @@ export function LoginPanel() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md overflow-hidden p-0">
+      <div className="cue-stripes h-8 border-b border-blue-100" />
+      <div className="p-5 sm:p-6">
       <div className="mb-6">
         <p className="text-sm font-bold uppercase tracking-wide text-blue-600">Local demo login</p>
         <h1 className="mt-2 text-3xl font-bold text-ink">Sign in to MakaLearn</h1>
@@ -105,6 +107,7 @@ export function LoginPanel() {
         Future Supabase Auth: replace this local role switch with email/password sign-in and profile
         role lookup.
       </p>
+      </div>
     </Card>
   );
 }

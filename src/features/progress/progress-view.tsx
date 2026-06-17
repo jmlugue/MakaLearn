@@ -13,14 +13,15 @@ import {
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import { Label, Select } from "@/components/ui/form";
+import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
+import { FieldHint, Label, Select } from "@/components/ui/form";
 import { StatCard } from "@/components/common/stat-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { activityResults, learners, learningItems, lessons, practiceAttempts } from "@/data/mock-data";
 import { useDemoUser } from "@/features/auth/use-demo-user";
 import { formatDate } from "@/lib/utils";
+import { getActivityTypeLabel } from "@/utils/activity-labels";
 import { getLearnerAccuracy, getMostPracticedItemIds } from "@/utils/progress";
 
 export function ProgressView() {
@@ -66,9 +67,9 @@ export function ProgressView() {
       />
       <section className="grid gap-4 md:grid-cols-3">
         {visibleLearners.map((item) => (
-          <Card key={item.id} className={item.id === selectedLearnerId ? "ring-4 ring-blue-100" : ""}>
+          <Card key={item.id} className={`flex h-full flex-col ${item.id === selectedLearnerId ? "ring-4 ring-blue-100" : ""}`}>
             <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-lg bg-skywash font-bold text-blue-700">
+              <div className="grid h-12 w-12 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] font-bold text-blue-700 shadow-inner">
                 {item.name.slice(0, 1)}
               </div>
               <div>
@@ -76,9 +77,11 @@ export function ProgressView() {
                 <CardDescription>{item.preferredLearningMode}</CardDescription>
               </div>
             </div>
-            <Button className="mt-4 w-full" variant="secondary" onClick={() => setSelectedLearnerId(item.id)}>
-              View report
-            </Button>
+            <CardFooter className="mt-4">
+              <Button className="w-full" variant="secondary" onClick={() => setSelectedLearnerId(item.id)}>
+                View report
+              </Button>
+            </CardFooter>
           </Card>
         ))}
       </section>
@@ -95,6 +98,7 @@ export function ProgressView() {
                   </option>
                 ))}
               </Select>
+              <FieldHint>Switch reports without leaving the progress page.</FieldHint>
             </Card>
             <div className="grid gap-4 sm:grid-cols-2">
               <StatCard icon={UserRound} label="Accuracy" value={`${accuracy}%`} />
@@ -139,7 +143,7 @@ export function ProgressView() {
                 {learnerAttempts.map((attempt) => {
                   const item = learningItems.find((candidate) => candidate.id === attempt.learningItemId);
                   return (
-                    <div key={attempt.id} className="rounded-lg bg-skywash p-3">
+                    <div key={attempt.id} className="rounded-lg border border-blue-100 bg-skywash p-3">
                       <p className="font-semibold">
                         {item?.label} · {attempt.status}
                       </p>
@@ -153,9 +157,9 @@ export function ProgressView() {
             </Card>
             <Card>
               <CardTitle>Activity results</CardTitle>
-              <div className="mt-4 overflow-x-auto">
+              <div className="mt-4 overflow-x-auto rounded-lg border border-blue-100 clean-scrollbar">
                 <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="text-slate-500">
+                  <thead className="bg-[#f8fbff] text-slate-500">
                     <tr>
                       <th className="py-2">Activity</th>
                       <th className="py-2">Score</th>
@@ -166,7 +170,7 @@ export function ProgressView() {
                   <tbody>
                     {learnerResults.map((result) => (
                       <tr key={result.id} className="border-t border-blue-100">
-                        <td className="py-3">{result.activityType}</td>
+                        <td className="py-3">{getActivityTypeLabel(result.activityType)}</td>
                         <td className="py-3 font-semibold">{result.scorePercentage}%</td>
                         <td className="py-3">{result.correctCount}</td>
                         <td className="py-3">{formatDate(result.completedAt)}</td>

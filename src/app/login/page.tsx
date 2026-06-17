@@ -8,9 +8,9 @@ export default function LoginPage() {
     <ToastProvider>
       <main className="grid min-h-screen place-items-center px-4 py-8">
         <div className="grid w-full max-w-6xl items-center gap-8 lg:grid-cols-[0.9fr_1fr]">
-          <div>
+          <div className="rounded-lg border border-blue-100 bg-white/80 p-5 shadow-soft backdrop-blur sm:p-7">
             <Link href="/" className="inline-flex items-center gap-3">
-              <span className="grid h-12 w-12 place-items-center rounded-lg bg-blue-600 text-white">
+              <span className="grid h-12 w-12 place-items-center rounded-lg bg-blue-600 text-white shadow-sm shadow-blue-900/20">
                 <Sparkles className="h-6 w-6" aria-hidden="true" />
               </span>
               <span className="text-2xl font-bold text-ink">MakaLearn</span>

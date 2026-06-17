@@ -1,11 +1,12 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { Archive, Pencil, Plus, Search, UserRound } from "lucide-react";
+import { Archive, Image as ImageIcon, Pencil, Plus, Search, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
+import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
+import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/form";
+import { FileUpload } from "@/components/ui/file-upload";
 import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
@@ -113,10 +114,17 @@ export function LearnersView() {
 
       <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
         <Card>
-          <CardTitle>{editing ? "Edit learner" : "Add learner"}</CardTitle>
-          <CardDescription>
-            Future Supabase: save this form to the learners table and apply teacher assignment RLS.
-          </CardDescription>
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-lg bg-blue-600 text-white">
+              <UserRound className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <CardTitle>{editing ? "Edit learner" : "Add learner"}</CardTitle>
+              <CardDescription>
+                Future Supabase: save this form to the learners table and apply teacher assignment RLS.
+              </CardDescription>
+            </div>
+          </div>
           <form className="mt-4 space-y-4" onSubmit={saveLearner}>
             <div>
               <Label htmlFor="learner-name">Learner name</Label>
@@ -135,12 +143,16 @@ export function LearnersView() {
                     <option key={item}>{item}</option>
                   ))}
                 </Select>
+                <FieldHint>Choose the support style used most often in class.</FieldHint>
               </div>
             </div>
             {user.role === "admin" ? (
               <div>
                 <Label htmlFor="assigned-teacher">Assigned teacher</Label>
                 <Select id="assigned-teacher" defaultValue="user-teacher">
+                  <option value="" disabled>
+                    Select a teacher
+                  </option>
                   {demoUsers
                     .filter((candidate) => candidate.role === "teacher")
                     .map((teacher) => (
@@ -149,15 +161,16 @@ export function LearnersView() {
                       </option>
                     ))}
                 </Select>
+                <FieldHint>Admins can reassign learners in local mode.</FieldHint>
               </div>
             ) : null}
-            <div>
-              <Label htmlFor="learner-photo">Profile photo</Label>
-              <Input id="learner-photo" type="file" accept="image/*" />
-              <p className="mt-1 text-xs text-slate-500">
-                Future Supabase Storage: upload profile photos to the learner-photos bucket.
-              </p>
-            </div>
+            <FileUpload
+              icon={ImageIcon}
+              label="Profile photo"
+              accept="image/*"
+              hint="PNG, JPG, or WebP"
+              storageNote="Future Supabase Storage: learner-photos bucket."
+            />
             <div>
               <Label htmlFor="learner-notes">Communication needs / notes</Label>
               <Textarea id="learner-notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
@@ -182,7 +195,7 @@ export function LearnersView() {
                 className="pl-10"
               />
             </div>
-            <Select value={status} onChange={(event) => setStatus(event.target.value as typeof status)}>
+            <Select value={status} onChange={(event) => setStatus(event.target.value as typeof status)} aria-label="Filter learners by status">
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
               <option value="all">All</option>
@@ -191,9 +204,9 @@ export function LearnersView() {
           {visibleLearners.length ? (
             <div className="grid gap-4 md:grid-cols-2">
               {visibleLearners.map((learner) => (
-                <Card key={learner.id}>
+                <Card key={learner.id} className="flex h-full flex-col">
                   <div className="flex items-start gap-4">
-                    <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-skywash text-xl font-bold text-blue-700">
+                    <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] text-xl font-bold text-blue-700 shadow-inner">
                       {learner.name.slice(0, 1)}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -209,7 +222,7 @@ export function LearnersView() {
                     </div>
                   </div>
                   <p className="mt-4 text-sm leading-6 text-slate-600">{learner.communicationNeeds}</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <CardFooter className="mt-4 flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" onClick={() => openForm(learner)}>
                       <Pencil className="h-4 w-4" aria-hidden="true" />
                       Edit
@@ -221,7 +234,7 @@ export function LearnersView() {
                     <Button variant="ghost" size="sm" onClick={() => notify({ title: "Progress opened", description: "Use the Progress page to review this learner." })}>
                       View progress
                     </Button>
-                  </div>
+                  </CardFooter>
                 </Card>
               ))}
             </div>

@@ -13,13 +13,13 @@ export function StatCard({
   detail?: string;
 }) {
   return (
-    <Card className="min-h-32">
+    <Card className="min-h-32 overflow-hidden bg-[#fbfdff]">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-500">{label}</p>
           <p className="mt-2 text-3xl font-bold text-ink">{value}</p>
         </div>
-        <span className="grid h-12 w-12 place-items-center rounded-lg bg-skywash text-blue-600">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-blue-100 bg-white text-blue-600 shadow-sm">
           <Icon className="h-6 w-6" aria-hidden="true" />
         </span>
       </div>

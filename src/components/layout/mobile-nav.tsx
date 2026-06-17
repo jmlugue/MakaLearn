@@ -20,8 +20,8 @@ export function MobileNav() {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-semibold",
-              active ? "bg-blue-600 text-white" : "text-slate-600"
+              "flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition",
+              active ? "bg-blue-600 text-white shadow-sm shadow-blue-900/10" : "text-slate-600 hover:bg-skywash"
             )}
           >
             <item.icon className="h-5 w-5" aria-hidden="true" />
