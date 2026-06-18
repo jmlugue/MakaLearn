@@ -6,7 +6,7 @@ const guides = [
   {
     icon: Upload,
     title: "Add learning items",
-    text: "Open Content Library, use Learning Items, add demo labels, and attach symbol, gesture, and audio placeholder files."
+    text: "Open Content Library, use Learning Items, add placeholder labels, and attach symbol, gesture, and audio files."
   },
   {
     icon: BookOpen,
@@ -16,12 +16,12 @@ const guides = [
   {
     icon: PlayCircle,
     title: "Use gesture practice",
-    text: "Select a learner or stay in demo mode, start the camera, run the attempt, simulate feedback, then save only when a learner is selected."
+    text: "Select a learner or practice without one, start the camera, run the attempt, simulate feedback, then save only when a learner is selected."
   },
   {
     icon: Library,
     title: "Run activities",
-    text: "Choose an activity, optionally select a learner, answer the prompts, and score the result. Demo mode does not save."
+    text: "Choose an activity, optionally select a learner, answer the prompts, and score the result. Results without a learner are not saved."
   },
   {
     icon: ChartBar,

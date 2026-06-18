@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   BookPlus,
@@ -29,6 +29,7 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { SelectionList } from "@/components/ui/selection-list";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
+import { useAuthUser } from "@/features/auth/use-auth-user";
 import {
   categories as mockCategories,
   demoUsers,
@@ -36,10 +37,18 @@ import {
   lessons as mockLessons,
   mediaAssets
 } from "@/data/mock-data";
+import {
+  fetchMakaLearnData,
+  insertCategory,
+  insertLesson,
+  updateLearningItemMedia
+} from "@/lib/supabase/app-data";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import { createLessonDraftFromItem } from "@/utils/lesson-template";
 import { formatDate } from "@/lib/utils";
 import { activityTypeLabels, getActivityTypeLabel } from "@/utils/activity-labels";
-import type { ActivityType, Category, LearningItem, Lesson } from "@/types";
+import type { ActivityType, Category, LearningItem, Lesson, MediaAsset } from "@/types";
 
 type Tab = "items" | "lessons" | "categories" | "media";
 
@@ -75,14 +84,15 @@ const activityTypes: ActivityType[] = [
   "simple-quiz"
 ];
 
-const userNameById = new Map(demoUsers.map((user) => [user.id, user.name]));
-
 export function ContentLibraryView() {
   const { notify } = useToast();
+  const { user } = useAuthUser();
   const [tab, setTab] = useState<Tab>("items");
   const [items, setItems] = useState<LearningItem[]>(learningItems);
   const [lessons, setLessons] = useState<Lesson[]>(mockLessons);
   const [categories, setCategories] = useState<Category[]>(mockCategories);
+  const [mediaRecords, setMediaRecords] = useState<MediaAsset[]>(mediaAssets);
+  const [users, setUsers] = useState(demoUsers);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<Omit<Lesson, "id" | "createdBy"> | null>(null);
   const [lessonTitle, setLessonTitle] = useState("");
@@ -93,6 +103,34 @@ export function ContentLibraryView() {
   const [lessonNotes, setLessonNotes] = useState("Manual lesson draft created locally.");
   const [lessonError, setLessonError] = useState("");
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadSupabaseData() {
+      try {
+        const data = await fetchMakaLearnData();
+        if (!active || !data) return;
+        setUsers(data.users.length ? data.users : demoUsers);
+        setItems(data.learningItems.length ? data.learningItems : learningItems);
+        setLessons(data.lessons.length ? data.lessons : mockLessons);
+        setCategories(data.categories.length ? data.categories : mockCategories);
+        setMediaRecords(data.mediaAssets.length ? data.mediaAssets : mediaAssets);
+      } catch (error) {
+        notify({
+          title: "Using local content data",
+          description: error instanceof Error ? error.message : "Supabase content could not be loaded."
+        });
+      }
+    }
+
+    loadSupabaseData();
+
+    return () => {
+      active = false;
+    };
+  }, [notify]);
+
+  const userNameById = useMemo(() => new Map(users.map((candidate) => [candidate.id, candidate.name])), [users]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
   const filteredItems = useMemo(
     () => items.filter((item) => item.label.toLowerCase().includes(search.toLowerCase())),
@@ -102,7 +140,7 @@ export function ContentLibraryView() {
     items: items.length,
     lessons: lessons.length,
     categories: categories.length,
-    media: mediaAssets.length
+    media: mediaRecords.length
   };
 
   function generateDraft(item: LearningItem) {
@@ -122,7 +160,7 @@ export function ContentLibraryView() {
     });
   }
 
-  function saveDraft(event: FormEvent<HTMLFormElement>) {
+  async function saveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!lessonTitle.trim()) {
       setLessonError("Lesson title is required.");
@@ -139,20 +177,31 @@ export function ContentLibraryView() {
       source: "manual" as const,
       visibility: "shared" as const
     };
-    setLessons((current) => [
-      {
-        ...base,
-        title: lessonTitle,
-        objective: lessonObjective,
-        learningItemIds: lessonItemIds,
-        activityType: lessonActivityType,
-        estimatedDuration: lessonDuration,
-        notes: lessonNotes,
-        id: `lesson-${Date.now()}`,
-        createdBy: "user-teacher"
-      },
-      ...current
-    ]);
+    const nextLesson: Lesson = {
+      ...base,
+      title: lessonTitle,
+      objective: lessonObjective,
+      learningItemIds: lessonItemIds,
+      activityType: lessonActivityType,
+      estimatedDuration: lessonDuration,
+      notes: lessonNotes,
+      id: `lesson-${Date.now()}`,
+      createdBy: user.id
+    };
+
+    let savedLesson = nextLesson;
+    if (isSupabaseConfigured()) {
+      try {
+        savedLesson = await insertLesson(nextLesson);
+      } catch (error) {
+        notify({
+          title: "Lesson saved locally",
+          description: error instanceof Error ? error.message : "Supabase lesson insert failed."
+        });
+      }
+    }
+
+    setLessons((current) => [savedLesson, ...current]);
     setDraft(null);
     setLessonTitle("");
     setLessonObjective("Practice selected learning items with teacher guidance.");
@@ -161,7 +210,11 @@ export function ContentLibraryView() {
     setLessonItemIds(items.slice(0, 2).map((item) => item.id));
     setLessonNotes("Manual lesson draft created locally.");
     setLessonError("");
-    notify({ title: "Lesson saved", description: "The lesson was added to local data.", tone: "success" });
+    notify({
+      title: "Lesson saved",
+      description: isSupabaseConfigured() ? "The lesson was saved to the lessons table." : "The lesson was added locally.",
+      tone: "success"
+    });
   }
 
   function deleteItem(item: LearningItem) {
@@ -175,23 +228,87 @@ export function ContentLibraryView() {
     });
   }
 
-  function addCategory(event: FormEvent<HTMLFormElement>) {
+  async function handleMediaUpload(
+    item: LearningItem,
+    file: File,
+    config: Pick<MediaAsset, "bucket" | "type">
+  ) {
+    try {
+      const uploaded = await uploadMediaAssetToSupabase({
+        file,
+        bucket: config.bucket,
+        type: config.type,
+        title: `${item.label} ${config.type.replace("-", " ")}`,
+        uploadedBy: user.id,
+        relatedItemId: item.id
+      });
+
+      if (uploaded.publicUrl) {
+        await updateLearningItemMedia(item.id, uploaded);
+      }
+
+      setMediaRecords((current) => [uploaded, ...current]);
+
+      setItems((current) =>
+        current.map((candidate) => {
+          if (candidate.id !== item.id || !uploaded.publicUrl) return candidate;
+
+          if (uploaded.type === "symbol-image") {
+            return { ...candidate, symbolImageUrl: uploaded.publicUrl, updatedAt: uploaded.uploadedAt };
+          }
+
+          if (uploaded.type === "gesture-media") {
+            return { ...candidate, gestureMediaUrl: uploaded.publicUrl, updatedAt: uploaded.uploadedAt };
+          }
+
+          return { ...candidate, audioUrl: uploaded.publicUrl, updatedAt: uploaded.uploadedAt };
+        })
+      );
+
+      notify({
+        title: "Media uploaded",
+        description: `${file.name} was saved to ${uploaded.bucket}.`,
+        tone: "success"
+      });
+    } catch (error) {
+      notify({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Check your Supabase setup and try again."
+      });
+      throw error;
+    }
+  }
+
+  async function addCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const name = String(form.get("categoryName") ?? "").trim();
     if (!name) return;
-    setCategories((current) => [
-      {
-        id: `cat-${Date.now()}`,
-        name,
-        description: String(form.get("categoryDescription") ?? "Shared category"),
-        color: "#dbeafe",
-        createdBy: "user-teacher"
-      },
-      ...current
-    ]);
+    const nextCategory: Category = {
+      id: `cat-${Date.now()}`,
+      name,
+      description: String(form.get("categoryDescription") ?? "Shared category"),
+      color: "#dbeafe",
+      createdBy: user.id
+    };
+    let savedCategory = nextCategory;
+    if (isSupabaseConfigured()) {
+      try {
+        savedCategory = await insertCategory(nextCategory);
+      } catch (error) {
+        notify({
+          title: "Category saved locally",
+          description: error instanceof Error ? error.message : "Supabase category insert failed."
+        });
+      }
+    }
+    setCategories((current) => [savedCategory, ...current]);
     event.currentTarget.reset();
-    notify({ title: "Category added", description: "Categories are shared with all teachers locally.", tone: "success" });
+    notify({
+      title: "Category added",
+      description: isSupabaseConfigured() ? "Categories are shared through Supabase." : "Categories are shared locally.",
+      tone: "success"
+    });
   }
 
   return (
@@ -225,8 +342,13 @@ export function ContentLibraryView() {
           <aside className="grid border-t border-blue-100 bg-[#eef7ff] p-4 sm:grid-cols-2 lg:grid-cols-1 lg:border-l lg:border-t-0">
             <LibraryMetric label="Learning items" value={items.length} detail={`${categories.length} shared categories`} icon={Layers} />
             <LibraryMetric label="Lesson drafts" value={lessons.length} detail="Manual and generated" icon={ClipboardList} />
-            <LibraryMetric label="Media records" value={mediaAssets.length} detail="Storage-ready placeholders" icon={Upload} />
-            <LibraryMetric label="Demo scope" value="Local" detail="Supabase integration point prepared" icon={Sparkles} />
+            <LibraryMetric label="Media records" value={mediaRecords.length} detail="Storage-backed when configured" icon={Upload} />
+            <LibraryMetric
+              label="Supabase"
+              value={isSupabaseConfigured() ? "Ready" : "Local"}
+              detail={isSupabaseConfigured() ? "Uploads use configured project" : "Add env keys to upload"}
+              icon={Sparkles}
+            />
           </aside>
         </div>
       </section>
@@ -292,9 +414,7 @@ export function ContentLibraryView() {
                             Created by {creator}
                           </p>
                         </div>
-                        <div className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] text-xl font-black text-blue-700 shadow-inner">
-                          {item.symbolImageUrl}
-                        </div>
+                        <LearningItemSymbolPreview value={item.symbolImageUrl} label={item.label} />
                       </div>
 
                       <div className="mt-5 rounded-lg bg-[#f7fbff] p-4">
@@ -312,9 +432,33 @@ export function ContentLibraryView() {
                       </div>
 
                       <div className="mt-4 grid gap-3">
-                        <FileUpload icon={ImageIcon} label="Symbol image" accept="image/*" hint="PNG, JPG, or WebP" storageNote="Future Supabase Storage: symbol-images bucket." compact />
-                        <FileUpload icon={Film} label="Gesture image/video" accept="image/*,video/*" hint="Image or short video" storageNote="Future Supabase Storage: gesture-media bucket." compact />
-                        <FileUpload icon={FileAudio} label="Audio" accept="audio/*" hint="MP3, WAV, or M4A" storageNote="Future Supabase Storage: audio-files bucket." compact />
+                        <FileUpload
+                          icon={ImageIcon}
+                          label="Symbol image"
+                          accept="image/*"
+                          hint="PNG, JPG, or WebP"
+                          storageNote="Supabase Storage: symbol-images bucket."
+                          onUpload={(file) => handleMediaUpload(item, file, { bucket: "symbol-images", type: "symbol-image" })}
+                          compact
+                        />
+                        <FileUpload
+                          icon={Film}
+                          label="Gesture image/video"
+                          accept="image/*,video/*"
+                          hint="Image or short video"
+                          storageNote="Supabase Storage: gesture-media bucket."
+                          onUpload={(file) => handleMediaUpload(item, file, { bucket: "gesture-media", type: "gesture-media" })}
+                          compact
+                        />
+                        <FileUpload
+                          icon={FileAudio}
+                          label="Audio"
+                          accept="audio/*"
+                          hint="MP3, WAV, or M4A"
+                          storageNote="Supabase Storage: audio-files bucket."
+                          onUpload={(file) => handleMediaUpload(item, file, { bucket: "audio-files", type: "audio-file" })}
+                          compact
+                        />
                       </div>
 
                       <CardFooter className="mt-5 grid min-h-[6.75rem] grid-cols-[minmax(0,1fr)_11rem] items-end gap-3">
@@ -484,11 +628,11 @@ export function ContentLibraryView() {
           <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
             <h2 className="text-xl font-bold text-ink">Media library</h2>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              These are local placeholder records for future Supabase Storage buckets.
+              Uploaded picture cards and placeholder records appear here. Local records remain visible when Supabase is not configured.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {mediaAssets.map((asset) => (
+            {mediaRecords.map((asset) => (
               <Card key={asset.id} className="flex h-full flex-col border-dashed">
                 <div className="flex items-start justify-between gap-3">
                   <Badge className="bg-blue-50 text-blue-700">{asset.bucket}</Badge>
@@ -500,6 +644,16 @@ export function ContentLibraryView() {
                 </div>
                 <CardTitle className="mt-3">{asset.title}</CardTitle>
                 <CardDescription>{asset.fileName}</CardDescription>
+                {asset.publicUrl ? (
+                  <a
+                    href={asset.publicUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 text-sm font-semibold text-blue-700 underline-offset-4 hover:underline"
+                  >
+                    Open uploaded file
+                  </a>
+                ) : null}
                 <CardFooter className="mt-3">
                   <p className="text-sm text-slate-600">Uploaded {formatDate(asset.uploadedAt)}</p>
                 </CardFooter>
@@ -508,6 +662,25 @@ export function ContentLibraryView() {
           </div>
         </section>
       ) : null}
+    </div>
+  );
+}
+
+function LearningItemSymbolPreview({ value, label }: { value?: string; label: string }) {
+  const isImageUrl = Boolean(value?.startsWith("http") || value?.startsWith("/"));
+
+  if (isImageUrl && value) {
+    return (
+      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-[#f8fbff] shadow-inner">
+        {/* Official/approved picture-card images can be uploaded through Supabase Storage later. */}
+        <img src={value} alt={`${label} picture card`} className="h-full w-full object-cover" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] text-xl font-black text-blue-700 shadow-inner">
+      {value}
     </div>
   );
 }

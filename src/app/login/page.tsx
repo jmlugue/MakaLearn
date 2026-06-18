@@ -16,10 +16,10 @@ export default function LoginPage() {
               <span className="text-2xl font-bold text-ink">MakaLearn</span>
             </Link>
             <h2 className="mt-8 max-w-lg text-4xl font-bold leading-tight text-ink">
-              Local role demos today, Supabase Auth ready later.
+              Sign in with your MakaLearn account.
             </h2>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-              The MVP uses local state for admin and teacher testing. Learner profiles are selected
+              Admin and teacher roles come from Supabase profiles. Learner profiles are selected
               inside teacher-guided classroom workflows.
             </p>
           </div>

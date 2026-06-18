@@ -8,19 +8,24 @@ import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/ca
 import { FieldHint, Label, Select } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
-import { categories, learners, learningItems } from "@/data/mock-data";
-import { useDemoUser } from "@/features/auth/use-demo-user";
+import { categories as mockCategories, learners as mockLearners, learningItems as mockLearningItems } from "@/data/mock-data";
+import { useAuthUser } from "@/features/auth/use-auth-user";
+import { fetchMakaLearnData, insertPracticeAttempt } from "@/lib/supabase/app-data";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { generateFeedbackPlaceholder } from "@/utils/gesture-feedback";
-import type { PracticeStatus } from "@/types";
+import type { Category, Learner, LearningItem, PracticeAttempt, PracticeStatus } from "@/types";
 
 const statuses: PracticeStatus[] = ["Correct", "Good attempt", "Needs practice", "No hand detected"];
 
 export function GesturePracticeView() {
-  const { user } = useDemoUser();
+  const { user } = useAuthUser();
   const { notify } = useToast();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [selectedItemId, setSelectedItemId] = useState(learningItems[0]?.id ?? "");
+  const [learningItems, setLearningItems] = useState<LearningItem[]>(mockLearningItems);
+  const [categories, setCategories] = useState<Category[]>(mockCategories);
+  const [learners, setLearners] = useState<Learner[]>(mockLearners);
+  const [selectedItemId, setSelectedItemId] = useState(mockLearningItems[0]?.id ?? "");
   const [selectedLearnerId, setSelectedLearnerId] = useState("");
   const [practiceStarted, setPracticeStarted] = useState(false);
   const [status, setStatus] = useState<PracticeStatus | null>(null);
@@ -30,10 +35,33 @@ export function GesturePracticeView() {
   const teacherLearners = learners.filter((learner) => user.role === "admin" || learner.assignedTeacherId === user.id);
 
   useEffect(() => {
+    let active = true;
+
+    async function loadSupabaseData() {
+      try {
+        const data = await fetchMakaLearnData();
+        if (!active || !data) return;
+        setLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems);
+        setCategories(data.categories.length ? data.categories : mockCategories);
+        setLearners(data.learners.length ? data.learners : mockLearners);
+        if (data.learningItems[0]?.id) {
+          setSelectedItemId((current) => current || data.learningItems[0].id);
+        }
+      } catch (error) {
+        notify({
+          title: "Using local practice data",
+          description: error instanceof Error ? error.message : "Supabase practice data could not be loaded."
+        });
+      }
+    }
+
+    loadSupabaseData();
+
     return () => {
+      active = false;
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
-  }, []);
+  }, [notify]);
 
   async function startPractice() {
     setPracticeStarted(true);
@@ -63,20 +91,42 @@ export function GesturePracticeView() {
     setFeedback("Practice reset. Try the attempt again.");
   }
 
-  function saveAttempt() {
+  async function saveAttempt() {
     if (!status) {
       notify({ title: "Choose a simulated result", description: "Select a result before saving." });
       return;
     }
     if (!selectedLearnerId) {
-      notify({ title: "Demo mode", description: "No learner selected, so this attempt was not saved." });
+      notify({ title: "Attempt not saved", description: "No learner selected, so this attempt was not saved." });
       return;
     }
-    // Future Supabase database: insert into practice_attempts with learner_id,
-    // learning_item_id, status, generated feedback, and saved_by.
+    const attempt: PracticeAttempt = {
+      id: `attempt-${Date.now()}`,
+      learnerId: selectedLearnerId,
+      learningItemId: selectedItem.id,
+      status,
+      feedback,
+      attemptedAt: new Date().toISOString(),
+      savedBy: user.id
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        await insertPracticeAttempt(attempt);
+      } catch (error) {
+        notify({
+          title: "Attempt saved locally",
+          description: error instanceof Error ? error.message : "Supabase practice attempt insert failed."
+        });
+        return;
+      }
+    }
+
     notify({
-      title: "Attempt saved locally",
-      description: "This local save simulates the future practice_attempts insert.",
+      title: isSupabaseConfigured() ? "Attempt saved" : "Attempt saved locally",
+      description: isSupabaseConfigured()
+        ? "The simulated practice result was written to practice_attempts."
+        : "This local save simulates the practice_attempts insert.",
       tone: "success"
     });
   }
@@ -86,7 +136,7 @@ export function GesturePracticeView() {
       <PageHeader
         eyebrow="Gesture Practice"
         title="Teacher-guided practice"
-        description="Use webcam preview and simulated teacher controls. Demo mode runs without saving results when no learner is selected."
+        description="Use webcam preview and simulated teacher controls. Practice without a learner runs without saving results."
       />
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="overflow-hidden">
@@ -132,14 +182,14 @@ export function GesturePracticeView() {
               <div>
                 <Label htmlFor="learner-select">Learner</Label>
                 <Select id="learner-select" value={selectedLearnerId} onChange={(event) => setSelectedLearnerId(event.target.value)}>
-                  <option value="">Demo mode - do not save</option>
+                  <option value="">No learner - do not save</option>
                   {teacherLearners.map((learner) => (
                     <option key={learner.id} value={learner.id}>
                       {learner.name}
                     </option>
                   ))}
                 </Select>
-                <FieldHint>Leave in demo mode when you do not want to save results.</FieldHint>
+                <FieldHint>Leave blank when you do not want to save results.</FieldHint>
               </div>
             </div>
           </Card>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, LineChart as LineChartIcon, UserRound } from "lucide-react";
 import {
   CartesianGrid,
@@ -18,17 +18,66 @@ import { FieldHint, Label, Select } from "@/components/ui/form";
 import { StatCard } from "@/components/common/stat-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
-import { activityResults, learners, learningItems, lessons, practiceAttempts } from "@/data/mock-data";
-import { useDemoUser } from "@/features/auth/use-demo-user";
+import {
+  activityResults as mockActivityResults,
+  learners as mockLearners,
+  learningItems as mockLearningItems,
+  lessons as mockLessons,
+  practiceAttempts as mockPracticeAttempts
+} from "@/data/mock-data";
+import { useAuthUser } from "@/features/auth/use-auth-user";
+import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { formatDate } from "@/lib/utils";
 import { getActivityTypeLabel } from "@/utils/activity-labels";
 import { getLearnerAccuracy, getMostPracticedItemIds } from "@/utils/progress";
+import type { ActivityResult, Learner, LearningItem, Lesson, PracticeAttempt } from "@/types";
 
 export function ProgressView() {
-  const { user } = useDemoUser();
+  const { user } = useAuthUser();
   const { notify } = useToast();
-  const visibleLearners = learners.filter((learner) => user.role === "admin" || learner.assignedTeacherId === user.id);
+  const [learners, setLearners] = useState<Learner[]>(mockLearners);
+  const [learningItems, setLearningItems] = useState<LearningItem[]>(mockLearningItems);
+  const [lessons, setLessons] = useState<Lesson[]>(mockLessons);
+  const [practiceAttempts, setPracticeAttempts] = useState<PracticeAttempt[]>(mockPracticeAttempts);
+  const [activityResults, setActivityResults] = useState<ActivityResult[]>(mockActivityResults);
+  const visibleLearners = useMemo(
+    () => learners.filter((learner) => user.role === "admin" || learner.assignedTeacherId === user.id),
+    [learners, user]
+  );
   const [selectedLearnerId, setSelectedLearnerId] = useState(visibleLearners[0]?.id ?? "");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSupabaseData() {
+      try {
+        const data = await fetchMakaLearnData();
+        if (!active || !data) return;
+        setLearners(data.learners.length ? data.learners : mockLearners);
+        setLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems);
+        setLessons(data.lessons.length ? data.lessons : mockLessons);
+        setPracticeAttempts(data.practiceAttempts.length ? data.practiceAttempts : mockPracticeAttempts);
+        setActivityResults(data.activityResults.length ? data.activityResults : mockActivityResults);
+      } catch (error) {
+        notify({
+          title: "Using local progress data",
+          description: error instanceof Error ? error.message : "Supabase progress data could not be loaded."
+        });
+      }
+    }
+
+    loadSupabaseData();
+
+    return () => {
+      active = false;
+    };
+  }, [notify]);
+
+  useEffect(() => {
+    if (!visibleLearners.length) return;
+    setSelectedLearnerId((current) => (visibleLearners.some((learner) => learner.id === current) ? current : visibleLearners[0].id));
+  }, [visibleLearners]);
+
   const learner = visibleLearners.find((item) => item.id === selectedLearnerId) ?? visibleLearners[0];
   const learnerResults = activityResults.filter((result) => result.learnerId === learner?.id);
   const learnerAttempts = practiceAttempts.filter((attempt) => attempt.learnerId === learner?.id);

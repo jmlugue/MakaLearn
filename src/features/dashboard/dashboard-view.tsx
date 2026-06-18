@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, BookOpen, Clock, Upload, UserRound, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/ca
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/common/stat-card";
 import { PageHeader } from "@/components/layout/page-header";
-import { useDemoUser } from "@/features/auth/use-demo-user";
+import { useAuthUser } from "@/features/auth/use-auth-user";
 import {
   activityResults,
   demoUsers,
@@ -18,7 +19,19 @@ import {
   mediaAssets,
   practiceAttempts
 } from "@/data/mock-data";
+import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { formatDate } from "@/lib/utils";
+import type { ActivityResult, AppUser, Learner, LearningItem, Lesson, MediaAsset, PracticeAttempt } from "@/types";
+
+type DashboardData = {
+  users: AppUser[];
+  learners: Learner[];
+  learningItems: LearningItem[];
+  lessons: Lesson[];
+  mediaAssets: MediaAsset[];
+  practiceAttempts: PracticeAttempt[];
+  activityResults: ActivityResult[];
+};
 
 const chartData = [
   { name: "Mon", attempts: 3 },
@@ -29,9 +42,49 @@ const chartData = [
 ];
 
 export function DashboardView() {
-  const { user } = useDemoUser();
+  const { user } = useAuthUser();
+  const [data, setData] = useState({
+    users: demoUsers as AppUser[],
+    learners: learners as Learner[],
+    learningItems: learningItems as LearningItem[],
+    lessons: lessons as Lesson[],
+    mediaAssets: mediaAssets as MediaAsset[],
+    practiceAttempts: practiceAttempts as PracticeAttempt[],
+    activityResults: activityResults as ActivityResult[]
+  });
   const isAdmin = user.role === "admin";
-  const assignedLearners = learners.filter((learner) => learner.assignedTeacherId === user.id);
+  const assignedLearners = useMemo(
+    () => data.learners.filter((learner) => learner.assignedTeacherId === user.id),
+    [data.learners, user.id]
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSupabaseData() {
+      try {
+        const next = await fetchMakaLearnData();
+        if (!active || !next) return;
+        setData({
+          users: next.users.length ? next.users : demoUsers,
+          learners: next.learners.length ? next.learners : learners,
+          learningItems: next.learningItems.length ? next.learningItems : learningItems,
+          lessons: next.lessons.length ? next.lessons : lessons,
+          mediaAssets: next.mediaAssets.length ? next.mediaAssets : mediaAssets,
+          practiceAttempts: next.practiceAttempts.length ? next.practiceAttempts : practiceAttempts,
+          activityResults: next.activityResults.length ? next.activityResults : activityResults
+        });
+      } catch {
+        // Keep the dashboard usable with local mock data if Supabase is not ready.
+      }
+    }
+
+    loadSupabaseData();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <>
@@ -61,20 +114,20 @@ export function DashboardView() {
         }
       />
 
-      {isAdmin ? <AdminDashboard /> : <TeacherDashboard assignedCount={assignedLearners.length} />}
+      {isAdmin ? <AdminDashboard data={data} /> : <TeacherDashboard data={data} assignedCount={assignedLearners.length} />}
     </>
   );
 }
 
-function AdminDashboard() {
+function AdminDashboard({ data }: { data: DashboardData }) {
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard icon={UserRound} label="Teachers" value={demoUsers.filter((u) => u.role === "teacher").length} />
-        <StatCard icon={Users} label="Learners" value={learners.length} />
-        <StatCard icon={BookOpen} label="Learning items" value={learningItems.length} />
-        <StatCard icon={Clock} label="Lessons" value={lessons.length} />
-        <StatCard icon={Activity} label="Attempts" value={practiceAttempts.length} />
+        <StatCard icon={UserRound} label="Teachers" value={data.users.filter((u) => u.role === "teacher").length} />
+        <StatCard icon={Users} label="Learners" value={data.learners.length} />
+        <StatCard icon={BookOpen} label="Learning items" value={data.learningItems.length} />
+        <StatCard icon={Clock} label="Lessons" value={data.lessons.length} />
+        <StatCard icon={Activity} label="Attempts" value={data.practiceAttempts.length} />
       </section>
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="overflow-hidden">
@@ -95,7 +148,7 @@ function AdminDashboard() {
         <Card>
           <CardTitle>Teacher accounts</CardTitle>
           <div className="mt-4 space-y-3">
-            {demoUsers
+            {data.users
               .filter((item) => item.role === "teacher")
               .map((teacher) => (
                 <div key={teacher.id} className="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
@@ -115,7 +168,7 @@ function AdminDashboard() {
         <Card className="flex h-full flex-col">
           <CardTitle>Recent uploads</CardTitle>
           <div className="mt-4 space-y-3">
-            {mediaAssets.slice(0, 3).map((asset) => (
+            {data.mediaAssets.slice(0, 3).map((asset) => (
               <div key={asset.id} className="flex gap-3 rounded-lg border border-blue-50 bg-[#f8fbff] p-3">
                 <Upload className="mt-1 h-5 w-5 shrink-0 text-blue-600" aria-hidden="true" />
                 <div>
@@ -148,14 +201,14 @@ function AdminDashboard() {
   );
 }
 
-function TeacherDashboard({ assignedCount }: { assignedCount: number }) {
+function TeacherDashboard({ data, assignedCount }: { data: DashboardData; assignedCount: number }) {
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Users} label="Assigned learners" value={assignedCount} />
-        <StatCard icon={BookOpen} label="Recent items" value={learningItems.slice(0, 4).length} />
-        <StatCard icon={Activity} label="Practice attempts" value={practiceAttempts.length} />
-        <StatCard icon={Clock} label="Recommended lessons" value={lessons.length} />
+        <StatCard icon={BookOpen} label="Recent items" value={data.learningItems.slice(0, 4).length} />
+        <StatCard icon={Activity} label="Practice attempts" value={data.practiceAttempts.length} />
+        <StatCard icon={Clock} label="Recommended lessons" value={data.lessons.length} />
       </section>
       <section className="grid gap-4 lg:grid-cols-3">
         <Card className="flex h-full flex-col">
@@ -181,8 +234,8 @@ function TeacherDashboard({ assignedCount }: { assignedCount: number }) {
         <Card className="flex h-full flex-col">
           <CardTitle>Recent practice attempts</CardTitle>
           <div className="mt-4 space-y-3">
-            {practiceAttempts.map((attempt) => {
-              const item = learningItems.find((learningItem) => learningItem.id === attempt.learningItemId);
+            {data.practiceAttempts.map((attempt) => {
+              const item = data.learningItems.find((learningItem) => learningItem.id === attempt.learningItemId);
               return (
                 <div key={attempt.id} className="rounded-lg border border-blue-100 bg-skywash p-3">
                   <p className="font-semibold">{item?.label}</p>
@@ -195,7 +248,7 @@ function TeacherDashboard({ assignedCount }: { assignedCount: number }) {
         <Card className="flex h-full flex-col">
           <CardTitle>Learner progress alerts</CardTitle>
           <div className="mt-4 space-y-3">
-            {activityResults.map((result) => (
+            {data.activityResults.map((result) => (
               <div key={result.id} className="rounded-lg border border-orange-100 bg-coral p-3">
                 <p className="font-semibold">{result.scorePercentage}% activity score</p>
                 <p className="text-sm text-slate-600">Review missed items in the next guided session.</p>

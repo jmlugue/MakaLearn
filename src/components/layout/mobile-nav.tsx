@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { adminNavItem, baseNavItems } from "@/components/layout/nav-items";
-import { useDemoUser } from "@/features/auth/use-demo-user";
+import { useAuthUser } from "@/features/auth/use-auth-user";
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { user } = useDemoUser();
+  const { user } = useAuthUser();
   const items = user.role === "admin" ? [...baseNavItems.slice(0, 5), adminNavItem] : baseNavItems.slice(0, 5);
 
   return (

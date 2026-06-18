@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, useId, useRef, useState } from "react";
-import { FileUp, Trash2, type LucideIcon } from "lucide-react";
+import { CheckCircle2, FileUp, Loader2, Trash2, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ export function FileUpload({
   accept,
   hint,
   storageNote,
+  onUpload,
   icon: Icon = FileUp,
   compact = false
 }: {
@@ -17,15 +18,35 @@ export function FileUpload({
   accept: string;
   hint: string;
   storageNote: string;
+  onUpload?: (file: File) => Promise<void>;
   icon?: LucideIcon;
   compact?: boolean;
 }) {
   const id = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [fileName, setFileName] = useState("");
+  const [status, setStatus] = useState<"idle" | "uploading" | "uploaded" | "error">("idle");
+  const [message, setMessage] = useState("");
 
-  function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    setFileName(event.target.files?.[0]?.name ?? "");
+  async function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setFileName(file?.name ?? "");
+    setMessage("");
+
+    if (!file || !onUpload) {
+      setStatus("idle");
+      return;
+    }
+
+    try {
+      setStatus("uploading");
+      await onUpload(file);
+      setStatus("uploaded");
+      setMessage("Uploaded to Supabase Storage.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Upload failed.");
+    }
   }
 
   function removeFile() {
@@ -33,6 +54,8 @@ export function FileUpload({
       inputRef.current.value = "";
     }
     setFileName("");
+    setStatus("idle");
+    setMessage("");
   }
 
   return (
@@ -78,8 +101,11 @@ export function FileUpload({
           ) : null}
         </div>
       </div>
-      {/* Future Supabase Storage: wire this control to the bucket noted below. */}
-      <p className="mt-2 text-xs leading-5 text-slate-500">{storageNote}</p>
+      <div className="mt-2 flex items-start gap-2 text-xs leading-5">
+        {status === "uploading" ? <Loader2 className="mt-0.5 h-3.5 w-3.5 animate-spin text-blue-600" aria-hidden="true" /> : null}
+        {status === "uploaded" ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-green-600" aria-hidden="true" /> : null}
+        <p className={cn(status === "error" ? "text-red-600" : "text-slate-500")}>{message || storageNote}</p>
+      </div>
     </div>
   );
 }

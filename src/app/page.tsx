@@ -6,8 +6,8 @@ import { Card } from "@/components/ui/card";
 const highlights = [
   {
     icon: BookOpen,
-    title: "Local content library",
-    text: "Organize demo learning items, lessons, categories, and media upload placeholders."
+    title: "Content library",
+    text: "Organize placeholder learning items, lessons, categories, and media uploads."
   },
   {
     icon: Hand,
@@ -17,7 +17,7 @@ const highlights = [
   {
     icon: LineChart,
     title: "Progress view",
-    text: "Track local practice attempts and activity scores before backend integration."
+    text: "Track practice attempts and activity scores for learner progress."
   }
 ];
 
@@ -53,7 +53,7 @@ export default function LandingPage() {
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Link href="/login" className="inline-flex">
               <Button size="lg">
-                Open demo login <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                Sign in <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Button>
             </Link>
             <Link href="/help" className="inline-flex">

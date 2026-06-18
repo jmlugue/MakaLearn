@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Archive, Image as ImageIcon, Pencil, Plus, Search, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,16 +10,20 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
-import { useDemoUser } from "@/features/auth/use-demo-user";
+import { useAuthUser } from "@/features/auth/use-auth-user";
 import { demoUsers, learners as mockLearners } from "@/data/mock-data";
-import type { Learner, PreferredLearningMode } from "@/types";
+import { fetchMakaLearnData, upsertLearner } from "@/lib/supabase/app-data";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { uploadMediaAssetToSupabase } from "@/lib/supabase/media";
+import type { AppUser, Learner, PreferredLearningMode } from "@/types";
 
 const modes: PreferredLearningMode[] = ["Visual", "Audio", "Gesture", "Mixed", "Teacher-guided"];
 
 export function LearnersView() {
-  const { user } = useDemoUser();
+  const { user } = useAuthUser();
   const { notify } = useToast();
   const [learners, setLearners] = useState<Learner[]>(mockLearners);
+  const [users, setUsers] = useState<AppUser[]>(demoUsers);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("active");
   const [editing, setEditing] = useState<Learner | null>(null);
@@ -27,7 +31,33 @@ export function LearnersView() {
   const [age, setAge] = useState("");
   const [mode, setMode] = useState<PreferredLearningMode>("Visual");
   const [notes, setNotes] = useState("");
+  const [assignedTeacherId, setAssignedTeacherId] = useState("user-teacher");
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState("/placeholder-new");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSupabaseData() {
+      try {
+        const data = await fetchMakaLearnData();
+        if (!active || !data) return;
+        setLearners(data.learners.length ? data.learners : mockLearners);
+        setUsers(data.users.length ? data.users : demoUsers);
+      } catch (error) {
+        notify({
+          title: "Using local learner data",
+          description: error instanceof Error ? error.message : "Supabase learners could not be loaded."
+        });
+      }
+    }
+
+    loadSupabaseData();
+
+    return () => {
+      active = false;
+    };
+  }, [notify]);
 
   const visibleLearners = useMemo(() => {
     return learners.filter((learner) => {
@@ -44,58 +74,104 @@ export function LearnersView() {
     setAge(learner?.age ? String(learner.age) : "");
     setMode(learner?.preferredLearningMode ?? "Visual");
     setNotes(learner?.communicationNeeds ?? "");
+    setAssignedTeacherId(learner?.assignedTeacherId ?? (user.role === "teacher" ? user.id : "user-teacher"));
+    setProfilePhotoUrl(learner?.profilePhotoUrl ?? "/placeholder-new");
     setError("");
   }
 
-  function saveLearner(event: FormEvent<HTMLFormElement>) {
+  async function saveLearner(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!name.trim()) {
       setError("Learner name is required.");
       return;
     }
 
+    const nextLearner: Learner = {
+      id: editing?.id ?? `learner-${Date.now()}`,
+      name,
+      age: Number(age) || editing?.age || 6,
+      gradeLevel: editing?.gradeLevel ?? "New profile",
+      communicationNeeds: notes || "Add communication notes after the first session.",
+      preferredLearningMode: mode,
+      assignedTeacherId: user.role === "teacher" ? user.id : assignedTeacherId,
+      profilePhotoUrl,
+      status: editing?.status ?? "active"
+    };
+
+    let savedLearner = nextLearner;
+    if (isSupabaseConfigured()) {
+      try {
+        savedLearner = await upsertLearner(nextLearner);
+      } catch (error) {
+        notify({
+          title: "Learner saved locally",
+          description: error instanceof Error ? error.message : "Supabase learner save failed."
+        });
+      }
+    }
+
     if (editing) {
       setLearners((current) =>
-        current.map((learner) =>
-          learner.id === editing.id
-            ? {
-                ...learner,
-                name,
-                age: Number(age) || learner.age,
-                preferredLearningMode: mode,
-                communicationNeeds: notes
-              }
-            : learner
-        )
+        current.map((learner) => (learner.id === editing.id ? savedLearner : learner))
       );
-      notify({ title: "Learner updated", description: `${name} was updated locally.`, tone: "success" });
+      notify({
+        title: "Learner updated",
+        description: isSupabaseConfigured() ? `${name} was saved to Supabase.` : `${name} was updated locally.`,
+        tone: "success"
+      });
     } else {
-      const newLearner: Learner = {
-        id: `learner-${Date.now()}`,
-        name,
-        age: Number(age) || 6,
-        gradeLevel: "New profile",
-        communicationNeeds: notes || "Add communication notes after the first session.",
-        preferredLearningMode: mode,
-        assignedTeacherId: user.role === "teacher" ? user.id : "user-teacher",
-        profilePhotoUrl: "/placeholder-new",
-        status: "active"
-      };
-      setLearners((current) => [newLearner, ...current]);
+      setLearners((current) => [savedLearner, ...current]);
       notify({
         title: "Learner added",
-        description: "Teacher-created learners are assigned to the current teacher in local mode.",
+        description: isSupabaseConfigured()
+          ? "Teacher-created learners are saved to Supabase."
+          : "Teacher-created learners are assigned to the current teacher in local mode.",
         tone: "success"
       });
     }
     openForm();
   }
 
-  function archiveLearner(learnerId: string) {
+  async function archiveLearner(learnerId: string) {
+    const learner = learners.find((candidate) => candidate.id === learnerId);
+    if (!learner) return;
+    const archived = { ...learner, status: "inactive" as const };
+    if (isSupabaseConfigured()) {
+      try {
+        await upsertLearner(archived);
+      } catch (error) {
+        notify({
+          title: "Learner archived locally",
+          description: error instanceof Error ? error.message : "Supabase archive update failed."
+        });
+      }
+    }
     setLearners((current) =>
-      current.map((learner) => (learner.id === learnerId ? { ...learner, status: "inactive" } : learner))
+      current.map((candidate) => (candidate.id === learnerId ? archived : candidate))
     );
     notify({ title: "Learner archived", description: "The profile remains available under inactive learners." });
+  }
+
+  async function uploadProfilePhoto(file: File) {
+    try {
+      const uploaded = await uploadMediaAssetToSupabase({
+        file,
+        bucket: "learner-photos",
+        type: "learner-photo",
+        title: `${name || "Learner"} profile photo`,
+        uploadedBy: user.id
+      });
+      if (uploaded.publicUrl) {
+        setProfilePhotoUrl(uploaded.publicUrl);
+      }
+      notify({ title: "Profile photo uploaded", description: `${file.name} was saved to learner-photos.`, tone: "success" });
+    } catch (error) {
+      notify({
+        title: "Photo upload failed",
+        description: error instanceof Error ? error.message : "Check Supabase Storage setup."
+      });
+      throw error;
+    }
   }
 
   return (
@@ -149,11 +225,11 @@ export function LearnersView() {
             {user.role === "admin" ? (
               <div>
                 <Label htmlFor="assigned-teacher">Assigned teacher</Label>
-                <Select id="assigned-teacher" defaultValue="user-teacher">
+                <Select id="assigned-teacher" value={assignedTeacherId} onChange={(event) => setAssignedTeacherId(event.target.value)}>
                   <option value="" disabled>
                     Select a teacher
                   </option>
-                  {demoUsers
+                  {users
                     .filter((candidate) => candidate.role === "teacher")
                     .map((teacher) => (
                       <option key={teacher.id} value={teacher.id}>
@@ -169,7 +245,8 @@ export function LearnersView() {
               label="Profile photo"
               accept="image/*"
               hint="PNG, JPG, or WebP"
-              storageNote="Future Supabase Storage: learner-photos bucket."
+              storageNote="Supabase Storage: learner-photos bucket."
+              onUpload={uploadProfilePhoto}
             />
             <div>
               <Label htmlFor="learner-notes">Communication needs / notes</Label>

@@ -7,11 +7,15 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { FieldHint, Input, Label, Select } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
-import { useDemoUser } from "@/features/auth/use-demo-user";
+import { useAuthUser } from "@/features/auth/use-auth-user";
+import { updateProfileDetails } from "@/lib/supabase/app-data";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 export function SettingsView() {
-  const { user } = useDemoUser();
+  const { user } = useAuthUser();
   const { notify } = useToast();
+  const [profileName, setProfileName] = useState(user.name);
+  const [profileEmail, setProfileEmail] = useState(user.email);
   const [largeText, setLargeText] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -22,6 +26,34 @@ export function SettingsView() {
     document.documentElement.classList.toggle("high-contrast", highContrast);
     document.documentElement.classList.toggle("reduce-motion", reduceMotion);
   }, [largeText, highContrast, reduceMotion]);
+
+  useEffect(() => {
+    setProfileName(user.name);
+    setProfileEmail(user.email);
+  }, [user]);
+
+  async function saveProfile() {
+    if (!profileName.trim() || !profileEmail.includes("@")) {
+      notify({ title: "Check profile details", description: "Name and a valid email are required." });
+      return;
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        await updateProfileDetails(user.id, { name: profileName, email: profileEmail });
+        notify({ title: "Profile saved", description: "Profile details were saved to Supabase.", tone: "success" });
+        return;
+      } catch (error) {
+        notify({
+          title: "Profile saved locally",
+          description: error instanceof Error ? error.message : "Supabase profile update failed."
+        });
+        return;
+      }
+    }
+
+    notify({ title: "Profile saved", description: "This updates local form state only.", tone: "success" });
+  }
 
   return (
     <>
@@ -39,14 +71,14 @@ export function SettingsView() {
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="profile-name">Name</Label>
-              <Input id="profile-name" defaultValue={user.name} />
+              <Input id="profile-name" value={profileName} onChange={(event) => setProfileName(event.target.value)} />
             </div>
             <div>
               <Label htmlFor="profile-email">Email</Label>
-              <Input id="profile-email" defaultValue={user.email} />
+              <Input id="profile-email" value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} />
             </div>
           </div>
-          <Button className="mt-4" onClick={() => notify({ title: "Profile saved", description: "This updates local form state only.", tone: "success" })}>
+          <Button className="mt-4" onClick={saveProfile}>
             Save profile
           </Button>
         </Card>
@@ -94,7 +126,7 @@ export function SettingsView() {
           </div>
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-blue-100 bg-skywash p-3">
             <Info className="mt-0.5 h-5 w-5 text-blue-600" aria-hidden="true" />
-            <p className="text-sm leading-6 text-slate-600">MakaLearn uses local demo data until backend integration is connected.</p>
+            <p className="text-sm leading-6 text-slate-600">MakaLearn uses Supabase Auth and falls back to placeholder records when setup data is missing.</p>
           </div>
         </Card>
       </section>

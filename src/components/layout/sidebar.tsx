@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { LogOut, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { adminNavItem, baseNavItems } from "@/components/layout/nav-items";
-import { useDemoUser } from "@/features/auth/use-demo-user";
+import { useAuthUser } from "@/features/auth/use-auth-user";
 import { Button } from "@/components/ui/button";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useDemoUser();
+  const { user, signOut } = useAuthUser();
   const items = user.role === "admin" ? [...baseNavItems, adminNavItem] : baseNavItems;
 
   return (
@@ -48,9 +48,9 @@ export function Sidebar() {
         <p className="text-sm font-semibold text-ink">{user.name}</p>
         <p className="text-xs capitalize text-slate-600">{user.role}</p>
       </div>
-      <Button variant="ghost" className="mt-3 justify-start">
+      <Button variant="ghost" className="mt-3 justify-start" onClick={signOut}>
         <LogOut className="h-4 w-4" aria-hidden="true" />
-        Local demo mode
+        Sign out
       </Button>
     </aside>
   );

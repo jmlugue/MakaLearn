@@ -41,6 +41,8 @@ export type MediaAsset = {
   type: "symbol-image" | "gesture-media" | "audio-file" | "learner-photo";
   fileName: string;
   bucket: "symbol-images" | "gesture-media" | "audio-files" | "learner-photos";
+  storagePath?: string;
+  publicUrl?: string;
   uploadedBy: string;
   uploadedAt: string;
   relatedItemId?: string;

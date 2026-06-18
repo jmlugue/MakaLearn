@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Dices, Play, Plus, Save } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,17 +8,26 @@ import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/ca
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
-import { activities as mockActivities, learners, learningItems } from "@/data/mock-data";
-import { useDemoUser } from "@/features/auth/use-demo-user";
+import { activities as mockActivities, learners as mockLearners, learningItems as mockLearningItems } from "@/data/mock-data";
+import { useAuthUser } from "@/features/auth/use-auth-user";
+import {
+  createActivityQuestions,
+  fetchMakaLearnData,
+  insertActivity,
+  insertActivityResult
+} from "@/lib/supabase/app-data";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { activityTypeLabels } from "@/utils/activity-labels";
-import type { Activity, ActivityQuestion, ActivityType } from "@/types";
+import type { Activity, ActivityResult, ActivityType, Learner, LearningItem } from "@/types";
 
 const activityTypes = Object.keys(activityTypeLabels) as ActivityType[];
 
 export function ActivitiesView() {
-  const { user } = useDemoUser();
+  const { user } = useAuthUser();
   const { notify } = useToast();
   const [activities, setActivities] = useState<Activity[]>(mockActivities);
+  const [learners, setLearners] = useState<Learner[]>(mockLearners);
+  const [learningItems, setLearningItems] = useState<LearningItem[]>(mockLearningItems);
   const [selectedActivityId, setSelectedActivityId] = useState(mockActivities[0].id);
   const [selectedLearnerId, setSelectedLearnerId] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -29,11 +38,38 @@ export function ActivitiesView() {
   const [privateActivity, setPrivateActivity] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadSupabaseData() {
+      try {
+        const data = await fetchMakaLearnData();
+        if (!active || !data) return;
+        const nextActivities = data.activities.length ? data.activities : mockActivities;
+        setActivities(nextActivities);
+        setLearners(data.learners.length ? data.learners : mockLearners);
+        setLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems);
+        setSelectedActivityId((current) => nextActivities.some((activity) => activity.id === current) ? current : nextActivities[0]?.id ?? "");
+      } catch (error) {
+        notify({
+          title: "Using local activity data",
+          description: error instanceof Error ? error.message : "Supabase activities could not be loaded."
+        });
+      }
+    }
+
+    loadSupabaseData();
+
+    return () => {
+      active = false;
+    };
+  }, [notify]);
+
   const selectedActivity = activities.find((activity) => activity.id === selectedActivityId) ?? activities[0];
   const teacherLearners = learners.filter((learner) => user.role === "admin" || learner.assignedTeacherId === user.id);
   const selectedItems = useMemo(
     () => selectedActivity.learningItemIds.map((id) => learningItems.find((item) => item.id === id)).filter(Boolean),
-    [selectedActivity]
+    [learningItems, selectedActivity]
   );
 
   function chooseAnswer(questionId: string, value: string) {
@@ -41,7 +77,7 @@ export function ActivitiesView() {
     setResult(null);
   }
 
-  function scoreActivity() {
+  async function scoreActivity() {
     const correct = selectedActivity.questions.reduce(
       (sum, question) => sum + (answers[question.id] === question.answer ? 1 : 0),
       0
@@ -50,12 +86,40 @@ export function ActivitiesView() {
     const score = selectedActivity.questions.length ? Math.round((correct / selectedActivity.questions.length) * 100) : 0;
     setResult({ score, correct, incorrect });
     if (!selectedLearnerId) {
-      notify({ title: "Demo result", description: "No learner selected, so this activity result was not saved." });
+      notify({ title: "Result not saved", description: "No learner selected, so this activity result was not saved." });
       return;
     }
-    // Future Supabase database: insert into activity_results only when a learner
-    // is selected. Demo mode intentionally skips saving.
-    notify({ title: "Activity result saved locally", description: `${score}% score recorded for this demo session.`, tone: "success" });
+    const activityResult: ActivityResult = {
+      id: `result-${Date.now()}`,
+      learnerId: selectedLearnerId,
+      activityId: selectedActivity.id,
+      activityType: selectedActivity.type,
+      scorePercentage: score,
+      correctCount: correct,
+      incorrectCount: incorrect,
+      timeSpentSeconds: 120,
+      completedAt: new Date().toISOString(),
+      relatedLearningItemIds: selectedActivity.learningItemIds,
+      savedBy: user.id
+    };
+
+    if (isSupabaseConfigured()) {
+      try {
+        await insertActivityResult(activityResult);
+      } catch (error) {
+        notify({
+          title: "Activity result saved locally",
+          description: error instanceof Error ? error.message : "Supabase result insert failed."
+        });
+        return;
+      }
+    }
+
+    notify({
+      title: isSupabaseConfigured() ? "Activity result saved" : "Activity result saved locally",
+      description: `${score}% score recorded for this session.`,
+      tone: "success"
+    });
   }
 
   function resetPlayer(activityId = selectedActivityId) {
@@ -65,27 +129,14 @@ export function ActivitiesView() {
     setResult(null);
   }
 
-  function createActivity(event: FormEvent<HTMLFormElement>) {
+  async function createActivity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!title.trim()) {
       setError("Activity title is required.");
       return;
     }
     const baseItems = learningItems.slice(0, 3);
-    const questions: ActivityQuestion[] = baseItems.slice(0, 2).map((item) => ({
-      id: `q-${Date.now()}-${item.id}`,
-      prompt: type === "fill-blank" ? `I want to ____ (${item.label})` : item.label,
-      answer: type === "gesture-practice" ? "Correct" : type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol" ? item.symbolImageUrl ?? item.label : item.label,
-      options:
-        type === "gesture-practice"
-          ? ["Correct", "Good attempt", "Needs practice"]
-          : baseItems.map((candidate) =>
-              type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol"
-                ? candidate.symbolImageUrl ?? candidate.label
-                : candidate.label
-            ),
-      learningItemId: item.id
-    }));
+    const questions = createActivityQuestions(type, baseItems);
     const newActivity: Activity = {
       id: `activity-${Date.now()}`,
       title,
@@ -96,15 +147,30 @@ export function ActivitiesView() {
       visibility: privateActivity ? "private" : "shared",
       createdBy: user.id
     };
-    setActivities((current) => [newActivity, ...current]);
-    resetPlayer(newActivity.id);
+    let savedActivity = newActivity;
+    if (isSupabaseConfigured()) {
+      try {
+        savedActivity = await insertActivity(newActivity);
+      } catch (error) {
+        notify({
+          title: "Activity created locally",
+          description: error instanceof Error ? error.message : "Supabase activity insert failed."
+        });
+      }
+    }
+    setActivities((current) => [savedActivity, ...current]);
+    resetPlayer(savedActivity.id);
     setTitle("");
     setPrivateActivity(false);
     setError("");
-    notify({ title: "Activity created", description: "The new activity is available in the local library.", tone: "success" });
+    notify({
+      title: "Activity created",
+      description: isSupabaseConfigured() ? "The new activity was saved to Supabase." : "The new activity is available locally.",
+      tone: "success"
+    });
   }
 
-  function autoGenerate() {
+  async function autoGenerate() {
     const item = learningItems[Math.floor(Math.random() * learningItems.length)];
     const generated: Activity = {
       id: `activity-auto-${Date.now()}`,
@@ -124,8 +190,19 @@ export function ActivitiesView() {
       visibility: "shared",
       createdBy: user.id
     };
-    setActivities((current) => [generated, ...current]);
-    resetPlayer(generated.id);
+    let savedActivity = generated;
+    if (isSupabaseConfigured()) {
+      try {
+        savedActivity = await insertActivity(generated);
+      } catch (error) {
+        notify({
+          title: "Activity generated locally",
+          description: error instanceof Error ? error.message : "Supabase activity insert failed."
+        });
+      }
+    }
+    setActivities((current) => [savedActivity, ...current]);
+    resetPlayer(savedActivity.id);
     notify({ title: "Activity generated", description: `Created a quick activity from ${item.label}.`, tone: "success" });
   }
 
@@ -225,7 +302,7 @@ export function ActivitiesView() {
             <div className="min-w-56">
               <Label htmlFor="activity-learner">Learner</Label>
               <Select id="activity-learner" value={selectedLearnerId} onChange={(event) => setSelectedLearnerId(event.target.value)}>
-                <option value="">Demo mode - do not save</option>
+                <option value="">No learner - do not save</option>
                 {teacherLearners.map((learner) => (
                   <option key={learner.id} value={learner.id}>
                     {learner.name}
