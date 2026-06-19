@@ -198,8 +198,27 @@ export function GesturePracticeView() {
             <Badge>{selectedCategory?.name}</Badge>
             <CardTitle className="mt-3">{selectedItem.label}</CardTitle>
             <p className="mt-3 text-sm leading-6 text-slate-600">{selectedItem.instruction}</p>
-            <div className="mt-4 grid min-h-24 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] text-2xl font-bold text-blue-700 shadow-inner">
-              {selectedItem.symbolImageUrl}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <PracticeReferenceMedia
+                title="Symbol image"
+                value={selectedItem.symbolImageUrl}
+                label={`${selectedItem.label} symbol image`}
+                emptyText="No symbol image added"
+              />
+              <PracticeReferenceMedia
+                title="Gesture reference"
+                value={selectedItem.gestureMediaUrl}
+                label={`${selectedItem.label} gesture reference`}
+                emptyText="No gesture reference added"
+              />
+              <PracticeReferenceMedia
+                title="Audio cue"
+                value={selectedItem.audioUrl}
+                label={`${selectedItem.label} audio cue`}
+                emptyText="No audio cue added"
+                kind="audio"
+                className="md:col-span-2"
+              />
             </div>
           </Card>
 
@@ -238,4 +257,99 @@ export function GesturePracticeView() {
       </section>
     </>
   );
+}
+
+function PracticeReferenceMedia({
+  title,
+  value,
+  label,
+  emptyText,
+  kind = "visual",
+  className = ""
+}: {
+  title: string;
+  value?: string;
+  label: string;
+  emptyText: string;
+  kind?: "visual" | "audio";
+  className?: string;
+}) {
+  const mediaValue = value?.trim();
+
+  return (
+    <div className={`overflow-hidden rounded-lg border border-blue-100 bg-[#f8fbff] shadow-inner ${className}`}>
+      <div className="border-b border-blue-100 bg-white/70 px-3 py-2 text-xs font-bold uppercase tracking-wide text-blue-700">
+        {title}
+      </div>
+      <div className={kind === "audio" ? "min-h-36 p-3" : "grid min-h-36 place-items-center p-3"}>
+        {!mediaValue ? (
+          kind === "audio" ? (
+            <AudioEmptyState message={emptyText} />
+          ) : (
+            <p className="text-center text-sm font-semibold text-slate-500">{emptyText}</p>
+          )
+        ) : isImageUrl(mediaValue) ? (
+          // Official/approved symbol or gesture images can be uploaded through Supabase Storage later.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={mediaValue} alt={label} className="max-h-64 w-full rounded-md object-contain" />
+        ) : isVideoUrl(mediaValue) ? (
+          <video controls className="max-h-64 w-full rounded-md" aria-label={label}>
+            <source src={mediaValue} />
+          </video>
+        ) : isAudioUrl(mediaValue) ? (
+          <div className="grid h-full min-h-28 gap-3">
+            <AudioWaveform />
+            <audio controls className="w-full self-end" aria-label={label}>
+              <source src={mediaValue} />
+            </audio>
+          </div>
+        ) : (
+          <p className="break-words text-center text-2xl font-bold text-blue-700">{mediaValue}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AudioEmptyState({ message }: { message: string }) {
+  return (
+    <div className="grid h-full min-h-28 place-items-center rounded-md bg-white/60 p-4">
+      <div className="w-full max-w-xl">
+        <AudioWaveform muted />
+        <p className="mt-4 text-center text-sm font-semibold text-slate-500">{message}</p>
+      </div>
+    </div>
+  );
+}
+
+function AudioWaveform({ muted = false }: { muted?: boolean }) {
+  const bars = [18, 34, 52, 28, 64, 42, 76, 48, 30, 58, 38, 70, 44, 24, 54, 32];
+
+  return (
+    <div className="flex h-20 items-center justify-center gap-1.5 rounded-md border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-4">
+      {bars.map((height, index) => (
+        <span
+          key={`${height}-${index}`}
+          className={muted ? "w-1.5 rounded-full bg-blue-200" : "w-1.5 rounded-full bg-blue-500"}
+          style={{ height: `${height}%`, opacity: muted ? 0.55 : 0.85 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function isImageUrl(value: string) {
+  return isUrl(value) && /\.(apng|avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(value);
+}
+
+function isVideoUrl(value: string) {
+  return isUrl(value) && /\.(mov|mp4|mpeg|ogg|ogv|webm)(\?.*)?$/i.test(value);
+}
+
+function isAudioUrl(value: string) {
+  return isUrl(value) && /\.(aac|m4a|mp3|oga|ogg|opus|wav|weba)(\?.*)?$/i.test(value);
+}
+
+function isUrl(value: string) {
+  return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/") || value.startsWith("blob:");
 }

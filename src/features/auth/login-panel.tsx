@@ -2,12 +2,13 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, UserRound } from "lucide-react";
+import { AlertCircle, Lock, Mail, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldError, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import type { AppUser } from "@/types";
 
 export function LoginPanel() {
@@ -16,6 +17,7 @@ export function LoginPanel() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function getSignedInProfile(userId: string) {
@@ -37,6 +39,7 @@ export function LoginPanel() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFormError("");
     const nextErrors = {
       email: email.includes("@") ? undefined : "Enter a valid email address.",
       password: password.length >= 6 ? undefined : "Password must be at least 6 characters."
@@ -57,7 +60,12 @@ export function LoginPanel() {
 
     if (error || !data.user) {
       setLoading(false);
-      notify({ title: "Sign in failed", description: error?.message ?? "Check the account email and password." });
+      const message =
+        error?.message === "Invalid login credentials"
+          ? "The email or password does not match a MakaLearn account."
+          : error?.message ?? "Check the account email and password.";
+      setFormError(message);
+      notify({ title: "Sign in failed", description: message, tone: "error" });
       return;
     }
 
@@ -81,6 +89,7 @@ export function LoginPanel() {
   }
 
   async function resetPassword() {
+    setFormError("");
     if (!email.includes("@")) {
       setErrors((current) => ({ ...current, email: "Enter your account email first." }));
       return;
@@ -96,9 +105,36 @@ export function LoginPanel() {
     notify({
       title: error ? "Reset email failed" : "Password reset email sent",
       description: error?.message ?? "Check the email inbox configured for this account.",
-      tone: error ? "info" : "success"
+      tone: error ? "error" : "success"
     });
   }
+
+  function handleEmailChange(value: string) {
+    setEmail(value);
+    setFormError("");
+    if (errors.email) {
+      setErrors((current) => ({ ...current, email: undefined }));
+    }
+  }
+
+  function handlePasswordChange(value: string) {
+    setPassword(value);
+    setFormError("");
+    if (errors.password) {
+      setErrors((current) => ({ ...current, password: undefined }));
+    }
+  }
+
+  const emailHasError = Boolean(errors.email || formError);
+  const passwordHasError = Boolean(errors.password || formError);
+  const errorInputClass =
+    "border-red-300 bg-red-50/50 text-red-950 focus:border-red-500 focus:ring-red-100";
+  const emailDescription = [errors.email ? "email-error" : "", formError ? "login-error" : ""]
+    .filter(Boolean)
+    .join(" ");
+  const passwordDescription = [errors.password ? "password-error" : "", formError ? "login-error" : ""]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <Card className="w-full max-w-md overflow-hidden p-0">
@@ -112,35 +148,74 @@ export function LoginPanel() {
         </p>
       </div>
       <form className="space-y-4" onSubmit={handleSubmit}>
+        {formError ? (
+          <div
+            id="login-error"
+            role="alert"
+            className="flex gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900"
+          >
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">Check your sign in details</p>
+              <p className="mt-1 leading-5">{formError}</p>
+            </div>
+          </div>
+        ) : null}
         <div>
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email" className={emailHasError ? "text-red-700" : undefined}>
+            Email
+          </Label>
           <div className="relative mt-1">
-            <Mail className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" />
+            <Mail
+              className={cn(
+                "pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400",
+                emailHasError && "text-red-500"
+              )}
+              aria-hidden="true"
+            />
             <Input
               id="email"
               type="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => handleEmailChange(event.target.value)}
               placeholder="teacher@makalearn.local"
-              className="pl-10"
+              className={cn("pl-10 pr-10", emailHasError && errorInputClass)}
+              aria-invalid={emailHasError}
+              aria-describedby={emailDescription || undefined}
             />
+            {emailHasError ? (
+              <AlertCircle className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-red-500" aria-hidden="true" />
+            ) : null}
           </div>
-          <FieldError message={errors.email} />
+          <FieldError id="email-error" message={errors.email} />
         </div>
         <div>
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password" className={passwordHasError ? "text-red-700" : undefined}>
+            Password
+          </Label>
           <div className="relative mt-1">
-            <Lock className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" />
+            <Lock
+              className={cn(
+                "pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400",
+                passwordHasError && "text-red-500"
+              )}
+              aria-hidden="true"
+            />
             <Input
               id="password"
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => handlePasswordChange(event.target.value)}
               placeholder="At least 6 characters"
-              className="pl-10"
+              className={cn("pl-10 pr-10", passwordHasError && errorInputClass)}
+              aria-invalid={passwordHasError}
+              aria-describedby={passwordDescription || undefined}
             />
+            {passwordHasError ? (
+              <AlertCircle className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-red-500" aria-hidden="true" />
+            ) : null}
           </div>
-          <FieldError message={errors.password} />
+          <FieldError id="password-error" message={errors.password} />
         </div>
         <button type="button" onClick={resetPassword} className="block text-sm font-semibold text-blue-700">
           Forgot password?

@@ -11,6 +11,9 @@ export function FileUpload({
   hint,
   storageNote,
   onUpload,
+  onRemove,
+  existingFileName,
+  successMessage = "Uploaded to Supabase Storage.",
   icon: Icon = FileUp,
   compact = false
 }: {
@@ -19,6 +22,9 @@ export function FileUpload({
   hint: string;
   storageNote: string;
   onUpload?: (file: File) => Promise<void>;
+  onRemove?: () => Promise<void> | void;
+  existingFileName?: string;
+  successMessage?: string;
   icon?: LucideIcon;
   compact?: boolean;
 }) {
@@ -27,6 +33,7 @@ export function FileUpload({
   const [fileName, setFileName] = useState("");
   const [status, setStatus] = useState<"idle" | "uploading" | "uploaded" | "error">("idle");
   const [message, setMessage] = useState("");
+  const activeFileName = fileName || existingFileName || "";
 
   async function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -42,20 +49,26 @@ export function FileUpload({
       setStatus("uploading");
       await onUpload(file);
       setStatus("uploaded");
-      setMessage("Uploaded to Supabase Storage.");
+      setMessage(successMessage);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Upload failed.");
     }
   }
 
-  function removeFile() {
+  async function removeFile() {
     if (inputRef.current) {
       inputRef.current.value = "";
     }
     setFileName("");
     setStatus("idle");
     setMessage("");
+    try {
+      await onRemove?.();
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Could not remove this file.");
+    }
   }
 
   return (
@@ -84,7 +97,7 @@ export function FileUpload({
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-bold text-ink">{label}</span>
-            <span className="mt-1 block text-xs leading-5 text-slate-500">{fileName || hint}</span>
+            <span className="mt-1 block text-xs leading-5 text-slate-500">{activeFileName || hint}</span>
           </span>
         </label>
         <div className="flex shrink-0 gap-2">
@@ -92,9 +105,9 @@ export function FileUpload({
             htmlFor={id}
             className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-lg border border-blue-200 bg-white px-3 text-sm font-semibold text-ink shadow-sm transition hover:bg-skywash"
           >
-            {fileName ? "Change" : "Choose"}
+            {activeFileName ? "Change" : "Choose"}
           </label>
-          {fileName ? (
+          {activeFileName ? (
             <Button type="button" variant="ghost" size="icon" onClick={removeFile} aria-label={`Remove ${label}`}>
               <Trash2 className="h-4 w-4" aria-hidden="true" />
             </Button>

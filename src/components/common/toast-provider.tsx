@@ -1,14 +1,14 @@
 "use client";
 
 import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from "react";
-import { CheckCircle2, Info, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Toast = {
   id: number;
   title: string;
   description?: string;
-  tone?: "success" | "info";
+  tone?: "success" | "info" | "error";
 };
 
 type ToastContextValue = {
@@ -35,15 +35,27 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="fixed right-4 top-4 z-50 flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-3">
         {toasts.map((toast) => {
-          const Icon = toast.tone === "success" ? CheckCircle2 : Info;
+          const Icon = toast.tone === "success" ? CheckCircle2 : toast.tone === "error" ? AlertCircle : Info;
+          const toneClass =
+            toast.tone === "error"
+              ? "border-red-200"
+              : toast.tone === "success"
+                ? "border-emerald-200"
+                : "border-blue-100";
+          const iconClass =
+            toast.tone === "error"
+              ? "text-red-600"
+              : toast.tone === "success"
+                ? "text-emerald-600"
+                : "text-blue-600";
           return (
             <div
               key={toast.id}
-              className="rounded-lg border border-blue-100 bg-white p-4 shadow-soft"
+              className={`rounded-lg border bg-white p-4 shadow-soft ${toneClass}`}
               role="status"
             >
               <div className="flex items-start gap-3">
-                <Icon className="mt-0.5 h-5 w-5 text-blue-600" aria-hidden="true" />
+                <Icon className={`mt-0.5 h-5 w-5 ${iconClass}`} aria-hidden="true" />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-ink">{toast.title}</p>
                   {toast.description ? (

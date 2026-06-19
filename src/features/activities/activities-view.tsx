@@ -22,13 +22,25 @@ import type { Activity, ActivityResult, ActivityType, Learner, LearningItem } fr
 
 const activityTypes = Object.keys(activityTypeLabels) as ActivityType[];
 
-export function ActivitiesView() {
+function getValidActivityType(value?: string): ActivityType | undefined {
+  return activityTypes.includes(value as ActivityType) ? (value as ActivityType) : undefined;
+}
+
+function getFirstActivityForType(activities: Activity[], activityType?: ActivityType) {
+  if (!activityType) return undefined;
+  return activities.find((activity) => activity.type === activityType);
+}
+
+export function ActivitiesView({ initialActivityType }: { initialActivityType?: string }) {
   const { user } = useAuthUser();
   const { notify } = useToast();
+  const requestedActivityType = getValidActivityType(initialActivityType);
   const [activities, setActivities] = useState<Activity[]>(mockActivities);
   const [learners, setLearners] = useState<Learner[]>(mockLearners);
   const [learningItems, setLearningItems] = useState<LearningItem[]>(mockLearningItems);
-  const [selectedActivityId, setSelectedActivityId] = useState(mockActivities[0].id);
+  const [selectedActivityId, setSelectedActivityId] = useState(
+    getFirstActivityForType(mockActivities, requestedActivityType)?.id ?? mockActivities[0].id
+  );
   const [selectedLearnerId, setSelectedLearnerId] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [dragged, setDragged] = useState("");
@@ -49,7 +61,11 @@ export function ActivitiesView() {
         setActivities(nextActivities);
         setLearners(data.learners.length ? data.learners : mockLearners);
         setLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems);
-        setSelectedActivityId((current) => nextActivities.some((activity) => activity.id === current) ? current : nextActivities[0]?.id ?? "");
+        setSelectedActivityId((current) => {
+          const requestedActivity = getFirstActivityForType(nextActivities, requestedActivityType);
+          if (requestedActivity) return requestedActivity.id;
+          return nextActivities.some((activity) => activity.id === current) ? current : nextActivities[0]?.id ?? "";
+        });
       } catch (error) {
         notify({
           title: "Using local activity data",
@@ -63,7 +79,7 @@ export function ActivitiesView() {
     return () => {
       active = false;
     };
-  }, [notify]);
+  }, [notify, requestedActivityType]);
 
   const selectedActivity = activities.find((activity) => activity.id === selectedActivityId) ?? activities[0];
   const teacherLearners = learners.filter((learner) => user.role === "admin" || learner.assignedTeacherId === user.id);

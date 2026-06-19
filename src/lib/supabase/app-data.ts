@@ -261,6 +261,31 @@ export async function insertCategory(category: Category) {
   return mapCategory(row);
 }
 
+export async function insertLearningItem(item: LearningItem) {
+  const supabase = getClientOrThrow();
+  const row = (await expectData(
+    supabase
+      .from("learning_items")
+      .insert({
+        id: item.id,
+        label: item.label,
+        category_id: item.categoryId,
+        description: item.description,
+        instruction: item.instruction,
+        symbol_image_url: item.symbolImageUrl ?? null,
+        gesture_media_url: item.gestureMediaUrl ?? null,
+        audio_url: item.audioUrl ?? null,
+        tags: item.tags,
+        created_by: item.createdBy,
+        updated_at: item.updatedAt
+      })
+      .select()
+      .single()
+  )) as LearningItemRow;
+
+  return mapLearningItem(row);
+}
+
 export async function insertLesson(lesson: Lesson) {
   const supabase = getClientOrThrow();
   const row = (await expectData(
@@ -295,6 +320,13 @@ export async function insertLesson(lesson: Lesson) {
   }
 
   return { ...mapLesson(row, []), learningItemIds: lesson.learningItemIds };
+}
+
+export async function deleteLesson(lessonId: string) {
+  const supabase = getClientOrThrow();
+
+  await expectData(supabase.from("lesson_items").delete().eq("lesson_id", lessonId).select());
+  await expectData(supabase.from("lessons").delete().eq("id", lessonId).select());
 }
 
 export async function insertActivity(activity: Activity) {
@@ -395,6 +427,29 @@ export async function updateLearningItemMedia(
         : { audio_url: asset.publicUrl, updated_at: new Date().toISOString() };
 
   await expectData(supabase.from("learning_items").update(update).eq("id", learningItemId).select());
+}
+
+export async function clearLearningItemMedia(learningItemId: string, type: MediaAsset["type"]) {
+  const supabase = getClientOrThrow();
+  const update =
+    type === "symbol-image"
+      ? { symbol_image_url: null, updated_at: new Date().toISOString() }
+      : type === "gesture-media"
+        ? { gesture_media_url: null, updated_at: new Date().toISOString() }
+        : { audio_url: null, updated_at: new Date().toISOString() };
+
+  await expectData(supabase.from("learning_items").update(update).eq("id", learningItemId).select());
+  await expectData(supabase.from("media_assets").delete().eq("related_item_id", learningItemId).eq("type", type).select());
+}
+
+export async function deleteLearningItem(learningItemId: string, deleteMedia: boolean) {
+  const supabase = getClientOrThrow();
+
+  if (deleteMedia) {
+    await expectData(supabase.from("media_assets").delete().eq("related_item_id", learningItemId).select());
+  }
+
+  await expectData(supabase.from("learning_items").delete().eq("id", learningItemId).select());
 }
 
 export async function updateProfileRole(userId: string, role: AppUser["role"]) {
