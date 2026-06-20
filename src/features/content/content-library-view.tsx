@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   BookOpen,
   BookPlus,
-  ClipboardList,
   Clock,
   FileAudio,
   Film,
@@ -16,7 +15,6 @@ import {
   PlayCircle,
   Plus,
   Search,
-  Sparkles,
   Trash2,
   Upload,
   User,
@@ -122,6 +120,7 @@ export function ContentLibraryView() {
   const [users, setUsers] = useState(demoUsers);
   const [search, setSearch] = useState("");
   const [lessonSearch, setLessonSearch] = useState("");
+  const [mediaSearch, setMediaSearch] = useState("");
   const [draft, setDraft] = useState<Omit<Lesson, "id" | "createdBy"> | null>(null);
   const [lessonTitle, setLessonTitle] = useState("");
   const [lessonObjective, setLessonObjective] = useState("Practice selected learning items with teacher guidance.");
@@ -130,6 +129,7 @@ export function ContentLibraryView() {
   const [lessonItemIds, setLessonItemIds] = useState<string[]>(learningItems.slice(0, 2).map((item) => item.id));
   const [lessonNotes, setLessonNotes] = useState("Manual lesson draft created locally.");
   const [lessonError, setLessonError] = useState("");
+  const [lessonFormOpen, setLessonFormOpen] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
   const [itemError, setItemError] = useState("");
   const [newItemFiles, setNewItemFiles] = useState<NewItemFiles>({});
@@ -217,6 +217,20 @@ export function ContentLibraryView() {
         .includes(query);
     });
   }, [items, lessonSearch, lessons]);
+  const filteredMediaRecords = useMemo(() => {
+    const query = mediaSearch.trim().toLowerCase();
+    if (!query) return mediaRecords;
+
+    return mediaRecords.filter((asset) => {
+      const relatedItem = items.find((item) => item.id === asset.relatedItemId)?.label ?? "";
+      const uploader = userNameById.get(asset.uploadedBy) ?? "";
+
+      return [asset.title, asset.fileName, asset.type, asset.bucket, relatedItem, uploader]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [items, mediaRecords, mediaSearch, userNameById]);
   const counts: Record<Tab, number> = {
     items: items.length,
     lessons: lessons.length,
@@ -234,11 +248,34 @@ export function ContentLibraryView() {
     setLessonItemIds(nextDraft.learningItemIds);
     setLessonNotes(nextDraft.notes);
     setTab("lessons");
+    setLessonFormOpen(true);
     notify({
       title: "Lesson draft generated",
       description: `Review the ${item.label} lesson before saving.`,
       tone: "success"
     });
+  }
+
+  function resetLessonForm() {
+    setDraft(null);
+    setLessonTitle("");
+    setLessonObjective("Practice selected learning items with teacher guidance.");
+    setLessonActivityType("simple-quiz");
+    setLessonDuration(10);
+    setLessonItemIds(items.slice(0, 2).map((item) => item.id));
+    setLessonNotes("Manual lesson draft created locally.");
+    setLessonError("");
+  }
+
+  function openManualLessonForm() {
+    resetLessonForm();
+    setTab("lessons");
+    setLessonFormOpen(true);
+  }
+
+  function closeLessonForm() {
+    resetLessonForm();
+    setLessonFormOpen(false);
   }
 
   async function saveDraft(event: FormEvent<HTMLFormElement>) {
@@ -283,14 +320,8 @@ export function ContentLibraryView() {
     }
 
     setLessons((current) => [savedLesson, ...current]);
-    setDraft(null);
-    setLessonTitle("");
-    setLessonObjective("Practice selected learning items with teacher guidance.");
-    setLessonActivityType("simple-quiz");
-    setLessonDuration(10);
-    setLessonItemIds(items.slice(0, 2).map((item) => item.id));
-    setLessonNotes("Manual lesson draft created locally.");
-    setLessonError("");
+    resetLessonForm();
+    setLessonFormOpen(false);
     notify({
       title: "Lesson saved",
       description: isSupabaseConfigured() ? "The lesson was saved to the lessons table." : "The lesson was added locally.",
@@ -640,7 +671,7 @@ export function ContentLibraryView() {
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-lg border border-blue-100 bg-white shadow-soft">
-        <div className="grid gap-0 lg:grid-cols-[1fr_22rem]">
+        <div>
           <div className="relative min-h-[18rem] overflow-hidden bg-[#f7fbff] p-5 sm:p-7 lg:p-8">
             <div className="absolute inset-y-0 right-0 hidden w-40 border-l border-blue-100 bg-[repeating-linear-gradient(180deg,#dbeafe_0,#dbeafe_12px,#f8fbff_12px,#f8fbff_24px)] opacity-70 lg:block" />
             <div className="relative max-w-3xl">
@@ -665,24 +696,13 @@ export function ContentLibraryView() {
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Add item
                 </Button>
-                <Button variant="outline" onClick={() => setTab("lessons")}>
+                <Button variant="outline" onClick={openManualLessonForm}>
                   <BookPlus className="h-4 w-4" aria-hidden="true" />
                   Build lesson
                 </Button>
               </div>
             </div>
           </div>
-          <aside className="grid border-t border-blue-100 bg-[#eef7ff] p-4 sm:grid-cols-2 lg:grid-cols-1 lg:border-l lg:border-t-0">
-            <LibraryMetric label="Learning items" value={items.length} detail={`${categories.length} shared categories`} icon={Layers} />
-            <LibraryMetric label="Lesson drafts" value={lessons.length} detail="Manual and generated" icon={ClipboardList} />
-            <LibraryMetric label="Media records" value={mediaRecords.length} detail="Storage-backed when configured" icon={Upload} />
-            <LibraryMetric
-              label="Supabase"
-              value={isSupabaseConfigured() ? "Ready" : "Local"}
-              detail={isSupabaseConfigured() ? "Uploads use configured project" : "Add env keys to upload"}
-              icon={Sparkles}
-            />
-          </aside>
         </div>
       </section>
 
@@ -962,7 +982,36 @@ export function ContentLibraryView() {
 
       {tab === "lessons" ? (
         <section className="space-y-4">
-          <Card className="bg-[#fbfdff]">
+          <section className="rounded-lg border border-blue-100 bg-white p-4 shadow-soft">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <h2 className="text-xl font-bold text-ink">Lessons</h2>
+              <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
+                <div className="relative w-full sm:min-w-72 lg:w-80">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
+                  <Input
+                    value={lessonSearch}
+                    onChange={(event) => setLessonSearch(event.target.value)}
+                    placeholder="Search lessons"
+                    className="pl-10"
+                  />
+                </div>
+                {lessonFormOpen ? (
+                  <Button type="button" variant="outline" onClick={closeLessonForm} aria-expanded="true" aria-controls="lesson-form">
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    Close form
+                  </Button>
+                ) : (
+                  <Button type="button" onClick={openManualLessonForm} aria-expanded="false" aria-controls="lesson-form">
+                    <BookPlus className="h-4 w-4" aria-hidden="true" />
+                    Create manual lesson
+                  </Button>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {lessonFormOpen ? (
+          <Card id="lesson-form" className="bg-[#fbfdff]">
             <div className="flex items-start gap-3">
               <span className="grid h-11 w-11 place-items-center rounded-lg bg-blue-600 text-white">
                 <BookPlus className="h-5 w-5" aria-hidden="true" />
@@ -1014,26 +1063,17 @@ export function ContentLibraryView() {
                 <Label htmlFor="lesson-notes">Notes</Label>
                 <Textarea id="lesson-notes" value={lessonNotes} onChange={(event) => setLessonNotes(event.target.value)} placeholder="Teacher notes for this lesson" />
               </div>
-              <Button type="submit">Save lesson</Button>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button type="submit">Save lesson</Button>
+                <Button type="button" variant="outline" onClick={closeLessonForm}>
+                  Cancel
+                </Button>
+              </div>
             </form>
           </Card>
+          ) : null}
 
-          <section className="space-y-4 rounded-lg border border-blue-100 bg-white p-4 shadow-soft">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-ink">Lessons</h2>
-              </div>
-              <div className="relative w-full lg:max-w-sm">
-                <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
-                <Input
-                  value={lessonSearch}
-                  onChange={(event) => setLessonSearch(event.target.value)}
-                  placeholder="Search lessons"
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
+          <section className="space-y-4">
             {filteredLessons.length ? (
               <div className="grid gap-4">
                 {filteredLessons.map((lesson) => (
@@ -1138,40 +1178,70 @@ export function ContentLibraryView() {
       {tab === "media" ? (
         <section className="space-y-4">
           <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
-            <h2 className="text-xl font-bold text-ink">Media library</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              Uploaded picture cards and placeholder records appear here. Local records remain visible when Supabase is not configured.
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {mediaRecords.map((asset) => (
-              <Card key={asset.id} className="flex h-full flex-col border-dashed">
-                <div className="flex items-start justify-between gap-3">
-                  <Badge className="bg-blue-50 text-blue-700">{asset.bucket}</Badge>
-                  <span className="grid h-10 w-10 place-items-center rounded-lg bg-skywash text-blue-700">
-                    {asset.type === "audio-file" ? <FileAudio className="h-5 w-5" aria-hidden="true" /> : null}
-                    {asset.type === "gesture-media" ? <Film className="h-5 w-5" aria-hidden="true" /> : null}
-                    {asset.type === "symbol-image" ? <ImageIcon className="h-5 w-5" aria-hidden="true" /> : null}
-                  </span>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-ink">Media library</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Uploaded picture cards and placeholder records appear here. Local records remain visible when Supabase is not configured.
+                </p>
+              </div>
+              <div className="w-full lg:max-w-sm">
+                <Label htmlFor="media-search">Search stored media</Label>
+                <div className="relative mt-1">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
+                  <Input
+                    id="media-search"
+                    type="search"
+                    value={mediaSearch}
+                    onChange={(event) => setMediaSearch(event.target.value)}
+                    placeholder="Search title, filename, item, or type"
+                    className="pl-10"
+                  />
                 </div>
-                <CardTitle className="mt-3">{asset.title}</CardTitle>
-                <CardDescription>{asset.fileName}</CardDescription>
-                {asset.publicUrl ? (
-                  <a
-                    href={asset.publicUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 text-sm font-semibold text-blue-700 underline-offset-4 hover:underline"
-                  >
-                    Open uploaded file
-                  </a>
-                ) : null}
-                <CardFooter className="mt-3">
-                  <p className="text-sm text-slate-600">Uploaded {formatDate(asset.uploadedAt)}</p>
-                </CardFooter>
-              </Card>
-            ))}
+              </div>
+            </div>
           </div>
+          {filteredMediaRecords.length ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {filteredMediaRecords.map((asset) => (
+                <Card key={asset.id} className="flex h-full flex-col border-dashed">
+                  <div className="flex items-start justify-between gap-3">
+                    <Badge className="bg-blue-50 text-blue-700">{asset.bucket}</Badge>
+                    <span className="grid h-10 w-10 place-items-center rounded-lg bg-skywash text-blue-700">
+                      {asset.type === "audio-file" ? <FileAudio className="h-5 w-5" aria-hidden="true" /> : null}
+                      {asset.type === "gesture-media" ? <Film className="h-5 w-5" aria-hidden="true" /> : null}
+                      {asset.type === "symbol-image" ? <ImageIcon className="h-5 w-5" aria-hidden="true" /> : null}
+                    </span>
+                  </div>
+                  <CardTitle className="mt-3">{asset.title}</CardTitle>
+                  <CardDescription>{asset.fileName}</CardDescription>
+                  {asset.publicUrl ? (
+                    <a
+                      href={asset.publicUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 text-sm font-semibold text-blue-700 underline-offset-4 hover:underline"
+                    >
+                      Open uploaded file
+                    </a>
+                  ) : null}
+                  <CardFooter className="mt-3">
+                    <p className="text-sm text-slate-600">Uploaded {formatDate(asset.uploadedAt)}</p>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Search}
+              title={mediaRecords.length ? "No media found" : "No stored media yet"}
+              description={
+                mediaRecords.length
+                  ? "Try a different title, filename, learning item, or media type."
+                  : "Uploaded media will appear here for teachers and admins to find."
+              }
+            />
+          )}
         </section>
       ) : null}
 
@@ -1304,7 +1374,6 @@ export function ContentLibraryView() {
     </div>
   );
 }
-
 function getSymbolPlaceholder(label: string) {
   return label
     .replace(/[^a-z]/gi, "")
@@ -1443,31 +1512,6 @@ function LearningItemSymbolPreview({ value, label }: { value?: string; label: st
   return (
     <div className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] text-xl font-black text-blue-700 shadow-inner">
       {value}
-    </div>
-  );
-}
-
-function LibraryMetric({
-  label,
-  value,
-  detail,
-  icon: Icon
-}: {
-  label: string;
-  value: number | string;
-  detail: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <div className="flex min-h-24 items-center gap-3 border-b border-blue-100 p-3 last:border-b-0 sm:border-r sm:last:border-r-0 lg:border-r-0">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-blue-700 shadow-sm">
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </span>
-      <span>
-        <span className="block text-2xl font-bold text-ink">{value}</span>
-        <span className="block text-sm font-semibold text-slate-700">{label}</span>
-        <span className="block text-xs leading-5 text-slate-500">{detail}</span>
-      </span>
     </div>
   );
 }

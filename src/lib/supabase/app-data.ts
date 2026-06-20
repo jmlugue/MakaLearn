@@ -348,22 +348,116 @@ export async function insertActivity(activity: Activity) {
   )) as ActivityRow;
 
   if (activity.questions.length) {
-    await expectData(
-      supabase.from("activity_items").insert(
-        activity.questions.map((question, index) => ({
-          id: question.id,
-          activity_id: row.id,
-          prompt: question.prompt,
-          answer: question.answer,
-          options: question.options,
-          learning_item_id: question.learningItemId,
-          position: index
-        }))
-      )
-    );
+    try {
+      await expectData(
+        supabase.from("activity_items").insert(
+          activity.questions.map((question, index) => ({
+            id: question.id,
+            activity_id: row.id,
+            prompt: question.prompt,
+            answer: question.answer,
+            options: question.options,
+            learning_item_id: question.learningItemId,
+            position: index
+          }))
+        )
+      );
+    } catch (error) {
+      // Compensate for a partial create so retrying does not leave duplicate activity records.
+      await supabase.from("activities").delete().eq("id", row.id);
+      throw error;
+    }
   }
 
   return { ...mapActivity(row, []), questions: activity.questions };
+}
+
+export async function deleteActivity(activityId: string) {
+  const supabase = getClientOrThrow();
+
+  // The schema cascades this deletion to activity_items and activity_results.
+  const deletedRows = (await expectData(
+    supabase.from("activities").delete().eq("id", activityId).select("id")
+  )) as Array<{ id: string }>;
+
+  if (!deletedRows.some((row) => row.id === activityId)) {
+    throw new Error("Supabase did not delete this activity. Check the activities delete policy and try again.");
+  }
+}
+
+export async function updateActivity(activity: Activity, previousActivity: Activity) {
+  const supabase = getClientOrThrow();
+  const newQuestionRows = activity.questions.map((question, index) => ({
+    id: question.id,
+    activity_id: activity.id,
+    prompt: question.prompt,
+    answer: question.answer,
+    options: question.options,
+    learning_item_id: question.learningItemId,
+    position: index
+  }));
+  const previousQuestionRows = previousActivity.questions.map((question, index) => ({
+    id: question.id,
+    activity_id: previousActivity.id,
+    prompt: question.prompt,
+    answer: question.answer,
+    options: question.options,
+    learning_item_id: question.learningItemId,
+    position: index
+  }));
+
+  try {
+    if (newQuestionRows.length) {
+      await expectData(supabase.from("activity_items").insert(newQuestionRows));
+    }
+
+    const row = (await expectData(
+      supabase
+        .from("activities")
+        .update({
+          title: activity.title,
+          type: activity.type,
+          prompt: activity.prompt,
+          learning_item_ids: activity.learningItemIds,
+          visibility: activity.visibility,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", activity.id)
+        .select()
+        .single()
+    )) as ActivityRow;
+
+    const previousQuestionIds = previousActivity.questions.map((question) => question.id);
+    if (previousQuestionIds.length) {
+      const deletedRows = (await expectData(
+        supabase.from("activity_items").delete().in("id", previousQuestionIds).select("id")
+      )) as Array<{ id: string }>;
+      if (deletedRows.length !== previousQuestionIds.length) {
+        throw new Error("Supabase did not replace every previous activity question.");
+      }
+    }
+
+    return { ...mapActivity(row, []), questions: activity.questions };
+  } catch (error) {
+    const newQuestionIds = activity.questions.map((question) => question.id);
+    if (newQuestionIds.length) {
+      await supabase.from("activity_items").delete().in("id", newQuestionIds);
+    }
+    await supabase
+      .from("activities")
+      .update({
+        title: previousActivity.title,
+        type: previousActivity.type,
+        prompt: previousActivity.prompt,
+        learning_item_ids: previousActivity.learningItemIds,
+        visibility: previousActivity.visibility
+      })
+      .eq("id", previousActivity.id);
+    if (previousQuestionRows.length) {
+      await supabase.from("activity_items").upsert(previousQuestionRows);
+    }
+    throw error;
+  }
 }
 
 export async function insertPracticeAttempt(attempt: PracticeAttempt) {
@@ -480,24 +574,43 @@ export async function updateProfileDetails(userId: string, input: Pick<AppUser, 
   return mapProfile(row);
 }
 
-export function createActivityQuestions(type: Activity["type"], items: LearningItem[]): ActivityQuestion[] {
-  return items.slice(0, 2).map((item) => ({
-    id: `q-${Date.now()}-${item.id}`,
-    prompt: type === "fill-blank" ? `I want to ____ (${item.label})` : item.label,
-    answer:
-      type === "gesture-practice"
-        ? "Correct"
-        : type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol"
-          ? item.symbolImageUrl ?? item.label
-          : item.label,
-    options:
-      type === "gesture-practice"
-        ? ["Correct", "Good attempt", "Needs practice"]
-        : items.map((candidate) =>
-            type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol"
-              ? candidate.symbolImageUrl ?? candidate.label
-              : candidate.label
-          ),
-    learningItemId: item.id
-  }));
+export function createActivityQuestions(
+  type: Activity["type"],
+  selectedItems: LearningItem[],
+  optionPool: LearningItem[] = selectedItems
+): ActivityQuestion[] {
+  const usesSymbolOptions =
+    type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
+  const eligibleOptions = usesSymbolOptions ? optionPool.filter((item) => item.symbolImageUrl) : optionPool;
+
+  return selectedItems.map((item, index) => {
+    const choiceItems = [item, ...eligibleOptions.filter((candidate) => candidate.id !== item.id)].slice(0, 3);
+    const rotation = choiceItems.length ? index % choiceItems.length : 0;
+    const rotatedChoices = [...choiceItems.slice(rotation), ...choiceItems.slice(0, rotation)];
+    const options = rotatedChoices.map((candidate) =>
+      usesSymbolOptions ? candidate.symbolImageUrl ?? candidate.label : candidate.label
+    );
+
+    return {
+      id: `q-${Date.now()}-${item.id}`,
+      prompt:
+        type === "fill-blank"
+          ? "I want to ____."
+          : type === "choose-correct-symbol"
+            ? `Choose the symbol for ${item.label}.`
+            : type === "gesture-practice"
+              ? `Practice ${item.label}`
+              : type === "simple-quiz"
+                ? `Which learning word matches this description: ${item.description}`
+                : item.label,
+      answer:
+        type === "gesture-practice"
+          ? "Correct"
+          : usesSymbolOptions
+            ? item.symbolImageUrl ?? item.label
+            : item.label,
+      options: type === "gesture-practice" ? ["Correct", "Good attempt", "Needs practice"] : options,
+      learningItemId: item.id
+    };
+  });
 }

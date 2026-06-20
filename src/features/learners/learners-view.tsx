@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Archive, Image as ImageIcon, Pencil, Plus, Search, UserRound } from "lucide-react";
+import { Archive, Image as ImageIcon, Pencil, Plus, Search, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,7 @@ export function LearnersView() {
   const [users, setUsers] = useState<AppUser[]>(demoUsers);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("active");
+  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Learner | null>(null);
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
@@ -77,6 +78,19 @@ export function LearnersView() {
     setAssignedTeacherId(learner?.assignedTeacherId ?? (user.role === "teacher" ? user.id : "user-teacher"));
     setProfilePhotoUrl(learner?.profilePhotoUrl ?? "/placeholder-new");
     setError("");
+    setFormOpen(true);
+  }
+
+  function closeForm() {
+    setEditing(null);
+    setName("");
+    setAge("");
+    setMode("Visual");
+    setNotes("");
+    setAssignedTeacherId(user.role === "teacher" ? user.id : "user-teacher");
+    setProfilePhotoUrl("/placeholder-new");
+    setError("");
+    setFormOpen(false);
   }
 
   async function saveLearner(event: FormEvent<HTMLFormElement>) {
@@ -129,7 +143,7 @@ export function LearnersView() {
         tone: "success"
       });
     }
-    openForm();
+    closeForm();
   }
 
   async function archiveLearner(learnerId: string) {
@@ -180,16 +194,31 @@ export function LearnersView() {
         eyebrow="Learners"
         title="Learner profiles"
         description="Manage learner profiles for teacher-guided classroom sessions. Learners do not sign in."
-        actions={
-          <Button onClick={() => openForm()}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Add learner
-          </Button>
-        }
       />
 
-      <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-        <Card>
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-ink">Learner directory</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {visibleLearners.length} {visibleLearners.length === 1 ? "profile" : "profiles"} shown
+            </p>
+          </div>
+          {formOpen ? (
+            <Button type="button" variant="outline" onClick={closeForm} aria-expanded="true" aria-controls="learner-form">
+              <X className="h-4 w-4" aria-hidden="true" />
+              Close form
+            </Button>
+          ) : (
+            <Button type="button" onClick={() => openForm()} aria-expanded="false" aria-controls="learner-form">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add learner
+            </Button>
+          )}
+        </div>
+
+        {formOpen ? (
+        <Card id="learner-form" className="max-w-4xl border-blue-200 bg-[#fbfdff]">
           <div className="flex items-start gap-3">
             <span className="grid h-11 w-11 place-items-center rounded-lg bg-blue-600 text-white">
               <UserRound className="h-5 w-5" aria-hidden="true" />
@@ -254,12 +283,13 @@ export function LearnersView() {
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="submit">{editing ? "Save changes" : "Create learner"}</Button>
-              <Button type="button" variant="secondary" onClick={() => openForm()}>
-                Clear
+              <Button type="button" variant="outline" onClick={closeForm}>
+                Cancel
               </Button>
             </div>
           </form>
         </Card>
+        ) : null}
 
         <div>
           <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_180px]">
@@ -279,7 +309,7 @@ export function LearnersView() {
             </Select>
           </div>
           {visibleLearners.length ? (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {visibleLearners.map((learner) => (
                 <Card key={learner.id} className="flex h-full flex-col">
                   <div className="flex items-start gap-4">

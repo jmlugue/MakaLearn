@@ -47,6 +47,7 @@ The app is local-first and still uses demo placeholder content, but Supabase int
 - Learning item deletes use an in-app confirmation dialog and persist in local mode via `localStorage`; Supabase deletes are wired when configured.
 - Tags were removed from the visible Content Library add-item form and item cards.
 - Lessons are displayed in a row-based layout: builder first, then a searchable `Lessons` library.
+- The manual lesson builder is collapsed by default behind `Create manual lesson`; generated drafts expand it automatically.
 - Lessons can be deleted from the library with an in-app confirmation dialog.
 - Lesson cards have an `Open activity` action that routes to `/activities?type=<activityType>`.
 - Gesture Practice renders symbol images, gesture image/video references, and audio cues as media tiles instead of raw URLs.

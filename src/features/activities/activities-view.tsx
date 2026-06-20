@@ -1,26 +1,45 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Dices, Play, Plus, Save } from "lucide-react";
+import { AlertTriangle, Library, Pencil, Play, PlayCircle, Plus, Search, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/form";
+import { SelectionList } from "@/components/ui/selection-list";
 import { PageHeader } from "@/components/layout/page-header";
+import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
 import { activities as mockActivities, learners as mockLearners, learningItems as mockLearningItems } from "@/data/mock-data";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import {
   createActivityQuestions,
+  deleteActivity,
   fetchMakaLearnData,
   insertActivity,
-  insertActivityResult
+  insertActivityResult,
+  updateActivity
 } from "@/lib/supabase/app-data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { activityTypeLabels } from "@/utils/activity-labels";
 import type { Activity, ActivityResult, ActivityType, Learner, LearningItem } from "@/types";
 
 const activityTypes = Object.keys(activityTypeLabels) as ActivityType[];
+type ActivityTab = "workspace" | "library";
+const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
+
+function readLocalActivities(): Activity[] | null {
+  if (typeof window === "undefined" || isSupabaseConfigured()) return null;
+
+  try {
+    const value = window.localStorage.getItem(LOCAL_ACTIVITIES_STORAGE_KEY);
+    if (value === null) return null;
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? (parsed as Activity[]) : null;
+  } catch {
+    return null;
+  }
+}
 
 function getValidActivityType(value?: string): ActivityType | undefined {
   return activityTypes.includes(value as ActivityType) ? (value as ActivityType) : undefined;
@@ -31,15 +50,30 @@ function getFirstActivityForType(activities: Activity[], activityType?: Activity
   return activities.find((activity) => activity.type === activityType);
 }
 
+function activityUsesImageOptions(type: ActivityType) {
+  return type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
+}
+
 export function ActivitiesView({ initialActivityType }: { initialActivityType?: string }) {
   const { user } = useAuthUser();
   const { notify } = useToast();
   const requestedActivityType = getValidActivityType(initialActivityType);
-  const [activities, setActivities] = useState<Activity[]>(mockActivities);
+  const [activities, setActivities] = useState<Activity[]>(isSupabaseConfigured() ? [] : mockActivities);
+  const [activitiesReady, setActivitiesReady] = useState(false);
+  const [tab, setTab] = useState<ActivityTab>("workspace");
+  const [createFormOpen, setCreateFormOpen] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [editReturnTab, setEditReturnTab] = useState<ActivityTab>("workspace");
+  const [activitySearch, setActivitySearch] = useState("");
+  const [learningItemSearch, setLearningItemSearch] = useState("");
+  const [activityPendingDelete, setActivityPendingDelete] = useState<Activity | null>(null);
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
   const [learners, setLearners] = useState<Learner[]>(mockLearners);
   const [learningItems, setLearningItems] = useState<LearningItem[]>(mockLearningItems);
   const [selectedActivityId, setSelectedActivityId] = useState(
-    getFirstActivityForType(mockActivities, requestedActivityType)?.id ?? mockActivities[0].id
+    isSupabaseConfigured()
+      ? ""
+      : getFirstActivityForType(mockActivities, requestedActivityType)?.id ?? mockActivities[0].id
   );
   const [selectedLearnerId, setSelectedLearnerId] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -47,17 +81,32 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
   const [result, setResult] = useState<{ score: number; correct: number; incorrect: number } | null>(null);
   const [title, setTitle] = useState("");
   const [type, setType] = useState<ActivityType>("simple-quiz");
+  const [selectedLearningItemIds, setSelectedLearningItemIds] = useState<string[]>([]);
+  const [instructions, setInstructions] = useState("");
   const [privateActivity, setPrivateActivity] = useState(false);
   const [error, setError] = useState("");
+  const [learningItemError, setLearningItemError] = useState("");
 
   useEffect(() => {
     let active = true;
 
     async function loadSupabaseData() {
+      if (!isSupabaseConfigured()) {
+        const nextActivities = readLocalActivities() ?? mockActivities;
+        if (!active) return;
+        setActivities(nextActivities);
+        setSelectedActivityId(
+          getFirstActivityForType(nextActivities, requestedActivityType)?.id ?? nextActivities[0]?.id ?? ""
+        );
+        setActivitiesReady(true);
+        return;
+      }
+
       try {
         const data = await fetchMakaLearnData();
         if (!active || !data) return;
-        const nextActivities = data.activities.length ? data.activities : mockActivities;
+        // An empty table is valid after deletions; never replace it with mock activities.
+        const nextActivities = data.activities;
         setActivities(nextActivities);
         setLearners(data.learners.length ? data.learners : mockLearners);
         setLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems);
@@ -66,9 +115,14 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
           if (requestedActivity) return requestedActivity.id;
           return nextActivities.some((activity) => activity.id === current) ? current : nextActivities[0]?.id ?? "";
         });
+        setActivitiesReady(true);
       } catch (error) {
+        if (!active) return;
+        setActivities([]);
+        setSelectedActivityId("");
+        setActivitiesReady(true);
         notify({
-          title: "Using local activity data",
+          title: "Activities could not be loaded",
           description: error instanceof Error ? error.message : "Supabase activities could not be loaded."
         });
       }
@@ -81,12 +135,40 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     };
   }, [notify, requestedActivityType]);
 
+  useEffect(() => {
+    if (!activitiesReady || isSupabaseConfigured() || typeof window === "undefined") return;
+    window.localStorage.setItem(LOCAL_ACTIVITIES_STORAGE_KEY, JSON.stringify(activities));
+  }, [activities, activitiesReady]);
+
   const selectedActivity = activities.find((activity) => activity.id === selectedActivityId) ?? activities[0];
   const teacherLearners = learners.filter((learner) => user.role === "admin" || learner.assignedTeacherId === user.id);
   const selectedItems = useMemo(
-    () => selectedActivity.learningItemIds.map((id) => learningItems.find((item) => item.id === id)).filter(Boolean),
+    () => selectedActivity?.learningItemIds.map((id) => learningItems.find((item) => item.id === id)).filter(Boolean) ?? [],
     [learningItems, selectedActivity]
   );
+  const filteredActivities = useMemo(() => {
+    const query = activitySearch.trim().toLowerCase();
+    if (!query) return activities;
+
+    return activities.filter((activity) => {
+      const relatedLabels = activity.learningItemIds
+        .map((id) => learningItems.find((item) => item.id === id)?.label ?? "")
+        .join(" ");
+      return [activity.title, activity.prompt, activityTypeLabels[activity.type], activity.visibility, relatedLabels]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [activities, activitySearch, learningItems]);
+  const selectableLearningItems = useMemo(() => {
+    const query = learningItemSearch.trim().toLowerCase();
+
+    return learningItems.filter((item) => {
+      const supportsType = !activityUsesImageOptions(type) || Boolean(item.symbolImageUrl);
+      const matchesSearch = !query || [item.label, item.description, item.tags.join(" ")].join(" ").toLowerCase().includes(query);
+      return supportsType && matchesSearch;
+    });
+  }, [learningItemSearch, learningItems, type]);
 
   function chooseAnswer(questionId: string, value: string) {
     setAnswers((current) => ({ ...current, [questionId]: value }));
@@ -94,6 +176,10 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
   }
 
   async function scoreActivity() {
+    if (!selectedActivity) {
+      notify({ title: "No activity selected", description: "Choose or create an activity before scoring." });
+      return;
+    }
     const correct = selectedActivity.questions.reduce(
       (sum, question) => sum + (answers[question.id] === question.answer ? 1 : 0),
       0
@@ -145,81 +231,133 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     setResult(null);
   }
 
+  function openActivity(activityId: string) {
+    resetPlayer(activityId);
+    setTab("workspace");
+  }
+
+  function openEditActivity(activity: Activity) {
+    setEditReturnTab(tab);
+    setEditingActivity(activity);
+    setTitle(activity.title);
+    setType(activity.type);
+    setSelectedLearningItemIds(activity.learningItemIds);
+    setLearningItemSearch("");
+    setInstructions(activity.prompt);
+    setPrivateActivity(activity.visibility === "private");
+    setError("");
+    setLearningItemError("");
+    setCreateFormOpen(true);
+    setTab("workspace");
+  }
+
+  function closeCreateForm() {
+    const shouldReturnToLibrary = Boolean(editingActivity) && editReturnTab === "library";
+    setTitle("");
+    setType("simple-quiz");
+    setSelectedLearningItemIds([]);
+    setLearningItemSearch("");
+    setInstructions("");
+    setPrivateActivity(false);
+    setError("");
+    setLearningItemError("");
+    setEditingActivity(null);
+    setCreateFormOpen(false);
+    if (shouldReturnToLibrary) {
+      setTab("library");
+    }
+  }
+
   async function createActivity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!title.trim()) {
       setError("Activity title is required.");
       return;
     }
-    const baseItems = learningItems.slice(0, 3);
-    const questions = createActivityQuestions(type, baseItems);
-    const newActivity: Activity = {
-      id: `activity-${Date.now()}`,
+    if (!selectedLearningItemIds.length) {
+      setLearningItemError("Select at least one learning item for this activity.");
+      return;
+    }
+    const selectedLearningItems = selectedLearningItemIds
+      .map((id) => learningItems.find((item) => item.id === id))
+      .filter((item): item is LearningItem => Boolean(item));
+    if (activityUsesImageOptions(type) && selectedLearningItems.some((item) => !item.symbolImageUrl)) {
+      setLearningItemError("Image-based activities require a symbol image for every selected learning item.");
+      return;
+    }
+    const questions = createActivityQuestions(type, selectedLearningItems, learningItems);
+    const nextActivity: Activity = {
+      id: editingActivity?.id ?? `activity-${Date.now()}`,
       title,
       type,
-      prompt: "Teacher-created local activity.",
-      learningItemIds: baseItems.map((item) => item.id),
+      prompt: instructions.trim() || "Complete each question with teacher guidance.",
+      learningItemIds: selectedLearningItems.map((item) => item.id),
       questions,
       visibility: privateActivity ? "private" : "shared",
-      createdBy: user.id
+      createdBy: editingActivity?.createdBy ?? user.id
     };
-    let savedActivity = newActivity;
+    let savedActivity = nextActivity;
     if (isSupabaseConfigured()) {
       try {
-        savedActivity = await insertActivity(newActivity);
+        savedActivity = editingActivity
+          ? await updateActivity(nextActivity, editingActivity)
+          : await insertActivity(nextActivity);
       } catch (error) {
         notify({
-          title: "Activity created locally",
-          description: error instanceof Error ? error.message : "Supabase activity insert failed."
+          title: editingActivity ? "Activity not updated" : "Activity not created",
+          description: error instanceof Error ? error.message : "Supabase could not save this activity."
         });
+        return;
       }
     }
-    setActivities((current) => [savedActivity, ...current]);
+    setActivities((current) =>
+      editingActivity
+        ? current.map((activity) => (activity.id === editingActivity.id ? savedActivity : activity))
+        : [savedActivity, ...current]
+    );
     resetPlayer(savedActivity.id);
-    setTitle("");
-    setPrivateActivity(false);
-    setError("");
+    const wasEditing = Boolean(editingActivity);
+    closeCreateForm();
     notify({
-      title: "Activity created",
-      description: isSupabaseConfigured() ? "The new activity was saved to Supabase." : "The new activity is available locally.",
+      title: wasEditing ? "Activity updated" : "Activity created",
+      description: isSupabaseConfigured()
+        ? `The activity was ${wasEditing ? "updated" : "created"} in Supabase.`
+        : `The activity was ${wasEditing ? "updated" : "created"} locally.`,
       tone: "success"
     });
   }
 
-  async function autoGenerate() {
-    const item = learningItems[Math.floor(Math.random() * learningItems.length)];
-    const generated: Activity = {
-      id: `activity-auto-${Date.now()}`,
-      title: `${item.label} quick quiz`,
-      type: "simple-quiz",
-      prompt: `Answer a quick question about ${item.label}.`,
-      learningItemIds: [item.id],
-      questions: [
-        {
-          id: `q-auto-${Date.now()}`,
-          prompt: `Which word is being practiced?`,
-          answer: item.label,
-          options: [item.label, "Stop", "Drink"].filter((value, index, array) => array.indexOf(value) === index),
-          learningItemId: item.id
-        }
-      ],
-      visibility: "shared",
-      createdBy: user.id
-    };
-    let savedActivity = generated;
+  async function confirmDeleteActivity(activity: Activity) {
+    setDeleteInProgress(true);
+
     if (isSupabaseConfigured()) {
       try {
-        savedActivity = await insertActivity(generated);
+        await deleteActivity(activity.id);
       } catch (error) {
         notify({
-          title: "Activity generated locally",
-          description: error instanceof Error ? error.message : "Supabase activity insert failed."
+          title: "Activity not deleted",
+          description: error instanceof Error ? error.message : "Supabase could not delete this activity."
         });
+        setDeleteInProgress(false);
+        return;
       }
     }
-    setActivities((current) => [savedActivity, ...current]);
-    resetPlayer(savedActivity.id);
-    notify({ title: "Activity generated", description: `Created a quick activity from ${item.label}.`, tone: "success" });
+
+    const remainingActivities = activities.filter((candidate) => candidate.id !== activity.id);
+    setActivities(remainingActivities);
+    if (selectedActivityId === activity.id) {
+      resetPlayer(remainingActivities[0]?.id ?? "");
+    }
+    if (editingActivity?.id === activity.id) {
+      closeCreateForm();
+    }
+    setActivityPendingDelete(null);
+    setDeleteInProgress(false);
+    notify({
+      title: "Activity deleted",
+      description: `${activity.title} was removed from the activity library.`,
+      tone: "success"
+    });
   }
 
   return (
@@ -228,27 +366,135 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
         eyebrow="Activities"
         title="Activity library and player"
         description="Run scored local activities. Results are saved only when a learner is selected."
-        actions={
-          <Button onClick={autoGenerate}>
-            <Dices className="h-4 w-4" aria-hidden="true" />
-            Auto-generate
-          </Button>
-        }
       />
-      <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setTab("workspace")}
+          className={`min-h-[6rem] rounded-lg border p-4 text-left shadow-sm transition ${
+            tab === "workspace"
+              ? "border-blue-500 bg-blue-600 text-white shadow-soft"
+              : "border-blue-100 bg-white text-slate-700 hover:border-blue-300 hover:bg-skywash"
+          }`}
+          aria-pressed={tab === "workspace"}
+        >
+          <span className="flex items-center justify-between gap-3">
+            <PlayCircle className="h-6 w-6" aria-hidden="true" />
+            <span className={`text-sm font-bold ${tab === "workspace" ? "text-white" : "text-blue-700"}`}>
+              {selectedActivity?.questions.length ?? 0} {selectedActivity?.questions.length === 1 ? "question" : "questions"}
+            </span>
+          </span>
+          <span className="mt-3 block text-sm font-bold">Play &amp; create</span>
+          <span className={`mt-1 block text-xs leading-5 ${tab === "workspace" ? "text-blue-50" : "text-slate-500"}`}>
+            Run the selected activity or create a new one
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTab("library")}
+          className={`min-h-[6rem] rounded-lg border p-4 text-left shadow-sm transition ${
+            tab === "library"
+              ? "border-blue-500 bg-blue-600 text-white shadow-soft"
+              : "border-blue-100 bg-white text-slate-700 hover:border-blue-300 hover:bg-skywash"
+          }`}
+          aria-pressed={tab === "library"}
+        >
+          <span className="flex items-center justify-between gap-3">
+            <Library className="h-6 w-6" aria-hidden="true" />
+            <span className={`text-2xl font-bold ${tab === "library" ? "text-white" : "text-blue-700"}`}>
+              {activities.length}
+            </span>
+          </span>
+          <span className="mt-3 block text-sm font-bold">Activity library</span>
+          <span className={`mt-1 block text-xs leading-5 ${tab === "library" ? "text-blue-50" : "text-slate-500"}`}>
+            Browse shared and private activities
+          </span>
+        </button>
+      </div>
+      {tab === "workspace" ? (
+      <section className="mt-4 space-y-4">
+        <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-ink">Activity workspace</h2>
+            <p className="mt-1 text-sm text-slate-600">Run the selected activity, or open the creator when you need a new one.</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {createFormOpen ? (
+              <Button type="button" variant="secondary" onClick={closeCreateForm} aria-expanded="true" aria-controls="create-activity-form">
+                <X className="h-4 w-4" aria-hidden="true" />
+                Close form
+              </Button>
+            ) : (
+              <Button type="button" onClick={() => setCreateFormOpen(true)} aria-expanded="false" aria-controls="create-activity-form">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Create activity
+              </Button>
+            )}
+          </div>
+        </div>
+
         <div className="space-y-4">
-          <Card className="bg-[#fbfdff]">
-            <CardTitle>Create activity</CardTitle>
-            <CardDescription>Teachers and admins can manually create shared or private activities.</CardDescription>
+          {createFormOpen ? (
+          <div
+            className={
+              editingActivity
+                ? "fixed inset-0 z-50 overflow-y-auto bg-slate-950/40 p-3 backdrop-blur-sm sm:p-6"
+                : "contents"
+            }
+          >
+          <Card
+            id="create-activity-form"
+            role={editingActivity ? "dialog" : undefined}
+            aria-modal={editingActivity ? true : undefined}
+            aria-labelledby={editingActivity ? "activity-form-title" : undefined}
+            className={`${editingActivity ? "mx-auto w-full" : ""} max-w-4xl border-blue-200 bg-[#fbfdff]`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle id="activity-form-title">{editingActivity ? "Edit activity" : "Create activity"}</CardTitle>
+                <CardDescription>
+                  {editingActivity
+                    ? "Update the activity details, learning items, questions, and visibility."
+                    : "Teachers and admins can manually create shared or private activities."}
+                </CardDescription>
+              </div>
+              {editingActivity ? (
+                <Button type="button" variant="ghost" size="icon" aria-label="Close activity editor" onClick={closeCreateForm}>
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              ) : null}
+            </div>
             <form className="mt-4 space-y-4" onSubmit={createActivity}>
               <div>
                 <Label htmlFor="activity-title">Activity title</Label>
-                <Input id="activity-title" value={title} onChange={(event) => setTitle(event.target.value)} />
+                <Input
+                  id="activity-title"
+                  value={title}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    if (error) setError("");
+                  }}
+                />
                 <FieldError message={error} />
               </div>
               <div>
                 <Label htmlFor="activity-type">Activity type</Label>
-                <Select id="activity-type" value={type} onChange={(event) => setType(event.target.value as ActivityType)}>
+                <Select
+                  id="activity-type"
+                  value={type}
+                  onChange={(event) => {
+                    const nextType = event.target.value as ActivityType;
+                    setType(nextType);
+                    setSelectedLearningItemIds((current) =>
+                      activityUsesImageOptions(nextType)
+                        ? current.filter((id) => learningItems.find((item) => item.id === id)?.symbolImageUrl)
+                        : current
+                    );
+                    setLearningItemError("");
+                  }}
+                >
                   <optgroup label="Symbol and word activities">
                     {activityTypes.slice(0, 4).map((item) => (
                       <option key={item} value={item}>
@@ -264,7 +510,45 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
                     ))}
                   </optgroup>
                 </Select>
-                <FieldHint>The underlying activity type value stays typed for future database records.</FieldHint>
+                <FieldHint>The activity type determines the question and scoring format.</FieldHint>
+              </div>
+              <div>
+                <Label htmlFor="learning-item-search">Search learning items</Label>
+                <div className="relative mb-4 mt-1">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
+                  <Input
+                    id="learning-item-search"
+                    type="search"
+                    value={learningItemSearch}
+                    onChange={(event) => setLearningItemSearch(event.target.value)}
+                    placeholder="Search labels, descriptions, or tags"
+                    className="pl-10"
+                  />
+                </div>
+                <SelectionList
+                  label="Learning items"
+                  helper={
+                    activityUsesImageOptions(type)
+                      ? "Choose the items to ask about. Only items with symbol images are shown."
+                      : "Choose the existing learning items that this activity should ask about."
+                  }
+                  options={selectableLearningItems.map((item) => ({
+                      value: item.id,
+                      label: item.label,
+                      description: activityUsesImageOptions(type) ? "Symbol image ready" : item.description
+                    }))}
+                  selectedValues={selectedLearningItemIds}
+                  onChange={(values) => {
+                    setSelectedLearningItemIds(values);
+                    if (learningItemError) setLearningItemError("");
+                  }}
+                  emptyText={
+                    learningItemSearch
+                      ? "No learning items match this search."
+                      : "Select at least one item to build the questions."
+                  }
+                />
+                <FieldError message={learningItemError} />
               </div>
               <label className="flex min-h-12 items-center gap-3 rounded-lg border border-blue-100 bg-skywash p-3 text-sm font-semibold">
                 <input
@@ -275,39 +559,31 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
                 />
                 Private to me
               </label>
-              <Textarea placeholder="Optional instructions for the activity" />
-              <Button type="submit">
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Create activity
-              </Button>
+              <div>
+                <Label htmlFor="activity-instructions">Activity instructions</Label>
+                <Textarea
+                  id="activity-instructions"
+                  value={instructions}
+                  onChange={(event) => setInstructions(event.target.value)}
+                  placeholder="Optional directions shown above the activity"
+                />
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button type="submit">
+                  {editingActivity ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
+                  {editingActivity ? "Save changes" : "Create activity"}
+                </Button>
+                <Button type="button" variant="outline" onClick={closeCreateForm}>
+                  Cancel
+                </Button>
+              </div>
             </form>
           </Card>
-
-          <Card>
-            <CardTitle>Activity Library</CardTitle>
-            <div className="mt-4 max-h-[34rem] space-y-3 overflow-y-auto pr-1 clean-scrollbar">
-              {activities.map((activity) => (
-                <button
-                  key={activity.id}
-                  type="button"
-                  onClick={() => resetPlayer(activity.id)}
-                  className={`flex min-h-24 w-full flex-col justify-between rounded-lg border p-3 text-left transition ${
-                    selectedActivity.id === activity.id
-                      ? "border-blue-500 bg-skywash"
-                      : "border-blue-100 bg-white hover:bg-skywash"
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">{activity.title}</p>
-                    <Badge>{activity.visibility}</Badge>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-600">{activityTypeLabels[activity.type]}</p>
-                </button>
-              ))}
-            </div>
-          </Card>
+          </div>
+          ) : null}
         </div>
 
+        {selectedActivity ? (
         <Card>
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -342,9 +618,10 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
             </div>
           </div>
 
-          <ActivityPlayer
-            activity={selectedActivity}
-            answers={answers}
+            <ActivityPlayer
+              activity={selectedActivity}
+              learningItems={learningItems}
+              answers={answers}
             dragged={dragged}
             setDragged={setDragged}
             chooseAnswer={chooseAnswer}
@@ -367,25 +644,162 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
             <Button variant="secondary" onClick={() => resetPlayer()}>
               Reset answers
             </Button>
-            <Button variant="outline" onClick={() => notify({ title: "Draft saved", description: "This simulates saving activity edits locally." })}>
-              <Save className="h-4 w-4" aria-hidden="true" />
-              Save edits
+            <Button variant="outline" onClick={() => openEditActivity(selectedActivity)}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              Edit activity
             </Button>
           </CardFooter>
         </Card>
+        ) : (
+          <EmptyState
+            icon={PlayCircle}
+            title="No activity selected"
+            description="Create an activity or choose one from the activity library."
+          />
+        )}
       </section>
+      ) : null}
+
+      {tab === "library" ? (
+        <section className="mt-4 space-y-4">
+          <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-ink">Activity library</h2>
+                <p className="mt-1 text-sm text-slate-600">Select an activity to open it in the player.</p>
+              </div>
+              <div className="w-full lg:max-w-sm">
+                <Label htmlFor="activity-search">Search activities</Label>
+                <div className="relative mt-1">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
+                  <Input
+                    id="activity-search"
+                    type="search"
+                    value={activitySearch}
+                    onChange={(event) => setActivitySearch(event.target.value)}
+                    placeholder="Search title, type, or learning item"
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {filteredActivities.length ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {filteredActivities.map((activity) => (
+                <article
+                  key={activity.id}
+                  className={`flex min-h-44 flex-col rounded-lg border bg-white p-4 shadow-sm ${
+                    selectedActivity?.id === activity.id ? "border-blue-500 ring-2 ring-blue-100" : "border-blue-100"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <h3 className="font-semibold text-ink">{activity.title}</h3>
+                    <Badge>{activity.visibility}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-600">{activityTypeLabels[activity.type]}</p>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{activity.prompt}</p>
+                  <div className="mt-auto grid grid-cols-2 gap-2 pt-4">
+                    <Button type="button" size="sm" className="col-span-2" onClick={() => openActivity(activity.id)}>
+                      <Play className="h-4 w-4" aria-hidden="true" />
+                      Open activity
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => openEditActivity(activity)}>
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                      Edit
+                    </Button>
+                    <Button type="button" size="sm" variant="danger" onClick={() => setActivityPendingDelete(activity)}>
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Delete
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={activitySearch ? Search : Library}
+              title={activities.length ? "No activities found" : "No activities yet"}
+              description={
+                activities.length
+                  ? "Try another title, type, or learning item."
+                  : "Create an activity to add it to the library."
+              }
+            />
+          )}
+        </section>
+      ) : null}
+
+      {activityPendingDelete ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-activity-title"
+            aria-describedby="delete-activity-description"
+            className="w-full max-w-md rounded-lg border border-red-100 bg-white p-5 shadow-soft"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-red-50 text-red-600">
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 id="delete-activity-title" className="text-lg font-bold text-ink">
+                  Delete {activityPendingDelete.title}?
+                </h2>
+                <p id="delete-activity-description" className="mt-2 text-sm leading-6 text-slate-600">
+                  This removes the activity, its questions, and associated saved results. This action cannot be undone.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Close delete confirmation"
+                disabled={deleteInProgress}
+                onClick={() => setActivityPendingDelete(null)}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleteInProgress}
+                onClick={() => setActivityPendingDelete(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                disabled={deleteInProgress}
+                onClick={() => confirmDeleteActivity(activityPendingDelete)}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                {deleteInProgress ? "Deleting..." : "Delete activity"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
 
 function ActivityPlayer({
   activity,
+  learningItems,
   answers,
   dragged,
   setDragged,
   chooseAnswer
 }: {
   activity: Activity;
+  learningItems: LearningItem[];
   answers: Record<string, string>;
   dragged: string;
   setDragged: (value: string) => void;
@@ -404,11 +818,11 @@ function ActivityPlayer({
               draggable
               onDragStart={() => setDragged(card)}
               onClick={() => setDragged(card)}
-              className={`grid h-16 min-w-20 place-items-center rounded-lg border bg-white px-4 text-xl font-bold text-blue-700 ${
+              className={`grid min-h-28 min-w-28 place-items-center rounded-lg border bg-white p-3 text-xl font-bold text-blue-700 ${
                 dragged === card ? "border-blue-500 ring-4 ring-blue-100" : "border-blue-100"
               }`}
             >
-              {card}
+              <SymbolOption value={card} learningItems={learningItems} />
             </button>
           ))}
         </div>
@@ -444,14 +858,46 @@ function ActivityPlayer({
                 key={option}
                 variant={answers[question.id] === option ? "primary" : "outline"}
                 onClick={() => chooseAnswer(question.id, option)}
-                className="min-h-16"
+                className={activityUsesImageOptions(activity.type) ? "min-h-32 p-3" : "min-h-16"}
               >
-                {option}
+                {activityUsesImageOptions(activity.type) ? (
+                  <SymbolOption value={option} learningItems={learningItems} />
+                ) : (
+                  option
+                )}
               </Button>
             ))}
           </div>
         </div>
       ))}
     </div>
+  );
+}
+
+function SymbolOption({ value, learningItems }: { value: string; learningItems: LearningItem[] }) {
+  const item = learningItems.find((candidate) => candidate.symbolImageUrl === value || candidate.label === value);
+  const imageValue = item?.symbolImageUrl ?? value;
+  const isImageUrl =
+    imageValue.startsWith("http") ||
+    imageValue.startsWith("/") ||
+    imageValue.startsWith("blob:") ||
+    imageValue.startsWith("data:");
+
+  if (isImageUrl) {
+    return (
+      <span
+        role="img"
+        aria-label={item ? `${item.label} symbol` : "Learning item symbol"}
+        className="block h-24 w-full min-w-24 rounded-lg bg-white bg-contain bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${JSON.stringify(imageValue)})` }}
+      />
+    );
+  }
+
+  return (
+    <span className="grid h-20 min-w-24 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] px-3 text-lg font-black text-blue-700 shadow-inner">
+      {imageValue}
+      {item ? <span className="sr-only">{item.label} symbol placeholder</span> : null}
+    </span>
   );
 }
