@@ -1,32 +1,37 @@
-import { BookOpen, ChartBar, HelpCircle, Library, PlayCircle, Upload } from "lucide-react";
+import { Bot, BookOpen, HelpCircle, Library, PlayCircle, Upload, UserCog } from "lucide-react";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 
 const guides = [
   {
     icon: Upload,
-    title: "Add learning items",
-    text: "Open Content Library, use Learning Items, add placeholder labels, and attach symbol, gesture, and audio files."
+    title: "Add PECS cards",
+    text: "Open Content Library, use Content, choose PECS, and add card labels with image and audio uploads only."
   },
   {
     icon: BookOpen,
     title: "Create lessons",
-    text: "Use Generate lesson on an item card or create a manual lesson with objectives, items, instructions, activity type, duration, and notes."
+    text: "Use Generate lesson on a PECS card or create a manual lesson with objectives, PECS cards, instructions, activity type, duration, and notes."
   },
   {
     icon: PlayCircle,
-    title: "Use gesture practice",
-    text: "Select a learner or practice without one, start the camera, run the attempt, simulate feedback, then save only when a learner is selected."
+    title: "Use gesture recognition",
+    text: "Choose one of the seven fixed gestures, start the camera, and check that the live landmark outline follows the learner’s hands before giving feedback."
   },
   {
     icon: Library,
     title: "Run activities",
-    text: "Choose an activity, optionally select a learner, answer the prompts, and score the result. Results without a learner are not saved."
+    text: "Choose or create an activity from PECS cards only, answer the prompts, and score the session locally."
   },
   {
-    icon: ChartBar,
-    title: "Read progress reports",
-    text: "Use Progress to review activity results, practice attempts, accuracy, charts, and the current export placeholder."
+    icon: Bot,
+    title: "Draft with AI",
+    text: "In Activity creation, select PECS cards and use Draft with AI to prepare an editable activity draft before saving."
+  },
+  {
+    icon: UserCog,
+    title: "Admin controls",
+    text: "Admins create and deactivate teacher accounts, monitor teacher-managed content, review uploads, and check logs."
   },
   {
     icon: HelpCircle,

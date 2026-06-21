@@ -11,7 +11,7 @@ import type {
 } from "@/types";
 
 // Future Supabase: replace these local records with typed queries from profiles,
-// learners, learning_items, lessons, activities, and result tables.
+// learning_items, lessons, activities, media_assets, and admin audit tables.
 export const demoUsers: AppUser[] = [
   {
     id: "user-admin",
@@ -32,272 +32,305 @@ export const demoUsers: AppUser[] = [
     name: "Priya Shah",
     email: "priya@makalearn.local",
     role: "teacher",
-    status: "invited"
+    status: "deactivated"
   }
 ];
 
 export const categories: Category[] = [
   {
-    id: "cat-greetings",
-    name: "Greetings",
-    description: "Demo words for social classroom routines.",
+    id: "cat-pecs-needs",
+    name: "PECS needs",
+    description: "Demo picture exchange cards for everyday classroom requests.",
     color: "#dbeafe",
     createdBy: "user-teacher"
   },
   {
-    id: "cat-needs",
-    name: "Needs",
-    description: "Demo words for everyday requests and support.",
-    color: "#dcfce7",
-    createdBy: "user-teacher"
-  },
-  {
-    id: "cat-feelings",
-    name: "Feelings",
-    description: "Demo words for emotional check-ins.",
-    color: "#fee2e2",
+    id: "cat-pecs-choices",
+    name: "PECS choices",
+    description: "Demo picture exchange cards for quick answer choices.",
+    color: "#fef3c7",
     createdBy: "user-admin"
   },
   {
-    id: "cat-choices",
-    name: "Choices",
-    description: "Demo words for quick answers.",
-    color: "#fef3c7",
+    id: "cat-gestures",
+    name: "Fixed gestures",
+    description: "The seven presentation gestures available in gesture recognition.",
+    color: "#dcfce7",
     createdBy: "user-admin"
   }
 ];
 
-export const learners: Learner[] = [
-  {
-    id: "learner-ella",
-    name: "Ella M.",
-    age: 7,
-    gradeLevel: "Primary 2",
-    communicationNeeds: "Benefits from visual prompts and repeated modeling.",
-    preferredLearningMode: "Visual",
-    assignedTeacherId: "user-teacher",
-    profilePhotoUrl: "/placeholder-learner-1",
-    status: "active"
-  },
-  {
-    id: "learner-noah",
-    name: "Noah K.",
-    age: 9,
-    gradeLevel: "Primary 4",
-    communicationNeeds: "Responds well to short audio cues and gesture practice.",
-    preferredLearningMode: "Mixed",
-    assignedTeacherId: "user-teacher",
-    profilePhotoUrl: "/placeholder-learner-2",
-    status: "active"
-  },
-  {
-    id: "learner-maya",
-    name: "Maya T.",
-    age: 8,
-    gradeLevel: "Primary 3",
-    communicationNeeds: "Needs patient wait time and teacher-guided activities.",
-    preferredLearningMode: "Teacher-guided",
-    assignedTeacherId: "user-teacher-2",
-    profilePhotoUrl: "/placeholder-learner-3",
-    status: "inactive"
-  }
-];
+// Learners remain in the type system for a future phase, but the current app
+// scope no longer exposes learner management or progress recording.
+export const learners: Learner[] = [];
 
 // These labels are demo-only educational placeholders. Official or approved
 // Makaton content should be added later by the school or content owner.
 export const learningItems: LearningItem[] = [
   {
-    id: "item-hello",
+    id: "pecs-hello",
+    contentType: "pecs",
     label: "Hello",
-    categoryId: "cat-greetings",
-    description: "A friendly greeting used when entering class.",
-    instruction: "Model the greeting and invite the learner to respond.",
+    categoryId: "cat-pecs-choices",
+    description: "A demo PECS card for greeting someone.",
+    instruction: "Show the picture card during arrival or greeting routines.",
     symbolImageUrl: "HEL",
-    gestureMediaUrl: "Gesture demo",
     audioUrl: "hello-demo.mp3",
-    tags: ["social", "arrival", "demo"],
+    tags: ["pecs", "greeting", "demo"],
     createdBy: "user-teacher",
-    updatedAt: "2026-05-10T09:00:00.000Z"
+    updatedAt: "2026-05-11T09:00:00.000Z"
   },
   {
-    id: "item-eat",
+    id: "pecs-eat",
+    contentType: "pecs",
     label: "Eat",
-    categoryId: "cat-needs",
-    description: "A classroom request used around snack or lunch.",
-    instruction: "Pair the spoken word with a picture prompt and gesture practice.",
+    categoryId: "cat-pecs-needs",
+    description: "A demo PECS card for requesting food.",
+    instruction: "Show the picture card, say the word, and wait for the learner response.",
     symbolImageUrl: "EAT",
-    gestureMediaUrl: "Gesture demo",
     audioUrl: "eat-demo.mp3",
-    tags: ["needs", "food", "demo"],
+    tags: ["pecs", "food", "demo"],
     createdBy: "user-teacher",
     updatedAt: "2026-05-12T10:30:00.000Z"
   },
   {
-    id: "item-drink",
+    id: "pecs-drink",
+    contentType: "pecs",
     label: "Drink",
-    categoryId: "cat-needs",
-    description: "A request for water or another drink.",
-    instruction: "Use a real cup or photo card as a prompt.",
+    categoryId: "cat-pecs-needs",
+    description: "A demo PECS card for requesting water or another drink.",
+    instruction: "Offer the picture card near a real cup or bottle when available.",
     symbolImageUrl: "DRK",
-    gestureMediaUrl: "Gesture demo",
     audioUrl: "drink-demo.mp3",
-    tags: ["needs", "drink", "demo"],
+    tags: ["pecs", "drink", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-05-15T08:15:00.000Z"
   },
   {
-    id: "item-more",
+    id: "pecs-more",
+    contentType: "pecs",
     label: "More",
-    categoryId: "cat-needs",
-    description: "A common request to continue an activity.",
+    categoryId: "cat-pecs-needs",
+    description: "A demo PECS card for continuing an activity.",
     instruction: "Pause before repeating the activity so the learner can request more.",
     symbolImageUrl: "MOR",
-    gestureMediaUrl: "Gesture demo",
     audioUrl: "more-demo.mp3",
-    tags: ["request", "routine", "demo"],
+    tags: ["pecs", "request", "demo"],
     createdBy: "user-teacher",
     updatedAt: "2026-05-18T11:20:00.000Z"
   },
   {
-    id: "item-help",
+    id: "pecs-help",
+    contentType: "pecs",
     label: "Help",
-    categoryId: "cat-needs",
-    description: "A support request for classroom tasks.",
-    instruction: "Prompt the learner to ask before intervening.",
+    categoryId: "cat-pecs-needs",
+    description: "A demo PECS card for asking for support.",
+    instruction: "Prompt the learner to request help before the teacher intervenes.",
     symbolImageUrl: "HLP",
-    gestureMediaUrl: "Gesture demo",
     audioUrl: "help-demo.mp3",
-    tags: ["support", "independence", "demo"],
+    tags: ["pecs", "support", "demo"],
     createdBy: "user-teacher",
     updatedAt: "2026-05-19T12:10:00.000Z"
   },
   {
-    id: "item-stop",
-    label: "Stop",
-    categoryId: "cat-choices",
-    description: "A choice word for ending or pausing an activity.",
-    instruction: "Practice respectfully using stop during turn-taking.",
-    symbolImageUrl: "STP",
-    gestureMediaUrl: "Gesture demo",
-    audioUrl: "stop-demo.mp3",
-    tags: ["choice", "safety", "demo"],
+    id: "pecs-yes",
+    contentType: "pecs",
+    label: "Yes",
+    categoryId: "cat-pecs-choices",
+    description: "A demo PECS card for answering yes.",
+    instruction: "Use during simple two-choice questions.",
+    symbolImageUrl: "YES",
+    audioUrl: "yes-demo.mp3",
+    tags: ["pecs", "choice", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-05-21T12:10:00.000Z"
   },
   {
-    id: "item-happy",
-    label: "Happy",
-    categoryId: "cat-feelings",
-    description: "A feeling word for check-ins.",
-    instruction: "Use during morning circle or reflection.",
-    symbolImageUrl: "HAP",
-    gestureMediaUrl: "Gesture demo",
-    audioUrl: "happy-demo.mp3",
-    tags: ["feelings", "check-in", "demo"],
-    createdBy: "user-teacher",
-    updatedAt: "2026-05-24T14:00:00.000Z"
-  },
-  {
-    id: "item-no",
+    id: "pecs-no",
+    contentType: "pecs",
     label: "No",
-    categoryId: "cat-choices",
-    description: "A clear response for choices.",
-    instruction: "Offer two choices and respect the learner's response.",
+    categoryId: "cat-pecs-choices",
+    description: "A demo PECS card for answering no.",
+    instruction: "Offer two choices and respect the learner response.",
     symbolImageUrl: "NO",
-    gestureMediaUrl: "Gesture demo",
     audioUrl: "no-demo.mp3",
-    tags: ["choice", "answer", "demo"],
+    tags: ["pecs", "choice", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-05-25T14:00:00.000Z"
+  },
+  {
+    id: "gesture-toilet",
+    contentType: "gesture",
+    label: "I want to go to toilet",
+    categoryId: "cat-gestures",
+    description: "Fixed demo gesture for requesting the toilet.",
+    instruction: "Show the reference, start the camera, and check that both hands remain visible.",
+    symbolImageUrl: "TOI",
+    gestureMediaUrl: "toilet-gesture-demo.mp4",
+    audioUrl: "toilet-demo.mp3",
+    tags: ["gesture", "fixed", "demo"],
+    createdBy: "user-admin",
+    updatedAt: "2026-06-10T09:00:00.000Z"
+  },
+  {
+    id: "gesture-eat-food",
+    contentType: "gesture",
+    label: "I want to eat food",
+    categoryId: "cat-gestures",
+    description: "Fixed demo gesture for requesting food.",
+    instruction: "Keep the learner centered and check that the live hand outline follows the movement.",
+    symbolImageUrl: "EAT",
+    gestureMediaUrl: "eat-food-gesture-demo.mp4",
+    audioUrl: "eat-food-demo.mp3",
+    tags: ["gesture", "fixed", "demo"],
+    createdBy: "user-admin",
+    updatedAt: "2026-06-10T09:05:00.000Z"
+  },
+  {
+    id: "gesture-drink-water",
+    contentType: "gesture",
+    label: "I want to drink water",
+    categoryId: "cat-gestures",
+    description: "Fixed demo gesture for requesting water.",
+    instruction: "Use the hand visibility indicator before giving corrective feedback.",
+    symbolImageUrl: "DRK",
+    gestureMediaUrl: "drink-water-gesture-demo.mp4",
+    audioUrl: "drink-water-demo.mp3",
+    tags: ["gesture", "fixed", "demo"],
+    createdBy: "user-admin",
+    updatedAt: "2026-06-10T09:10:00.000Z"
+  },
+  {
+    id: "gesture-help",
+    contentType: "gesture",
+    label: "Help",
+    categoryId: "cat-gestures",
+    description: "Fixed demo gesture for requesting help.",
+    instruction: "Ask the learner to repeat slowly if the hand detector loses visibility.",
+    symbolImageUrl: "HLP",
+    gestureMediaUrl: "help-gesture-demo.mp4",
+    audioUrl: "help-demo.mp3",
+    tags: ["gesture", "fixed", "demo"],
+    createdBy: "user-admin",
+    updatedAt: "2026-06-10T09:15:00.000Z"
+  },
+  {
+    id: "gesture-yes",
+    contentType: "gesture",
+    label: "Yes",
+    categoryId: "cat-gestures",
+    description: "Fixed demo gesture for yes.",
+    instruction: "Start only when the camera shows one person in frame.",
+    symbolImageUrl: "YES",
+    gestureMediaUrl: "yes-gesture-demo.mp4",
+    audioUrl: "yes-demo.mp3",
+    tags: ["gesture", "fixed", "demo"],
+    createdBy: "user-admin",
+    updatedAt: "2026-06-10T09:20:00.000Z"
+  },
+  {
+    id: "gesture-no",
+    contentType: "gesture",
+    label: "No",
+    categoryId: "cat-gestures",
+    description: "Fixed demo gesture for no.",
+    instruction: "Use the visibility indicator to keep feedback focused and calm.",
+    symbolImageUrl: "NO",
+    gestureMediaUrl: "no-gesture-demo.mp4",
+    audioUrl: "no-demo.mp3",
+    tags: ["gesture", "fixed", "demo"],
+    createdBy: "user-admin",
+    updatedAt: "2026-06-10T09:25:00.000Z"
+  },
+  {
+    id: "gesture-sit-down",
+    contentType: "gesture",
+    label: "Sit down",
+    categoryId: "cat-gestures",
+    description: "Fixed demo gesture for asking to sit down.",
+    instruction: "Give one short cue, wait, then repeat if the learner needs another model.",
+    symbolImageUrl: "SIT",
+    gestureMediaUrl: "sit-down-gesture-demo.mp4",
+    audioUrl: "sit-down-demo.mp3",
+    tags: ["gesture", "fixed", "demo"],
+    createdBy: "user-admin",
+    updatedAt: "2026-06-10T09:30:00.000Z"
   }
 ];
 
 export const lessons: Lesson[] = [
   {
-    id: "lesson-needs",
-    title: "Snack Time Requests",
-    objective: "Practice requesting food, drink, and more during a guided routine.",
-    learningItemIds: ["item-eat", "item-drink", "item-more"],
-    instructions: "Model each item, ask the learner to choose, then run a short quiz.",
+    id: "lesson-pecs-needs",
+    title: "Snack Time PECS Requests",
+    objective: "Practice choosing picture cards for food, drink, and more.",
+    learningItemIds: ["pecs-eat", "pecs-drink", "pecs-more"],
+    instructions: "Model each PECS card, ask the learner to choose, then run a short symbol activity.",
     activityType: "choose-correct-symbol",
     estimatedDuration: 15,
     notes: "Use classroom objects where possible.",
     source: "manual",
     visibility: "shared",
     createdBy: "user-teacher"
-  },
-  {
-    id: "lesson-feelings",
-    title: "Morning Feelings Check",
-    objective: "Support the learner to identify and communicate a simple feeling.",
-    learningItemIds: ["item-happy"],
-    instructions: "Use a visual choice board and give wait time.",
-    activityType: "simple-quiz",
-    estimatedDuration: 10,
-    notes: "Keep the interaction brief and positive.",
-    source: "auto-generated",
-    visibility: "shared",
-    createdBy: "user-admin"
   }
 ];
 
 export const activities: Activity[] = [
   {
-    id: "activity-match",
-    title: "Match Words to Demo Symbols",
+    id: "activity-match-pecs",
+    title: "Match PECS Words to Cards",
     type: "match-word-symbol",
-    prompt: "Pick the matching demo symbol for each word.",
-    learningItemIds: ["item-hello", "item-eat", "item-drink"],
+    prompt: "Pick the matching PECS picture card for each word.",
+    learningItemIds: ["pecs-eat", "pecs-drink", "pecs-more"],
     visibility: "shared",
     createdBy: "user-teacher",
     questions: [
       {
-        id: "q-match-hello",
-        prompt: "Hello",
-        answer: "HEL",
-        options: ["HEL", "EAT", "DRK"],
-        learningItemId: "item-hello"
-      },
-      {
         id: "q-match-eat",
         prompt: "Eat",
         answer: "EAT",
-        options: ["HEL", "EAT", "DRK"],
-        learningItemId: "item-eat"
+        options: ["EAT", "DRK", "MOR"],
+        learningItemId: "pecs-eat"
+      },
+      {
+        id: "q-match-drink",
+        prompt: "Drink",
+        answer: "DRK",
+        options: ["EAT", "DRK", "MOR"],
+        learningItemId: "pecs-drink"
       }
     ]
   },
   {
-    id: "activity-choice",
-    title: "Choose the Correct Symbol",
+    id: "activity-choice-pecs",
+    title: "Choose the Correct PECS Card",
     type: "choose-correct-symbol",
-    prompt: "Listen to the teacher prompt and choose the correct demo symbol.",
-    learningItemIds: ["item-more", "item-help", "item-stop"],
+    prompt: "Listen to the teacher prompt and choose the correct PECS card.",
+    learningItemIds: ["pecs-help", "pecs-yes", "pecs-no"],
     visibility: "shared",
     createdBy: "user-admin",
     questions: [
       {
-        id: "q-choice-more",
-        prompt: "Choose More",
-        answer: "MOR",
-        options: ["MOR", "HLP", "STP"],
-        learningItemId: "item-more"
-      },
-      {
         id: "q-choice-help",
         prompt: "Choose Help",
         answer: "HLP",
-        options: ["MOR", "HLP", "STP"],
-        learningItemId: "item-help"
+        options: ["HLP", "YES", "NO"],
+        learningItemId: "pecs-help"
+      },
+      {
+        id: "q-choice-yes",
+        prompt: "Choose Yes",
+        answer: "YES",
+        options: ["HLP", "YES", "NO"],
+        learningItemId: "pecs-yes"
       }
     ]
   },
   {
-    id: "activity-blank",
-    title: "Fill in the Blank",
+    id: "activity-blank-pecs",
+    title: "PECS Sentence Builder",
     type: "fill-blank",
-    prompt: "Complete each sentence with a demo learning word.",
-    learningItemIds: ["item-eat", "item-drink"],
+    prompt: "Complete each sentence with a PECS word.",
+    learningItemIds: ["pecs-eat", "pecs-drink"],
     visibility: "private",
     createdBy: "user-teacher",
     questions: [
@@ -305,176 +338,102 @@ export const activities: Activity[] = [
         id: "q-blank-eat",
         prompt: "I want to ____.",
         answer: "Eat",
-        options: ["Eat", "No", "Happy"],
-        learningItemId: "item-eat"
+        options: ["Eat", "No", "Help"],
+        learningItemId: "pecs-eat"
       },
       {
         id: "q-blank-drink",
         prompt: "I need a ____.",
         answer: "Drink",
-        options: ["Stop", "Drink", "Hello"],
-        learningItemId: "item-drink"
+        options: ["More", "Drink", "Yes"],
+        learningItemId: "pecs-drink"
       }
     ]
   },
   {
-    id: "activity-drag",
-    title: "Drag Symbol Cards",
+    id: "activity-drag-pecs",
+    title: "Drag PECS Cards",
     type: "drag-drop-symbol",
-    prompt: "Drag each demo symbol card to its word.",
-    learningItemIds: ["item-hello", "item-help"],
+    prompt: "Drag each PECS card to its word.",
+    learningItemIds: ["pecs-more", "pecs-help"],
     visibility: "shared",
     createdBy: "user-teacher",
     questions: [
       {
-        id: "q-drag-hello",
-        prompt: "Hello",
-        answer: "HEL",
-        options: ["HEL", "HLP"],
-        learningItemId: "item-hello"
+        id: "q-drag-more",
+        prompt: "More",
+        answer: "MOR",
+        options: ["MOR", "HLP"],
+        learningItemId: "pecs-more"
       },
       {
         id: "q-drag-help",
         prompt: "Help",
         answer: "HLP",
-        options: ["HEL", "HLP"],
-        learningItemId: "item-help"
+        options: ["MOR", "HLP"],
+        learningItemId: "pecs-help"
       }
     ]
   },
   {
-    id: "activity-gesture",
-    title: "Gesture Practice Round",
-    type: "gesture-practice",
-    prompt: "Practice the selected classroom gesture with teacher feedback.",
-    learningItemIds: ["item-hello", "item-more"],
-    visibility: "shared",
-    createdBy: "user-teacher",
-    questions: [
-      {
-        id: "q-gesture-more",
-        prompt: "Practice More",
-        answer: "Correct",
-        options: ["Correct", "Good attempt", "Needs practice"],
-        learningItemId: "item-more"
-      }
-    ]
-  },
-  {
-    id: "activity-quiz",
-    title: "Simple Classroom Quiz",
+    id: "activity-quiz-pecs",
+    title: "Simple PECS Quiz",
     type: "simple-quiz",
-    prompt: "Answer the teacher-guided quiz questions.",
-    learningItemIds: ["item-happy", "item-no"],
+    prompt: "Answer the teacher-guided PECS questions.",
+    learningItemIds: ["pecs-yes", "pecs-no"],
     visibility: "shared",
     createdBy: "user-admin",
     questions: [
       {
-        id: "q-quiz-happy",
-        prompt: "Which word means feeling good?",
-        answer: "Happy",
-        options: ["Happy", "Stop", "Drink"],
-        learningItemId: "item-happy"
+        id: "q-quiz-yes",
+        prompt: "Which word answers yes to a choice?",
+        answer: "Yes",
+        options: ["Yes", "Help", "Drink"],
+        learningItemId: "pecs-yes"
       },
       {
         id: "q-quiz-no",
-        prompt: "Which word can answer a choice?",
+        prompt: "Which word can answer no?",
         answer: "No",
-        options: ["Help", "No", "Eat"],
-        learningItemId: "item-no"
+        options: ["More", "No", "Eat"],
+        learningItemId: "pecs-no"
       }
     ]
   }
 ];
 
-export const practiceAttempts: PracticeAttempt[] = [
-  {
-    id: "attempt-1",
-    learnerId: "learner-ella",
-    learningItemId: "item-hello",
-    status: "Correct",
-    feedback: "Clear start and finish. Keep the pace steady.",
-    attemptedAt: "2026-06-02T10:00:00.000Z",
-    savedBy: "user-teacher"
-  },
-  {
-    id: "attempt-2",
-    learnerId: "learner-noah",
-    learningItemId: "item-more",
-    status: "Good attempt",
-    feedback: "Good effort. Try holding the final position a little longer.",
-    attemptedAt: "2026-06-03T11:15:00.000Z",
-    savedBy: "user-teacher"
-  },
-  {
-    id: "attempt-3",
-    learnerId: "learner-ella",
-    learningItemId: "item-help",
-    status: "Needs practice",
-    feedback: "Practice the starting hand position before repeating.",
-    attemptedAt: "2026-06-05T13:15:00.000Z",
-    savedBy: "user-teacher"
-  }
-];
-
-export const activityResults: ActivityResult[] = [
-  {
-    id: "result-1",
-    learnerId: "learner-ella",
-    activityId: "activity-match",
-    activityType: "match-word-symbol",
-    scorePercentage: 100,
-    correctCount: 2,
-    incorrectCount: 0,
-    timeSpentSeconds: 110,
-    completedAt: "2026-06-04T09:10:00.000Z",
-    relatedLearningItemIds: ["item-hello", "item-eat"],
-    savedBy: "user-teacher"
-  },
-  {
-    id: "result-2",
-    learnerId: "learner-noah",
-    activityId: "activity-choice",
-    activityType: "choose-correct-symbol",
-    scorePercentage: 50,
-    correctCount: 1,
-    incorrectCount: 1,
-    timeSpentSeconds: 150,
-    completedAt: "2026-06-06T09:35:00.000Z",
-    relatedLearningItemIds: ["item-more", "item-help"],
-    savedBy: "user-teacher"
-  }
-];
+export const practiceAttempts: PracticeAttempt[] = [];
+export const activityResults: ActivityResult[] = [];
 
 export const mediaAssets: MediaAsset[] = [
   {
-    id: "media-1",
-    title: "Hello demo symbol placeholder",
+    id: "media-pecs-eat",
+    title: "Eat PECS image placeholder",
     type: "symbol-image",
-    fileName: "hello-placeholder.png",
+    fileName: "eat-pecs-placeholder.png",
     bucket: "symbol-images",
     uploadedBy: "user-teacher",
-    uploadedAt: "2026-05-10T09:00:00.000Z",
-    relatedItemId: "item-hello"
+    uploadedAt: "2026-05-12T10:30:00.000Z",
+    relatedItemId: "pecs-eat"
   },
   {
-    id: "media-2",
-    title: "More gesture demo placeholder",
+    id: "media-gesture-help",
+    title: "Help gesture video placeholder",
     type: "gesture-media",
-    fileName: "more-placeholder.mp4",
+    fileName: "help-gesture-placeholder.mp4",
     bucket: "gesture-media",
-    uploadedBy: "user-teacher",
-    uploadedAt: "2026-05-18T11:20:00.000Z",
-    relatedItemId: "item-more"
+    uploadedBy: "user-admin",
+    uploadedAt: "2026-06-10T09:15:00.000Z",
+    relatedItemId: "gesture-help"
   },
   {
-    id: "media-3",
-    title: "Drink audio demo placeholder",
+    id: "media-pecs-drink-audio",
+    title: "Drink PECS audio placeholder",
     type: "audio-file",
     fileName: "drink-placeholder.mp3",
     bucket: "audio-files",
     uploadedBy: "user-admin",
     uploadedAt: "2026-05-15T08:15:00.000Z",
-    relatedItemId: "item-drink"
+    relatedItemId: "pecs-drink"
   }
 ];

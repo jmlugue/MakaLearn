@@ -16,3 +16,9 @@ export function generateFeedbackPlaceholder(status: PracticeStatus) {
       return "Check that hands are visible in the camera frame before trying again.";
   }
 }
+
+// Future AI feedback: replace this presentation-only response with a guarded
+// corrective feedback service that uses approved gesture references and school policy.
+export function generateCorrectiveFeedbackPlaceholder(gestureLabel: string) {
+  return `I can see the hands clearly. For "${gestureLabel}", give one calm model, ask the learner to copy slowly, and praise the visible effort before correcting the next small step.`;
+}

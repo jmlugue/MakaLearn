@@ -1,10 +1,5 @@
-import { AppShell } from "@/components/layout/app-shell";
-import { LearnersView } from "@/features/learners/learners-view";
+import { redirect } from "next/navigation";
 
 export default function LearnersPage() {
-  return (
-    <AppShell>
-      <LearnersView />
-    </AppShell>
-  );
+  redirect("/content");
 }

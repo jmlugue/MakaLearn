@@ -1,10 +1,5 @@
-import { AppShell } from "@/components/layout/app-shell";
-import { ProgressView } from "@/features/progress/progress-view";
+import { redirect } from "next/navigation";
 
 export default function ProgressPage() {
-  return (
-    <AppShell>
-      <ProgressView />
-    </AppShell>
-  );
+  redirect("/content");
 }

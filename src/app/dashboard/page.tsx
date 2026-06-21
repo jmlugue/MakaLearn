@@ -1,10 +1,5 @@
-import { AppShell } from "@/components/layout/app-shell";
-import { DashboardView } from "@/features/dashboard/dashboard-view";
+import { redirect } from "next/navigation";
 
 export default function DashboardPage() {
-  return (
-    <AppShell>
-      <DashboardView />
-    </AppShell>
-  );
+  redirect("/content");
 }

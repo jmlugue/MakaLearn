@@ -82,6 +82,278 @@ textarea {
     background: #93c5fd;
     border-radius: 999px;
   }
+
+  .hero-mesh {
+    position: absolute;
+    inset: -12rem -8rem auto;
+    height: 34rem;
+    background:
+      radial-gradient(circle at 18% 26%, rgba(37, 99, 235, 0.24), transparent 16rem),
+      radial-gradient(circle at 74% 18%, rgba(45, 212, 191, 0.2), transparent 15rem),
+      linear-gradient(120deg, rgba(255, 255, 255, 0.7), rgba(219, 234, 254, 0.28));
+    filter: blur(2px);
+    transform: skewY(-5deg);
+    animation: mesh-drift 14s ease-in-out infinite alternate;
+  }
+
+  .glass-device {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.68);
+    box-shadow: 0 28px 80px rgba(37, 99, 235, 0.18);
+    backdrop-filter: blur(18px);
+    transform: perspective(1100px) rotateX(3deg) rotateY(-5deg);
+    transition: transform 260ms ease, box-shadow 260ms ease;
+  }
+
+  .glass-device:hover {
+    transform: perspective(1100px) rotateX(1deg) rotateY(-2deg) translateY(-4px);
+    box-shadow: 0 34px 90px rgba(37, 99, 235, 0.22);
+  }
+
+  .floating-cue {
+    position: absolute;
+    z-index: 0;
+    display: none;
+    min-width: 5.5rem;
+    border: 1px solid rgba(191, 219, 254, 0.75);
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.62);
+    padding: 0.65rem 0.9rem;
+    color: #1d4ed8;
+    font-size: 0.8rem;
+    font-weight: 800;
+    box-shadow: 0 18px 45px rgba(37, 99, 235, 0.12);
+    backdrop-filter: blur(14px);
+    animation: cue-float 6s ease-in-out infinite;
+  }
+
+  @media (min-width: 768px) {
+    .floating-cue {
+      display: block;
+    }
+  }
+
+  .cue-one {
+    left: 8%;
+    top: 24%;
+  }
+
+  .cue-two {
+    right: 8%;
+    top: 18%;
+    animation-delay: 900ms;
+  }
+
+  .cue-three {
+    right: 20%;
+    bottom: 14%;
+    animation-delay: 1500ms;
+  }
+
+  .activity-float {
+    animation: card-rise 680ms ease both;
+  }
+
+  .reveal-on-scroll {
+    animation: reveal-in 760ms ease both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 26%;
+  }
+
+  .landing-page {
+    background:
+      linear-gradient(180deg, rgba(247, 251, 255, 0.94), rgba(238, 247, 255, 0.92) 62%, #ffffff),
+      #f8fbff;
+  }
+
+  .landing-orb {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(2px);
+    pointer-events: none;
+  }
+
+  .landing-orb-one {
+    left: -11rem;
+    top: 5rem;
+    height: 32rem;
+    width: 32rem;
+    background: radial-gradient(circle at 60% 48%, rgba(96, 165, 250, 0.22), rgba(191, 219, 254, 0.05) 58%, transparent 70%);
+  }
+
+  .landing-orb-two {
+    right: -8rem;
+    top: -9rem;
+    height: 30rem;
+    width: 30rem;
+    border: 5rem solid rgba(45, 212, 191, 0.07);
+  }
+
+  .landing-dot-field,
+  .login-dot-grid {
+    background-image: radial-gradient(circle, currentColor 1.2px, transparent 1.3px);
+    background-size: 18px 18px;
+  }
+
+  .landing-dot-field {
+    position: absolute;
+    right: 4%;
+    top: 9rem;
+    height: 9rem;
+    width: 13rem;
+    color: rgba(37, 99, 235, 0.12);
+    mask-image: linear-gradient(120deg, black, transparent 80%);
+  }
+
+  .landing-ribbon {
+    position: absolute;
+    left: 7%;
+    top: 40rem;
+    height: 7rem;
+    width: 14rem;
+    border: 2px solid rgba(59, 130, 246, 0.12);
+    border-radius: 50%;
+    transform: rotate(-14deg);
+  }
+
+  .landing-ribbon::after {
+    content: "";
+    position: absolute;
+    inset: 1.2rem -2rem -1.2rem 2rem;
+    border: 2px solid rgba(20, 184, 166, 0.11);
+    border-radius: 50%;
+  }
+
+  .session-board::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 5px;
+    background: linear-gradient(90deg, #2563eb, #60a5fa 56%, #2dd4bf);
+  }
+
+  .session-step {
+    animation: card-rise 600ms ease both;
+  }
+
+  .session-pencil {
+    position: absolute;
+    bottom: -1.5rem;
+    left: 7%;
+    z-index: -1;
+    height: 5rem;
+    width: 18rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(37, 99, 235, 0.13), rgba(45, 212, 191, 0.17));
+    transform: rotate(-6deg);
+  }
+
+  .session-rings {
+    position: absolute;
+    right: -1rem;
+    top: -1.5rem;
+    display: flex;
+    gap: 0.45rem;
+  }
+
+  .session-rings span {
+    height: 2.2rem;
+    width: 0.55rem;
+    border: 2px solid #93c5fd;
+    border-radius: 999px;
+    background: #eff6ff;
+    transform: rotate(12deg);
+  }
+
+  .login-page {
+    background: linear-gradient(135deg, #e9f3ff 0%, #edf8ff 45%, #e8ecff 100%);
+  }
+
+  .login-glow {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(1px);
+  }
+
+  .login-glow-one {
+    left: -8rem;
+    bottom: -9rem;
+    height: 28rem;
+    width: 28rem;
+    border: 5rem solid rgba(59, 130, 246, 0.11);
+  }
+
+  .login-glow-two {
+    right: -7rem;
+    top: -8rem;
+    height: 24rem;
+    width: 24rem;
+    background: rgba(99, 102, 241, 0.1);
+  }
+
+  .login-dot-grid {
+    position: absolute;
+    right: -2rem;
+    top: 3rem;
+    height: 13rem;
+    width: 14rem;
+    color: rgba(255, 255, 255, 0.2);
+    transform: rotate(8deg);
+  }
+
+  .login-loop {
+    position: absolute;
+    bottom: -6rem;
+    right: -5rem;
+    height: 22rem;
+    width: 22rem;
+    border: 4rem solid rgba(255, 255, 255, 0.08);
+    border-radius: 45% 55% 52% 48%;
+    transform: rotate(-25deg);
+  }
+}
+
+@keyframes mesh-drift {
+  from {
+    transform: skewY(-5deg) translate3d(-1rem, -0.5rem, 0);
+  }
+  to {
+    transform: skewY(-3deg) translate3d(1.25rem, 1rem, 0);
+  }
+}
+
+@keyframes cue-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-2deg);
+  }
+  50% {
+    transform: translate3d(0, -0.85rem, 0) rotate(2deg);
+  }
+}
+
+@keyframes card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .high-contrast {

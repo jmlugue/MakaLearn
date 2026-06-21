@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Sparkles } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { adminNavItem, baseNavItems } from "@/components/layout/nav-items";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/layout/brand-logo";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -16,13 +17,7 @@ export function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 border-r border-blue-100 bg-white/92 p-5 shadow-soft backdrop-blur lg:flex lg:flex-col">
       <Link href="/" className="mb-8 flex items-center gap-3">
-        <span className="grid h-11 w-11 place-items-center rounded-lg bg-blue-600 text-white shadow-sm shadow-blue-900/20">
-          <Sparkles className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <span>
-          <span className="block text-xl font-bold text-ink">MakaLearn</span>
-          <span className="text-sm text-slate-500">Teacher-guided support</span>
-        </span>
+        <BrandLogo />
       </Link>
       <nav className="flex flex-1 flex-col gap-1">
         {items.map((item) => {

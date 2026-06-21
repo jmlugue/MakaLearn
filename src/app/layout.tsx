@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "MakaLearn",
-  description: "Teacher-guided Makaton learning support"
+  description: "Classroom learning materials, guided practice, and activities in one place."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

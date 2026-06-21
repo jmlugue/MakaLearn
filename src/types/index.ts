@@ -5,7 +5,7 @@ export type AppUser = {
   name: string;
   email: string;
   role: UserRole;
-  status: "active" | "invited";
+  status: "active" | "invited" | "deactivated";
 };
 
 export type PreferredLearningMode =
@@ -50,6 +50,7 @@ export type MediaAsset = {
 
 export type LearningItem = {
   id: string;
+  contentType: "pecs" | "gesture";
   label: string;
   categoryId: string;
   description: string;

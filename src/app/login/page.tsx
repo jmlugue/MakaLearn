@@ -1,29 +1,53 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, Hand, Shapes } from "lucide-react";
 import { ToastProvider } from "@/components/common/toast-provider";
 import { LoginPanel } from "@/features/auth/login-panel";
+
+const accountUses = [
+  { icon: BookOpenCheck, label: "Manage learning materials" },
+  { icon: Hand, label: "Guide practice sessions" },
+  { icon: Shapes, label: "Create classroom activities" }
+];
 
 export default function LoginPage() {
   return (
     <ToastProvider>
-      <main className="grid min-h-screen place-items-center px-4 py-8">
-        <div className="grid w-full max-w-6xl items-center gap-8 lg:grid-cols-[0.9fr_1fr]">
-          <div className="rounded-lg border border-blue-100 bg-white/80 p-5 shadow-soft backdrop-blur sm:p-7">
-            <Link href="/" className="inline-flex items-center gap-3">
-              <span className="grid h-12 w-12 place-items-center rounded-lg bg-blue-600 text-white shadow-sm shadow-blue-900/20">
-                <Sparkles className="h-6 w-6" aria-hidden="true" />
-              </span>
-              <span className="text-2xl font-bold text-ink">MakaLearn</span>
-            </Link>
-            <h2 className="mt-8 max-w-lg text-4xl font-bold leading-tight text-ink">
-              Sign in with your MakaLearn account.
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-              Admin and teacher roles come from Supabase profiles. Learner profiles are selected
-              inside teacher-guided classroom workflows.
-            </p>
-          </div>
-          <LoginPanel />
+      <main className="login-page relative grid min-h-screen place-items-center overflow-hidden px-4 py-8 sm:px-6">
+        <div className="login-glow login-glow-one" aria-hidden="true" />
+        <div className="login-glow login-glow-two" aria-hidden="true" />
+        <Link href="/" className="absolute left-5 top-5 z-20 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/80 px-4 text-sm font-bold text-slate-700 shadow-sm backdrop-blur hover:bg-white sm:left-8 sm:top-8">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to home
+        </Link>
+
+        <div className="relative z-10 grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_30px_100px_rgba(30,64,175,0.2)] lg:min-h-[620px] lg:grid-cols-[0.95fr_1.05fr]">
+          <section className="login-brand-panel relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-500 p-8 text-white sm:p-12 lg:p-14">
+            <div className="login-dot-grid" aria-hidden="true" />
+            <div className="login-loop" aria-hidden="true" />
+            <div className="relative z-10 flex h-full flex-col">
+              <div className="flex items-center gap-4">
+                <span className="grid h-20 w-20 place-items-center overflow-hidden rounded-[1.6rem] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.2)]">
+                  <Image src="/makalearn_logo.png" alt="" width={96} height={96} className="h-full w-full object-contain p-2" priority />
+                </span>
+                <p className="text-4xl font-black tracking-[-0.05em] sm:text-5xl">MakaLearn</p>
+              </div>
+              <p className="mt-8 max-w-md text-lg font-semibold leading-8 text-blue-50">
+                Your classroom materials and guided practice tools, ready for the next session.
+              </p>
+              <div className="mt-9 space-y-3">
+                {accountUses.map((item) => (
+                  <div key={item.label} className="flex items-center gap-3 text-sm font-semibold text-white/90">
+                    <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/12 ring-1 ring-white/20"><item.icon className="h-5 w-5" /></span>
+                    {item.label}
+                  </div>
+                ))}
+              </div>
+              <p className="mt-auto pt-12 text-sm leading-6 text-blue-100">Use the account provided by your school administrator.</p>
+            </div>
+          </section>
+          <section className="grid place-items-center bg-white px-5 py-10 sm:px-10 lg:px-12">
+            <LoginPanel />
+          </section>
         </div>
       </main>
     </ToastProvider>

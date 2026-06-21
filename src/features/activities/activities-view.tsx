@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Library, Pencil, Play, PlayCircle, Plus, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, Bot, Library, Pencil, Play, PlayCircle, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
@@ -10,21 +10,27 @@ import { SelectionList } from "@/components/ui/selection-list";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
-import { activities as mockActivities, learners as mockLearners, learningItems as mockLearningItems } from "@/data/mock-data";
+import { activities as mockActivities, learningItems as mockLearningItems } from "@/data/mock-data";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import {
   createActivityQuestions,
   deleteActivity,
   fetchMakaLearnData,
   insertActivity,
-  insertActivityResult,
   updateActivity
 } from "@/lib/supabase/app-data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { activityTypeLabels } from "@/utils/activity-labels";
-import type { Activity, ActivityResult, ActivityType, Learner, LearningItem } from "@/types";
+import type { Activity, ActivityType, LearningItem } from "@/types";
 
-const activityTypes = Object.keys(activityTypeLabels) as ActivityType[];
+const activityTypes: ActivityType[] = [
+  "match-word-symbol",
+  "choose-correct-symbol",
+  "fill-blank",
+  "drag-drop-symbol",
+  "gesture-practice",
+  "simple-quiz"
+];
 type ActivityTab = "workspace" | "library";
 const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
 
@@ -35,7 +41,7 @@ function readLocalActivities(): Activity[] | null {
     const value = window.localStorage.getItem(LOCAL_ACTIVITIES_STORAGE_KEY);
     if (value === null) return null;
     const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed) ? (parsed as Activity[]) : null;
+    return Array.isArray(parsed) ? (parsed as Activity[]).filter((activity) => activityTypes.includes(activity.type)) : null;
   } catch {
     return null;
   }
@@ -54,6 +60,26 @@ function activityUsesImageOptions(type: ActivityType) {
   return type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
 }
 
+function getActivityDraftInstructions(type: ActivityType, items: LearningItem[]) {
+  const count = items.length;
+  const noun = count === 1 ? "item" : "items";
+
+  const instructions: Record<ActivityType, string> = {
+    "match-word-symbol": `Show the ${count} selected ${noun}. Ask the learner to match each word to its picture, then revisit any missed matches.`,
+    "choose-correct-symbol": `Read each prompt aloud and ask the learner to choose the correct picture. Give one repeat if needed before moving on.`,
+    "fill-blank": `Read each sentence with a pause at the blank. Let the learner choose the missing word, then read the completed sentence together.`,
+    "drag-drop-symbol": `Ask the learner to drag each picture to its matching word. On touch screens, tap a picture first and then choose its word.`,
+    "gesture-practice": `Model each selected gesture once, then ask the learner to copy it. Mark the attempt after the learner has had enough time to respond.`,
+    "simple-quiz": `Ask one short question for each selected item. Read the choices aloud when helpful and review incorrect answers at the end.`
+  };
+
+  return instructions[type];
+}
+
+function getActivityItems(items: LearningItem[]) {
+  return items.filter((item) => item.contentType === "pecs" || item.contentType === "gesture");
+}
+
 export function ActivitiesView({ initialActivityType }: { initialActivityType?: string }) {
   const { user } = useAuthUser();
   const { notify } = useToast();
@@ -68,14 +94,12 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
   const [learningItemSearch, setLearningItemSearch] = useState("");
   const [activityPendingDelete, setActivityPendingDelete] = useState<Activity | null>(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
-  const [learners, setLearners] = useState<Learner[]>(mockLearners);
-  const [learningItems, setLearningItems] = useState<LearningItem[]>(mockLearningItems);
+  const [learningItems, setLearningItems] = useState<LearningItem[]>(getActivityItems(mockLearningItems));
   const [selectedActivityId, setSelectedActivityId] = useState(
     isSupabaseConfigured()
       ? ""
       : getFirstActivityForType(mockActivities, requestedActivityType)?.id ?? mockActivities[0].id
   );
-  const [selectedLearnerId, setSelectedLearnerId] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [dragged, setDragged] = useState("");
   const [result, setResult] = useState<{ score: number; correct: number; incorrect: number } | null>(null);
@@ -86,13 +110,14 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
   const [privateActivity, setPrivateActivity] = useState(false);
   const [error, setError] = useState("");
   const [learningItemError, setLearningItemError] = useState("");
+  const [aiDraftNote, setAiDraftNote] = useState("");
 
   useEffect(() => {
     let active = true;
 
     async function loadSupabaseData() {
       if (!isSupabaseConfigured()) {
-        const nextActivities = readLocalActivities() ?? mockActivities;
+        const nextActivities = (readLocalActivities() ?? mockActivities).filter((activity) => activityTypes.includes(activity.type));
         if (!active) return;
         setActivities(nextActivities);
         setSelectedActivityId(
@@ -106,10 +131,9 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
         const data = await fetchMakaLearnData();
         if (!active || !data) return;
         // An empty table is valid after deletions; never replace it with mock activities.
-        const nextActivities = data.activities;
+        const nextActivities = data.activities.filter((activity) => activityTypes.includes(activity.type));
         setActivities(nextActivities);
-        setLearners(data.learners.length ? data.learners : mockLearners);
-        setLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems);
+        setLearningItems(getActivityItems(data.learningItems.length ? data.learningItems : mockLearningItems));
         setSelectedActivityId((current) => {
           const requestedActivity = getFirstActivityForType(nextActivities, requestedActivityType);
           if (requestedActivity) return requestedActivity.id;
@@ -141,7 +165,6 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
   }, [activities, activitiesReady]);
 
   const selectedActivity = activities.find((activity) => activity.id === selectedActivityId) ?? activities[0];
-  const teacherLearners = learners.filter((learner) => user.role === "admin" || learner.assignedTeacherId === user.id);
   const selectedItems = useMemo(
     () => selectedActivity?.learningItemIds.map((id) => learningItems.find((item) => item.id === id)).filter(Boolean) ?? [],
     [learningItems, selectedActivity]
@@ -164,9 +187,10 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     const query = learningItemSearch.trim().toLowerCase();
 
     return learningItems.filter((item) => {
+      const supportsContentType = type === "gesture-practice" ? item.contentType === "gesture" : item.contentType === "pecs";
       const supportsType = !activityUsesImageOptions(type) || Boolean(item.symbolImageUrl);
       const matchesSearch = !query || [item.label, item.description, item.tags.join(" ")].join(" ").toLowerCase().includes(query);
-      return supportsType && matchesSearch;
+      return supportsContentType && supportsType && matchesSearch;
     });
   }, [learningItemSearch, learningItems, type]);
 
@@ -175,7 +199,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     setResult(null);
   }
 
-  async function scoreActivity() {
+  function scoreActivity() {
     if (!selectedActivity) {
       notify({ title: "No activity selected", description: "Choose or create an activity before scoring." });
       return;
@@ -187,39 +211,9 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     const incorrect = selectedActivity.questions.length - correct;
     const score = selectedActivity.questions.length ? Math.round((correct / selectedActivity.questions.length) * 100) : 0;
     setResult({ score, correct, incorrect });
-    if (!selectedLearnerId) {
-      notify({ title: "Result not saved", description: "No learner selected, so this activity result was not saved." });
-      return;
-    }
-    const activityResult: ActivityResult = {
-      id: `result-${Date.now()}`,
-      learnerId: selectedLearnerId,
-      activityId: selectedActivity.id,
-      activityType: selectedActivity.type,
-      scorePercentage: score,
-      correctCount: correct,
-      incorrectCount: incorrect,
-      timeSpentSeconds: 120,
-      completedAt: new Date().toISOString(),
-      relatedLearningItemIds: selectedActivity.learningItemIds,
-      savedBy: user.id
-    };
-
-    if (isSupabaseConfigured()) {
-      try {
-        await insertActivityResult(activityResult);
-      } catch (error) {
-        notify({
-          title: "Activity result saved locally",
-          description: error instanceof Error ? error.message : "Supabase result insert failed."
-        });
-        return;
-      }
-    }
-
     notify({
-      title: isSupabaseConfigured() ? "Activity result saved" : "Activity result saved locally",
-      description: `${score}% score recorded for this session.`,
+      title: "Activity scored",
+      description: `${score}% score shown for this session. Progress saving is out of scope for this version.`,
       tone: "success"
     });
   }
@@ -247,6 +241,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     setPrivateActivity(activity.visibility === "private");
     setError("");
     setLearningItemError("");
+    setAiDraftNote("");
     setCreateFormOpen(true);
     setTab("workspace");
   }
@@ -261,11 +256,40 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     setPrivateActivity(false);
     setError("");
     setLearningItemError("");
+    setAiDraftNote("");
     setEditingActivity(null);
     setCreateFormOpen(false);
     if (shouldReturnToLibrary) {
       setTab("library");
     }
+  }
+
+  function generateAiActivityDraft() {
+    const selectedLearningItems = selectedLearningItemIds
+      .map((id) => learningItems.find((item) => item.id === id))
+      .filter((item): item is LearningItem => Boolean(item));
+
+    if (!selectedLearningItems.length) {
+      setLearningItemError(
+        type === "gesture-practice"
+          ? "Select at least one gesture before drafting."
+          : "Select at least one learning item before drafting."
+      );
+      return;
+    }
+
+    const itemNames = selectedLearningItems.map((item) => item.label).join(", ");
+    setTitle(`${activityTypeLabels[type]}: ${itemNames}`);
+    setInstructions(getActivityDraftInstructions(type, selectedLearningItems));
+    setAiDraftNote(
+      `Drafted for ${activityTypeLabels[type].toLowerCase()}. You can still change the activity type, items, visibility, and instructions before saving.`
+    );
+    setLearningItemError("");
+    notify({
+      title: "AI activity draft ready",
+      description: `${activityTypeLabels[type]} instructions are ready to review.`,
+      tone: "success"
+    });
   }
 
   async function createActivity(event: FormEvent<HTMLFormElement>) {
@@ -364,8 +388,8 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     <>
       <PageHeader
         eyebrow="Activities"
-        title="Activity library and player"
-        description="Run scored local activities. Results are saved only when a learner is selected."
+        title="PECS activity library and player"
+        description="Create and run symbol-based activities from PECS cards only. Gesture recognition stays in the gesture tab."
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -488,29 +512,24 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
                     const nextType = event.target.value as ActivityType;
                     setType(nextType);
                     setSelectedLearningItemIds((current) =>
-                      activityUsesImageOptions(nextType)
-                        ? current.filter((id) => learningItems.find((item) => item.id === id)?.symbolImageUrl)
-                        : current
+                      current.filter((id) => {
+                        const item = learningItems.find((candidate) => candidate.id === id);
+                        if (!item) return false;
+                        if (nextType === "gesture-practice") return item.contentType === "gesture";
+                        if (item.contentType !== "pecs") return false;
+                        return activityUsesImageOptions(nextType) ? Boolean(item.symbolImageUrl) : true;
+                      })
                     );
                     setLearningItemError("");
                   }}
                 >
-                  <optgroup label="Symbol and word activities">
-                    {activityTypes.slice(0, 4).map((item) => (
-                      <option key={item} value={item}>
-                        {activityTypeLabels[item]}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Guided practice">
-                    {activityTypes.slice(4).map((item) => (
-                      <option key={item} value={item}>
-                        {activityTypeLabels[item]}
-                      </option>
-                    ))}
-                  </optgroup>
+                  {activityTypes.map((item) => (
+                    <option key={item} value={item}>
+                      {activityTypeLabels[item]}
+                    </option>
+                  ))}
                 </Select>
-                <FieldHint>The activity type determines the question and scoring format.</FieldHint>
+                <FieldHint>Choose any activity type first; the draft helper will keep that choice.</FieldHint>
               </div>
               <div>
                 <Label htmlFor="learning-item-search">Search learning items</Label>
@@ -521,16 +540,18 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
                     type="search"
                     value={learningItemSearch}
                     onChange={(event) => setLearningItemSearch(event.target.value)}
-                    placeholder="Search labels, descriptions, or tags"
+                    placeholder={type === "gesture-practice" ? "Search gestures" : "Search learning items"}
                     className="pl-10"
                   />
                 </div>
                 <SelectionList
-                  label="Learning items"
+                  label={type === "gesture-practice" ? "Gestures" : "Learning items"}
                   helper={
                     activityUsesImageOptions(type)
-                      ? "Choose the items to ask about. Only items with symbol images are shown."
-                      : "Choose the existing learning items that this activity should ask about."
+                      ? "Choose learning items to ask about. Only items with images are shown."
+                      : type === "gesture-practice"
+                        ? "Choose the gestures to include in the guided practice."
+                        : "Choose the learning items this activity should use."
                   }
                   options={selectableLearningItems.map((item) => ({
                       value: item.id,
@@ -545,10 +566,30 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
                   emptyText={
                     learningItemSearch
                       ? "No learning items match this search."
-                      : "Select at least one item to build the questions."
+                      : "Select at least one learning item to build the activity."
                   }
                 />
                 <FieldError message={learningItemError} />
+                <div className="mt-3 rounded-lg border border-blue-100 bg-white p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-600 text-white">
+                        <Bot className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-bold text-ink">AI activity draft</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">
+                          Drafts the selected activity type from your chosen items for teacher review.
+                        </p>
+                      </div>
+                    </div>
+                    <Button type="button" variant="secondary" onClick={generateAiActivityDraft}>
+                      <Sparkles className="h-4 w-4" aria-hidden="true" />
+                      Draft with AI
+                    </Button>
+                  </div>
+                  {aiDraftNote ? <p className="mt-3 text-xs font-semibold leading-5 text-blue-700">{aiDraftNote}</p> : null}
+                </div>
               </div>
               <label className="flex min-h-12 items-center gap-3 rounded-lg border border-blue-100 bg-skywash p-3 text-sm font-semibold">
                 <input
@@ -585,24 +626,13 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
 
         {selectedActivity ? (
         <Card>
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div>
-              <Badge>{activityTypeLabels[selectedActivity.type]}</Badge>
-              <CardTitle className="mt-3 text-2xl">{selectedActivity.title}</CardTitle>
-              <CardDescription>{selectedActivity.prompt}</CardDescription>
-            </div>
-            <div className="min-w-56">
-              <Label htmlFor="activity-learner">Learner</Label>
-              <Select id="activity-learner" value={selectedLearnerId} onChange={(event) => setSelectedLearnerId(event.target.value)}>
-                <option value="">No learner - do not save</option>
-                {teacherLearners.map((learner) => (
-                  <option key={learner.id} value={learner.id}>
-                    {learner.name}
-                  </option>
-                ))}
-              </Select>
-              <FieldHint>Select a learner only when the result should be saved later.</FieldHint>
-            </div>
+          <div>
+            <Badge>{activityTypeLabels[selectedActivity.type]}</Badge>
+            <CardTitle className="mt-3 text-2xl">{selectedActivity.title}</CardTitle>
+            <CardDescription>{selectedActivity.prompt}</CardDescription>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              This run is for presentation and classroom practice only. Learner progress recording is not included in the current scope.
+            </p>
           </div>
 
           <div className="mt-5 rounded-lg bg-skywash p-4">
@@ -622,6 +652,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
               activity={selectedActivity}
               learningItems={learningItems}
               answers={answers}
+              scored={Boolean(result)}
             dragged={dragged}
             setDragged={setDragged}
             chooseAnswer={chooseAnswer}
@@ -631,7 +662,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
             <div className="mt-5 rounded-lg bg-mint p-4">
               <p className="text-xl font-bold text-green-800">{result.score}% score</p>
               <p className="mt-1 text-sm text-green-800">
-                {result.correct} correct · {result.incorrect} incorrect
+                {result.correct} correct / {result.incorrect} incorrect
               </p>
             </div>
           ) : null}
@@ -794,6 +825,7 @@ function ActivityPlayer({
   activity,
   learningItems,
   answers,
+  scored,
   dragged,
   setDragged,
   chooseAnswer
@@ -801,6 +833,7 @@ function ActivityPlayer({
   activity: Activity;
   learningItems: LearningItem[];
   answers: Record<string, string>;
+  scored: boolean;
   dragged: string;
   setDragged: (value: string) => void;
   chooseAnswer: (questionId: string, value: string) => void;
@@ -827,20 +860,43 @@ function ActivityPlayer({
           ))}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          {activity.questions.map((question) => (
+          {activity.questions.map((question) => {
+            const answer = answers[question.id];
+            const isCorrect = answer === question.answer;
+            return (
             <div
               key={question.id}
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => dragged && chooseAnswer(question.id, dragged)}
-              className="min-h-28 rounded-lg border-2 border-dashed border-blue-200 bg-skywash p-4"
+              className={`min-h-28 rounded-lg border-2 border-dashed p-4 ${
+                scored && answer
+                  ? isCorrect
+                    ? "border-green-300 bg-green-50"
+                    : "border-red-300 bg-red-50"
+                  : "border-blue-200 bg-skywash"
+              }`}
             >
               <p className="font-semibold">{question.prompt}</p>
               <Button className="mt-3" variant="secondary" onClick={() => dragged && chooseAnswer(question.id, dragged)}>
                 Drop selected card
               </Button>
-              <p className="mt-2 text-sm text-slate-600">Answer: {answers[question.id] ?? "None"}</p>
+              <div className="mt-3">
+                {answer ? (
+                  <div className="inline-grid rounded-lg border border-blue-100 bg-white p-2">
+                    <SymbolOption value={answer} learningItems={learningItems} />
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-600">Answer: None</p>
+                )}
+                {scored && answer ? (
+                  <p className={`mt-2 text-sm font-semibold ${isCorrect ? "text-green-700" : "text-red-700"}`}>
+                    {isCorrect ? "Correct match" : "Incorrect match"}
+                  </p>
+                ) : null}
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -853,12 +909,21 @@ function ActivityPlayer({
           <p className="text-sm font-semibold text-blue-700">Question {index + 1}</p>
           <p className="mt-1 text-lg font-semibold">{question.prompt}</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            {question.options.map((option) => (
+            {question.options.map((option) => {
+              const selected = answers[question.id] === option;
+              const isCorrectOption = option === question.answer;
+              const scoredClass =
+                scored && selected
+                  ? isCorrectOption
+                    ? "border-green-300 bg-green-50 text-green-900 hover:bg-green-50"
+                    : "border-red-300 bg-red-50 text-red-900 hover:bg-red-50"
+                  : "";
+              return (
               <Button
                 key={option}
-                variant={answers[question.id] === option ? "primary" : "outline"}
+                variant={selected && !scored ? "primary" : "outline"}
                 onClick={() => chooseAnswer(question.id, option)}
-                className={activityUsesImageOptions(activity.type) ? "min-h-32 p-3" : "min-h-16"}
+                className={`${activityUsesImageOptions(activity.type) ? "min-h-32 p-3" : "min-h-16"} ${scoredClass}`}
               >
                 {activityUsesImageOptions(activity.type) ? (
                   <SymbolOption value={option} learningItems={learningItems} />
@@ -866,7 +931,8 @@ function ActivityPlayer({
                   option
                 )}
               </Button>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}

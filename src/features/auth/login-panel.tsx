@@ -73,10 +73,10 @@ export function LoginPanel() {
       const profile = await getSignedInProfile(data.user.id);
       notify({
         title: "Signed in",
-        description: profile.role === "admin" ? "Opening the admin dashboard." : "Opening the content library.",
+        description: profile.role === "admin" ? "Opening the admin panel." : "Opening the content library.",
         tone: "success"
       });
-      router.push(profile.role === "admin" ? "/dashboard" : "/content");
+      router.push(profile.role === "admin" ? "/admin" : "/content");
     } catch (profileError) {
       await supabase.auth.signOut();
       notify({
@@ -137,14 +137,13 @@ export function LoginPanel() {
     .join(" ");
 
   return (
-    <Card className="w-full max-w-md overflow-hidden p-0">
-      <div className="cue-stripes h-8 border-b border-blue-100" />
-      <div className="p-5 sm:p-6">
+    <Card className="w-full max-w-md border-0 bg-white p-0 shadow-none">
+      <div>
       <div className="mb-6">
-        <p className="text-sm font-bold uppercase tracking-wide text-blue-600">Account sign in</p>
-        <h1 className="mt-2 text-3xl font-bold text-ink">Sign in to MakaLearn</h1>
+        <p className="text-sm font-bold text-blue-600">Welcome back</p>
+        <h1 className="mt-2 text-3xl font-black tracking-[-0.035em] text-ink">Sign in to your account</h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Learners do not have logins in this MVP. Teachers select learner profiles during class.
+          Enter your school email and password to continue.
         </p>
       </div>
       <form className="space-y-4" onSubmit={handleSubmit}>
@@ -225,8 +224,8 @@ export function LoginPanel() {
           {loading ? "Signing in..." : "Sign in"}
         </Button>
       </form>
-      <p className="mt-5 text-xs leading-5 text-slate-500">
-        Use the teacher or admin account created in Supabase Auth. Roles are read from the profiles table.
+      <p className="mt-5 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500">
+        Teachers open the content library. Administrators open the admin dashboard.
       </p>
       </div>
     </Card>

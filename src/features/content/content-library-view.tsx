@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   AlertTriangle,
   BookOpen,
@@ -10,9 +9,9 @@ import {
   FileAudio,
   Film,
   FolderOpen,
+  Maximize2,
   Image as ImageIcon,
   Layers,
-  PlayCircle,
   Plus,
   Search,
   Trash2,
@@ -55,8 +54,15 @@ import { activityTypeLabels, getActivityTypeLabel } from "@/utils/activity-label
 import type { ActivityType, Category, LearningItem, Lesson, MediaAsset } from "@/types";
 
 type Tab = "items" | "lessons" | "categories" | "media";
+type ContentKind = "pecs" | "gesture";
 type NewItemMediaKey = "symbol" | "gesture" | "audio";
 type NewItemFiles = Partial<Record<NewItemMediaKey, File>>;
+type MediaPreview = {
+  title: string;
+  value?: string;
+  type: MediaAsset["type"];
+  label: string;
+};
 type ContentLibraryLocalState = {
   items: LearningItem[];
   lessons: Lesson[];
@@ -68,8 +74,8 @@ const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
 
 const tabMeta: Record<Tab, { label: string; description: string; icon: LucideIcon }> = {
   items: {
-    label: "Learning Items",
-    description: "Cue cards, prompts, and upload placeholders",
+    label: "Content",
+    description: "Separate PECS cards and fixed gestures",
     icon: Layers
   },
   lessons: {
@@ -84,7 +90,7 @@ const tabMeta: Record<Tab, { label: string; description: string; icon: LucideIco
   },
   media: {
     label: "Media Library",
-    description: "Placeholder symbol, gesture, and audio uploads",
+    description: "PECS images, gesture media, and audio",
     icon: Upload
   }
 };
@@ -94,9 +100,18 @@ const activityTypes: ActivityType[] = [
   "choose-correct-symbol",
   "fill-blank",
   "drag-drop-symbol",
-  "gesture-practice",
   "simple-quiz"
 ];
+
+const fixedGestureLabels = new Set([
+  "I want to go to toilet",
+  "I want to eat food",
+  "I want to drink water",
+  "Help",
+  "Yes",
+  "No",
+  "Sit down"
+]);
 
 function readLocalContentLibrary(): ContentLibraryLocalState | null {
   if (typeof window === "undefined" || isSupabaseConfigured()) return null;
@@ -109,6 +124,19 @@ function readLocalContentLibrary(): ContentLibraryLocalState | null {
   }
 }
 
+function normalizeLearningItems(records: LearningItem[]) {
+  return records.map((item) => ({
+    ...item,
+    contentType:
+      item.contentType ??
+      (item.tags?.includes("gesture") ? ("gesture" as const) : ("pecs" as const))
+  }));
+}
+
+function isFixedGesture(item: LearningItem) {
+  return item.contentType === "gesture" && (item.tags.includes("fixed") || fixedGestureLabels.has(item.label));
+}
+
 export function ContentLibraryView() {
   const { notify } = useToast();
   const { user } = useAuthUser();
@@ -118,6 +146,7 @@ export function ContentLibraryView() {
   const [categories, setCategories] = useState<Category[]>(mockCategories);
   const [mediaRecords, setMediaRecords] = useState<MediaAsset[]>(mediaAssets);
   const [users, setUsers] = useState(demoUsers);
+  const [contentKind, setContentKind] = useState<ContentKind>("pecs");
   const [search, setSearch] = useState("");
   const [lessonSearch, setLessonSearch] = useState("");
   const [mediaSearch, setMediaSearch] = useState("");
@@ -126,7 +155,9 @@ export function ContentLibraryView() {
   const [lessonObjective, setLessonObjective] = useState("Practice selected learning items with teacher guidance.");
   const [lessonActivityType, setLessonActivityType] = useState<ActivityType>("simple-quiz");
   const [lessonDuration, setLessonDuration] = useState(10);
-  const [lessonItemIds, setLessonItemIds] = useState<string[]>(learningItems.slice(0, 2).map((item) => item.id));
+  const [lessonItemIds, setLessonItemIds] = useState<string[]>(
+    learningItems.filter((item) => item.contentType === "pecs").slice(0, 2).map((item) => item.id)
+  );
   const [lessonNotes, setLessonNotes] = useState("Manual lesson draft created locally.");
   const [lessonError, setLessonError] = useState("");
   const [lessonFormOpen, setLessonFormOpen] = useState(false);
@@ -138,6 +169,7 @@ export function ContentLibraryView() {
   const [lessonPendingDelete, setLessonPendingDelete] = useState<Lesson | null>(null);
   const [deleteAssociatedMedia, setDeleteAssociatedMedia] = useState(true);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -146,7 +178,7 @@ export function ContentLibraryView() {
       if (!isSupabaseConfigured()) {
         const localContent = readLocalContentLibrary();
         if (active && localContent) {
-          setItems(localContent.items);
+          setItems(normalizeLearningItems(localContent.items));
           setLessons(localContent.lessons);
           setCategories(localContent.categories);
           setMediaRecords(localContent.mediaRecords);
@@ -161,7 +193,7 @@ export function ContentLibraryView() {
         const data = await fetchMakaLearnData();
         if (!active || !data) return;
         setUsers(data.users.length ? data.users : demoUsers);
-        setItems(data.learningItems.length ? data.learningItems : learningItems);
+        setItems(normalizeLearningItems(data.learningItems.length ? data.learningItems : learningItems));
         setLessons(data.lessons.length ? data.lessons : mockLessons);
         setCategories(data.categories.length ? data.categories : mockCategories);
         setMediaRecords(data.mediaAssets.length ? data.mediaAssets : mediaAssets);
@@ -196,9 +228,16 @@ export function ContentLibraryView() {
 
   const userNameById = useMemo(() => new Map(users.map((candidate) => [candidate.id, candidate.name])), [users]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
+  const pecsItems = useMemo(() => items.filter((item) => item.contentType === "pecs"), [items]);
+  const gestureItems = useMemo(() => items.filter((item) => item.contentType === "gesture"), [items]);
+  const activeItems = contentKind === "pecs" ? pecsItems : gestureItems;
+  const defaultCategoryId =
+    contentKind === "gesture"
+      ? categories.find((category) => category.id === "cat-gestures")?.id ?? categories[0]?.id ?? ""
+      : categories.find((category) => category.id !== "cat-gestures")?.id ?? categories[0]?.id ?? "";
   const filteredItems = useMemo(
-    () => items.filter((item) => item.label.toLowerCase().includes(search.toLowerCase())),
-    [items, search]
+    () => activeItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase())),
+    [activeItems, search]
   );
   const filteredLessons = useMemo(() => {
     const query = lessonSearch.trim().toLowerCase();
@@ -232,7 +271,7 @@ export function ContentLibraryView() {
     });
   }, [items, mediaRecords, mediaSearch, userNameById]);
   const counts: Record<Tab, number> = {
-    items: items.length,
+    items: activeItems.length,
     lessons: lessons.length,
     categories: categories.length,
     media: mediaRecords.length
@@ -262,7 +301,7 @@ export function ContentLibraryView() {
     setLessonObjective("Practice selected learning items with teacher guidance.");
     setLessonActivityType("simple-quiz");
     setLessonDuration(10);
-    setLessonItemIds(items.slice(0, 2).map((item) => item.id));
+    setLessonItemIds(pecsItems.slice(0, 2).map((item) => item.id));
     setLessonNotes("Manual lesson draft created locally.");
     setLessonError("");
   }
@@ -404,6 +443,7 @@ export function ContentLibraryView() {
 
     const nextItem: LearningItem = {
       id: `item-${Date.now()}`,
+      contentType: contentKind,
       label,
       categoryId,
       description,
@@ -411,7 +451,7 @@ export function ContentLibraryView() {
       symbolImageUrl: getSymbolPlaceholder(label),
       gestureMediaUrl: undefined,
       audioUrl: undefined,
-      tags: [],
+      tags: [contentKind],
       createdBy: user.id,
       updatedAt: new Date().toISOString()
     };
@@ -448,7 +488,7 @@ export function ContentLibraryView() {
     setNewItemFiles({});
     formElement.reset();
     notify({
-      title: "Learning item added",
+      title: contentKind === "pecs" ? "PECS card added" : "Gesture stored",
       description: savedRemotely
         ? `${savedItem.label} was saved to the learning items table.`
         : `${savedItem.label} was added to this local session.`,
@@ -679,10 +719,10 @@ export function ContentLibraryView() {
                 Content Library
               </p>
               <h1 className="max-w-2xl text-3xl font-bold leading-tight text-ink md:text-5xl">
-                Prepare classroom-ready learning cues.
+                Prepare PECS cards and fixed gesture references.
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
-                Keep demo labels, lessons, categories, and placeholder media in one teacher-facing workspace until approved learning content is added.
+                Keep PECS activities separate from the seven gesture-recognition presentation gestures while approved content is still pending.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button
@@ -694,7 +734,7 @@ export function ContentLibraryView() {
                   }}
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
-                  Add item
+                  {contentKind === "pecs" ? "Add PECS card" : "Add gesture"}
                 </Button>
                 <Button variant="outline" onClick={openManualLessonForm}>
                   <BookPlus className="h-4 w-4" aria-hidden="true" />
@@ -714,9 +754,11 @@ export function ContentLibraryView() {
                 <Plus className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
-                <CardTitle>Add learning item</CardTitle>
+                <CardTitle>{contentKind === "pecs" ? "Add PECS card" : "Add gesture"}</CardTitle>
                 <CardDescription>
-                  Create a demo classroom cue and attach symbol, gesture, or audio media before saving.
+                  {contentKind === "pecs"
+                    ? "Create a demo PECS card with only a card image and optional audio cue."
+                    : "Store a gesture reference with optional image, video, and audio. Only the seven fixed gestures appear in recognition."}
                 </CardDescription>
               </div>
             </div>
@@ -738,11 +780,11 @@ export function ContentLibraryView() {
           <form className="mt-5 space-y-4" onSubmit={addLearningItem}>
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
-                <Label htmlFor="itemLabel">Word or label</Label>
+                <Label htmlFor="itemLabel">{contentKind === "pecs" ? "PECS word or label" : "Gesture label"}</Label>
                 <Input
                   id="itemLabel"
                   name="itemLabel"
-                  placeholder="Yes"
+                  placeholder={contentKind === "pecs" ? "Yes" : "Classroom gesture"}
                   onChange={() => itemError && setItemError("")}
                   required
                 />
@@ -752,7 +794,7 @@ export function ContentLibraryView() {
                 <Select
                   id="itemCategory"
                   name="itemCategory"
-                  defaultValue={categories[0]?.id ?? ""}
+                  defaultValue={defaultCategoryId}
                   onChange={() => itemError && setItemError("")}
                   required
                 >
@@ -790,27 +832,29 @@ export function ContentLibraryView() {
 
             <div>
               <Label>Media uploads</Label>
-              <div className="mt-2 grid gap-3 lg:grid-cols-3">
+              <div className={`mt-2 grid gap-3 ${contentKind === "gesture" ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
                 <FileUpload
                   icon={ImageIcon}
-                  label="Symbol image"
+                  label={contentKind === "pecs" ? "PECS image" : "Reference image"}
                   accept="image/*"
                   hint="PNG, JPG, or WebP"
-                  storageNote="Choose an approved symbol image when available."
+                  storageNote={contentKind === "pecs" ? "Choose an approved PECS image when available." : "Choose a gesture reference image when available."}
                   successMessage="Ready to save with this item."
                   onUpload={(file) => stageNewItemFile("symbol", file)}
                   onRemove={() => removeNewItemFile("symbol")}
                 />
-                <FileUpload
-                  icon={Film}
-                  label="Gesture image/video"
-                  accept="image/*,video/*"
-                  hint="Image or short video"
-                  storageNote="Choose a gesture reference file."
-                  successMessage="Ready to save with this item."
-                  onUpload={(file) => stageNewItemFile("gesture", file)}
-                  onRemove={() => removeNewItemFile("gesture")}
-                />
+                {contentKind === "gesture" ? (
+                  <FileUpload
+                    icon={Film}
+                    label="Gesture image/video"
+                    accept="image/*,video/*"
+                    hint="Image or short video"
+                    storageNote="Choose a gesture reference file."
+                    successMessage="Ready to save with this item."
+                    onUpload={(file) => stageNewItemFile("gesture", file)}
+                    onRemove={() => removeNewItemFile("gesture")}
+                  />
+                ) : null}
                 <FileUpload
                   icon={FileAudio}
                   label="Audio"
@@ -883,12 +927,43 @@ export function ContentLibraryView() {
         <section className="space-y-4">
           <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-xl font-bold text-ink">Learning item board</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">Search demo words and generate editable lesson drafts from any card.</p>
+              <h2 className="text-xl font-bold text-ink">
+                {contentKind === "pecs" ? "PECS card board" : "Fixed gesture board"}
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                {contentKind === "pecs"
+                  ? "PECS cards use image and audio uploads and are the only source for activities."
+                  : "Only these seven fixed gestures appear in gesture recognition and presentation practice."}
+              </p>
             </div>
-            <div className="relative w-full lg:max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search learning items" className="pl-10" />
+            <div className="flex w-full flex-col gap-3 lg:max-w-2xl lg:flex-row">
+              <div className="grid grid-cols-2 rounded-lg border border-blue-100 bg-skywash p-1">
+                {(["pecs", "gesture"] as ContentKind[]).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => {
+                      setContentKind(kind);
+                      setSearch("");
+                    }}
+                    className={`min-h-10 rounded-md px-4 text-sm font-semibold transition ${
+                      contentKind === kind ? "bg-blue-600 text-white shadow-sm" : "text-blue-700 hover:bg-white"
+                    }`}
+                    aria-pressed={contentKind === kind}
+                  >
+                    {kind === "pecs" ? `PECS (${pecsItems.length})` : `Gestures (${gestureItems.length})`}
+                  </button>
+                ))}
+              </div>
+              <div className="relative w-full">
+                <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={contentKind === "pecs" ? "Search PECS cards" : "Search fixed gestures"}
+                  className="pl-10"
+                />
+              </div>
             </div>
           </div>
 
@@ -918,29 +993,36 @@ export function ContentLibraryView() {
                         <p className="mt-2 text-sm leading-6 text-slate-600">{item.instruction}</p>
                       </div>
 
+                      <ItemMediaGallery
+                        item={item}
+                        onPreview={(preview) => setMediaPreview(preview)}
+                      />
+
                       <div className="mt-4 grid gap-3">
                         <FileUpload
                           icon={ImageIcon}
-                          label="Symbol image"
+                          label={item.contentType === "pecs" ? "PECS image" : "Reference image"}
                           accept="image/*"
                           hint="PNG, JPG, or WebP"
                           storageNote="Supabase Storage: symbol-images bucket."
-                          existingFileName={getMediaFileName(item.symbolImageUrl, "Current symbol image")}
+                          existingFileName={getMediaFileName(item.symbolImageUrl, item.contentType === "pecs" ? "Current PECS image" : "Current reference image")}
                           onUpload={(file) => handleMediaUpload(item, file, { bucket: "symbol-images", type: "symbol-image" })}
                           onRemove={() => clearItemMedia(item, "symbol-image")}
                           compact
                         />
-                        <FileUpload
-                          icon={Film}
-                          label="Gesture image/video"
-                          accept="image/*,video/*"
-                          hint="Image or short video"
-                          storageNote="Supabase Storage: gesture-media bucket."
-                          existingFileName={getMediaFileName(item.gestureMediaUrl, "Current gesture media")}
-                          onUpload={(file) => handleMediaUpload(item, file, { bucket: "gesture-media", type: "gesture-media" })}
-                          onRemove={() => clearItemMedia(item, "gesture-media")}
-                          compact
-                        />
+                        {item.contentType === "gesture" ? (
+                          <FileUpload
+                            icon={Film}
+                            label="Gesture image/video"
+                            accept="image/*,video/*"
+                            hint="Image or short video"
+                            storageNote="Supabase Storage: gesture-media bucket."
+                            existingFileName={getMediaFileName(item.gestureMediaUrl, "Current gesture media")}
+                            onUpload={(file) => handleMediaUpload(item, file, { bucket: "gesture-media", type: "gesture-media" })}
+                            onRemove={() => clearItemMedia(item, "gesture-media")}
+                            compact
+                          />
+                        ) : null}
                         <FileUpload
                           icon={FileAudio}
                           label="Audio"
@@ -959,14 +1041,29 @@ export function ContentLibraryView() {
                           Last updated {formatDate(item.updatedAt)}
                         </p>
                         <div className="grid w-44 gap-2 justify-self-end">
-                          <Button className="w-full whitespace-nowrap" variant="secondary" size="sm" onClick={() => generateDraft(item)}>
-                            <BookPlus className="h-4 w-4" aria-hidden="true" />
-                            Generate lesson
-                          </Button>
-                          <Button className="w-full whitespace-nowrap" variant="danger" size="sm" onClick={() => requestDeleteItem(item)}>
-                            <Trash2 className="h-4 w-4" aria-hidden="true" />
-                            Delete
-                          </Button>
+                          {item.contentType === "pecs" ? (
+                            <>
+                              <Button className="w-full whitespace-nowrap" variant="secondary" size="sm" onClick={() => generateDraft(item)}>
+                                <BookPlus className="h-4 w-4" aria-hidden="true" />
+                                Generate lesson
+                              </Button>
+                              <Button className="w-full whitespace-nowrap" variant="danger" size="sm" onClick={() => requestDeleteItem(item)}>
+                                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                Delete
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              {isFixedGesture(item) ? (
+                                <Badge className="justify-center bg-mint text-green-700">Fixed gesture</Badge>
+                              ) : (
+                                <Button className="w-full whitespace-nowrap" variant="danger" size="sm" onClick={() => requestDeleteItem(item)}>
+                                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                  Delete
+                                </Button>
+                              )}
+                            </>
+                          )}
                         </div>
                       </CardFooter>
                     </div>
@@ -975,7 +1072,15 @@ export function ContentLibraryView() {
               })}
             </div>
           ) : (
-            <EmptyState icon={Layers} title="No learning items" description="Add placeholder learning items before connecting approved content." />
+            <EmptyState
+              icon={Layers}
+              title={contentKind === "pecs" ? "No PECS cards" : "No fixed gestures"}
+              description={
+                contentKind === "pecs"
+                  ? "Add PECS cards before creating symbol-based activities."
+                  : "The gesture list should contain only the seven final presentation gestures."
+              }
+            />
           )}
         </section>
       ) : null}
@@ -1050,7 +1155,7 @@ export function ContentLibraryView() {
                 <SelectionList
                   label="Selected learning items"
                   helper="Use the scrollable list to choose lesson cues."
-                  options={items.map((item) => ({
+                  options={pecsItems.map((item) => ({
                     value: item.id,
                     label: item.label,
                     description: categoryById.get(item.categoryId)?.name ?? "Uncategorized"
@@ -1099,12 +1204,6 @@ export function ContentLibraryView() {
                         {lesson.learningItemIds.length} learning item{lesson.learningItemIds.length === 1 ? "" : "s"} selected
                       </p>
                       <div className="flex flex-col gap-2 sm:flex-row">
-                        <Link href={`/activities?type=${lesson.activityType}`} className="inline-flex">
-                          <Button size="sm">
-                            <PlayCircle className="h-4 w-4" aria-hidden="true" />
-                            Open activity
-                          </Button>
-                        </Link>
                         <Button size="sm" variant="danger" onClick={() => setLessonPendingDelete(lesson)}>
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                           Delete
@@ -1214,17 +1313,18 @@ export function ContentLibraryView() {
                     </span>
                   </div>
                   <CardTitle className="mt-3">{asset.title}</CardTitle>
-                  <CardDescription>{asset.fileName}</CardDescription>
-                  {asset.publicUrl ? (
-                    <a
-                      href={asset.publicUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 text-sm font-semibold text-blue-700 underline-offset-4 hover:underline"
-                    >
-                      Open uploaded file
-                    </a>
-                  ) : null}
+                  <CardDescription className="break-all">{asset.fileName}</CardDescription>
+                  <div className="mt-3">
+                    <MediaInlinePreview
+                      preview={{
+                        title: asset.title,
+                        value: asset.publicUrl,
+                        type: asset.type,
+                        label: asset.title
+                      }}
+                      onPreview={setMediaPreview}
+                    />
+                  </div>
                   <CardFooter className="mt-3">
                     <p className="text-sm text-slate-600">Uploaded {formatDate(asset.uploadedAt)}</p>
                   </CardFooter>
@@ -1244,6 +1344,8 @@ export function ContentLibraryView() {
           )}
         </section>
       ) : null}
+
+      {mediaPreview ? <MediaPreviewModal preview={mediaPreview} onClose={() => setMediaPreview(null)} /> : null}
 
       {itemPendingDelete ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
@@ -1497,6 +1599,149 @@ function createLocalMediaRecords(item: LearningItem, files: NewItemFiles, upload
   return records;
 }
 
+function ItemMediaGallery({
+  item,
+  onPreview
+}: {
+  item: LearningItem;
+  onPreview: (preview: MediaPreview) => void;
+}) {
+  const previews: MediaPreview[] = [
+    {
+      title: item.contentType === "pecs" ? "PECS image" : "Reference image",
+      value: item.symbolImageUrl,
+      type: "symbol-image",
+      label: `${item.label} image`
+    },
+    ...(item.contentType === "gesture"
+      ? [
+          {
+            title: "Gesture image/video",
+            value: item.gestureMediaUrl,
+            type: "gesture-media" as const,
+            label: `${item.label} gesture media`
+          }
+        ]
+      : []),
+    {
+      title: "Audio cue",
+      value: item.audioUrl,
+      type: "audio-file",
+      label: `${item.label} audio`
+    }
+  ];
+
+  return (
+    <div className="mt-4 grid gap-3">
+      {previews.map((preview) => (
+        <MediaInlinePreview key={preview.title} preview={preview} onPreview={onPreview} />
+      ))}
+    </div>
+  );
+}
+
+function MediaInlinePreview({
+  preview,
+  onPreview
+}: {
+  preview: MediaPreview;
+  onPreview: (preview: MediaPreview) => void;
+}) {
+  const value = preview.value?.trim();
+
+  if (!value) {
+    return (
+      <div className="rounded-lg border border-dashed border-blue-100 bg-[#f8fbff] p-3 text-sm font-semibold text-slate-500">
+        {preview.title}: no media added
+      </div>
+    );
+  }
+
+  if (preview.type === "audio-file" && isAudioUrl(value)) {
+    return (
+      <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-blue-700">{preview.title}</p>
+        <audio controls className="w-full" aria-label={preview.label}>
+          <source src={value} />
+        </audio>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onPreview(preview)}
+      className="group flex min-h-20 w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg border border-blue-100 bg-[#f8fbff] p-3 text-left transition hover:border-blue-300 hover:bg-white"
+    >
+      <span className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white text-sm font-black text-blue-700">
+        {isImageUrl(value) ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={value} alt="" className="h-full w-full object-cover" />
+        ) : isVideoUrl(value) ? (
+          <Film className="h-5 w-5" aria-hidden="true" />
+        ) : (
+          value
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-bold text-ink">{preview.title}</span>
+        <span className="mt-1 block truncate text-xs text-slate-500">{getMediaFileName(value, "Stored media") ?? value}</span>
+      </span>
+      <Maximize2 className="h-4 w-4 shrink-0 text-blue-600 opacity-70 transition group-hover:opacity-100" aria-hidden="true" />
+    </button>
+  );
+}
+
+function MediaPreviewModal({ preview, onClose }: { preview: MediaPreview; onClose: () => void }) {
+  const value = preview.value?.trim();
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={preview.title}
+        className="w-full max-w-3xl overflow-hidden rounded-lg border border-blue-100 bg-white shadow-soft"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-blue-100 p-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Media preview</p>
+            <h2 className="text-lg font-bold text-ink">{preview.title}</h2>
+          </div>
+          <Button type="button" variant="ghost" size="icon" aria-label="Close media preview" onClick={onClose}>
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+        <div className="bg-[#f8fbff] p-4">
+          {!value ? (
+            <p className="rounded-lg border border-dashed border-blue-100 bg-white p-6 text-center text-sm font-semibold text-slate-500">
+              No media added.
+            </p>
+          ) : isImageUrl(value) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value} alt={preview.label} className="max-h-[70vh] w-full rounded-lg object-contain" />
+          ) : isVideoUrl(value) ? (
+            <video controls className="max-h-[70vh] w-full rounded-lg bg-black" aria-label={preview.label}>
+              <source src={value} />
+            </video>
+          ) : isAudioUrl(value) ? (
+            <div className="rounded-lg border border-blue-100 bg-white p-5">
+              <audio controls className="w-full" aria-label={preview.label}>
+                <source src={value} />
+              </audio>
+            </div>
+          ) : (
+            <p className="rounded-lg border border-blue-100 bg-white p-6 text-center text-3xl font-black text-blue-700">
+              {value}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LearningItemSymbolPreview({ value, label }: { value?: string; label: string }) {
   const isImageUrl = Boolean(value?.startsWith("http") || value?.startsWith("/") || value?.startsWith("blob:"));
 
@@ -1504,6 +1749,7 @@ function LearningItemSymbolPreview({ value, label }: { value?: string; label: st
     return (
       <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-[#f8fbff] shadow-inner">
         {/* Official/approved picture-card images can be uploaded through Supabase Storage later. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- upload previews may use temporary blob URLs. */}
         <img src={value} alt={`${label} picture card`} className="h-full w-full object-cover" />
       </div>
     );
@@ -1514,4 +1760,20 @@ function LearningItemSymbolPreview({ value, label }: { value?: string; label: st
       {value}
     </div>
   );
+}
+
+function isImageUrl(value: string) {
+  return isUrl(value) && /\.(apng|avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(value);
+}
+
+function isVideoUrl(value: string) {
+  return isUrl(value) && /\.(mov|mp4|mpeg|ogg|ogv|webm)(\?.*)?$/i.test(value);
+}
+
+function isAudioUrl(value: string) {
+  return isUrl(value) && /\.(aac|m4a|mp3|oga|ogg|opus|wav|weba)(\?.*)?$/i.test(value);
+}
+
+function isUrl(value: string) {
+  return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/") || value.startsWith("blob:");
 }

@@ -83,6 +83,9 @@ function mapLearner(row: LearnerRow): Learner {
 function mapLearningItem(row: LearningItemRow): LearningItem {
   return {
     id: row.id,
+    // Future Supabase: add a content_type column so PECS and gesture records
+    // are separated in the database instead of inferred locally.
+    contentType: getLearningItemContentType(row),
     label: row.label,
     categoryId: row.category_id,
     description: row.description,
@@ -581,9 +584,26 @@ export function createActivityQuestions(
 ): ActivityQuestion[] {
   const usesSymbolOptions =
     type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
-  const eligibleOptions = usesSymbolOptions ? optionPool.filter((item) => item.symbolImageUrl) : optionPool;
+  const pecsOptionPool = optionPool.filter((item) => item.contentType === "pecs");
+  const gestureOptionPool = optionPool.filter((item) => item.contentType === "gesture");
+  const eligibleOptions =
+    type === "gesture-practice"
+      ? gestureOptionPool
+      : usesSymbolOptions
+        ? pecsOptionPool.filter((item) => item.symbolImageUrl)
+        : pecsOptionPool;
 
   return selectedItems.map((item, index) => {
+    if (type === "gesture-practice") {
+      return {
+        id: `q-${Date.now()}-${item.id}`,
+        prompt: createAdaptivePrompt(type, item),
+        answer: "Completed with teacher",
+        options: ["Completed with teacher", "Try again"],
+        learningItemId: item.id
+      };
+    }
+
     const choiceItems = [item, ...eligibleOptions.filter((candidate) => candidate.id !== item.id)].slice(0, 3);
     const rotation = choiceItems.length ? index % choiceItems.length : 0;
     const rotatedChoices = [...choiceItems.slice(rotation), ...choiceItems.slice(0, rotation)];
@@ -593,24 +613,55 @@ export function createActivityQuestions(
 
     return {
       id: `q-${Date.now()}-${item.id}`,
-      prompt:
-        type === "fill-blank"
-          ? "I want to ____."
-          : type === "choose-correct-symbol"
-            ? `Choose the symbol for ${item.label}.`
-            : type === "gesture-practice"
-              ? `Practice ${item.label}`
-              : type === "simple-quiz"
-                ? `Which learning word matches this description: ${item.description}`
-                : item.label,
-      answer:
-        type === "gesture-practice"
-          ? "Correct"
-          : usesSymbolOptions
-            ? item.symbolImageUrl ?? item.label
-            : item.label,
-      options: type === "gesture-practice" ? ["Correct", "Good attempt", "Needs practice"] : options,
+      prompt: createAdaptivePrompt(type, item),
+      answer: usesSymbolOptions ? item.symbolImageUrl ?? item.label : item.label,
+      options,
       learningItemId: item.id
     };
   });
+}
+
+function createAdaptivePrompt(type: Activity["type"], item: LearningItem) {
+  if (type === "gesture-practice") {
+    return `Practise “${item.label}” with teacher guidance.`;
+  }
+
+  if (type === "fill-blank") {
+    return createFillBlankPrompt(item);
+  }
+
+  if (type === "choose-correct-symbol") {
+    return `Choose the PECS card for "${item.label}".`;
+  }
+
+  if (type === "simple-quiz") {
+    return `Which PECS word fits this classroom use: ${item.description}`;
+  }
+
+  if (type === "drag-drop-symbol") {
+    return item.label;
+  }
+
+  return `Match "${item.label}" to its PECS card.`;
+}
+
+function createFillBlankPrompt(item: LearningItem) {
+  const label = item.label.trim();
+  const normalized = label.toLowerCase();
+
+  if (["hello", "hi"].includes(normalized)) return "Say ____ when greeting someone.";
+  if (["yes", "no"].includes(normalized)) return "Answer ____ when making a choice.";
+  if (normalized.includes("help")) return "I need ____.";
+  if (normalized.includes("eat") || normalized.includes("food")) return "I want to ____.";
+  if (normalized.includes("drink") || normalized.includes("water")) return "I want to ____.";
+  if (normalized.includes("more")) return "I want ____.";
+  if (normalized.includes("stop")) return "Please ____.";
+  if (normalized.includes("toilet")) return "I need the ____.";
+
+  const firstSentence = item.description.split(/[.!?]/)[0]?.trim();
+  return firstSentence ? `${firstSentence}: ____.` : `Choose the word ____ when it matches the card.`;
+}
+
+function getLearningItemContentType(row: LearningItemRow): LearningItem["contentType"] {
+  return row.tags.includes("gesture") ? "gesture" : "pecs";
 }
