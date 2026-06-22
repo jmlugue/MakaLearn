@@ -80,6 +80,33 @@ function getActivityItems(items: LearningItem[]) {
   return items.filter((item) => item.contentType === "pecs" || item.contentType === "gesture");
 }
 
+function getResultPresentation(score: number) {
+  if (score === 100) {
+    return {
+      containerClass: "border-emerald-200 bg-emerald-50",
+      textClass: "text-emerald-800",
+      heading: "Activity complete",
+      guidance: "All answers were correct. Reset the activity when you are ready for another attempt."
+    };
+  }
+
+  if (score >= 50) {
+    return {
+      containerClass: "border-amber-200 bg-amber-50",
+      textClass: "text-amber-900",
+      heading: "Review the missed answers",
+      guidance: "Review the incorrect answers together, then reset the activity and try again."
+    };
+  }
+
+  return {
+    containerClass: "border-red-200 bg-red-50",
+    textClass: "text-red-800",
+    heading: "More guided practice needed",
+    guidance: "Review the learning items together, then reset the activity for another attempt."
+  };
+}
+
 export function ActivitiesView({ initialActivityType }: { initialActivityType?: string }) {
   const { user } = useAuthUser();
   const { notify } = useToast();
@@ -211,10 +238,11 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     const incorrect = selectedActivity.questions.length - correct;
     const score = selectedActivity.questions.length ? Math.round((correct / selectedActivity.questions.length) * 100) : 0;
     setResult({ score, correct, incorrect });
+    const presentation = getResultPresentation(score);
     notify({
-      title: "Activity scored",
-      description: `${score}% score shown for this session. Progress saving is out of scope for this version.`,
-      tone: "success"
+      title: presentation.heading,
+      description: `${score}% — ${presentation.guidance}`,
+      tone: score === 100 ? "success" : "info"
     });
   }
 
@@ -658,14 +686,18 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
             chooseAnswer={chooseAnswer}
           />
 
-          {result ? (
-            <div className="mt-5 rounded-lg bg-mint p-4">
-              <p className="text-xl font-bold text-green-800">{result.score}% score</p>
-              <p className="mt-1 text-sm text-green-800">
-                {result.correct} correct / {result.incorrect} incorrect
-              </p>
-            </div>
-          ) : null}
+          {result ? (() => {
+            const presentation = getResultPresentation(result.score);
+            return (
+              <div className={`mt-5 rounded-lg border p-4 ${presentation.containerClass}`} role="status">
+                <p className={`text-xl font-bold ${presentation.textClass}`}>{result.score}% — {presentation.heading}</p>
+                <p className={`mt-1 text-sm font-semibold ${presentation.textClass}`}>
+                  {result.correct} correct · {result.incorrect} incorrect
+                </p>
+                <p className={`mt-2 text-sm leading-6 ${presentation.textClass}`}>{presentation.guidance}</p>
+              </div>
+            );
+          })() : null}
 
           <CardFooter className="mt-5 flex flex-col gap-2 sm:flex-row">
             <Button onClick={scoreActivity}>

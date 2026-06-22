@@ -153,6 +153,9 @@ export function ContentLibraryView() {
   const [draft, setDraft] = useState<Omit<Lesson, "id" | "createdBy"> | null>(null);
   const [lessonTitle, setLessonTitle] = useState("");
   const [lessonObjective, setLessonObjective] = useState("Practice selected learning items with teacher guidance.");
+  const [lessonInstructions, setLessonInstructions] = useState(
+    "Introduce the learning items, model each one, practise together, then review the learner's response."
+  );
   const [lessonActivityType, setLessonActivityType] = useState<ActivityType>("simple-quiz");
   const [lessonDuration, setLessonDuration] = useState(10);
   const [lessonItemIds, setLessonItemIds] = useState<string[]>(
@@ -194,7 +197,9 @@ export function ContentLibraryView() {
         if (!active || !data) return;
         setUsers(data.users.length ? data.users : demoUsers);
         setItems(normalizeLearningItems(data.learningItems.length ? data.learningItems : learningItems));
-        setLessons(data.lessons.length ? data.lessons : mockLessons);
+        // An empty lessons table is valid after the final lesson is deleted.
+        // Falling back to mock lessons here would make deleted records reappear.
+        setLessons(data.lessons);
         setCategories(data.categories.length ? data.categories : mockCategories);
         setMediaRecords(data.mediaAssets.length ? data.mediaAssets : mediaAssets);
         setContentReady(true);
@@ -282,6 +287,7 @@ export function ContentLibraryView() {
     setDraft(nextDraft);
     setLessonTitle(nextDraft.title);
     setLessonObjective(nextDraft.objective);
+    setLessonInstructions(nextDraft.instructions);
     setLessonActivityType(nextDraft.activityType);
     setLessonDuration(nextDraft.estimatedDuration);
     setLessonItemIds(nextDraft.learningItemIds);
@@ -299,6 +305,9 @@ export function ContentLibraryView() {
     setDraft(null);
     setLessonTitle("");
     setLessonObjective("Practice selected learning items with teacher guidance.");
+    setLessonInstructions(
+      "Introduce the learning items, model each one, practise together, then review the learner's response."
+    );
     setLessonActivityType("simple-quiz");
     setLessonDuration(10);
     setLessonItemIds(pecsItems.slice(0, 2).map((item) => item.id));
@@ -319,15 +328,15 @@ export function ContentLibraryView() {
 
   async function saveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!lessonTitle.trim()) {
-      setLessonError("Lesson title is required.");
+    if (!lessonTitle.trim() || !lessonObjective.trim() || !lessonInstructions.trim() || !lessonItemIds.length) {
+      setLessonError("Add a title, objective, teaching sequence, and at least one learning item.");
       return;
     }
     const base = draft ?? {
       title: lessonTitle,
       objective: lessonObjective,
       learningItemIds: lessonItemIds,
-      instructions: "Model each item, practice together, then run the selected activity.",
+      instructions: lessonInstructions,
       activityType: lessonActivityType,
       estimatedDuration: lessonDuration,
       notes: lessonNotes,
@@ -338,6 +347,7 @@ export function ContentLibraryView() {
       ...base,
       title: lessonTitle,
       objective: lessonObjective,
+      instructions: lessonInstructions,
       learningItemIds: lessonItemIds,
       activityType: lessonActivityType,
       estimatedDuration: lessonDuration,
@@ -1122,30 +1132,36 @@ export function ContentLibraryView() {
                 <BookPlus className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
-                <CardTitle>{draft ? "Review generated draft" : "Create manual lesson"}</CardTitle>
-                <CardDescription>Lessons are visible to all teachers in the local-first MVP.</CardDescription>
+                <CardTitle>{draft ? "Review generated lesson plan" : "Create lesson plan"}</CardTitle>
+                <CardDescription>
+                  A lesson sets the objective, teaching sequence, learning items, and timing. It can include an activity as one practice step.
+                </CardDescription>
               </div>
             </div>
             <form className="mt-5 space-y-4" onSubmit={saveDraft}>
-              <div>
-                <Label htmlFor="lesson-title">Lesson title</Label>
-                <Input id="lesson-title" value={lessonTitle} onChange={(event) => setLessonTitle(event.target.value)} placeholder="Lesson title" />
-                <FieldError message={lessonError} />
-              </div>
-              <div>
-                <Label htmlFor="lesson-objective">Objective</Label>
-                <Textarea id="lesson-objective" value={lessonObjective} onChange={(event) => setLessonObjective(event.target.value)} placeholder="What should the learner practice?" />
-              </div>
-              <div>
-                <Label htmlFor="lesson-activity">Activity type</Label>
-                <Select id="lesson-activity" value={lessonActivityType} onChange={(event) => setLessonActivityType(event.target.value as ActivityType)}>
-                  {activityTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {activityTypeLabels[type]}
-                    </option>
-                  ))}
-                </Select>
-                <FieldHint>Choose the teacher-guided activity this lesson should open with.</FieldHint>
+              <div className="rounded-lg border border-blue-100 bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">Lesson plan</p>
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <Label htmlFor="lesson-title">Lesson title</Label>
+                    <Input id="lesson-title" value={lessonTitle} onChange={(event) => setLessonTitle(event.target.value)} placeholder="For example: Snack time requests" />
+                    <FieldError message={lessonError} />
+                  </div>
+                  <div>
+                    <Label htmlFor="lesson-objective">Learning objective</Label>
+                    <Textarea id="lesson-objective" value={lessonObjective} onChange={(event) => setLessonObjective(event.target.value)} placeholder="What should the learner know or practise by the end?" />
+                  </div>
+                  <div>
+                    <Label htmlFor="lesson-instructions">Teaching sequence</Label>
+                    <Textarea
+                      id="lesson-instructions"
+                      value={lessonInstructions}
+                      onChange={(event) => setLessonInstructions(event.target.value)}
+                      placeholder="Describe the introduction, teacher modelling, guided practice, and review."
+                    />
+                    <FieldHint>Write the steps another teacher should follow to deliver this lesson.</FieldHint>
+                  </div>
+                </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -1163,6 +1179,22 @@ export function ContentLibraryView() {
                   selectedValues={lessonItemIds}
                   onChange={setLessonItemIds}
                 />
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-800">Optional practice step</p>
+                <div className="mt-3">
+                  <Label htmlFor="lesson-activity">Activity format used in this lesson</Label>
+                  <Select id="lesson-activity" value={lessonActivityType} onChange={(event) => setLessonActivityType(event.target.value as ActivityType)}>
+                    {activityTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {activityTypeLabels[type]}
+                      </option>
+                    ))}
+                  </Select>
+                  <FieldHint>
+                    This adds a practice format to the lesson plan. It does not create a playable item in the Activity Library.
+                  </FieldHint>
+                </div>
               </div>
               <div>
                 <Label htmlFor="lesson-notes">Notes</Label>
@@ -1185,6 +1217,7 @@ export function ContentLibraryView() {
                   <Card key={lesson.id} className="flex h-full flex-col overflow-hidden border-l-4 border-l-blue-300 bg-[#fbfdff]">
                     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_15rem]">
                       <div className="min-w-0">
+                        <Badge className="mb-3 bg-blue-100 text-blue-800">Lesson plan</Badge>
                         <CardTitle className="text-2xl leading-tight">{lesson.title}</CardTitle>
                         <p className="mt-3 text-sm leading-6 text-slate-700">{lesson.objective}</p>
                         <p className="mt-2 text-sm leading-6 text-slate-600">{lesson.instructions}</p>
@@ -1195,7 +1228,7 @@ export function ContentLibraryView() {
                           {lesson.estimatedDuration} min
                         </span>
                         <span className="inline-flex min-h-11 items-center rounded-lg border border-blue-100 bg-white px-3 text-sm font-semibold text-blue-700">
-                          {getActivityTypeLabel(lesson.activityType)}
+                          Practice: {getActivityTypeLabel(lesson.activityType)}
                         </span>
                       </div>
                     </div>

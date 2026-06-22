@@ -329,7 +329,13 @@ export async function deleteLesson(lessonId: string) {
   const supabase = getClientOrThrow();
 
   await expectData(supabase.from("lesson_items").delete().eq("lesson_id", lessonId).select());
-  await expectData(supabase.from("lessons").delete().eq("id", lessonId).select());
+  const deletedRows = (await expectData(
+    supabase.from("lessons").delete().eq("id", lessonId).select("id")
+  )) as Array<{ id: string }>;
+
+  if (!deletedRows.some((row) => row.id === lessonId)) {
+    throw new Error("Supabase did not delete this lesson. Check the lessons delete policy and try again.");
+  }
 }
 
 export async function insertActivity(activity: Activity) {
