@@ -1212,7 +1212,7 @@ export function ContentLibraryView() {
 
           <section className="space-y-4">
             {filteredLessons.length ? (
-              <div className="grid gap-4">
+              <div className="stagger-grid grid gap-4">
                 {filteredLessons.map((lesson) => (
                   <Card key={lesson.id} className="flex h-full flex-col overflow-hidden border-l-4 border-l-blue-300 bg-[#fbfdff]">
                     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_15rem]">
@@ -1334,7 +1334,7 @@ export function ContentLibraryView() {
             </div>
           </div>
           {filteredMediaRecords.length ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="stagger-grid grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filteredMediaRecords.map((asset) => (
                 <Card key={asset.id} className="flex h-full flex-col border-dashed">
                   <div className="flex items-start justify-between gap-3">

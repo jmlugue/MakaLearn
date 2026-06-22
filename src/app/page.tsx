@@ -1,17 +1,27 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   BookOpen,
   Check,
   Hand,
-  Headphones,
-  ListChecks,
-  Play,
-  ShieldCheck,
-  UsersRound
+  ListChecks
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/motion/reveal";
+import { AmbientShapes } from "@/components/motion/ambient-shapes";
+
+const LearningScene = dynamic(
+  () => import("@/components/motion/learning-scene").then((module) => module.LearningScene),
+  {
+    ssr: false,
+    loading: () => <div className="h-[430px] animate-pulse rounded-[2rem] border border-white/70 bg-white/45 sm:h-[520px]" />
+  }
+);
 
 const highlights = [
   {
@@ -31,15 +41,12 @@ const highlights = [
   }
 ];
 
-const sessionSteps = [
-  { icon: BookOpen, label: "Review today’s cards", meta: "3 items" },
-  { icon: Hand, label: "Guided gesture practice", meta: "5 min" },
-  { icon: Play, label: "Run a short activity", meta: "Ready" }
-];
-
 export default function LandingPage() {
+  const reduceMotion = useReducedMotion();
+
   return (
     <main className="landing-page relative min-h-screen overflow-hidden px-4 pb-16 pt-5 md:px-8">
+      <AmbientShapes />
       <div className="landing-orb landing-orb-one" aria-hidden="true" />
       <div className="landing-orb landing-orb-two" aria-hidden="true" />
       <div className="landing-dot-field" aria-hidden="true" />
@@ -61,7 +68,11 @@ export default function LandingPage() {
       </nav>
 
       <section className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 py-14 lg:min-h-[700px] lg:grid-cols-[0.9fr_1.1fr] lg:py-20">
-        <div>
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, x: -24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+        >
           <div className="flex items-center gap-4">
             <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-[1.75rem] bg-white shadow-[0_18px_55px_rgba(37,99,235,0.16)] sm:h-24 sm:w-24">
               <Image src="/makalearn_logo.png" alt="MakaLearn logo" width={112} height={112} className="h-full w-full object-contain p-2" priority />
@@ -90,63 +101,33 @@ export default function LandingPage() {
             <span className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-teal-600" /> Shared teacher library</span>
             <span className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-teal-600" /> Classroom-friendly controls</span>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="relative mx-auto w-full max-w-2xl lg:mx-0">
-          <div className="session-board relative overflow-hidden rounded-[2rem] border border-white bg-white/90 p-5 shadow-[0_30px_90px_rgba(29,78,216,0.16)] backdrop-blur md:p-7">
-            <div className="flex flex-col gap-5 border-b border-blue-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-bold text-blue-600">Tuesday, 9:30 AM</p>
-                <h2 className="mt-1 text-2xl font-black tracking-[-0.03em] text-ink">Morning communication session</h2>
-              </div>
-              <div className="flex items-center gap-3 rounded-2xl bg-blue-50 px-4 py-3">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-blue-600 shadow-sm"><UsersRound className="h-5 w-5" /></span>
-                <div><p className="text-xs font-semibold text-slate-500">Learner</p><p className="font-bold text-ink">Demo mode</p></div>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3">
-              {sessionSteps.map((step, index) => (
-                <div key={step.label} className="session-step flex items-center gap-4 rounded-2xl border border-blue-100 bg-[#f8fbff] p-4" style={{ animationDelay: `${index * 100}ms` }}>
-                  <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${index === 1 ? "bg-teal-100 text-teal-700" : "bg-white text-blue-600 shadow-sm"}`}>
-                    <step.icon className="h-6 w-6" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-ink">{step.label}</p>
-                    <p className="mt-0.5 text-sm text-slate-500">Step {index + 1} of 3</p>
-                  </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700 shadow-sm">{step.meta}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl bg-blue-600 p-5 text-white">
-                <Headphones className="h-6 w-6" aria-hidden="true" />
-                <p className="mt-4 text-sm text-blue-100">Materials ready</p>
-                <p className="mt-1 text-xl font-black">Images and audio</p>
-              </div>
-              <div className="rounded-2xl border border-blue-100 bg-white p-5">
-                <ShieldCheck className="h-6 w-6 text-teal-600" aria-hidden="true" />
-                <p className="mt-4 text-sm text-slate-500">Teacher controlled</p>
-                <p className="mt-1 text-xl font-black text-ink">Review before use</p>
-              </div>
-            </div>
-          </div>
-          <div className="session-pencil" aria-hidden="true" />
-          <div className="session-rings" aria-hidden="true"><span /><span /><span /></div>
-        </div>
+        <motion.div
+          className="relative mx-auto w-full max-w-2xl lg:mx-0"
+          initial={reduceMotion ? false : { opacity: 0, x: 28, scale: 0.97 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          transition={{ duration: 0.75, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <LearningScene />
+        </motion.div>
       </section>
 
       <section className="relative z-10 mx-auto max-w-7xl border-t border-blue-100 py-12">
         <p className="max-w-2xl text-sm font-bold uppercase tracking-[0.16em] text-blue-600">Built around the classroom day</p>
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          {highlights.map((item) => (
-            <article key={item.title} className="rounded-3xl border border-blue-100 bg-white/80 p-6 shadow-[0_14px_38px_rgba(37,99,235,0.07)] backdrop-blur">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-blue-600"><item.icon className="h-6 w-6" aria-hidden="true" /></span>
-              <h2 className="mt-5 text-lg font-black text-ink">{item.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{item.text}</p>
-            </article>
+          {highlights.map((item, index) => (
+            <Reveal key={item.title} delay={index * 0.08} className="h-full">
+              <motion.article
+                whileHover={reduceMotion ? undefined : { y: -7, scale: 1.01 }}
+                transition={{ type: "spring", stiffness: 320, damping: 25 }}
+                className="glass-panel interactive-card h-full rounded-3xl border p-6"
+              >
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50/80 text-blue-600 shadow-inner"><item.icon className="h-6 w-6" aria-hidden="true" /></span>
+                <h2 className="mt-5 text-lg font-black text-ink">{item.title}</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{item.text}</p>
+              </motion.article>
+            </Reveal>
           ))}
         </div>
       </section>

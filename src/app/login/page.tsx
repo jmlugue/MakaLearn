@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, BookOpenCheck, Hand, Shapes } from "lucide-react";
 import { ToastProvider } from "@/components/common/toast-provider";
 import { LoginPanel } from "@/features/auth/login-panel";
+import { AmbientShapes } from "@/components/motion/ambient-shapes";
 
 const accountUses = [
   { icon: BookOpenCheck, label: "Manage learning materials" },
@@ -20,8 +21,9 @@ export default function LoginPage() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to home
         </Link>
 
-        <div className="relative z-10 grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/80 bg-white shadow-[0_30px_100px_rgba(30,64,175,0.2)] lg:min-h-[620px] lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="glass-panel-strong relative z-10 grid w-full max-w-5xl overflow-hidden rounded-[2rem] border lg:min-h-[620px] lg:grid-cols-[0.95fr_1.05fr]">
           <section className="login-brand-panel relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-500 p-8 text-white sm:p-12 lg:p-14">
+            <AmbientShapes light />
             <div className="login-dot-grid" aria-hidden="true" />
             <div className="login-loop" aria-hidden="true" />
             <div className="relative z-10 flex h-full flex-col">
@@ -45,8 +47,10 @@ export default function LoginPage() {
               <p className="mt-auto pt-12 text-sm leading-6 text-blue-100">Use the account provided by your school administrator.</p>
             </div>
           </section>
-          <section className="grid place-items-center bg-white px-5 py-10 sm:px-10 lg:px-12">
-            <LoginPanel />
+          <section className="relative grid place-items-center bg-white/40 px-5 py-10 backdrop-blur-2xl sm:px-10 lg:px-12">
+            <div className="glass-panel-strong w-full max-w-md rounded-[1.75rem] border p-5 sm:p-7">
+              <LoginPanel />
+            </div>
           </section>
         </div>
       </main>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
 import { Camera, CheckCircle2, Eye, Hand, RotateCcw, ScanLine, TriangleAlert, UserRound, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -249,7 +250,7 @@ export function GesturePracticeView() {
             </Button>
           </div>
 
-          <div className="relative mt-5 overflow-hidden rounded-lg bg-ink shadow-inner">
+          <div className={`relative mt-5 overflow-hidden rounded-2xl border border-slate-700/70 bg-ink shadow-inner ${cameraStarted ? "camera-live-glow" : ""}`}>
             {cameraStarted ? (
               <video ref={videoRef} autoPlay playsInline muted className="aspect-video w-full -scale-x-100 object-cover" />
             ) : (
@@ -331,10 +332,24 @@ export function GesturePracticeView() {
                 <CardTitle>Detection status</CardTitle>
                 <CardDescription>Keep the hands inside the frame before starting the teacher-led check.</CardDescription>
               </div>
-              <StatusIcon state={trackingState} />
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={trackingState}
+                  initial={{ opacity: 0, scale: 0.55, rotate: -12 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.7, rotate: 10 }}
+                  transition={{ type: "spring", stiffness: 430, damping: 24 }}
+                >
+                  <StatusIcon state={trackingState} />
+                </motion.span>
+              </AnimatePresence>
             </div>
 
-            <div
+            <motion.div
+              key={trackingState}
+              initial={{ opacity: 0.65, y: 7, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", stiffness: 360, damping: 30 }}
               className={`mt-4 rounded-lg border p-4 ${
                 meta.tone === "ready"
                   ? "border-green-200 bg-mint text-green-900"
@@ -348,7 +363,7 @@ export function GesturePracticeView() {
                 <p className="font-semibold">{meta.label}</p>
               </div>
               <p className="mt-2 text-sm leading-6">{meta.detail}</p>
-            </div>
+            </motion.div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-4">
@@ -399,7 +414,7 @@ function TrackingMetric({
   valid: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-blue-100 bg-white p-3 shadow-sm">
+    <div className="rounded-xl border border-white/80 bg-white/60 p-3 shadow-sm backdrop-blur-xl">
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
         <Icon className={valid ? "h-4 w-4 text-green-600" : "h-4 w-4 text-orange-500"} aria-hidden="true" />
         {label}

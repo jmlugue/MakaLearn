@@ -3,6 +3,7 @@
 import { ReactNode, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ToastProvider } from "@/components/common/toast-provider";
@@ -10,6 +11,7 @@ import { AuthProvider, useAuthState } from "@/features/auth/use-auth-user";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/common/loading-state";
+import { PageTransition } from "@/components/motion/page-transition";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -23,6 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function AuthenticatedShell({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading, error } = useAuthState();
 
   useEffect(() => {
@@ -58,8 +61,10 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   return (
     <>
       <Sidebar />
-      <main className="min-h-screen px-4 pb-24 pt-5 md:px-6 lg:ml-72 lg:px-8 lg:pb-10 lg:pt-7">
-        <div className="mx-auto max-w-7xl">{children}</div>
+      <main className="app-canvas min-h-screen px-4 pb-24 pt-5 md:px-6 lg:ml-72 lg:px-8 lg:pb-10 lg:pt-7">
+        <div className="mx-auto max-w-7xl">
+          <PageTransition key={pathname}>{children}</PageTransition>
+        </div>
       </main>
       <MobileNav />
     </>

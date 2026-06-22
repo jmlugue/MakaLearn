@@ -10,7 +10,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cn(
-        "min-h-11 w-full rounded-lg border border-blue-100 bg-white px-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100",
+        "min-h-11 w-full rounded-xl border border-white/90 bg-white/65 px-3 text-sm text-ink shadow-sm backdrop-blur-xl outline-none transition placeholder:text-slate-400 hover:border-blue-200 focus:border-blue-400 focus:bg-white/90 focus:shadow-[0_10px_28px_rgba(37,99,235,0.12)] focus:ring-4 focus:ring-blue-100",
         className
       )}
       {...props}
@@ -22,7 +22,7 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   return (
     <textarea
       className={cn(
-        "min-h-28 w-full rounded-lg border border-blue-100 bg-white px-3 py-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100",
+        "min-h-28 w-full rounded-xl border border-white/90 bg-white/65 px-3 py-3 text-sm text-ink shadow-sm backdrop-blur-xl outline-none transition placeholder:text-slate-400 hover:border-blue-200 focus:border-blue-400 focus:bg-white/90 focus:shadow-[0_10px_28px_rgba(37,99,235,0.12)] focus:ring-4 focus:ring-blue-100",
         className
       )}
       {...props}
@@ -35,7 +35,7 @@ export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectE
     return (
       <select
         className={cn(
-          "w-full rounded-lg border border-blue-100 bg-white px-3 py-3 text-sm text-ink shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100",
+          "w-full rounded-xl border border-white/90 bg-white/70 px-3 py-3 text-sm text-ink shadow-sm backdrop-blur-xl outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100",
           className
         )}
         {...props}
@@ -47,7 +47,7 @@ export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectE
     <span className="relative block">
       <select
         className={cn(
-          "min-h-11 w-full appearance-none rounded-lg border border-blue-100 bg-white px-3 pr-10 text-sm font-medium text-ink shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100",
+          "min-h-11 w-full appearance-none rounded-xl border border-white/90 bg-white/70 px-3 pr-10 text-sm font-medium text-ink shadow-sm backdrop-blur-xl outline-none transition hover:border-blue-200 focus:border-blue-400 focus:bg-white/90 focus:ring-4 focus:ring-blue-100",
           className
         )}
         {...props}

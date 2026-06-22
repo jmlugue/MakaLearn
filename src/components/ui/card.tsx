@@ -1,10 +1,16 @@
+"use client";
+
 import { HTMLAttributes } from "react";
+import { motion, type HTMLMotionProps, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function Card({ className, ...props }: HTMLMotionProps<"div">) {
+  const reduceMotion = useReducedMotion();
   return (
-    <div
-      className={cn("rounded-lg border border-blue-100 bg-white p-5 shadow-soft transition", className)}
+    <motion.div
+      whileHover={reduceMotion ? undefined : { y: -2 }}
+      transition={{ type: "spring", stiffness: 320, damping: 30 }}
+      className={cn("glass-panel rounded-2xl border border-white/70 bg-white/70 p-5 shadow-soft backdrop-blur-xl", className)}
       {...props}
     />
   );

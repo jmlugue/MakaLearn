@@ -122,7 +122,7 @@ export function DashboardView() {
 function AdminDashboard({ data }: { data: DashboardData }) {
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="stagger-grid grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard icon={UserRound} label="Teachers" value={data.users.filter((u) => u.role === "teacher").length} />
         <StatCard icon={Users} label="Learners" value={data.learners.length} />
         <StatCard icon={BookOpen} label="Learning items" value={data.learningItems.length} />
@@ -204,7 +204,7 @@ function AdminDashboard({ data }: { data: DashboardData }) {
 function TeacherDashboard({ data, assignedCount }: { data: DashboardData; assignedCount: number }) {
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="stagger-grid grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Users} label="Assigned learners" value={assignedCount} />
         <StatCard icon={BookOpen} label="Recent items" value={data.learningItems.slice(0, 4).length} />
         <StatCard icon={Activity} label="Practice attempts" value={data.practiceAttempts.length} />

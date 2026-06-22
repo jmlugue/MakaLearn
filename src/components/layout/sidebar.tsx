@@ -15,11 +15,11 @@ export function Sidebar() {
   const items = user.role === "admin" ? [...baseNavItems, adminNavItem] : baseNavItems;
 
   return (
-    <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 border-r border-blue-100 bg-white/92 p-5 shadow-soft backdrop-blur lg:flex lg:flex-col">
+    <aside className="glass-panel-strong fixed bottom-4 left-4 top-4 z-30 hidden w-64 rounded-[1.75rem] border p-4 lg:flex lg:flex-col">
       <Link href="/" className="mb-8 flex items-center gap-3">
         <BrandLogo />
       </Link>
-      <nav className="flex flex-1 flex-col gap-1">
+      <nav className="flex flex-1 flex-col gap-1.5">
         {items.map((item) => {
           const active = pathname === item.href;
           return (
@@ -27,10 +27,10 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold transition",
+                "group flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-all duration-200",
                 active
-                  ? "bg-blue-600 text-white shadow-sm shadow-blue-900/10"
-                  : "text-slate-700 hover:bg-skywash hover:text-blue-700"
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]"
+                  : "text-slate-700 hover:translate-x-0.5 hover:bg-white/70 hover:text-blue-700"
               )}
             >
               <item.icon className="h-5 w-5" aria-hidden="true" />
@@ -39,7 +39,7 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="rounded-lg border border-blue-100 bg-[#f7fbff] p-3">
+      <div className="rounded-2xl border border-white/80 bg-white/55 p-3 shadow-sm backdrop-blur-xl">
         <p className="text-sm font-semibold text-ink">{user.name}</p>
         <p className="text-xs capitalize text-slate-600">{user.role}</p>
       </div>
