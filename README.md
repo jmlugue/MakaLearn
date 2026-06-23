@@ -59,7 +59,8 @@ Legacy routes `/dashboard`, `/learners`, and `/progress` redirect to `/content` 
 - PECS and gestures are separate content types.
 - PECS cards support image and audio uploads only.
 - Teachers can store additional gesture records in Content Library.
-- Gesture Recognition only shows these seven fixed labels: I want to go to toilet, I want to eat food, I want to drink water, Help, Yes, No, and Sit down.
+- Gesture Recognition uses MediaPipe hand landmarks and a rule-based sample predictor for seven fixed labels: I want to go to toilet, I want to eat food, I want to drink water, Help, Yes, No, and Sit down. These temporary finger-pose mappings are not official Makaton gestures and will be replaced by an approved trained model.
+- See `GESTURE_SAMPLE_POSES.md` for the complete demo pose-to-prediction mapping.
 - Gesture records support reference image, gesture image/video, and audio uploads.
 - PECS and gesture images/videos/audio can be previewed inside the website.
 - Activities can only be created from PECS cards.

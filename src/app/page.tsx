@@ -32,7 +32,7 @@ const highlights = [
   {
     icon: Hand,
     title: "Practise with live guidance",
-    text: "Use the webcam hand outline during guided gesture practice and give feedback while the learner tries."
+    text: "Use the webcam hand outline to try supported sample poses and show a live demo prediction."
   },
   {
     icon: ListChecks,

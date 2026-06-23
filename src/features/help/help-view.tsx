@@ -16,7 +16,7 @@ const guides = [
   {
     icon: PlayCircle,
     title: "Use gesture recognition",
-    text: "Choose one of the seven fixed gestures, start the camera, and check that the live landmark outline follows the learner’s hands before giving feedback."
+    text: "Review the seven supported sample poses, start the camera, and hold one hand steadily while the live landmark outline produces a demo prediction."
   },
   {
     icon: Library,

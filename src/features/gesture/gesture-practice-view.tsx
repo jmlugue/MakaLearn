@@ -3,16 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
-import { Camera, CheckCircle2, Eye, Hand, RotateCcw, ScanLine, TriangleAlert, UserRound, XCircle } from "lucide-react";
+import { Camera, CheckCircle2, Eye, Hand, RotateCcw, ScanLine, Sparkles, TriangleAlert, UserRound, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
-import { FieldHint, Label, Select } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { categories as mockCategories, learningItems as mockLearningItems } from "@/data/mock-data";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { generateCorrectiveFeedbackPlaceholder } from "@/utils/gesture-feedback";
+import {
+  predictGesturePlaceholder,
+  supportedGesturePredictions,
+  type DemoGesturePrediction
+} from "@/utils/gesture-prediction";
 import type { Category, LearningItem } from "@/types";
 
 type TrackingState = "idle" | "hands-visible" | "no-hands" | "too-many-hands" | "multiple-people";
@@ -40,8 +44,8 @@ const trackingMeta: Record<
     tone: "idle"
   },
   "hands-visible": {
-    label: "Hands visible",
-    detail: "Valid frame: one person and one or two hands detected.",
+    label: "Hands ready",
+    detail: "One or two hands are visible. Hold a supported pose briefly for a sample prediction.",
     handCount: 1,
     peopleCount: 1,
     tone: "ready"
@@ -55,8 +59,8 @@ const trackingMeta: Record<
   },
   "too-many-hands": {
     label: "Too many hands",
-    detail: "Validation allows a maximum of two hands at a time.",
-    handCount: 3,
+    detail: "The sample predictor reads a maximum of two hands at a time.",
+    handCount: 2,
     peopleCount: 1,
     tone: "warning"
   },
@@ -80,20 +84,20 @@ export function GesturePracticeView() {
   const animationFrameRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef(-1);
   const lastHandCountRef = useRef(-1);
+  const predictionCandidateRef = useRef<{ label: string | null; frames: number }>({ label: null, frames: 0 });
+  const currentPredictionLabelRef = useRef<string | null>(null);
   const [learningItems, setLearningItems] = useState<LearningItem[]>(
     getFixedGestureItems(mockLearningItems)
   );
   const [categories, setCategories] = useState<Category[]>(mockCategories);
-  const [selectedItemId, setSelectedItemId] = useState(
-    getFixedGestureItems(mockLearningItems)[0]?.id ?? ""
-  );
   const [cameraStarted, setCameraStarted] = useState(false);
   const [trackerStatus, setTrackerStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [detectedHandCount, setDetectedHandCount] = useState(0);
   const [trackingState, setTrackingState] = useState<TrackingState>("idle");
+  const [prediction, setPrediction] = useState<DemoGesturePrediction | null>(null);
   const [feedback, setFeedback] = useState("Start the camera to show hand visibility and validation feedback.");
-  const selectedItem = learningItems.find((item) => item.id === selectedItemId) ?? learningItems[0];
-  const selectedCategory = categories.find((category) => category.id === selectedItem?.categoryId);
+  const predictedItem = learningItems.find((item) => item.label === prediction?.label);
+  const predictedCategory = categories.find((category) => category.id === predictedItem?.categoryId);
   const meta = trackingMeta[trackingState];
   const hasValidHands = trackingState === "hands-visible";
 
@@ -107,7 +111,6 @@ export function GesturePracticeView() {
         const gestureItems = getFixedGestureItems(data.learningItems);
         setLearningItems(gestureItems.length ? gestureItems : getFixedGestureItems(mockLearningItems));
         setCategories(data.categories.length ? data.categories : mockCategories);
-        setSelectedItemId((current) => current || gestureItems[0]?.id || "");
       } catch (error) {
         notify({
           title: "Using local gesture data",
@@ -182,13 +185,11 @@ export function GesturePracticeView() {
       if (handCount !== lastHandCountRef.current) {
         lastHandCountRef.current = handCount;
         setDetectedHandCount(handCount);
-        setTrackingState(handCount > 0 ? "hands-visible" : "no-hands");
-        setFeedback(
-          handCount > 0 && selectedItem
-            ? generateCorrectiveFeedbackPlaceholder(selectedItem.label)
-            : trackingMeta["no-hands"].detail
-        );
+        setTrackingState(handCount === 0 ? "no-hands" : handCount <= 2 ? "hands-visible" : "too-many-hands");
       }
+
+      const nextPrediction = predictGesturePlaceholder(result.landmarks);
+      updateStablePrediction(nextPrediction);
     }
 
     animationFrameRef.current = window.requestAnimationFrame(runHandTracking);
@@ -200,7 +201,8 @@ export function GesturePracticeView() {
     setCameraStarted(true);
     setTrackingState("no-hands");
     setDetectedHandCount(0);
-    setFeedback("Raise one or both hands in the camera frame to begin.");
+    clearPrediction();
+    setFeedback("Raise one or two hands in the camera frame to begin.");
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -226,15 +228,42 @@ export function GesturePracticeView() {
     setTrackingState(cameraStarted ? "no-hands" : "idle");
     setDetectedHandCount(0);
     lastHandCountRef.current = -1;
-    setFeedback(cameraStarted ? "Tracking reset. Place one person in frame and show up to two hands." : trackingMeta.idle.detail);
+    clearPrediction();
+    setFeedback(cameraStarted ? "Tracking reset. Place one or two hands in frame and hold a supported pose." : trackingMeta.idle.detail);
+  }
+
+  function clearPrediction() {
+    predictionCandidateRef.current = { label: null, frames: 0 };
+    currentPredictionLabelRef.current = null;
+    setPrediction(null);
+  }
+
+  function updateStablePrediction(nextPrediction: DemoGesturePrediction | null) {
+    const nextLabel = nextPrediction?.label ?? null;
+    const candidate = predictionCandidateRef.current;
+    predictionCandidateRef.current =
+      candidate.label === nextLabel
+        ? { label: nextLabel, frames: candidate.frames + 1 }
+        : { label: nextLabel, frames: 1 };
+
+    // Require several matching frames to reduce flicker from landmark noise.
+    if (predictionCandidateRef.current.frames < 6 || currentPredictionLabelRef.current === nextLabel) return;
+
+    currentPredictionLabelRef.current = nextLabel;
+    setPrediction(nextPrediction);
+    setFeedback(
+      nextPrediction
+        ? generateCorrectiveFeedbackPlaceholder(nextPrediction.label)
+        : "No supported pose matched yet. Check the examples and hold one pose steadily."
+    );
   }
 
   return (
     <>
       <PageHeader
         eyebrow="Gesture Recognition"
-        title="Guided gesture practice"
-        description="Follow the live hand outline, check visibility, and use teacher-led feedback during practice."
+        title="Sample gesture prediction"
+        description="Show a supported one-hand or two-hand pose and hold it briefly to see a live demo prediction."
       />
 
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -242,7 +271,7 @@ export function GesturePracticeView() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle>Camera and hand detector</CardTitle>
-              <CardDescription>The landmark outline follows up to two visible hands in real time.</CardDescription>
+              <CardDescription>The landmark outline follows the hand while demo rules match its finger pose.</CardDescription>
             </div>
             <Button onClick={startCamera}>
               <Camera className="h-4 w-4" aria-hidden="true" />
@@ -267,7 +296,9 @@ export function GesturePracticeView() {
                 <canvas ref={canvasRef} className="absolute inset-0 h-full w-full -scale-x-100" aria-hidden="true" />
                 <div className="absolute inset-4 rounded-lg border border-white/35" />
                 <div className="absolute bottom-3 left-3 rounded-md bg-slate-950/70 px-3 py-2 text-xs font-semibold text-white">
-                  {trackerStatus === "loading" ? "Preparing hand tracking…" : `${detectedHandCount} of 2 hands visible`}
+                  {trackerStatus === "loading"
+                    ? "Preparing hand tracking..."
+                    : `${detectedHandCount} hand${detectedHandCount === 1 ? "" : "s"} visible`}
                 </div>
               </div>
             ) : null}
@@ -282,42 +313,40 @@ export function GesturePracticeView() {
 
         <div className="grid gap-4">
           <Card className="bg-[#fbfdff]">
-            <CardTitle>Fixed gesture setup</CardTitle>
-            <div className="mt-4">
-              <Label htmlFor="gesture-item">Gesture</Label>
-              <Select id="gesture-item" value={selectedItemId} onChange={(event) => setSelectedItemId(event.target.value)}>
-                {learningItems.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </Select>
-              <FieldHint>Only the seven final gesture labels are available here.</FieldHint>
+            <CardTitle>Supported sample gestures</CardTitle>
+            <CardDescription>These finger poses are temporary demo mappings, not official Makaton gestures.</CardDescription>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              {supportedGesturePredictions.map((gesture) => (
+                <div key={gesture.label} className="rounded-xl border border-blue-100 bg-white p-3">
+                  <p className="font-semibold text-ink">{gesture.label}</p>
+                  <p className="mt-1 text-sm text-slate-600">{gesture.pose}</p>
+                </div>
+              ))}
             </div>
           </Card>
 
-          {selectedItem ? (
+          {predictedItem ? (
             <Card className="flex h-full flex-col">
-              <Badge>{selectedCategory?.name ?? "Fixed gesture"}</Badge>
-              <CardTitle className="mt-3">{selectedItem.label}</CardTitle>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{selectedItem.instruction}</p>
+              <Badge>{predictedCategory?.name ?? "Sample gesture"}</Badge>
+              <CardTitle className="mt-3">{predictedItem.label}</CardTitle>
+              <p className="mt-3 text-sm leading-6 text-slate-600">{predictedItem.instruction}</p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <PracticeReferenceMedia
                   title="Reference image"
-                  value={selectedItem.symbolImageUrl}
-                  label={`${selectedItem.label} reference image`}
+                  value={predictedItem.symbolImageUrl}
+                  label={`${predictedItem.label} reference image`}
                   emptyText="No reference image added"
                 />
                 <PracticeReferenceMedia
                   title="Gesture image/video"
-                  value={selectedItem.gestureMediaUrl}
-                  label={`${selectedItem.label} gesture reference`}
+                  value={predictedItem.gestureMediaUrl}
+                  label={`${predictedItem.label} gesture reference`}
                   emptyText="No gesture media added"
                 />
                 <PracticeReferenceMedia
                   title="Audio cue"
-                  value={selectedItem.audioUrl}
-                  label={`${selectedItem.label} audio cue`}
+                  value={predictedItem.audioUrl}
+                  label={`${predictedItem.label} audio cue`}
                   emptyText="No audio cue added"
                   kind="audio"
                   className="md:col-span-2"
@@ -330,7 +359,7 @@ export function GesturePracticeView() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <CardTitle>Detection status</CardTitle>
-                <CardDescription>Keep the hands inside the frame before starting the teacher-led check.</CardDescription>
+                <CardDescription>The result appears after the same supported pose is stable for several frames.</CardDescription>
               </div>
               <AnimatePresence mode="wait">
                 <motion.span
@@ -367,16 +396,34 @@ export function GesturePracticeView() {
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Selected gesture</p>
-                <p className="mt-2 text-lg font-black text-ink">{selectedItem?.label ?? "Choose a gesture"}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Sample prediction</p>
+                <p className="mt-2 text-lg font-black text-ink">{prediction?.label ?? "Waiting for a supported pose"}</p>
               </div>
               <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Practice check</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Rule match</p>
                 <p className="mt-2 text-sm font-semibold text-ink">
-                  {hasValidHands ? "Hands are visible—continue practice" : "Move hands into the camera frame"}
+                  {prediction
+                    ? `${prediction.matchPercent}% sample match`
+                    : hasValidHands
+                      ? "Checking finger pose..."
+                      : "Move your hands into the camera frame"}
                 </p>
               </div>
             </div>
+
+            {prediction ? (
+              <div
+                className="mt-4 flex items-start gap-3 rounded-lg border border-green-200 bg-mint p-4 text-green-950"
+                role="status"
+                aria-live="polite"
+              >
+                <Sparkles className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold">Predicted: {prediction.label}</p>
+                  <p className="mt-1 text-sm">Matched demo pose: {prediction.pose}.</p>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-4 rounded-lg bg-skywash p-4">
               <p className="font-semibold text-ink">Corrective feedback preview</p>
