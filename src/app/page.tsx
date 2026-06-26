@@ -53,11 +53,10 @@ export default function LandingPage() {
       <div className="landing-ribbon" aria-hidden="true" />
 
       <nav className="relative z-10 mx-auto flex max-w-7xl items-center justify-between border-b border-blue-100/80 py-3">
-        <Link href="/" className="inline-flex items-center gap-3" aria-label="MakaLearn home">
-          <span className="grid h-11 w-11 place-items-center overflow-hidden rounded-2xl bg-white shadow-[0_8px_24px_rgba(37,99,235,0.14)]">
-            <Image src="/makalearn_logo.png" alt="" width={56} height={56} className="h-full w-full object-contain p-1.5" priority />
+        <Link href="/" className="inline-flex items-center" aria-label="MakaLearn home">
+          <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-white p-0.5 shadow-[0_8px_24px_rgba(37,99,235,0.14)]">
+            <Image src="/makalearn_logo_current.png" alt="" width={128} height={128} className="h-full w-full scale-125 object-contain object-center" priority />
           </span>
-          <span className="text-xl font-black tracking-[-0.03em] text-ink">MakaLearn</span>
         </Link>
         <Link
           href="/login"
@@ -74,8 +73,8 @@ export default function LandingPage() {
           transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
         >
           <div className="flex items-center gap-4">
-            <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-[1.75rem] bg-white shadow-[0_18px_55px_rgba(37,99,235,0.16)] sm:h-24 sm:w-24">
-              <Image src="/makalearn_logo.png" alt="MakaLearn logo" width={112} height={112} className="h-full w-full object-contain p-2" priority />
+            <span className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-[1.75rem] bg-white p-1 shadow-[0_18px_55px_rgba(37,99,235,0.16)] sm:h-32 sm:w-32">
+              <Image src="/makalearn_logo_current.png" alt="MakaLearn logo" width={208} height={208} className="h-full w-full scale-125 object-contain object-center" priority />
             </span>
             <h1 className="text-5xl font-black tracking-[-0.055em] text-ink sm:text-6xl lg:text-7xl">MakaLearn</h1>
           </div>

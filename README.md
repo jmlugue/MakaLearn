@@ -75,7 +75,7 @@ Legacy routes `/dashboard`, `/learners`, and `/progress` redirect to `/content` 
 - Drag-and-drop answers remain visual cards after dropping, and scored incorrect answers use red feedback.
 - Lessons no longer show an Open Activity action, so deleted activities are not implied by lesson records.
 - Activity scoring is session-only in this scope and does not record learner progress.
-- The real `makalearn_logo.png` is served from `public/makalearn_logo.png` and used in the primary brand surfaces.
+- The real icon-only logo is served from `public/makalearn_logo_current.png` and used in the primary brand surfaces.
 - Admins can create local teacher account previews, deactivate/reactivate teachers, change roles, monitor teacher-managed content, review uploads, and see logs.
 
 ## Auth and data

@@ -300,21 +300,6 @@ export function PlaygroundView() {
                               <span className="block truncate text-sm font-bold text-ink">{card.label}</span>
                               <Badge className="mt-1 bg-emerald-50 text-emerald-700">{getRoleLabel(card.sentenceRole)}</Badge>
                             </div>
-                            <div className="mt-2 grid grid-cols-2 gap-1">
-                              <Button type="button" size="sm" variant="outline" className="min-h-8 px-2 text-xs" disabled={index === 0} onClick={() => moveCard(index, index - 1)}>
-                                Up
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="min-h-8 px-2 text-xs"
-                                disabled={index === sentenceCards.length - 1}
-                                onClick={() => moveCard(index, index + 1)}
-                              >
-                                Down
-                              </Button>
-                            </div>
                           </div>
                         ))}
                       </div>

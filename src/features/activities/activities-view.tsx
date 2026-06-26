@@ -23,6 +23,7 @@ import {
 } from "@/lib/supabase/app-data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { activityTypeLabels } from "@/utils/activity-labels";
+import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import type { Activity, ActivityType, LearningItem } from "@/types";
 
 const activityTypes: ActivityType[] = [
@@ -35,6 +36,11 @@ const activityTypes: ActivityType[] = [
 ];
 type ActivityTab = "workspace" | "library";
 const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
+const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
+
+type LocalContentLibraryState = {
+  items?: LearningItem[];
+};
 
 function readLocalActivities(): Activity[] | null {
   if (typeof window === "undefined" || isSupabaseConfigured()) return null;
@@ -44,6 +50,19 @@ function readLocalActivities(): Activity[] | null {
     if (value === null) return null;
     const parsed = JSON.parse(value) as unknown;
     return Array.isArray(parsed) ? (parsed as Activity[]).filter((activity) => activityTypes.includes(activity.type)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readLocalContentLibraryItems(): LearningItem[] | null {
+  if (typeof window === "undefined" || isSupabaseConfigured()) return null;
+
+  try {
+    const value = window.localStorage.getItem(CONTENT_LIBRARY_STORAGE_KEY);
+    if (!value) return null;
+    const parsed = JSON.parse(value) as LocalContentLibraryState;
+    return Array.isArray(parsed.items) ? parsed.items : null;
   } catch {
     return null;
   }
@@ -79,7 +98,14 @@ function getActivityDraftInstructions(type: ActivityType, items: LearningItem[])
 }
 
 function getActivityItems(items: LearningItem[]) {
-  return items.filter((item) => item.contentType === "pecs" || item.contentType === "gesture");
+  const normalized = items.map((item) => ({
+    ...item,
+    contentType: item.contentType ?? (item.tags?.includes("gesture") ? ("gesture" as const) : ("pecs" as const))
+  }));
+
+  return ensurePecsManifestItems(normalized).filter(
+    (item) => item.contentType === "pecs" || item.contentType === "gesture"
+  );
 }
 
 function getResultPresentation(score: number) {
@@ -148,8 +174,10 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     async function loadSupabaseData() {
       if (!isSupabaseConfigured()) {
         const nextActivities = (readLocalActivities() ?? mockActivities).filter((activity) => activityTypes.includes(activity.type));
+        const nextLearningItems = getActivityItems(readLocalContentLibraryItems() ?? mockLearningItems);
         if (!active) return;
         setActivities(nextActivities);
+        setLearningItems(nextLearningItems);
         setSelectedActivityId(
           getFirstActivityForType(nextActivities, requestedActivityType)?.id ?? nextActivities[0]?.id ?? ""
         );
@@ -231,6 +259,13 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
       return supportsContentType && supportsType && matchesSearch;
     });
   }, [learningItemSearch, learningItems, type]);
+  const learningItemEmptyText = learningItemSearch
+    ? "No learning items match this search."
+    : type === "gesture-practice"
+      ? "No gesture items are available yet. Add a gesture in Content Library first."
+      : activityUsesImageOptions(type)
+        ? "No PECS items with images are available yet. Add or upload PECS images in Content Library first."
+        : "No PECS learning items are available yet. Add PECS items in Content Library first.";
 
   function logActivityAction(action: "create" | "edit" | "delete", activity: Activity, detail: string) {
     insertAuditLog({
@@ -372,17 +407,15 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
       createdBy: editingActivity?.createdBy ?? user.id
     };
     let savedActivity = nextActivity;
+    let savedToSupabase = !isSupabaseConfigured();
     if (isSupabaseConfigured()) {
       try {
         savedActivity = editingActivity
           ? await updateActivity(nextActivity, editingActivity)
           : await insertActivity(nextActivity);
+        savedToSupabase = true;
       } catch (error) {
-        notify({
-          title: editingActivity ? "Activity not updated" : "Activity not created",
-          description: "The activity could not be saved. Try again."
-        });
-        return;
+        console.error("Supabase activity save failed. Keeping the activity in local state for this session.", error);
       }
     }
     setActivities((current) =>
@@ -395,9 +428,17 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     const wasEditing = Boolean(editingActivity);
     closeCreateForm();
     notify({
-      title: wasEditing ? "Activity updated" : "Activity created",
-      description: `The activity was ${wasEditing ? "updated" : "created"}.`,
-      tone: "success"
+      title: savedToSupabase
+        ? wasEditing
+          ? "Activity updated"
+          : "Activity created"
+        : wasEditing
+          ? "Activity updated locally"
+          : "Activity created locally",
+      description: savedToSupabase
+        ? `The activity was ${wasEditing ? "updated" : "created"}.`
+        : "Supabase could not save this activity yet, so it is available in this browser session.",
+      tone: savedToSupabase ? "success" : "info"
     });
   }
 
@@ -642,9 +683,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
                     if (learningItemError) setLearningItemError("");
                   }}
                   emptyText={
-                    learningItemSearch
-                      ? "No learning items match this search."
-                      : "Select at least one learning item to build the activity."
+                    learningItemEmptyText
                   }
                 />
                 <FieldError message={learningItemError} />

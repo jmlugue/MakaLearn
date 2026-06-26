@@ -27,11 +27,10 @@ export default function LoginPage() {
             <div className="login-dot-grid" aria-hidden="true" />
             <div className="login-loop" aria-hidden="true" />
             <div className="relative z-10 flex h-full flex-col">
-              <div className="flex items-center gap-4">
-                <span className="grid h-20 w-20 place-items-center overflow-hidden rounded-[1.6rem] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.2)]">
-                  <Image src="/makalearn_logo.png" alt="" width={96} height={96} className="h-full w-full object-contain p-2" priority />
+              <div className="flex items-center">
+                <span className="grid h-20 w-20 place-items-center overflow-hidden rounded-[1.6rem] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.2)] sm:h-24 sm:w-24">
+                  <Image src="/makalearn_logo_current.png" alt="" width={160} height={160} className="h-full w-full object-contain p-2" priority />
                 </span>
-                <p className="text-4xl font-black tracking-[-0.05em] sm:text-5xl">MakaLearn</p>
               </div>
               <p className="mt-8 max-w-md text-lg font-semibold leading-8 text-blue-50">
                 Your classroom materials and guided practice tools, ready for the next session.
