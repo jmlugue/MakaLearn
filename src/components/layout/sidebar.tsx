@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { GraduationCap, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { adminNavItem, baseNavItems } from "@/components/layout/nav-items";
+import { adminNavItem, baseNavItems, studentNavItems } from "@/components/layout/nav-items";
 import { useAuthUser } from "@/features/auth/use-auth-user";
+import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/layout/brand-logo";
 
 export function Sidebar() {
   const pathname = usePathname();
   const { user, signOut } = useAuthUser();
-  const items = user.role === "admin" ? [...baseNavItems, adminNavItem] : baseNavItems;
+  const { isStudentMode, enterStudentMode, exitStudentMode } = useStudentMode();
+  const items = isStudentMode ? studentNavItems : user.role === "admin" ? [...baseNavItems, adminNavItem] : baseNavItems;
 
   return (
     <aside className="glass-panel-strong fixed bottom-4 left-4 top-4 z-30 hidden w-64 rounded-[1.75rem] border p-4 lg:flex lg:flex-col">
@@ -40,13 +42,28 @@ export function Sidebar() {
         })}
       </nav>
       <div className="rounded-2xl border border-white/80 bg-white/55 p-3 shadow-sm backdrop-blur-xl">
-        <p className="text-sm font-semibold text-ink">{user.name}</p>
-        <p className="text-xs capitalize text-slate-600">{user.role}</p>
+        <p className="text-sm font-semibold text-ink">{isStudentMode ? "Student mode" : user.name}</p>
+        <p className="text-xs capitalize text-slate-600">
+          {isStudentMode ? "Guided access" : user.role}
+        </p>
       </div>
-      <Button variant="ghost" className="mt-3 justify-start" onClick={signOut}>
-        <LogOut className="h-4 w-4" aria-hidden="true" />
-        Sign out
-      </Button>
+      {isStudentMode ? (
+        <Button variant="secondary" className="mt-3 justify-start" onClick={exitStudentMode}>
+          <GraduationCap className="h-4 w-4" aria-hidden="true" />
+          Exit student mode
+        </Button>
+      ) : (
+        <>
+          <Button variant="secondary" className="mt-3 justify-start" onClick={enterStudentMode}>
+            <GraduationCap className="h-4 w-4" aria-hidden="true" />
+            Enter student mode
+          </Button>
+          <Button variant="ghost" className="mt-2 justify-start" onClick={signOut}>
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Sign out
+          </Button>
+        </>
+      )}
     </aside>
   );
 }

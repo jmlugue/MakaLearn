@@ -167,7 +167,7 @@ export const learningItems: LearningItem[] = [
     instruction: "Show the reference, start the camera, and check that both hands remain visible.",
     symbolImageUrl: "TOI",
     gestureMediaUrl: "toilet-gesture-demo.mp4",
-    audioUrl: "toilet-demo.mp3",
+    audioUrl: "/audio/gesture-toilet.wav",
     tags: ["gesture", "fixed", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-06-10T09:00:00.000Z"
@@ -181,7 +181,7 @@ export const learningItems: LearningItem[] = [
     instruction: "Keep the learner centered and check that the live hand outline follows the movement.",
     symbolImageUrl: "EAT",
     gestureMediaUrl: "eat-food-gesture-demo.mp4",
-    audioUrl: "eat-food-demo.mp3",
+    audioUrl: "/audio/gesture-eat-food.wav",
     tags: ["gesture", "fixed", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-06-10T09:05:00.000Z"
@@ -195,7 +195,7 @@ export const learningItems: LearningItem[] = [
     instruction: "Use the hand visibility indicator before giving corrective feedback.",
     symbolImageUrl: "DRK",
     gestureMediaUrl: "drink-water-gesture-demo.mp4",
-    audioUrl: "drink-water-demo.mp3",
+    audioUrl: "/audio/gesture-drink-water.wav",
     tags: ["gesture", "fixed", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-06-10T09:10:00.000Z"
@@ -209,7 +209,7 @@ export const learningItems: LearningItem[] = [
     instruction: "Ask the learner to repeat slowly if the hand detector loses visibility.",
     symbolImageUrl: "HLP",
     gestureMediaUrl: "help-gesture-demo.mp4",
-    audioUrl: "help-demo.mp3",
+    audioUrl: "/audio/gesture-help.wav",
     tags: ["gesture", "fixed", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-06-10T09:15:00.000Z"
@@ -223,7 +223,7 @@ export const learningItems: LearningItem[] = [
     instruction: "Start only when the camera shows one person in frame.",
     symbolImageUrl: "YES",
     gestureMediaUrl: "yes-gesture-demo.mp4",
-    audioUrl: "yes-demo.mp3",
+    audioUrl: "/audio/gesture-yes.wav",
     tags: ["gesture", "fixed", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-06-10T09:20:00.000Z"
@@ -237,7 +237,7 @@ export const learningItems: LearningItem[] = [
     instruction: "Use the visibility indicator to keep feedback focused and calm.",
     symbolImageUrl: "NO",
     gestureMediaUrl: "no-gesture-demo.mp4",
-    audioUrl: "no-demo.mp3",
+    audioUrl: "/audio/gesture-no.wav",
     tags: ["gesture", "fixed", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-06-10T09:25:00.000Z"
@@ -251,7 +251,7 @@ export const learningItems: LearningItem[] = [
     instruction: "Give one short cue, wait, then repeat if the learner needs another model.",
     symbolImageUrl: "SIT",
     gestureMediaUrl: "sit-down-gesture-demo.mp4",
-    audioUrl: "sit-down-demo.mp3",
+    audioUrl: "/audio/gesture-sit-down.wav",
     tags: ["gesture", "fixed", "demo"],
     createdBy: "user-admin",
     updatedAt: "2026-06-10T09:30:00.000Z"

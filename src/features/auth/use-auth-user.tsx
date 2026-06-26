@@ -2,6 +2,7 @@
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { insertAuditLog } from "@/lib/audit-logs";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import type { AppUser } from "@/types";
 
@@ -93,13 +94,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshProfile]);
 
   const signOut = useCallback(async () => {
+    if (user) {
+      await insertAuditLog({
+        category: "auth",
+        action: "logout",
+        actor: user,
+        targetType: "session",
+        targetTitle: "Sign out",
+        detail: `${user.name} signed out.`
+      }).catch(() => undefined);
+    }
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
       await supabase.auth.signOut();
     }
     setUser(null);
     router.push("/login");
-  }, [router]);
+  }, [router, user]);
 
   const value = useMemo(
     () => ({ user, loading, error, refreshProfile, signOut }),

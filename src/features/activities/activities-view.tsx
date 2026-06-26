@@ -12,6 +12,8 @@ import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
 import { activities as mockActivities, learningItems as mockLearningItems } from "@/data/mock-data";
 import { useAuthUser } from "@/features/auth/use-auth-user";
+import { useStudentMode } from "@/features/student-mode/student-mode-context";
+import { insertAuditLog } from "@/lib/audit-logs";
 import {
   createActivityQuestions,
   deleteActivity,
@@ -109,6 +111,7 @@ function getResultPresentation(score: number) {
 
 export function ActivitiesView({ initialActivityType }: { initialActivityType?: string }) {
   const { user } = useAuthUser();
+  const { isStudentMode } = useStudentMode();
   const { notify } = useToast();
   const requestedActivityType = getValidActivityType(initialActivityType);
   const [activities, setActivities] = useState<Activity[]>(isSupabaseConfigured() ? [] : mockActivities);
@@ -191,6 +194,14 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     window.localStorage.setItem(LOCAL_ACTIVITIES_STORAGE_KEY, JSON.stringify(activities));
   }, [activities, activitiesReady]);
 
+  useEffect(() => {
+    if (!isStudentMode) return;
+    setTab("workspace");
+    setCreateFormOpen(false);
+    setEditingActivity(null);
+    setActivityPendingDelete(null);
+  }, [isStudentMode]);
+
   const selectedActivity = activities.find((activity) => activity.id === selectedActivityId) ?? activities[0];
   const selectedItems = useMemo(
     () => selectedActivity?.learningItemIds.map((id) => learningItems.find((item) => item.id === id)).filter(Boolean) ?? [],
@@ -220,6 +231,18 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
       return supportsContentType && supportsType && matchesSearch;
     });
   }, [learningItemSearch, learningItems, type]);
+
+  function logActivityAction(action: "create" | "edit" | "delete", activity: Activity, detail: string) {
+    insertAuditLog({
+      category: "content",
+      action,
+      actor: user,
+      targetType: "activity",
+      targetId: activity.id,
+      targetTitle: activity.title,
+      detail
+    }).catch(() => undefined);
+  }
 
   function chooseAnswer(questionId: string, value: string) {
     setAnswers((current) => ({ ...current, [questionId]: value }));
@@ -367,6 +390,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
         ? current.map((activity) => (activity.id === editingActivity.id ? savedActivity : activity))
         : [savedActivity, ...current]
     );
+    logActivityAction(editingActivity ? "edit" : "create", savedActivity, editingActivity ? "Updated an activity." : "Created an activity.");
     resetPlayer(savedActivity.id);
     const wasEditing = Boolean(editingActivity);
     closeCreateForm();
@@ -403,6 +427,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     if (editingActivity?.id === activity.id) {
       closeCreateForm();
     }
+    logActivityAction("delete", activity, "Deleted an activity.");
     setActivityPendingDelete(null);
     setDeleteInProgress(false);
     notify({
@@ -415,12 +440,16 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
   return (
     <>
       <PageHeader
-        eyebrow="Activities"
-        title="PECS activity library and player"
-        description="Create and run symbol-based activities from PECS cards only. Gesture recognition stays in the gesture tab."
+        eyebrow={isStudentMode ? "Student mode" : "Activities"}
+        title={isStudentMode ? "Practice activity" : "PECS activity library and player"}
+        description={
+          isStudentMode
+            ? "Answer each prompt with teacher guidance. Creation and editing tools are hidden in this view."
+            : "Create and run symbol-based activities from PECS cards only. Gesture recognition stays in the gesture tab."
+        }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      {!isStudentMode ? <div className="grid gap-3 sm:grid-cols-2">
         <button
           type="button"
           onClick={() => setTab("workspace")}
@@ -464,10 +493,33 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
             Browse shared and private activities
           </span>
         </button>
-      </div>
+      </div> : null}
       {tab === "workspace" ? (
       <section className="mt-4 space-y-4">
-        <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        {isStudentMode && activities.length > 1 ? (
+          <Card className="bg-[#fbfdff]">
+            <CardTitle>Choose an activity</CardTitle>
+            <CardDescription>Pick one activity to practise.</CardDescription>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {activities.map((activity) => (
+                <button
+                  key={activity.id}
+                  type="button"
+                  onClick={() => resetPlayer(activity.id)}
+                  className={`min-h-16 rounded-lg border p-3 text-left text-sm font-semibold transition ${
+                    selectedActivity?.id === activity.id
+                      ? "border-blue-500 bg-blue-600 text-white"
+                      : "border-blue-100 bg-white text-ink hover:border-blue-300"
+                  }`}
+                >
+                  {activity.title}
+                </button>
+              ))}
+            </div>
+          </Card>
+        ) : null}
+
+        {!isStudentMode ? <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold text-ink">Activity workspace</h2>
             <p className="mt-1 text-sm text-slate-600">Run the selected activity, or open the creator when you need a new one.</p>
@@ -485,9 +537,9 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
               </Button>
             )}
           </div>
-        </div>
+        </div> : null}
 
-        <div className="space-y-4">
+        {!isStudentMode ? <div className="space-y-4">
           {createFormOpen ? (
           <div
             className={
@@ -650,7 +702,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
           </Card>
           </div>
           ) : null}
-        </div>
+        </div> : null}
 
         {selectedActivity ? (
         <Card>
@@ -707,10 +759,10 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
             <Button variant="secondary" onClick={() => resetPlayer()}>
               Reset answers
             </Button>
-            <Button variant="outline" onClick={() => openEditActivity(selectedActivity)}>
+            {!isStudentMode ? <Button variant="outline" onClick={() => openEditActivity(selectedActivity)}>
               <Pencil className="h-4 w-4" aria-hidden="true" />
               Edit activity
-            </Button>
+            </Button> : null}
           </CardFooter>
         </Card>
         ) : (
@@ -723,7 +775,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
       </section>
       ) : null}
 
-      {tab === "library" ? (
+      {tab === "library" && !isStudentMode ? (
         <section className="mt-4 space-y-4">
           <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -794,7 +846,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
         </section>
       ) : null}
 
-      {activityPendingDelete ? (
+      {activityPendingDelete && !isStudentMode ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
           <div
             role="dialog"

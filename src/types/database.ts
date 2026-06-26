@@ -1,5 +1,7 @@
 import type {
   ActivityType,
+  AuditLogAction,
+  AuditLogCategory,
   AppUser,
   Learner,
   MediaAsset,
@@ -397,6 +399,45 @@ export type Database = {
           completed_at?: string;
           related_learning_item_ids?: string[];
           saved_by?: string;
+        };
+        Relationships: [];
+      };
+      audit_logs: {
+        Row: {
+          id: string;
+          category: AuditLogCategory;
+          action: AuditLogAction;
+          actor_id: string;
+          actor_name: string;
+          target_type: string;
+          target_id: string | null;
+          target_title: string;
+          detail: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          category: AuditLogCategory;
+          action: AuditLogAction;
+          actor_id: string;
+          actor_name: string;
+          target_type: string;
+          target_id?: string | null;
+          target_title: string;
+          detail?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          category?: AuditLogCategory;
+          action?: AuditLogAction;
+          actor_id?: string;
+          actor_name?: string;
+          target_type?: string;
+          target_id?: string | null;
+          target_title?: string;
+          detail?: string;
+          created_at?: string;
         };
         Relationships: [];
       };

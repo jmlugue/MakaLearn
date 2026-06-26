@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldError, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
+import { insertAuditLog } from "@/lib/audit-logs";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/types";
@@ -71,6 +72,14 @@ export function LoginPanel() {
 
     try {
       const profile = await getSignedInProfile(data.user.id);
+      await insertAuditLog({
+        category: "auth",
+        action: "login",
+        actor: profile,
+        targetType: "session",
+        targetTitle: "Sign in",
+        detail: `${profile.name} signed in.`
+      }).catch(() => undefined);
       notify({
         title: "Signed in",
         description: profile.role === "admin" ? "Opening the admin panel." : "Opening the content library.",

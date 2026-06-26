@@ -289,6 +289,27 @@ export async function insertLearningItem(item: LearningItem) {
   return mapLearningItem(row);
 }
 
+export async function updateLearningItemDetails(item: LearningItem) {
+  const supabase = getClientOrThrow();
+  const row = (await expectData(
+    supabase
+      .from("learning_items")
+      .update({
+        label: item.label,
+        category_id: item.categoryId,
+        description: item.description,
+        instruction: item.instruction,
+        tags: item.tags,
+        updated_at: item.updatedAt
+      })
+      .eq("id", item.id)
+      .select()
+      .single()
+  )) as LearningItemRow;
+
+  return mapLearningItem(row);
+}
+
 export async function insertLesson(lesson: Lesson) {
   const supabase = getClientOrThrow();
   const row = (await expectData(

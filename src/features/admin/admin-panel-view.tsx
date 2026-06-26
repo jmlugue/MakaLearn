@@ -11,18 +11,14 @@ import { StatCard } from "@/components/common/stat-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
+import { fetchAuditLogs } from "@/lib/audit-logs";
 import { activities, demoUsers, learningItems, mediaAssets } from "@/data/mock-data";
 import { fetchMakaLearnData, updateProfileRole } from "@/lib/supabase/app-data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/utils";
-import type { Activity as ActivityRecord, AppUser, LearningItem, MediaAsset, UserRole } from "@/types";
+import type { Activity as ActivityRecord, AppUser, AuditLog, LearningItem, MediaAsset, UserRole } from "@/types";
 
-type AdminLog = {
-  id: string;
-  label: string;
-  detail: string;
-  time: string;
-};
+type ContentLogFilter = "all" | "upload" | "create" | "edit" | "delete";
 
 export function AdminPanelView() {
   const { user } = useAuthUser();
@@ -31,6 +27,8 @@ export function AdminPanelView() {
   const [itemRecords, setItemRecords] = useState<LearningItem[]>(learningItems);
   const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>(activities);
   const [uploadRecords, setUploadRecords] = useState<MediaAsset[]>(mediaAssets);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [contentLogFilter, setContentLogFilter] = useState<ContentLogFilter>("all");
 
   useEffect(() => {
     let active = true;
@@ -58,31 +56,70 @@ export function AdminPanelView() {
     };
   }, [notify]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadAuditLogs() {
+      const logs = await fetchAuditLogs();
+      if (active) {
+        setAuditLogs(logs);
+      }
+    }
+
+    loadAuditLogs();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const teachers = users.filter((candidate) => candidate.role === "teacher");
   const pecsCount = itemRecords.filter((item) => item.contentType === "pecs").length;
   const gestureCount = itemRecords.filter((item) => item.contentType === "gesture").length;
-  const logs = useMemo<AdminLog[]>(
+  const previewLogs = useMemo<AuditLog[]>(
     () => [
       ...users.slice(0, 4).map((candidate) => ({
-        id: `user-${candidate.id}`,
-        label: "Teacher account",
+        id: `preview-auth-${candidate.id}`,
+        category: "auth" as const,
+        action: candidate.status === "deactivated" ? ("logout" as const) : ("login" as const),
+        actorId: candidate.id,
+        actorName: candidate.name,
+        targetType: "session",
+        targetTitle: candidate.status === "deactivated" ? "Signed out" : "Signed in",
         detail: `${candidate.name} is ${candidate.status}.`,
-        time: "Local preview"
+        createdAt: new Date().toISOString()
       })),
       ...uploadRecords.slice(0, 3).map((asset) => ({
-        id: `upload-${asset.id}`,
-        label: "Media upload",
+        id: `preview-upload-${asset.id}`,
+        category: "content" as const,
+        action: "upload" as const,
+        actorId: asset.uploadedBy,
+        actorName: users.find((candidate) => candidate.id === asset.uploadedBy)?.name ?? "Demo user",
+        targetType: "media",
+        targetId: asset.id,
+        targetTitle: asset.title,
         detail: `${asset.title} in ${asset.bucket}.`,
-        time: formatDate(asset.uploadedAt)
+        createdAt: asset.uploadedAt
       })),
       ...activityRecords.slice(0, 3).map((activity) => ({
-        id: `activity-${activity.id}`,
-        label: "Activity content",
+        id: `preview-activity-${activity.id}`,
+        category: "content" as const,
+        action: "edit" as const,
+        actorId: activity.createdBy,
+        actorName: users.find((candidate) => candidate.id === activity.createdBy)?.name ?? "Demo user",
+        targetType: "activity",
+        targetId: activity.id,
+        targetTitle: activity.title,
         detail: `${activity.title} uses ${activity.learningItemIds.length} PECS card(s).`,
-        time: activity.visibility
+        createdAt: new Date().toISOString()
       }))
     ],
     [activityRecords, uploadRecords, users]
+  );
+  const visibleLogs = auditLogs.length ? auditLogs : previewLogs;
+  const accountLogs = visibleLogs.filter((log) => log.category === "auth");
+  const contentLogs = visibleLogs.filter(
+    (log) => log.category === "content" && (contentLogFilter === "all" || log.action === contentLogFilter)
   );
 
   async function changeRole(candidate: AppUser, role: UserRole) {
@@ -275,33 +312,35 @@ export function AdminPanelView() {
         <Card>
           <div className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5 text-blue-600" aria-hidden="true" />
-            <CardTitle>System logs</CardTitle>
+            <CardTitle>Account activity</CardTitle>
           </div>
-          <div className="mt-4 space-y-3">
-            {logs.map((log) => (
-              <div key={log.id} className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">{log.label}</p>
-                <p className="mt-1 text-sm font-semibold text-ink">{log.detail}</p>
-                <p className="mt-1 text-xs text-slate-500">{log.time}</p>
-              </div>
-            ))}
-          </div>
+          <CardDescription>Login and logout records for teacher and admin accounts.</CardDescription>
+          <LogList logs={accountLogs} emptyText="No login or logout logs yet." />
         </Card>
 
         <Card>
           <div className="flex items-center gap-2">
             <Upload className="h-5 w-5 text-blue-600" aria-hidden="true" />
-            <CardTitle>Uploads</CardTitle>
+            <CardTitle>Content activity</CardTitle>
           </div>
-          <div className="mt-4 space-y-3">
-            {uploadRecords.map((asset) => (
-              <div key={asset.id} className="rounded-lg border border-blue-100 bg-skywash p-3">
-                <p className="font-semibold">{asset.title}</p>
-                <p className="text-sm text-slate-600">{asset.bucket}</p>
-                <p className="mt-2 text-xs text-slate-500">{formatDate(asset.uploadedAt)}</p>
-              </div>
+          <CardDescription>Filter uploads, creates, edits, and deletes.</CardDescription>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(["all", "upload", "create", "edit", "delete"] as ContentLogFilter[]).map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setContentLogFilter(filter)}
+                className={`min-h-9 rounded-lg border px-3 text-sm font-semibold capitalize transition ${
+                  contentLogFilter === filter
+                    ? "border-blue-500 bg-blue-600 text-white"
+                    : "border-blue-100 bg-white text-slate-700 hover:border-blue-300"
+                }`}
+              >
+                {filter === "all" ? "All" : `${filter}s`}
+              </button>
             ))}
           </div>
+          <LogList logs={contentLogs} emptyText="No content logs match this filter." />
         </Card>
 
         <Card className="xl:col-span-2">
@@ -323,5 +362,33 @@ export function AdminPanelView() {
         </Card>
       </section>
     </>
+  );
+}
+
+function LogList({ logs, emptyText }: { logs: AuditLog[]; emptyText: string }) {
+  return (
+    <div className="mt-4 max-h-96 space-y-3 overflow-y-auto pr-1 clean-scrollbar">
+      {logs.length ? (
+        logs.map((log) => (
+          <div key={log.id} className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">
+                {log.action} / {log.targetType}
+              </p>
+              <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-slate-500">
+                {formatDate(log.createdAt)}
+              </span>
+            </div>
+            <p className="mt-2 text-sm font-semibold text-ink">{log.targetTitle}</p>
+            <p className="mt-1 text-sm leading-5 text-slate-600">{log.detail}</p>
+            <p className="mt-2 text-xs text-slate-500">By {log.actorName}</p>
+          </div>
+        ))
+      ) : (
+        <p className="rounded-lg border border-dashed border-blue-100 bg-skywash p-4 text-sm font-semibold text-slate-600">
+          {emptyText}
+        </p>
+      )}
+    </div>
   );
 }

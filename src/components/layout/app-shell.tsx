@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ToastProvider } from "@/components/common/toast-provider";
 import { AuthProvider, useAuthState } from "@/features/auth/use-auth-user";
+import { StudentModeProvider, useStudentMode } from "@/features/student-mode/student-mode-context";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/common/loading-state";
@@ -17,7 +18,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <ToastProvider>
       <AuthProvider>
-        <AuthenticatedShell>{children}</AuthenticatedShell>
+        <StudentModeProvider>
+          <AuthenticatedShell>{children}</AuthenticatedShell>
+        </StudentModeProvider>
       </AuthProvider>
     </ToastProvider>
   );
@@ -27,12 +30,20 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading, error } = useAuthState();
+  const { isStudentMode } = useStudentMode();
 
   useEffect(() => {
     if (!loading && !user && !error) {
       router.replace("/login");
     }
   }, [error, loading, router, user]);
+
+  useEffect(() => {
+    const studentRoutes = ["/gesture-practice", "/activities"];
+    if (!loading && user && isStudentMode && !studentRoutes.includes(pathname)) {
+      router.replace("/gesture-practice");
+    }
+  }, [isStudentMode, loading, pathname, router, user]);
 
   if (loading) {
     return (
@@ -54,6 +65,14 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
             <Button>Go to sign in</Button>
           </Link>
         </Card>
+      </main>
+    );
+  }
+
+  if (isStudentMode && !["/gesture-practice", "/activities"].includes(pathname)) {
+    return (
+      <main className="grid min-h-screen place-items-center px-4">
+        <LoadingState label="Opening student mode" />
       </main>
     );
   }

@@ -15,4 +15,9 @@ export const baseNavItems = [
   { href: "/help", label: "Help", icon: HelpCircle }
 ];
 
+export const studentNavItems = [
+  { href: "/gesture-practice", label: "Gestures", icon: Hand },
+  { href: "/activities", label: "Activities", icon: Activity }
+];
+
 export const adminNavItem = { href: "/admin", label: "Admin", icon: Shield };

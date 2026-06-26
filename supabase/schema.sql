@@ -21,6 +21,8 @@ create type public.activity_type as enum (
   'simple-quiz'
 );
 create type public.practice_status as enum ('Correct', 'Good attempt', 'Needs practice', 'No hand detected');
+create type public.audit_log_category as enum ('auth', 'content');
+create type public.audit_log_action as enum ('login', 'logout', 'upload', 'create', 'edit', 'delete');
 
 create table public.profiles (
   -- Store auth.users.id as text for straightforward client-side comparisons.
@@ -153,12 +155,27 @@ create table public.activity_results (
   saved_by text not null
 );
 
+create table public.audit_logs (
+  id text primary key default ('log-' || gen_random_uuid()::text),
+  category public.audit_log_category not null,
+  action public.audit_log_action not null,
+  actor_id text not null,
+  actor_name text not null,
+  target_type text not null,
+  target_id text,
+  target_title text not null,
+  detail text not null default '',
+  created_at timestamptz not null default now()
+);
+
 create index categories_created_by_idx on public.categories(created_by);
 create index learners_assigned_teacher_idx on public.learners(assigned_teacher_id);
 create index learning_items_category_idx on public.learning_items(category_id);
 create index media_assets_related_item_idx on public.media_assets(related_item_id);
 create index practice_attempts_learner_idx on public.practice_attempts(learner_id);
 create index activity_results_learner_idx on public.activity_results(learner_id);
+create index audit_logs_created_at_idx on public.audit_logs(created_at desc);
+create index audit_logs_category_action_idx on public.audit_logs(category, action);
 
 alter table public.profiles enable row level security;
 alter table public.categories enable row level security;
@@ -171,6 +188,7 @@ alter table public.activities enable row level security;
 alter table public.activity_items enable row level security;
 alter table public.practice_attempts enable row level security;
 alter table public.activity_results enable row level security;
+alter table public.audit_logs enable row level security;
 
 create or replace function public.current_user_role()
 returns public.user_role
@@ -292,3 +310,13 @@ create policy "Authenticated insert activity results"
 on public.activity_results for insert
 to authenticated
 with check (saved_by = auth.uid()::text);
+
+create policy "Admins read audit logs"
+on public.audit_logs for select
+to authenticated
+using (public.current_user_role() = 'admin');
+
+create policy "Authenticated insert own audit logs"
+on public.audit_logs for insert
+to authenticated
+with check (actor_id = auth.uid()::text);

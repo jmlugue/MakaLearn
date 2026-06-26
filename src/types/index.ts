@@ -1,5 +1,9 @@
 export type UserRole = "admin" | "teacher";
 
+export type AuditLogCategory = "auth" | "content";
+
+export type AuditLogAction = "login" | "logout" | "upload" | "create" | "edit" | "delete";
+
 export type AppUser = {
   id: string;
   name: string;
@@ -132,4 +136,17 @@ export type ActivityResult = {
   completedAt: string;
   relatedLearningItemIds: string[];
   savedBy: string;
+};
+
+export type AuditLog = {
+  id: string;
+  category: AuditLogCategory;
+  action: AuditLogAction;
+  actorId: string;
+  actorName: string;
+  targetType: string;
+  targetId?: string;
+  targetTitle: string;
+  detail: string;
+  createdAt: string;
 };

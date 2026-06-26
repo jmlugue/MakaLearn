@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -29,6 +29,7 @@ import { SelectionList } from "@/components/ui/selection-list";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
+import { insertAuditLog } from "@/lib/audit-logs";
 import {
   categories as mockCategories,
   demoUsers,
@@ -37,13 +38,13 @@ import {
   mediaAssets
 } from "@/data/mock-data";
 import {
-  clearLearningItemMedia,
   deleteLearningItem,
   deleteLesson,
   fetchMakaLearnData,
   insertCategory,
   insertLearningItem,
   insertLesson,
+  updateLearningItemDetails,
   updateLearningItemMedia
 } from "@/lib/supabase/app-data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
@@ -133,6 +134,40 @@ function normalizeLearningItems(records: LearningItem[]) {
   }));
 }
 
+function ensureFixedGestureItems(records: LearningItem[]) {
+  const normalized = normalizeLearningItems(records);
+  const requiredGestures = learningItems.filter(isFixedGesture);
+  const requiredByLabel = new Map(requiredGestures.map((item) => [item.label, item]));
+  const upgraded = normalized.map((item) => {
+    const required = requiredByLabel.get(item.label);
+    if (!required || !isFixedGesture(item)) return item;
+
+    return {
+      ...item,
+      categoryId: item.categoryId || required.categoryId,
+      symbolImageUrl: item.symbolImageUrl || required.symbolImageUrl,
+      gestureMediaUrl: item.gestureMediaUrl || required.gestureMediaUrl,
+      audioUrl: shouldUseGeneratedGestureAudio(item.audioUrl) ? required.audioUrl : item.audioUrl
+    };
+  });
+  const existingLabels = new Set(upgraded.map((item) => item.label));
+
+  return [
+    ...upgraded,
+    ...requiredGestures.filter((item) => !existingLabels.has(item.label))
+  ];
+}
+
+function shouldUseGeneratedGestureAudio(value?: string) {
+  return !value || (/demo\.mp3$/i.test(value) && !value.startsWith("/audio/"));
+}
+
+function ensureGestureCategory(records: Category[]) {
+  return records.some((category) => category.id === "cat-gestures")
+    ? records
+    : [...records, mockCategories.find((category) => category.id === "cat-gestures") ?? mockCategories[0]];
+}
+
 function isFixedGesture(item: LearningItem) {
   return item.contentType === "gesture" && (item.tags.includes("fixed") || fixedGestureLabels.has(item.label));
 }
@@ -141,7 +176,7 @@ export function ContentLibraryView() {
   const { notify } = useToast();
   const { user } = useAuthUser();
   const [tab, setTab] = useState<Tab>("items");
-  const [items, setItems] = useState<LearningItem[]>(learningItems);
+  const [items, setItems] = useState<LearningItem[]>(ensureFixedGestureItems(learningItems));
   const [lessons, setLessons] = useState<Lesson[]>(mockLessons);
   const [categories, setCategories] = useState<Category[]>(mockCategories);
   const [mediaRecords, setMediaRecords] = useState<MediaAsset[]>(mediaAssets);
@@ -166,6 +201,13 @@ export function ContentLibraryView() {
   const [lessonFormOpen, setLessonFormOpen] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
   const [itemError, setItemError] = useState("");
+  const [editingItemId, setEditingItemId] = useState("");
+  const [editItemError, setEditItemError] = useState("");
+  const [editItemLabel, setEditItemLabel] = useState("");
+  const [editItemCategoryId, setEditItemCategoryId] = useState("");
+  const [editItemDescription, setEditItemDescription] = useState("");
+  const [editItemInstruction, setEditItemInstruction] = useState("");
+  const [editItemTags, setEditItemTags] = useState("");
   const [newItemFiles, setNewItemFiles] = useState<NewItemFiles>({});
   const [contentReady, setContentReady] = useState(isSupabaseConfigured());
   const [itemPendingDelete, setItemPendingDelete] = useState<LearningItem | null>(null);
@@ -181,9 +223,9 @@ export function ContentLibraryView() {
       if (!isSupabaseConfigured()) {
         const localContent = readLocalContentLibrary();
         if (active && localContent) {
-          setItems(normalizeLearningItems(localContent.items));
+          setItems(ensureFixedGestureItems(localContent.items));
           setLessons(localContent.lessons);
-          setCategories(localContent.categories);
+          setCategories(ensureGestureCategory(localContent.categories));
           setMediaRecords(localContent.mediaRecords);
         }
         if (active) {
@@ -196,11 +238,11 @@ export function ContentLibraryView() {
         const data = await fetchMakaLearnData();
         if (!active || !data) return;
         setUsers(data.users.length ? data.users : demoUsers);
-        setItems(normalizeLearningItems(data.learningItems.length ? data.learningItems : learningItems));
+        setItems(ensureFixedGestureItems(data.learningItems.length ? data.learningItems : learningItems));
         // An empty lessons table is valid after the final lesson is deleted.
         // Falling back to mock lessons here would make deleted records reappear.
         setLessons(data.lessons);
-        setCategories(data.categories.length ? data.categories : mockCategories);
+        setCategories(ensureGestureCategory(data.categories.length ? data.categories : mockCategories));
         setMediaRecords(data.mediaAssets.length ? data.mediaAssets : mediaAssets);
         setContentReady(true);
       } catch (error) {
@@ -282,6 +324,24 @@ export function ContentLibraryView() {
     media: mediaRecords.length
   };
 
+  function logContentAction(
+    action: "upload" | "create" | "edit" | "delete",
+    targetType: string,
+    targetTitle: string,
+    detail: string,
+    targetId?: string
+  ) {
+    insertAuditLog({
+      category: "content",
+      action,
+      actor: user,
+      targetType,
+      targetId,
+      targetTitle,
+      detail
+    }).catch(() => undefined);
+  }
+
   function generateDraft(item: LearningItem) {
     const nextDraft = createLessonDraftFromItem(item);
     setDraft(nextDraft);
@@ -294,6 +354,7 @@ export function ContentLibraryView() {
     setLessonNotes(nextDraft.notes);
     setTab("lessons");
     setLessonFormOpen(true);
+    logContentAction("create", "lesson-draft", item.label, `Generated a lesson draft from ${item.label}.`, item.id);
     notify({
       title: "Lesson draft generated",
       description: `Review the ${item.label} lesson before saving.`,
@@ -313,6 +374,73 @@ export function ContentLibraryView() {
     setLessonItemIds(pecsItems.slice(0, 2).map((item) => item.id));
     setLessonNotes("Manual lesson draft created locally.");
     setLessonError("");
+  }
+
+  function openEditItem(item: LearningItem) {
+    setEditingItemId(item.id);
+    setEditItemLabel(item.label);
+    setEditItemCategoryId(item.categoryId);
+    setEditItemDescription(item.description);
+    setEditItemInstruction(item.instruction);
+    setEditItemTags(item.tags.join(", "));
+    setEditItemError("");
+  }
+
+  function closeEditItem() {
+    setEditingItemId("");
+    setEditItemError("");
+    setEditItemLabel("");
+    setEditItemCategoryId("");
+    setEditItemDescription("");
+    setEditItemInstruction("");
+    setEditItemTags("");
+  }
+
+  async function saveItemText(item: LearningItem) {
+    const label = editItemLabel.trim();
+    const categoryId = editItemCategoryId.trim();
+    const description = editItemDescription.trim();
+    const instruction = editItemInstruction.trim();
+    const tags = editItemTags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    if (!label || !categoryId || !description || !instruction) {
+      setEditItemError("Add a label, category, description, and classroom instruction.");
+      return;
+    }
+
+    const nextItem: LearningItem = {
+      ...item,
+      label,
+      categoryId,
+      description,
+      instruction,
+      tags: tags.length ? tags : item.tags,
+      updatedAt: new Date().toISOString()
+    };
+
+    let savedItem = nextItem;
+    if (isSupabaseConfigured()) {
+      try {
+        savedItem = await updateLearningItemDetails(nextItem);
+      } catch (error) {
+        notify({
+          title: "Item saved locally",
+          description: error instanceof Error ? error.message : "Supabase learning item update failed."
+        });
+      }
+    }
+
+    setItems((current) => current.map((candidate) => (candidate.id === item.id ? savedItem : candidate)));
+    logContentAction("edit", "learning-item", savedItem.label, "Updated learning item text fields.", savedItem.id);
+    closeEditItem();
+    notify({
+      title: "Learning item updated",
+      description: isSupabaseConfigured() ? "Text changes were saved to Supabase." : "Text changes were saved locally.",
+      tone: "success"
+    });
   }
 
   function openManualLessonForm() {
@@ -369,6 +497,13 @@ export function ContentLibraryView() {
     }
 
     setLessons((current) => [savedLesson, ...current]);
+    logContentAction(
+      "create",
+      "lesson",
+      savedLesson.title,
+      `${savedLesson.source === "auto-generated" ? "Saved generated" : "Created manual"} lesson.`,
+      savedLesson.id
+    );
     resetLessonForm();
     setLessonFormOpen(false);
     notify({
@@ -402,6 +537,13 @@ export function ContentLibraryView() {
     if (deleteMedia) {
       setMediaRecords((current) => current.filter((asset) => asset.relatedItemId !== item.id));
     }
+    logContentAction(
+      "delete",
+      "learning-item",
+      item.label,
+      deleteMedia ? "Deleted a learning item and associated media records." : "Deleted a learning item and kept media records.",
+      item.id
+    );
     notify({
       title: "Learning item deleted",
       description: deleteMedia ? "Associated media records were removed." : "Media records were kept.",
@@ -428,6 +570,7 @@ export function ContentLibraryView() {
     }
 
     setLessons((current) => current.filter((candidate) => candidate.id !== lesson.id));
+    logContentAction("delete", "lesson", lesson.title, "Deleted a lesson.", lesson.id);
     notify({
       title: "Lesson deleted",
       description: `${lesson.title} was removed from Lessons.`,
@@ -492,6 +635,13 @@ export function ContentLibraryView() {
     }
 
     setItems((current) => [savedItem, ...current]);
+    logContentAction(
+      "create",
+      "learning-item",
+      savedItem.label,
+      contentKind === "pecs" ? "Added a PECS card." : "Stored a gesture reference.",
+      savedItem.id
+    );
     setSearch("");
     setShowItemForm(false);
     setItemError("");
@@ -609,6 +759,13 @@ export function ContentLibraryView() {
         description: `${file.name} was added for this local session.`,
         tone: "success"
       });
+      logContentAction(
+        "upload",
+        "media",
+        file.name,
+        `Attached ${getMediaTypeLabel(config.type).toLowerCase()} to ${item.label}.`,
+        localRecord.id
+      );
       return;
     }
 
@@ -649,6 +806,13 @@ export function ContentLibraryView() {
         description: `${file.name} was saved to ${uploaded.bucket}.`,
         tone: "success"
       });
+      logContentAction(
+        "upload",
+        "media",
+        uploaded.title,
+        `Uploaded ${getMediaTypeLabel(uploaded.type).toLowerCase()} for ${item.label}.`,
+        uploaded.id
+      );
     } catch (error) {
       notify({
         title: "Upload failed",
@@ -656,33 +820,6 @@ export function ContentLibraryView() {
       });
       throw error;
     }
-  }
-
-  async function clearItemMedia(item: LearningItem, type: MediaAsset["type"]) {
-    if (!getItemMediaValue(item, type)) return;
-
-    if (isSupabaseConfigured()) {
-      try {
-        await clearLearningItemMedia(item.id, type);
-      } catch (error) {
-        notify({
-          title: "Media remove failed",
-          description: error instanceof Error ? error.message : "The media was not removed from Supabase."
-        });
-        throw error;
-      }
-    }
-
-    const updatedAt = new Date().toISOString();
-    setItems((current) =>
-      current.map((candidate) => (candidate.id === item.id ? clearMediaFromItem(candidate, type, updatedAt) : candidate))
-    );
-    setMediaRecords((current) => current.filter((asset) => !(asset.relatedItemId === item.id && asset.type === type)));
-    notify({
-      title: "Media removed",
-      description: `${getMediaTypeLabel(type)} was removed from ${item.label}.`,
-      tone: "success"
-    });
   }
 
   async function addCategory(event: FormEvent<HTMLFormElement>) {
@@ -710,6 +847,7 @@ export function ContentLibraryView() {
       }
     }
     setCategories((current) => [savedCategory, ...current]);
+    logContentAction("create", "category", savedCategory.name, "Created a shared content category.", savedCategory.id);
     formElement.reset();
     notify({
       title: "Category added",
@@ -982,6 +1120,7 @@ export function ContentLibraryView() {
               {filteredItems.map((item) => {
                 const category = categoryById.get(item.categoryId);
                 const creator = userNameById.get(item.createdBy) ?? "Demo user";
+                const isEditingItem = editingItemId === item.id;
                 return (
                   <Card key={item.id} className="relative flex h-full flex-col overflow-hidden p-0">
                     <div className="absolute inset-y-0 left-0 w-2" style={{ backgroundColor: category?.color ?? "#dbeafe" }} />
@@ -1003,50 +1142,88 @@ export function ContentLibraryView() {
                         <p className="mt-2 text-sm leading-6 text-slate-600">{item.instruction}</p>
                       </div>
 
-                      <ItemMediaGallery
+                      {isEditingItem ? (
+                        <div className="mt-4 rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
+                          <div className="grid gap-3">
+                            <div>
+                              <Label htmlFor={`edit-label-${item.id}`}>Label</Label>
+                              <Input
+                                id={`edit-label-${item.id}`}
+                                value={editItemLabel}
+                                onChange={(event) => {
+                                  setEditItemLabel(event.target.value);
+                                  setEditItemError("");
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`edit-category-${item.id}`}>Category</Label>
+                              <Select
+                                id={`edit-category-${item.id}`}
+                                value={editItemCategoryId}
+                                onChange={(event) => {
+                                  setEditItemCategoryId(event.target.value);
+                                  setEditItemError("");
+                                }}
+                              >
+                                {categories.map((categoryOption) => (
+                                  <option key={categoryOption.id} value={categoryOption.id}>
+                                    {categoryOption.name}
+                                  </option>
+                                ))}
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor={`edit-description-${item.id}`}>Description</Label>
+                              <Textarea
+                                id={`edit-description-${item.id}`}
+                                value={editItemDescription}
+                                onChange={(event) => {
+                                  setEditItemDescription(event.target.value);
+                                  setEditItemError("");
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`edit-instruction-${item.id}`}>Instruction</Label>
+                              <Textarea
+                                id={`edit-instruction-${item.id}`}
+                                value={editItemInstruction}
+                                onChange={(event) => {
+                                  setEditItemInstruction(event.target.value);
+                                  setEditItemError("");
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`edit-tags-${item.id}`}>Tags</Label>
+                              <Input
+                                id={`edit-tags-${item.id}`}
+                                value={editItemTags}
+                                onChange={(event) => setEditItemTags(event.target.value)}
+                                placeholder="gesture, fixed, demo"
+                              />
+                              <FieldHint>Separate tags with commas.</FieldHint>
+                            </div>
+                            <FieldError message={editItemError} />
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <Button type="button" size="sm" onClick={() => saveItemText(item)}>
+                                Save text
+                              </Button>
+                              <Button type="button" size="sm" variant="outline" onClick={closeEditItem}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <ItemMediaControls
                         item={item}
-                        onPreview={(preview) => setMediaPreview(preview)}
+                        onUpload={handleMediaUpload}
                       />
 
-                      <div className="mt-4 grid gap-3">
-                        <FileUpload
-                          icon={ImageIcon}
-                          label={item.contentType === "pecs" ? "PECS image" : "Reference image"}
-                          accept="image/*"
-                          hint="PNG, JPG, or WebP"
-                          storageNote="Supabase Storage: symbol-images bucket."
-                          existingFileName={getMediaFileName(item.symbolImageUrl, item.contentType === "pecs" ? "Current PECS image" : "Current reference image")}
-                          onUpload={(file) => handleMediaUpload(item, file, { bucket: "symbol-images", type: "symbol-image" })}
-                          onRemove={() => clearItemMedia(item, "symbol-image")}
-                          compact
-                        />
-                        {item.contentType === "gesture" ? (
-                          <FileUpload
-                            icon={Film}
-                            label="Gesture image/video"
-                            accept="image/*,video/*"
-                            hint="Image or short video"
-                            storageNote="Supabase Storage: gesture-media bucket."
-                            existingFileName={getMediaFileName(item.gestureMediaUrl, "Current gesture media")}
-                            onUpload={(file) => handleMediaUpload(item, file, { bucket: "gesture-media", type: "gesture-media" })}
-                            onRemove={() => clearItemMedia(item, "gesture-media")}
-                            compact
-                          />
-                        ) : null}
-                        <FileUpload
-                          icon={FileAudio}
-                          label="Audio"
-                          accept="audio/*"
-                          hint="MP3, WAV, or M4A"
-                          storageNote="Supabase Storage: audio-files bucket."
-                          existingFileName={getMediaFileName(item.audioUrl, "Current audio")}
-                          onUpload={(file) => handleMediaUpload(item, file, { bucket: "audio-files", type: "audio-file" })}
-                          onRemove={() => clearItemMedia(item, "audio-file")}
-                          compact
-                        />
-                      </div>
-
-                      <CardFooter className="mt-5 grid min-h-[6.75rem] grid-cols-[minmax(0,1fr)_11rem] items-end gap-3">
+                      <CardFooter className="mt-5 grid min-h-[8.75rem] grid-cols-[minmax(0,1fr)_11rem] items-end gap-3">
                         <p className="pb-1 text-xs font-medium leading-5 text-slate-500">
                           Last updated {formatDate(item.updatedAt)}
                         </p>
@@ -1057,6 +1234,9 @@ export function ContentLibraryView() {
                                 <BookPlus className="h-4 w-4" aria-hidden="true" />
                                 Generate lesson
                               </Button>
+                              <Button className="w-full whitespace-nowrap" variant="outline" size="sm" onClick={() => openEditItem(item)}>
+                                Edit
+                              </Button>
                               <Button className="w-full whitespace-nowrap" variant="danger" size="sm" onClick={() => requestDeleteItem(item)}>
                                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                                 Delete
@@ -1064,6 +1244,9 @@ export function ContentLibraryView() {
                             </>
                           ) : (
                             <>
+                              <Button className="w-full whitespace-nowrap" variant="outline" size="sm" onClick={() => openEditItem(item)}>
+                                Edit
+                              </Button>
                               {isFixedGesture(item) ? (
                                 <Badge className="justify-center bg-mint text-green-700">Fixed gesture</Badge>
                               ) : (
@@ -1528,24 +1711,6 @@ function applyMediaUrlToItem(item: LearningItem, type: MediaAsset["type"], publi
   return { ...item, audioUrl: publicUrl, updatedAt };
 }
 
-function clearMediaFromItem(item: LearningItem, type: MediaAsset["type"], updatedAt: string) {
-  if (type === "symbol-image") {
-    return { ...item, symbolImageUrl: undefined, updatedAt };
-  }
-
-  if (type === "gesture-media") {
-    return { ...item, gestureMediaUrl: undefined, updatedAt };
-  }
-
-  return { ...item, audioUrl: undefined, updatedAt };
-}
-
-function getItemMediaValue(item: LearningItem, type: MediaAsset["type"]) {
-  if (type === "symbol-image") return item.symbolImageUrl;
-  if (type === "gesture-media") return item.gestureMediaUrl;
-  return item.audioUrl;
-}
-
 function getMediaTypeLabel(type: MediaAsset["type"]) {
   if (type === "symbol-image") return "Symbol image";
   if (type === "gesture-media") return "Gesture media";
@@ -1632,19 +1797,24 @@ function createLocalMediaRecords(item: LearningItem, files: NewItemFiles, upload
   return records;
 }
 
-function ItemMediaGallery({
+function ItemMediaControls({
   item,
-  onPreview
+  onUpload
 }: {
   item: LearningItem;
-  onPreview: (preview: MediaPreview) => void;
+  onUpload: (item: LearningItem, file: File, config: Pick<MediaAsset, "bucket" | "type">) => Promise<void>;
 }) {
-  const previews: MediaPreview[] = [
+  const controls = [
     {
       title: item.contentType === "pecs" ? "PECS image" : "Reference image",
       value: item.symbolImageUrl,
-      type: "symbol-image",
-      label: `${item.label} image`
+      type: "symbol-image" as const,
+      bucket: "symbol-images" as const,
+      label: `${item.label} image`,
+      accept: "image/*",
+      hint: "PNG, JPG, or WebP",
+      storageNote: "Supabase Storage: symbol-images bucket.",
+      icon: ImageIcon
     },
     ...(item.contentType === "gesture"
       ? [
@@ -1652,24 +1822,170 @@ function ItemMediaGallery({
             title: "Gesture image/video",
             value: item.gestureMediaUrl,
             type: "gesture-media" as const,
-            label: `${item.label} gesture media`
+            bucket: "gesture-media" as const,
+            label: `${item.label} gesture media`,
+            accept: "image/*,video/*",
+            hint: "Image or short video",
+            storageNote: "Supabase Storage: gesture-media bucket.",
+            icon: Film
           }
         ]
       : []),
     {
       title: "Audio cue",
       value: item.audioUrl,
-      type: "audio-file",
-      label: `${item.label} audio`
+      type: "audio-file" as const,
+      bucket: "audio-files" as const,
+      label: `${item.label} audio`,
+      accept: "audio/*",
+      hint: "MP3, WAV, or M4A",
+      storageNote: "Supabase Storage: audio-files bucket.",
+      icon: FileAudio
     }
   ];
 
   return (
     <div className="mt-4 grid gap-3">
-      {previews.map((preview) => (
-        <MediaInlinePreview key={preview.title} preview={preview} onPreview={onPreview} />
+      {controls.map((control) => (
+        <ItemMediaControl
+          key={control.type}
+          {...control}
+          onUpload={(file) => onUpload(item, file, { bucket: control.bucket, type: control.type })}
+        />
       ))}
     </div>
+  );
+}
+
+function ItemMediaControl({
+  title,
+  value,
+  type,
+  label,
+  accept,
+  hint,
+  storageNote,
+  icon: Icon,
+  onUpload
+}: {
+  title: string;
+  value?: string;
+  type: MediaAsset["type"];
+  label: string;
+  accept: string;
+  hint: string;
+  storageNote: string;
+  icon: LucideIcon;
+  onUpload: (file: File) => Promise<void>;
+}) {
+  const id = useId();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [localFileName, setLocalFileName] = useState("");
+  const [status, setStatus] = useState<"idle" | "uploading" | "uploaded" | "error">("idle");
+  const [message, setMessage] = useState("");
+  const mediaValue = value?.trim();
+  const displayName = localFileName || getMediaFileName(mediaValue, "") || mediaValue || hint;
+  const hasMedia = Boolean(mediaValue || localFileName);
+
+  async function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setLocalFileName(file?.name ?? "");
+    setMessage("");
+
+    if (!file) {
+      setStatus("idle");
+      return;
+    }
+
+    try {
+      setStatus("uploading");
+      await onUpload(file);
+      setStatus("uploaded");
+      setMessage(`${file.name} attached.`);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Upload failed.");
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3 transition hover:border-blue-300 hover:bg-white">
+      <input ref={inputRef} id={id} type="file" accept={accept} onChange={handleChange} className="sr-only" />
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="flex min-w-0 items-center gap-3">
+          <MediaMaterialPreview value={mediaValue} type={type} label={label} fallbackIcon={Icon} />
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-ink">{title}</p>
+            <p className="mt-1 truncate text-xs leading-5 text-slate-500">{displayName}</p>
+          </div>
+        </div>
+        <label
+          htmlFor={id}
+          className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-ink shadow-sm transition hover:bg-skywash focus:outline-none focus:ring-4 focus:ring-blue-100"
+        >
+          {hasMedia ? "Change" : "Choose"}
+        </label>
+      </div>
+      <p className={`mt-2 text-xs leading-5 ${status === "error" ? "text-red-600" : "text-slate-500"}`}>
+        {status === "uploading" ? "Attaching media..." : message || storageNote}
+      </p>
+    </div>
+  );
+}
+
+function MediaMaterialPreview({
+  value,
+  type,
+  label,
+  fallbackIcon: Icon
+}: {
+  value?: string;
+  type: MediaAsset["type"];
+  label: string;
+  fallbackIcon: LucideIcon;
+}) {
+  const canEmbed = Boolean(value && (value.startsWith("http") || value.startsWith("/") || value.startsWith("blob:")));
+
+  if (value && type === "audio-file" && isAudioUrl(value) && canEmbed) {
+    return (
+      <div className="min-w-0 flex-1 sm:max-w-[13rem]">
+        <audio controls className="h-10 w-full" aria-label={label}>
+          <source src={value} />
+        </audio>
+      </div>
+    );
+  }
+
+  if (value && type === "gesture-media" && isVideoUrl(value) && canEmbed) {
+    return (
+      <video controls className="h-14 w-16 shrink-0 rounded-lg border border-blue-100 bg-black object-cover" aria-label={label}>
+        <source src={value} />
+      </video>
+    );
+  }
+
+  if (value && isImageUrl(value) && canEmbed) {
+    return (
+      <span className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white">
+        {/* Official/approved images can be uploaded through Supabase Storage later. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={value} alt={label} className="h-full w-full object-cover" />
+      </span>
+    );
+  }
+
+  if (value) {
+    return (
+      <span className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white px-1 text-center text-sm font-black text-blue-700">
+        {type === "audio-file" || isVideoUrl(value) ? <Icon className="h-5 w-5" aria-hidden="true" /> : value}
+      </span>
+    );
+  }
+
+  return (
+    <span className="grid h-14 w-16 shrink-0 place-items-center rounded-lg border border-dashed border-blue-200 bg-white text-blue-700">
+      <Icon className="h-5 w-5" aria-hidden="true" />
+    </span>
   );
 }
 

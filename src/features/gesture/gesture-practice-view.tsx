@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
-import { Camera, CheckCircle2, Eye, Hand, RotateCcw, ScanLine, Sparkles, TriangleAlert, UserRound, XCircle } from "lucide-react";
+import { Camera, CheckCircle2, Eye, Hand, RotateCcw, ScanLine, Sparkles, TriangleAlert, UserRound, Volume2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
+import { FieldHint, Label, Select } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
+import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { categories as mockCategories, learningItems as mockLearningItems } from "@/data/mock-data";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { generateCorrectiveFeedbackPlaceholder } from "@/utils/gesture-feedback";
@@ -75,6 +77,7 @@ const trackingMeta: Record<
 
 export function GesturePracticeView() {
   const { notify } = useToast();
+  const { isStudentMode } = useStudentMode();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -86,6 +89,8 @@ export function GesturePracticeView() {
   const lastHandCountRef = useRef(-1);
   const predictionCandidateRef = useRef<{ label: string | null; frames: number }>({ label: null, frames: 0 });
   const currentPredictionLabelRef = useRef<string | null>(null);
+  const lastAutoAudioKeyRef = useRef<string | null>(null);
+  const noHandsFrameCountRef = useRef(0);
   const [learningItems, setLearningItems] = useState<LearningItem[]>(
     getFixedGestureItems(mockLearningItems)
   );
@@ -96,10 +101,13 @@ export function GesturePracticeView() {
   const [trackingState, setTrackingState] = useState<TrackingState>("idle");
   const [prediction, setPrediction] = useState<DemoGesturePrediction | null>(null);
   const [feedback, setFeedback] = useState("Start the camera to show hand visibility and validation feedback.");
-  const predictedItem = learningItems.find((item) => item.label === prediction?.label);
-  const predictedCategory = categories.find((category) => category.id === predictedItem?.categoryId);
+  const [selectedGestureId, setSelectedGestureId] = useState("");
+  const selectedGesture = learningItems.find((item) => item.id === selectedGestureId) ?? learningItems[0];
+  const selectedPredictionGuide = supportedGesturePredictions.find((gesture) => gesture.label === selectedGesture?.label);
+  const selectedCategory = categories.find((category) => category.id === selectedGesture?.categoryId);
   const meta = trackingMeta[trackingState];
   const hasValidHands = trackingState === "hands-visible";
+  const isCorrectGesture = Boolean(prediction && selectedGesture && prediction.label === selectedGesture.label);
 
   useEffect(() => {
     let active = true;
@@ -108,8 +116,8 @@ export function GesturePracticeView() {
       try {
         const data = await fetchMakaLearnData();
         if (!active || !data) return;
-        const gestureItems = getFixedGestureItems(data.learningItems);
-        setLearningItems(gestureItems.length ? gestureItems : getFixedGestureItems(mockLearningItems));
+        const gestureItems = ensureFixedGestureItems(data.learningItems);
+        setLearningItems(gestureItems.length ? gestureItems : ensureFixedGestureItems(mockLearningItems));
         setCategories(data.categories.length ? data.categories : mockCategories);
       } catch (error) {
         notify({
@@ -128,6 +136,26 @@ export function GesturePracticeView() {
       handLandmarkerRef.current?.close();
     };
   }, [notify]);
+
+  useEffect(() => {
+    if (!learningItems.length) return;
+    setSelectedGestureId((current) =>
+      learningItems.some((item) => item.id === current) ? current : learningItems[0].id
+    );
+  }, [learningItems]);
+
+  useEffect(() => {
+    if (!isCorrectGesture || !selectedGesture?.audioUrl) return;
+    const audioKey = `${selectedGesture.id}:${prediction?.label ?? ""}`;
+    if (lastAutoAudioKeyRef.current === audioKey) return;
+    lastAutoAudioKeyRef.current = audioKey;
+    playAudioSource(selectedGesture.audioUrl, selectedGesture.label, () => {
+      notify({
+        title: "Audio unavailable",
+        description: "Use the reference panel audio control or check the uploaded audio file."
+      });
+    });
+  }, [isCorrectGesture, notify, prediction?.label, selectedGesture?.audioUrl, selectedGesture?.id, selectedGesture?.label]);
 
   async function prepareHandTracker() {
     if (handLandmarkerRef.current && drawingUtilsRef.current) return handLandmarkerRef.current;
@@ -182,6 +210,16 @@ export function GesturePracticeView() {
       });
 
       const handCount = result.landmarks.length;
+      if (handCount === 0) {
+        noHandsFrameCountRef.current += 1;
+        // Re-arm success audio only after hands are fully out of frame for several frames.
+        if (noHandsFrameCountRef.current >= 6) {
+          lastAutoAudioKeyRef.current = null;
+        }
+      } else {
+        noHandsFrameCountRef.current = 0;
+      }
+
       if (handCount !== lastHandCountRef.current) {
         lastHandCountRef.current = handCount;
         setDetectedHandCount(handCount);
@@ -201,6 +239,8 @@ export function GesturePracticeView() {
     setCameraStarted(true);
     setTrackingState("no-hands");
     setDetectedHandCount(0);
+    noHandsFrameCountRef.current = 0;
+    lastAutoAudioKeyRef.current = null;
     clearPrediction();
     setFeedback("Raise one or two hands in the camera frame to begin.");
 
@@ -228,6 +268,8 @@ export function GesturePracticeView() {
     setTrackingState(cameraStarted ? "no-hands" : "idle");
     setDetectedHandCount(0);
     lastHandCountRef.current = -1;
+    noHandsFrameCountRef.current = 0;
+    lastAutoAudioKeyRef.current = null;
     clearPrediction();
     setFeedback(cameraStarted ? "Tracking reset. Place one or two hands in frame and hold a supported pose." : trackingMeta.idle.detail);
   }
@@ -253,8 +295,131 @@ export function GesturePracticeView() {
     setPrediction(nextPrediction);
     setFeedback(
       nextPrediction
-        ? generateCorrectiveFeedbackPlaceholder(nextPrediction.label)
+        ? nextPrediction.label === selectedGesture?.label
+          ? generateCorrectiveFeedbackPlaceholder(nextPrediction.label)
+          : `Detected "${nextPrediction.label}". Check the reference and try "${selectedGesture?.label ?? "the selected gesture"}" again slowly.`
         : "No supported pose matched yet. Check the examples and hold one pose steadily."
+    );
+  }
+
+  function handleGestureChange(nextGestureId: string) {
+    setSelectedGestureId(nextGestureId);
+    lastAutoAudioKeyRef.current = null;
+    clearPrediction();
+    setFeedback(cameraStarted ? "Target changed. Hold the new gesture in frame when ready." : "Start the camera to show hand visibility and validation feedback.");
+  }
+
+  if (isStudentMode) {
+    return (
+      <section className="grid gap-3 xl:h-[calc(100vh-5.25rem)] xl:min-h-0 xl:grid-cols-[1.12fr_0.88fr]">
+        <Card className="flex min-h-0 flex-col overflow-hidden p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <Badge>Student mode</Badge>
+              <CardTitle className="mt-2 text-2xl">Practice the gesture</CardTitle>
+              <CardDescription>Keep your hands inside the frame and copy the selected reference.</CardDescription>
+            </div>
+            <Button size="lg" onClick={startCamera}>
+              <Camera className="h-5 w-5" aria-hidden="true" />
+              {cameraStarted ? "Restart camera" : "Start camera"}
+            </Button>
+          </div>
+
+          <CameraPanel
+            cameraStarted={cameraStarted}
+            videoRef={videoRef}
+            canvasRef={canvasRef}
+            trackerStatus={trackerStatus}
+            detectedHandCount={detectedHandCount}
+          />
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
+            <div
+              className={`rounded-lg border p-4 text-center ${
+                isCorrectGesture
+                  ? "border-green-200 bg-mint text-green-950"
+                  : prediction
+                    ? "border-orange-200 bg-coral text-orange-950"
+                    : "border-blue-100 bg-skywash text-slate-700"
+              }`}
+              role="status"
+              aria-live="polite"
+            >
+              <p className="text-xl font-black">
+                {isCorrectGesture ? "Good match" : prediction ? "Try again slowly" : meta.label}
+              </p>
+              <p className="mt-1 text-sm font-semibold">
+                {isCorrectGesture
+                  ? `You matched ${selectedGesture?.label}.`
+                  : prediction
+                    ? `The camera saw ${prediction.label}.`
+                    : meta.detail}
+              </p>
+              {isCorrectGesture && selectedGesture?.audioUrl ? (
+                <p className="mt-2 inline-flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide text-green-800">
+                  <Volume2 className="h-4 w-4" aria-hidden="true" />
+                  Audio played
+                </p>
+              ) : null}
+            </div>
+
+            <div className="rounded-lg border border-blue-100 bg-skywash p-4">
+              <p className="font-semibold text-ink">Feedback</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">{feedback}</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="flex min-h-0 flex-col overflow-hidden bg-[#fbfdff] p-4">
+          <GestureSelector
+            id="student-gesture-target"
+            label="Choose gesture"
+            items={learningItems}
+            selectedGestureId={selectedGesture?.id ?? ""}
+            onChange={handleGestureChange}
+            helperText="Change the target without leaving student mode."
+          />
+
+          <div className="mt-3 rounded-lg border border-blue-100 bg-white/70 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge>{selectedCategory?.name ?? "Reference"}</Badge>
+              {selectedPredictionGuide ? <Badge className="bg-mint text-green-700">{selectedPredictionGuide.pose}</Badge> : null}
+            </div>
+            <CardTitle className="mt-2 text-2xl">{selectedGesture?.label ?? "Gesture reference"}</CardTitle>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {selectedGesture?.instruction ?? "Wait for the teacher to choose a gesture."}
+            </p>
+          </div>
+
+          {selectedGesture ? (
+            <div className="mt-3 grid min-h-0 gap-2 sm:grid-cols-2">
+              <PracticeReferenceMedia
+                title="Reference image"
+                value={selectedGesture.symbolImageUrl}
+                label={`${selectedGesture.label} reference image`}
+                emptyText="No reference image added"
+                compact
+              />
+              <PracticeReferenceMedia
+                title="Gesture image/video"
+                value={selectedGesture.gestureMediaUrl}
+                label={`${selectedGesture.label} gesture reference`}
+                emptyText="No gesture media added"
+                compact
+              />
+              <PracticeReferenceMedia
+                title="Audio cue"
+                value={selectedGesture.audioUrl}
+                label={`${selectedGesture.label} audio cue`}
+                emptyText="No audio cue added"
+                kind="audio"
+                compact
+                className="sm:col-span-2"
+              />
+            </div>
+          ) : null}
+        </Card>
+      </section>
     );
   }
 
@@ -313,40 +478,42 @@ export function GesturePracticeView() {
 
         <div className="grid gap-4">
           <Card className="bg-[#fbfdff]">
-            <CardTitle>Supported sample gestures</CardTitle>
-            <CardDescription>These finger poses are temporary demo mappings, not official Makaton gestures.</CardDescription>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              {supportedGesturePredictions.map((gesture) => (
-                <div key={gesture.label} className="rounded-xl border border-blue-100 bg-white p-3">
-                  <p className="font-semibold text-ink">{gesture.label}</p>
-                  <p className="mt-1 text-sm text-slate-600">{gesture.pose}</p>
-                </div>
-              ))}
+            <CardTitle>Gesture target</CardTitle>
+            <CardDescription>Choose the gesture to practice. These demo mappings are not official Makaton gestures.</CardDescription>
+            <div className="mt-4">
+              <GestureSelector
+                id="teacher-gesture-target"
+                label="Practice target"
+                items={learningItems}
+                selectedGestureId={selectedGesture?.id ?? ""}
+                onChange={handleGestureChange}
+                helperText={selectedPredictionGuide?.pose ?? "Select a supported sample pose."}
+              />
             </div>
           </Card>
 
-          {predictedItem ? (
+          {selectedGesture ? (
             <Card className="flex h-full flex-col">
-              <Badge>{predictedCategory?.name ?? "Sample gesture"}</Badge>
-              <CardTitle className="mt-3">{predictedItem.label}</CardTitle>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{predictedItem.instruction}</p>
+              <Badge>{selectedCategory?.name ?? "Sample gesture"}</Badge>
+              <CardTitle className="mt-3">{selectedGesture.label}</CardTitle>
+              <p className="mt-3 text-sm leading-6 text-slate-600">{selectedGesture.instruction}</p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <PracticeReferenceMedia
                   title="Reference image"
-                  value={predictedItem.symbolImageUrl}
-                  label={`${predictedItem.label} reference image`}
+                  value={selectedGesture.symbolImageUrl}
+                  label={`${selectedGesture.label} reference image`}
                   emptyText="No reference image added"
                 />
                 <PracticeReferenceMedia
                   title="Gesture image/video"
-                  value={predictedItem.gestureMediaUrl}
-                  label={`${predictedItem.label} gesture reference`}
+                  value={selectedGesture.gestureMediaUrl}
+                  label={`${selectedGesture.label} gesture reference`}
                   emptyText="No gesture media added"
                 />
                 <PracticeReferenceMedia
                   title="Audio cue"
-                  value={predictedItem.audioUrl}
-                  label={`${predictedItem.label} audio cue`}
+                  value={selectedGesture.audioUrl}
+                  label={`${selectedGesture.label} audio cue`}
                   emptyText="No audio cue added"
                   kind="audio"
                   className="md:col-span-2"
@@ -449,6 +616,74 @@ function getFixedGestureItems(items: LearningItem[]) {
   );
 }
 
+function ensureFixedGestureItems(items: LearningItem[]) {
+  const fixedItems = getFixedGestureItems(items);
+  const requiredItems = getFixedGestureItems(mockLearningItems);
+  const requiredByLabel = new Map(requiredItems.map((item) => [item.label, item]));
+  const upgradedItems = fixedItems.map((item) => {
+    const required = requiredByLabel.get(item.label);
+    if (!required) return item;
+
+    return {
+      ...item,
+      symbolImageUrl: item.symbolImageUrl || required.symbolImageUrl,
+      gestureMediaUrl: item.gestureMediaUrl || required.gestureMediaUrl,
+      audioUrl: shouldUseGeneratedGestureAudio(item.audioUrl) ? required.audioUrl : item.audioUrl
+    };
+  });
+  const existingLabels = new Set(upgradedItems.map((item) => item.label));
+
+  return [
+    ...upgradedItems,
+    ...requiredItems.filter((item) => !existingLabels.has(item.label))
+  ];
+}
+
+function shouldUseGeneratedGestureAudio(value?: string) {
+  return !value || (/demo\.mp3$/i.test(value) && !value.startsWith("/audio/"));
+}
+
+function CameraPanel({
+  cameraStarted,
+  videoRef,
+  canvasRef,
+  trackerStatus,
+  detectedHandCount
+}: {
+  cameraStarted: boolean;
+  videoRef: RefObject<HTMLVideoElement>;
+  canvasRef: RefObject<HTMLCanvasElement>;
+  trackerStatus: "idle" | "loading" | "ready" | "error";
+  detectedHandCount: number;
+}) {
+  return (
+    <div className={`relative mt-5 overflow-hidden rounded-2xl border border-slate-700/70 bg-ink shadow-inner ${cameraStarted ? "camera-live-glow" : ""}`}>
+      {cameraStarted ? (
+        <video ref={videoRef} autoPlay playsInline muted className="aspect-video w-full -scale-x-100 object-cover" />
+      ) : (
+        <div className="grid aspect-video place-items-center text-center text-white">
+          <div>
+            <Camera className="mx-auto h-12 w-12" aria-hidden="true" />
+            <p className="mt-3 font-semibold">Camera preview will appear here</p>
+          </div>
+        </div>
+      )}
+
+      {cameraStarted ? (
+        <div className="pointer-events-none absolute inset-0">
+          <canvas ref={canvasRef} className="absolute inset-0 h-full w-full -scale-x-100" aria-hidden="true" />
+          <div className="absolute inset-4 rounded-lg border border-white/35" />
+          <div className="absolute bottom-3 left-3 rounded-md bg-slate-950/70 px-3 py-2 text-xs font-semibold text-white">
+            {trackerStatus === "loading"
+              ? "Preparing hand tracking..."
+              : `${detectedHandCount} hand${detectedHandCount === 1 ? "" : "s"} visible`}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function TrackingMetric({
   icon: Icon,
   label,
@@ -478,13 +713,44 @@ function StatusIcon({ state }: { state: TrackingState }) {
   return <TriangleAlert className="h-8 w-8 text-orange-500" aria-hidden="true" />;
 }
 
+function GestureSelector({
+  id,
+  label,
+  items,
+  selectedGestureId,
+  onChange,
+  helperText
+}: {
+  id: string;
+  label: string;
+  items: LearningItem[];
+  selectedGestureId: string;
+  onChange: (gestureId: string) => void;
+  helperText?: string;
+}) {
+  return (
+    <div>
+      <Label htmlFor={id}>{label}</Label>
+      <Select id={id} className="mt-2 font-bold" value={selectedGestureId} onChange={(event) => onChange(event.target.value)}>
+        {items.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.label}
+          </option>
+        ))}
+      </Select>
+      {helperText ? <FieldHint>{helperText}</FieldHint> : null}
+    </div>
+  );
+}
+
 function PracticeReferenceMedia({
   title,
   value,
   label,
   emptyText,
   kind = "visual",
-  className = ""
+  className = "",
+  compact = false
 }: {
   title: string;
   value?: string;
@@ -492,35 +758,41 @@ function PracticeReferenceMedia({
   emptyText: string;
   kind?: "visual" | "audio";
   className?: string;
+  compact?: boolean;
 }) {
   const mediaValue = value?.trim();
+  const mediaSrc = mediaValue ? toMediaSrc(mediaValue) : "";
 
   return (
     <div className={`overflow-hidden rounded-lg border border-blue-100 bg-[#f8fbff] shadow-inner ${className}`}>
       <div className="border-b border-blue-100 bg-white/70 px-3 py-2 text-xs font-bold uppercase tracking-wide text-blue-700">
         {title}
       </div>
-      <div className={kind === "audio" ? "min-h-36 p-3" : "grid min-h-36 place-items-center p-3"}>
+      <div className={kind === "audio" ? `${compact ? "min-h-28" : "min-h-36"} p-3` : `grid ${compact ? "min-h-28" : "min-h-36"} place-items-center p-3`}>
         {!mediaValue ? (
           kind === "audio" ? (
             <AudioEmptyState message={emptyText} />
           ) : (
             <p className="text-center text-sm font-semibold text-slate-500">{emptyText}</p>
           )
-        ) : isImageUrl(mediaValue) ? (
+        ) : isImageUrl(mediaValue) && canEmbedMedia(mediaValue) ? (
           // Official/approved gesture images can be uploaded through Supabase Storage later.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={mediaValue} alt={label} className="max-h-64 w-full rounded-md object-contain" />
-        ) : isVideoUrl(mediaValue) ? (
-          <video controls className="max-h-64 w-full rounded-md" aria-label={label}>
-            <source src={mediaValue} />
+          <img src={mediaSrc} alt={label} className={`${compact ? "max-h-32" : "max-h-64"} w-full rounded-md object-contain`} />
+        ) : isVideoUrl(mediaValue) && canEmbedMedia(mediaValue) ? (
+          <video controls className={`${compact ? "max-h-32" : "max-h-64"} w-full rounded-md`} aria-label={label}>
+            <source src={mediaSrc} />
           </video>
         ) : isAudioUrl(mediaValue) ? (
-          <div className="grid h-full min-h-28 gap-3">
-            <AudioWaveform />
-            <audio controls className="w-full self-end" aria-label={label}>
-              <source src={mediaValue} />
-            </audio>
+          <div className={`grid h-full ${compact ? "min-h-20 gap-2" : "min-h-28 gap-3"}`}>
+            <AudioWaveform compact={compact} />
+            {canEmbedMedia(mediaValue) ? (
+              <audio controls className="w-full self-end" aria-label={label}>
+                <source src={mediaSrc} />
+              </audio>
+            ) : (
+              <p className="break-words text-center text-sm font-bold text-blue-700">{mediaValue}</p>
+            )}
           </div>
         ) : (
           <p className="break-words text-center text-2xl font-bold text-blue-700">{mediaValue}</p>
@@ -541,11 +813,11 @@ function AudioEmptyState({ message }: { message: string }) {
   );
 }
 
-function AudioWaveform({ muted = false }: { muted?: boolean }) {
+function AudioWaveform({ muted = false, compact = false }: { muted?: boolean; compact?: boolean }) {
   const bars = [18, 34, 52, 28, 64, 42, 76, 48, 30, 58, 38, 70, 44, 24, 54, 32];
 
   return (
-    <div className="flex h-20 items-center justify-center gap-1.5 rounded-md border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-4">
+    <div className={`flex ${compact ? "h-12" : "h-20"} items-center justify-center gap-1.5 rounded-md border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-4`}>
       {bars.map((height, index) => (
         <span
           key={`${height}-${index}`}
@@ -558,17 +830,52 @@ function AudioWaveform({ muted = false }: { muted?: boolean }) {
 }
 
 function isImageUrl(value: string) {
-  return isUrl(value) && /\.(apng|avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(value);
+  return /\.(apng|avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(value);
 }
 
 function isVideoUrl(value: string) {
-  return isUrl(value) && /\.(mov|mp4|mpeg|ogg|ogv|webm)(\?.*)?$/i.test(value);
+  return /\.(mov|mp4|mpeg|ogg|ogv|webm)(\?.*)?$/i.test(value);
 }
 
 function isAudioUrl(value: string) {
-  return isUrl(value) && /\.(aac|m4a|mp3|oga|ogg|opus|wav|weba)(\?.*)?$/i.test(value);
+  return /\.(aac|m4a|mp3|oga|ogg|opus|wav|weba)(\?.*)?$/i.test(value);
 }
 
 function isUrl(value: string) {
   return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/") || value.startsWith("blob:");
+}
+
+function canEmbedMedia(value: string) {
+  return isUrl(value);
+}
+
+function toMediaSrc(value: string) {
+  return isUrl(value) ? value : `/${value}`;
+}
+
+function playAudioSource(value: string, fallbackText: string, onError: () => void) {
+  if (!isUrl(value)) {
+    speakAudioCuePlaceholder(fallbackText, onError);
+    return;
+  }
+
+  const audio = new Audio(toMediaSrc(value));
+  audio.volume = 0.45;
+  audio.onerror = () => speakAudioCuePlaceholder(fallbackText, onError);
+  audio.play().catch(() => speakAudioCuePlaceholder(fallbackText, onError));
+}
+
+function speakAudioCuePlaceholder(text: string, onError: () => void) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    onError();
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.85;
+  utterance.pitch = 1;
+  utterance.volume = 0.85;
+  utterance.onerror = onError;
+  window.speechSynthesis.speak(utterance);
 }
