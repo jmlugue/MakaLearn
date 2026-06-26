@@ -177,7 +177,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
         setActivitiesReady(true);
         notify({
           title: "Activities could not be loaded",
-          description: error instanceof Error ? error.message : "Supabase activities could not be loaded."
+          description: "Activity materials are not available right now."
         });
       }
     }
@@ -337,7 +337,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     );
     setLearningItemError("");
     notify({
-      title: "AI activity draft ready",
+      title: "Activity draft ready",
       description: `${activityTypeLabels[type]} instructions are ready to review.`,
       tone: "success"
     });
@@ -380,7 +380,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
       } catch (error) {
         notify({
           title: editingActivity ? "Activity not updated" : "Activity not created",
-          description: error instanceof Error ? error.message : "Supabase could not save this activity."
+          description: "The activity could not be saved. Try again."
         });
         return;
       }
@@ -396,9 +396,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     closeCreateForm();
     notify({
       title: wasEditing ? "Activity updated" : "Activity created",
-      description: isSupabaseConfigured()
-        ? `The activity was ${wasEditing ? "updated" : "created"} in Supabase.`
-        : `The activity was ${wasEditing ? "updated" : "created"} locally.`,
+      description: `The activity was ${wasEditing ? "updated" : "created"}.`,
       tone: "success"
     });
   }
@@ -412,7 +410,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
       } catch (error) {
         notify({
           title: "Activity not deleted",
-          description: error instanceof Error ? error.message : "Supabase could not delete this activity."
+          description: "The activity could not be deleted. Try again."
         });
         setDeleteInProgress(false);
         return;
@@ -657,7 +655,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
                         <Bot className="h-5 w-5" aria-hidden="true" />
                       </span>
                       <div>
-                        <p className="text-sm font-bold text-ink">AI activity draft</p>
+                        <p className="text-sm font-bold text-ink">Activity draft</p>
                         <p className="mt-1 text-xs leading-5 text-slate-600">
                           Drafts the selected activity type from your chosen items for teacher review.
                         </p>
@@ -665,7 +663,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
                     </div>
                     <Button type="button" variant="secondary" onClick={generateAiActivityDraft}>
                       <Sparkles className="h-4 w-4" aria-hidden="true" />
-                      Draft with AI
+                      Draft activity
                     </Button>
                   </div>
                   {aiDraftNote ? <p className="mt-3 text-xs font-semibold leading-5 text-blue-700">{aiDraftNote}</p> : null}
@@ -1047,7 +1045,7 @@ function SymbolOption({ value, learningItems }: { value: string; learningItems: 
   return (
     <span className="grid h-20 min-w-24 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] px-3 text-lg font-black text-blue-700 shadow-inner">
       {imageValue}
-      {item ? <span className="sr-only">{item.label} symbol placeholder</span> : null}
+      {item ? <span className="sr-only">{item.label} symbol image</span> : null}
     </span>
   );
 }

@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { ToastProvider } from "@/components/common/toast-provider";
 import { AuthProvider, useAuthState } from "@/features/auth/use-auth-user";
 import { StudentModeProvider, useStudentMode } from "@/features/student-mode/student-mode-context";
+import { studentRouteHrefs } from "@/components/layout/nav-items";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/common/loading-state";
@@ -39,9 +40,8 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   }, [error, loading, router, user]);
 
   useEffect(() => {
-    const studentRoutes = ["/gesture-practice", "/activities"];
-    if (!loading && user && isStudentMode && !studentRoutes.includes(pathname)) {
-      router.replace("/gesture-practice");
+    if (!loading && user && isStudentMode && !studentRouteHrefs.includes(pathname)) {
+      router.replace("/playground");
     }
   }, [isStudentMode, loading, pathname, router, user]);
 
@@ -69,7 +69,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (isStudentMode && !["/gesture-practice", "/activities"].includes(pathname)) {
+  if (isStudentMode && !studentRouteHrefs.includes(pathname)) {
     return (
       <main className="grid min-h-screen place-items-center px-4">
         <LoadingState label="Opening student mode" />

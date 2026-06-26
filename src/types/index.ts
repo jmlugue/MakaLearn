@@ -39,6 +39,18 @@ export type Category = {
   createdBy: string;
 };
 
+export type SentenceRole =
+  | "subject"
+  | "verb"
+  | "object"
+  | "emotion"
+  | "command"
+  | "greeting"
+  | "response"
+  | "polite_word"
+  | "be_verb"
+  | "safety_word";
+
 export type MediaAsset = {
   id: string;
   title: string;
@@ -62,6 +74,9 @@ export type LearningItem = {
   symbolImageUrl?: string;
   gestureMediaUrl?: string;
   audioUrl?: string;
+  // Future Supabase: add sentence_role to learning_items. Playground uses the
+  // supplied manifest as the fallback mapping until the database field exists.
+  sentenceRole?: SentenceRole;
   tags: string[];
   createdBy: string;
   updatedAt: string;

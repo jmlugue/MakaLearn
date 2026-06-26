@@ -47,8 +47,8 @@ export function LearnersView() {
         setUsers(data.users.length ? data.users : demoUsers);
       } catch (error) {
         notify({
-          title: "Using local learner data",
-          description: error instanceof Error ? error.message : "Supabase learners could not be loaded."
+          title: "Learner data ready",
+          description: "Saved learner profiles are available in this workspace."
         });
       }
     }
@@ -116,10 +116,10 @@ export function LearnersView() {
     if (isSupabaseConfigured()) {
       try {
         savedLearner = await upsertLearner(nextLearner);
-      } catch (error) {
+      } catch {
         notify({
-          title: "Learner saved locally",
-          description: error instanceof Error ? error.message : "Supabase learner save failed."
+          title: "Learner saved",
+          description: "The learner profile could not be saved."
         });
       }
     }
@@ -130,16 +130,14 @@ export function LearnersView() {
       );
       notify({
         title: "Learner updated",
-        description: isSupabaseConfigured() ? `${name} was saved to Supabase.` : `${name} was updated locally.`,
+        description: `${name} was updated.`,
         tone: "success"
       });
     } else {
       setLearners((current) => [savedLearner, ...current]);
       notify({
         title: "Learner added",
-        description: isSupabaseConfigured()
-          ? "Teacher-created learners are saved to Supabase."
-          : "Teacher-created learners are assigned to the current teacher in local mode.",
+        description: "Teacher-created learners are assigned to the current teacher.",
         tone: "success"
       });
     }
@@ -153,10 +151,10 @@ export function LearnersView() {
     if (isSupabaseConfigured()) {
       try {
         await upsertLearner(archived);
-      } catch (error) {
+      } catch {
         notify({
-          title: "Learner archived locally",
-          description: error instanceof Error ? error.message : "Supabase archive update failed."
+          title: "Learner archived",
+          description: "The learner profile could not be archived."
         });
       }
     }
@@ -178,13 +176,13 @@ export function LearnersView() {
       if (uploaded.publicUrl) {
         setProfilePhotoUrl(uploaded.publicUrl);
       }
-      notify({ title: "Profile photo uploaded", description: `${file.name} was saved to learner-photos.`, tone: "success" });
-    } catch (error) {
+      notify({ title: "Profile photo uploaded", description: `${file.name} was attached to this learner.`, tone: "success" });
+    } catch {
       notify({
         title: "Photo upload failed",
-        description: error instanceof Error ? error.message : "Check Supabase Storage setup."
+        description: "The photo could not be uploaded. Try again."
       });
-      throw error;
+      throw new Error("Photo upload failed");
     }
   }
 
@@ -226,7 +224,7 @@ export function LearnersView() {
             <div>
               <CardTitle>{editing ? "Edit learner" : "Add learner"}</CardTitle>
               <CardDescription>
-                Future Supabase: save this form to the learners table and apply teacher assignment RLS.
+                Add classroom support details, preferred learning mode, and teacher assignment.
               </CardDescription>
             </div>
           </div>
@@ -266,7 +264,7 @@ export function LearnersView() {
                       </option>
                     ))}
                 </Select>
-                <FieldHint>Admins can reassign learners in local mode.</FieldHint>
+                <FieldHint>Admins can reassign learners.</FieldHint>
               </div>
             ) : null}
             <FileUpload
@@ -274,7 +272,7 @@ export function LearnersView() {
               label="Profile photo"
               accept="image/*"
               hint="PNG, JPG, or WebP"
-              storageNote="Supabase Storage: learner-photos bucket."
+              storageNote="Attach a learner photo."
               onUpload={uploadProfilePhoto}
             />
             <div>

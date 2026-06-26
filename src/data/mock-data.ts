@@ -64,19 +64,18 @@ export const categories: Category[] = [
 // scope no longer exposes learner management or progress recording.
 export const learners: Learner[] = [];
 
-// These labels are demo-only educational placeholders. Official or approved
-// Makaton content should be added later by the school or content owner.
+// These labels are starter educational records for classroom setup.
 export const learningItems: LearningItem[] = [
   {
     id: "pecs-hello",
     contentType: "pecs",
     label: "Hello",
     categoryId: "cat-pecs-choices",
-    description: "A demo PECS card for greeting someone.",
+    description: "A PECS card for greeting someone.",
     instruction: "Show the picture card during arrival or greeting routines.",
     symbolImageUrl: "HEL",
-    audioUrl: "hello-demo.mp3",
-    tags: ["pecs", "greeting", "demo"],
+    audioUrl: "/audio/pecs/hello.wav",
+    tags: ["pecs", "greeting", "classroom"],
     createdBy: "user-teacher",
     updatedAt: "2026-05-11T09:00:00.000Z"
   },
@@ -85,11 +84,11 @@ export const learningItems: LearningItem[] = [
     contentType: "pecs",
     label: "Eat",
     categoryId: "cat-pecs-needs",
-    description: "A demo PECS card for requesting food.",
+    description: "A PECS card for requesting food.",
     instruction: "Show the picture card, say the word, and wait for the learner response.",
     symbolImageUrl: "EAT",
-    audioUrl: "eat-demo.mp3",
-    tags: ["pecs", "food", "demo"],
+    audioUrl: "/audio/pecs/eat.wav",
+    tags: ["pecs", "food", "classroom"],
     createdBy: "user-teacher",
     updatedAt: "2026-05-12T10:30:00.000Z"
   },
@@ -98,11 +97,11 @@ export const learningItems: LearningItem[] = [
     contentType: "pecs",
     label: "Drink",
     categoryId: "cat-pecs-needs",
-    description: "A demo PECS card for requesting water or another drink.",
+    description: "A PECS card for requesting water or another drink.",
     instruction: "Offer the picture card near a real cup or bottle when available.",
     symbolImageUrl: "DRK",
-    audioUrl: "drink-demo.mp3",
-    tags: ["pecs", "drink", "demo"],
+    audioUrl: "/audio/pecs/drink.wav",
+    tags: ["pecs", "drink", "classroom"],
     createdBy: "user-admin",
     updatedAt: "2026-05-15T08:15:00.000Z"
   },
@@ -111,11 +110,11 @@ export const learningItems: LearningItem[] = [
     contentType: "pecs",
     label: "More",
     categoryId: "cat-pecs-needs",
-    description: "A demo PECS card for continuing an activity.",
+    description: "A PECS card for continuing an activity.",
     instruction: "Pause before repeating the activity so the learner can request more.",
     symbolImageUrl: "MOR",
-    audioUrl: "more-demo.mp3",
-    tags: ["pecs", "request", "demo"],
+    audioUrl: "/audio/pecs/more.wav",
+    tags: ["pecs", "request", "classroom"],
     createdBy: "user-teacher",
     updatedAt: "2026-05-18T11:20:00.000Z"
   },
@@ -124,11 +123,11 @@ export const learningItems: LearningItem[] = [
     contentType: "pecs",
     label: "Help",
     categoryId: "cat-pecs-needs",
-    description: "A demo PECS card for asking for support.",
+    description: "A PECS card for asking for support.",
     instruction: "Prompt the learner to request help before the teacher intervenes.",
     symbolImageUrl: "HLP",
-    audioUrl: "help-demo.mp3",
-    tags: ["pecs", "support", "demo"],
+    audioUrl: "/audio/pecs/help.wav",
+    tags: ["pecs", "support", "classroom"],
     createdBy: "user-teacher",
     updatedAt: "2026-05-19T12:10:00.000Z"
   },
@@ -137,11 +136,11 @@ export const learningItems: LearningItem[] = [
     contentType: "pecs",
     label: "Yes",
     categoryId: "cat-pecs-choices",
-    description: "A demo PECS card for answering yes.",
+    description: "A PECS card for answering yes.",
     instruction: "Use during simple two-choice questions.",
     symbolImageUrl: "YES",
-    audioUrl: "yes-demo.mp3",
-    tags: ["pecs", "choice", "demo"],
+    audioUrl: "/audio/pecs/yes.wav",
+    tags: ["pecs", "choice", "classroom"],
     createdBy: "user-admin",
     updatedAt: "2026-05-21T12:10:00.000Z"
   },
@@ -150,11 +149,11 @@ export const learningItems: LearningItem[] = [
     contentType: "pecs",
     label: "No",
     categoryId: "cat-pecs-choices",
-    description: "A demo PECS card for answering no.",
+    description: "A PECS card for answering no.",
     instruction: "Offer two choices and respect the learner response.",
     symbolImageUrl: "NO",
-    audioUrl: "no-demo.mp3",
-    tags: ["pecs", "choice", "demo"],
+    audioUrl: "/audio/pecs/no.wav",
+    tags: ["pecs", "choice", "classroom"],
     createdBy: "user-admin",
     updatedAt: "2026-05-25T14:00:00.000Z"
   },

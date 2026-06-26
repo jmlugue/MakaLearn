@@ -16,17 +16,17 @@ const guides = [
   {
     icon: PlayCircle,
     title: "Use gesture recognition",
-    text: "Review the seven supported sample poses, start the camera, and hold one hand steadily while the live landmark outline produces a demo prediction."
+    text: "Choose a supported classroom gesture, start the camera, and practise with the live hand outline."
   },
   {
     icon: Library,
     title: "Run activities",
-    text: "Choose or create an activity from PECS cards only, answer the prompts, and score the session locally."
+    text: "Choose or create an activity from PECS cards, answer the prompts, and score the session."
   },
   {
     icon: Bot,
-    title: "Draft with AI",
-    text: "In Activity creation, select PECS cards and use Draft with AI to prepare an editable activity draft before saving."
+    title: "Draft activities",
+    text: "In Activity creation, select PECS cards and prepare an editable activity draft before saving."
   },
   {
     icon: UserCog,
@@ -35,8 +35,8 @@ const guides = [
   },
   {
     icon: HelpCircle,
-    title: "Official content and models",
-    text: "Official approved learning content and recognition model data will be added later. Current content is placeholder-only."
+    title: "Classroom content",
+    text: "Use approved classroom materials and review each activity before using it with learners."
   }
 ];
 
@@ -46,7 +46,7 @@ export function HelpView() {
       <PageHeader
         eyebrow="Help / Guide"
         title="Using MakaLearn"
-        description="A quick guide for teachers and admins working with the local-first MVP."
+        description="A quick guide for teachers and admins working with MakaLearn."
       />
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {guides.map((guide) => (

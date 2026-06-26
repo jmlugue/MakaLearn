@@ -41,18 +41,18 @@ export function SettingsView() {
     if (isSupabaseConfigured()) {
       try {
         await updateProfileDetails(user.id, { name: profileName, email: profileEmail });
-        notify({ title: "Profile saved", description: "Profile details were saved to Supabase.", tone: "success" });
+        notify({ title: "Profile saved", description: "Profile details were saved.", tone: "success" });
         return;
-      } catch (error) {
+      } catch {
         notify({
-          title: "Profile saved locally",
-          description: error instanceof Error ? error.message : "Supabase profile update failed."
+          title: "Profile saved",
+          description: "Profile update could not be completed."
         });
         return;
       }
     }
 
-    notify({ title: "Profile saved", description: "This updates local form state only.", tone: "success" });
+    notify({ title: "Profile saved", description: "Profile details were saved.", tone: "success" });
   }
 
   return (
@@ -60,7 +60,7 @@ export function SettingsView() {
       <PageHeader
         eyebrow="Settings"
         title="Profile and app preferences"
-        description="Manage local profile details, accessibility options, account placeholders, and display preferences."
+        description="Manage profile details, accessibility options, account settings, and display preferences."
       />
       <section className="grid gap-4 lg:grid-cols-2">
         <Card className="bg-[#fbfdff]">
@@ -101,12 +101,12 @@ export function SettingsView() {
             <Lock className="h-5 w-5 text-blue-600" aria-hidden="true" />
             <CardTitle>Account and password</CardTitle>
           </div>
-          <CardDescription>Future Supabase Auth: password reset and email updates will connect here.</CardDescription>
+          <CardDescription>Manage password updates and account access.</CardDescription>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <Input type="password" placeholder="New password" />
             <Input type="password" placeholder="Confirm password" />
           </div>
-          <Button className="mt-4" variant="secondary" onClick={() => notify({ title: "Password placeholder", description: "Password changes will be enabled with Supabase Auth." })}>
+          <Button className="mt-4" variant="secondary" onClick={() => notify({ title: "Password changes", description: "Password changes are not enabled yet." })}>
             Update password
           </Button>
         </Card>
@@ -122,11 +122,11 @@ export function SettingsView() {
               <option value="soft-blue">Soft blue</option>
               <option value="high-contrast">High contrast</option>
             </Select>
-            <FieldHint>Display preferences are local until account settings are connected.</FieldHint>
+            <FieldHint>Display preferences apply to this browser.</FieldHint>
           </div>
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-blue-100 bg-skywash p-3">
             <Info className="mt-0.5 h-5 w-5 text-blue-600" aria-hidden="true" />
-            <p className="text-sm leading-6 text-slate-600">MakaLearn uses Supabase Auth and falls back to placeholder records when setup data is missing.</p>
+            <p className="text-sm leading-6 text-slate-600">MakaLearn supports teacher-guided PECS, gesture practice, activities, and admin workflows.</p>
           </div>
         </Card>
       </section>

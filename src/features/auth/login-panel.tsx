@@ -23,7 +23,7 @@ export function LoginPanel() {
 
   async function getSignedInProfile(userId: string) {
     const supabase = getSupabaseBrowserClient();
-    if (!supabase) throw new Error("Supabase is not configured.");
+    if (!supabase) throw new Error("Sign in is not available yet.");
 
     const { data, error } = await supabase
       .from("profiles")
@@ -32,7 +32,7 @@ export function LoginPanel() {
       .single();
 
     if (error || !data) {
-      throw new Error("This Auth account does not have a MakaLearn profile yet.");
+      throw new Error("This account does not have a MakaLearn profile yet.");
     }
 
     return data as Pick<AppUser, "id" | "name" | "email" | "role" | "status">;
@@ -49,7 +49,7 @@ export function LoginPanel() {
     if (nextErrors.email || nextErrors.password) return;
 
     if (!isSupabaseConfigured()) {
-      notify({ title: "Supabase setup required", description: "Add your Supabase URL and anon key to .env.local before signing in." });
+      notify({ title: "Sign in unavailable", description: "Ask an administrator to finish account setup." });
       return;
     }
 
@@ -86,11 +86,11 @@ export function LoginPanel() {
         tone: "success"
       });
       router.push(profile.role === "admin" ? "/admin" : "/content");
-    } catch (profileError) {
+    } catch {
       await supabase.auth.signOut();
       notify({
         title: "Profile missing",
-        description: profileError instanceof Error ? profileError.message : "Create a row in profiles for this Auth user."
+        description: "Ask an administrator to finish this account."
       });
     } finally {
       setLoading(false);
@@ -106,14 +106,14 @@ export function LoginPanel() {
 
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
-      notify({ title: "Supabase setup required", description: "Add your Supabase URL and anon key to .env.local first." });
+      notify({ title: "Password reset unavailable", description: "Ask an administrator to finish account setup." });
       return;
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     notify({
       title: error ? "Reset email failed" : "Password reset email sent",
-      description: error?.message ?? "Check the email inbox configured for this account.",
+      description: error ? "Password reset could not be started. Try again." : "Check the email inbox configured for this account.",
       tone: error ? "error" : "success"
     });
   }

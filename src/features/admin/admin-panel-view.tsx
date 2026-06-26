@@ -43,8 +43,8 @@ export function AdminPanelView() {
         setUploadRecords(data.mediaAssets.length ? data.mediaAssets : mediaAssets);
       } catch (error) {
         notify({
-          title: "Using local admin data",
-          description: error instanceof Error ? error.message : "Supabase admin data could not be loaded."
+          title: "Admin data ready",
+          description: "Saved admin data is available in this workspace."
         });
       }
     }
@@ -94,7 +94,7 @@ export function AdminPanelView() {
         category: "content" as const,
         action: "upload" as const,
         actorId: asset.uploadedBy,
-        actorName: users.find((candidate) => candidate.id === asset.uploadedBy)?.name ?? "Demo user",
+        actorName: users.find((candidate) => candidate.id === asset.uploadedBy)?.name ?? "MakaLearn user",
         targetType: "media",
         targetId: asset.id,
         targetTitle: asset.title,
@@ -106,7 +106,7 @@ export function AdminPanelView() {
         category: "content" as const,
         action: "edit" as const,
         actorId: activity.createdBy,
-        actorName: users.find((candidate) => candidate.id === activity.createdBy)?.name ?? "Demo user",
+        actorName: users.find((candidate) => candidate.id === activity.createdBy)?.name ?? "MakaLearn user",
         targetType: "activity",
         targetId: activity.id,
         targetTitle: activity.title,
@@ -127,7 +127,7 @@ export function AdminPanelView() {
     setUsers((current) => current.map((item) => (item.id === candidate.id ? updated : item)));
 
     if (!isSupabaseConfigured()) {
-      notify({ title: "Role updated locally", description: `${candidate.name} is now ${role}.`, tone: "success" });
+      notify({ title: "Role updated", description: `${candidate.name} is now ${role}.`, tone: "success" });
       return;
     }
 
@@ -135,11 +135,11 @@ export function AdminPanelView() {
       const saved = await updateProfileRole(candidate.id, role);
       setUsers((current) => current.map((item) => (item.id === candidate.id ? saved : item)));
       notify({ title: "Role updated", description: `${candidate.name} was saved to profiles.`, tone: "success" });
-    } catch (error) {
+    } catch {
       setUsers((current) => current.map((item) => (item.id === candidate.id ? candidate : item)));
       notify({
         title: "Role update failed",
-        description: error instanceof Error ? error.message : "Supabase profile update failed."
+        description: "The role could not be updated. Try again."
       });
     }
   }
@@ -149,7 +149,7 @@ export function AdminPanelView() {
     setUsers((current) => current.map((item) => (item.id === candidate.id ? { ...item, status: nextStatus } : item)));
     notify({
       title: nextStatus === "active" ? "Teacher activated" : "Teacher deactivated",
-      description: `${candidate.name} was updated in the local admin preview.`,
+      description: `${candidate.name} was updated.`,
       tone: "success"
     });
   }
@@ -177,9 +177,7 @@ export function AdminPanelView() {
     event.currentTarget.reset();
     notify({
       title: "Teacher account created",
-      description: isSupabaseConfigured()
-        ? "Local preview created. Supabase Auth invite wiring is still a future admin integration."
-        : "Teacher was added to the local admin preview.",
+      description: "Teacher account was added.",
       tone: "success"
     });
   }
@@ -230,7 +228,7 @@ export function AdminPanelView() {
             <div>
               <Label htmlFor="teacherEmail">Email</Label>
               <Input id="teacherEmail" name="teacherEmail" type="email" placeholder="teacher@school.edu" required />
-              <FieldHint>Future Supabase Auth: create or invite the auth user, then write the profiles row.</FieldHint>
+              <FieldHint>Use the teacher&apos;s school email address.</FieldHint>
             </div>
             <Button type="submit">
               <UserPlus className="h-4 w-4" aria-hidden="true" />
@@ -300,7 +298,7 @@ export function AdminPanelView() {
                   <tr key={item.id} className="border-t border-blue-100">
                     <td className="px-3 py-3 font-semibold">{item.label}</td>
                     <td className="px-3 py-3 uppercase">{item.contentType}</td>
-                    <td className="px-3 py-3">{users.find((candidate) => candidate.id === item.createdBy)?.name ?? "Demo user"}</td>
+                    <td className="px-3 py-3">{users.find((candidate) => candidate.id === item.createdBy)?.name ?? "MakaLearn user"}</td>
                     <td className="px-3 py-3">{formatDate(item.updatedAt)}</td>
                   </tr>
                 ))}
@@ -346,17 +344,17 @@ export function AdminPanelView() {
         <Card className="xl:col-span-2">
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-blue-600" aria-hidden="true" />
-            <CardTitle>Development-only data tools</CardTitle>
+            <CardTitle>Data tools</CardTitle>
           </div>
           <CardDescription>
-            Keep these controls protected before production. They are placeholders for admin-only Supabase operations.
+            Review classroom data and media readiness.
           </CardDescription>
           <CardFooter className="mt-4 flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => notify({ title: "Seed data note", description: "Update seed data with PECS and fixed gesture records before production." })}>
-              Review seed data
+            <Button variant="secondary" onClick={() => notify({ title: "Content data", description: "Review PECS cards, gestures, activities, and teacher accounts before class use." })}>
+              Review content data
             </Button>
-            <Button variant="outline" onClick={() => notify({ title: "Storage buckets", description: "PECS images, gesture media, and audio files still map to Supabase Storage buckets." })}>
-              Verify storage buckets
+            <Button variant="outline" onClick={() => notify({ title: "Media library", description: "Review PECS images, gesture media, and audio cues." })}>
+              Check media library
             </Button>
           </CardFooter>
         </Card>

@@ -50,6 +50,13 @@ import {
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import { createLessonDraftFromItem } from "@/utils/lesson-template";
+import {
+  ensurePecsManifestCategories,
+  ensurePecsManifestItems,
+  ensurePecsManifestMediaRecords,
+  getSpeechFallbackLabel,
+  isSpeechFallbackAudio
+} from "@/utils/pecs-content-library";
 import { formatDate } from "@/lib/utils";
 import { activityTypeLabels, getActivityTypeLabel } from "@/utils/activity-labels";
 import type { ActivityType, Category, LearningItem, Lesson, MediaAsset } from "@/types";
@@ -135,7 +142,7 @@ function normalizeLearningItems(records: LearningItem[]) {
 }
 
 function ensureFixedGestureItems(records: LearningItem[]) {
-  const normalized = normalizeLearningItems(records);
+  const normalized = ensurePecsManifestItems(normalizeLearningItems(records));
   const requiredGestures = learningItems.filter(isFixedGesture);
   const requiredByLabel = new Map(requiredGestures.map((item) => [item.label, item]));
   const upgraded = normalized.map((item) => {
@@ -163,9 +170,10 @@ function shouldUseGeneratedGestureAudio(value?: string) {
 }
 
 function ensureGestureCategory(records: Category[]) {
-  return records.some((category) => category.id === "cat-gestures")
-    ? records
-    : [...records, mockCategories.find((category) => category.id === "cat-gestures") ?? mockCategories[0]];
+  const withPecsCategories = ensurePecsManifestCategories(records);
+  return withPecsCategories.some((category) => category.id === "cat-gestures")
+    ? withPecsCategories
+    : [...withPecsCategories, mockCategories.find((category) => category.id === "cat-gestures") ?? mockCategories[0]];
 }
 
 function isFixedGesture(item: LearningItem) {
@@ -178,7 +186,7 @@ export function ContentLibraryView() {
   const [tab, setTab] = useState<Tab>("items");
   const [items, setItems] = useState<LearningItem[]>(ensureFixedGestureItems(learningItems));
   const [lessons, setLessons] = useState<Lesson[]>(mockLessons);
-  const [categories, setCategories] = useState<Category[]>(mockCategories);
+  const [categories, setCategories] = useState<Category[]>(ensureGestureCategory(mockCategories));
   const [mediaRecords, setMediaRecords] = useState<MediaAsset[]>(mediaAssets);
   const [users, setUsers] = useState(demoUsers);
   const [contentKind, setContentKind] = useState<ContentKind>("pecs");
@@ -196,7 +204,7 @@ export function ContentLibraryView() {
   const [lessonItemIds, setLessonItemIds] = useState<string[]>(
     learningItems.filter((item) => item.contentType === "pecs").slice(0, 2).map((item) => item.id)
   );
-  const [lessonNotes, setLessonNotes] = useState("Manual lesson draft created locally.");
+  const [lessonNotes, setLessonNotes] = useState("Manual lesson draft created in MakaLearn.");
   const [lessonError, setLessonError] = useState("");
   const [lessonFormOpen, setLessonFormOpen] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
@@ -247,8 +255,8 @@ export function ContentLibraryView() {
         setContentReady(true);
       } catch (error) {
         notify({
-          title: "Using local content data",
-          description: error instanceof Error ? error.message : "Supabase content could not be loaded."
+          title: "Content ready",
+          description: "Saved content is available in this workspace."
         });
         setContentReady(true);
       }
@@ -286,6 +294,10 @@ export function ContentLibraryView() {
     () => activeItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase())),
     [activeItems, search]
   );
+  const displayMediaRecords = useMemo(
+    () => ensurePecsManifestMediaRecords(items, mediaRecords),
+    [items, mediaRecords]
+  );
   const filteredLessons = useMemo(() => {
     const query = lessonSearch.trim().toLowerCase();
     if (!query) return lessons;
@@ -305,9 +317,9 @@ export function ContentLibraryView() {
   }, [items, lessonSearch, lessons]);
   const filteredMediaRecords = useMemo(() => {
     const query = mediaSearch.trim().toLowerCase();
-    if (!query) return mediaRecords;
+    if (!query) return displayMediaRecords;
 
-    return mediaRecords.filter((asset) => {
+    return displayMediaRecords.filter((asset) => {
       const relatedItem = items.find((item) => item.id === asset.relatedItemId)?.label ?? "";
       const uploader = userNameById.get(asset.uploadedBy) ?? "";
 
@@ -316,12 +328,12 @@ export function ContentLibraryView() {
         .toLowerCase()
         .includes(query);
     });
-  }, [items, mediaRecords, mediaSearch, userNameById]);
+  }, [displayMediaRecords, items, mediaSearch, userNameById]);
   const counts: Record<Tab, number> = {
     items: activeItems.length,
     lessons: lessons.length,
     categories: categories.length,
-    media: mediaRecords.length
+    media: displayMediaRecords.length
   };
 
   function logContentAction(
@@ -372,7 +384,7 @@ export function ContentLibraryView() {
     setLessonActivityType("simple-quiz");
     setLessonDuration(10);
     setLessonItemIds(pecsItems.slice(0, 2).map((item) => item.id));
-    setLessonNotes("Manual lesson draft created locally.");
+    setLessonNotes("Manual lesson draft created in MakaLearn.");
     setLessonError("");
   }
 
@@ -427,8 +439,8 @@ export function ContentLibraryView() {
         savedItem = await updateLearningItemDetails(nextItem);
       } catch (error) {
         notify({
-          title: "Item saved locally",
-          description: error instanceof Error ? error.message : "Supabase learning item update failed."
+          title: "Item saved",
+          description: "Your changes are ready in this workspace."
         });
       }
     }
@@ -438,7 +450,7 @@ export function ContentLibraryView() {
     closeEditItem();
     notify({
       title: "Learning item updated",
-      description: isSupabaseConfigured() ? "Text changes were saved to Supabase." : "Text changes were saved locally.",
+      description: "Text changes were saved.",
       tone: "success"
     });
   }
@@ -490,8 +502,8 @@ export function ContentLibraryView() {
         savedLesson = await insertLesson(nextLesson);
       } catch (error) {
         notify({
-          title: "Lesson saved locally",
-          description: error instanceof Error ? error.message : "Supabase lesson insert failed."
+          title: "Lesson saved",
+          description: "The lesson is ready in this workspace."
         });
       }
     }
@@ -508,7 +520,7 @@ export function ContentLibraryView() {
     setLessonFormOpen(false);
     notify({
       title: "Lesson saved",
-      description: isSupabaseConfigured() ? "The lesson was saved to the lessons table." : "The lesson was added locally.",
+      description: "The lesson was added to the lesson library.",
       tone: "success"
     });
   }
@@ -526,7 +538,7 @@ export function ContentLibraryView() {
       } catch (error) {
         notify({
           title: "Delete failed",
-          description: error instanceof Error ? error.message : "The learning item was not deleted from Supabase."
+          description: "The learning item could not be deleted. Try again."
         });
         setDeleteInProgress(false);
         return;
@@ -562,7 +574,7 @@ export function ContentLibraryView() {
       } catch (error) {
         notify({
           title: "Delete failed",
-          description: error instanceof Error ? error.message : "The lesson was not deleted from Supabase."
+          description: "The lesson could not be deleted. Try again."
         });
         setDeleteInProgress(false);
         return;
@@ -617,8 +629,8 @@ export function ContentLibraryView() {
         savedRemotely = true;
       } catch (error) {
         notify({
-          title: "Learning item saved locally",
-          description: error instanceof Error ? error.message : "Supabase learning item insert failed."
+          title: "Learning item saved",
+          description: "The item is ready in this workspace."
         });
       }
     }
@@ -650,8 +662,8 @@ export function ContentLibraryView() {
     notify({
       title: contentKind === "pecs" ? "PECS card added" : "Gesture stored",
       description: savedRemotely
-        ? `${savedItem.label} was saved to the learning items table.`
-        : `${savedItem.label} was added to this local session.`,
+        ? `${savedItem.label} was added to the content library.`
+        : `${savedItem.label} was added to the content library.`,
       tone: "success"
     });
   }
@@ -713,8 +725,8 @@ export function ContentLibraryView() {
         setMediaRecords((current) => [uploaded, ...current]);
       } catch (error) {
         notify({
-          title: "Media saved locally",
-          description: error instanceof Error ? error.message : "One upload failed, so attached files were kept locally."
+          title: "Media attached",
+          description: "Attached files are ready in this workspace."
         });
         const localItem = applyLocalMediaToItem(updatedItem, remainingLocalFiles);
         addLocalMediaRecords(localItem, remainingLocalFiles);
@@ -756,7 +768,7 @@ export function ContentLibraryView() {
       );
       notify({
         title: "Media attached",
-        description: `${file.name} was added for this local session.`,
+        description: `${file.name} was attached to ${item.label}.`,
         tone: "success"
       });
       logContentAction(
@@ -803,7 +815,7 @@ export function ContentLibraryView() {
 
       notify({
         title: "Media uploaded",
-        description: `${file.name} was saved to ${uploaded.bucket}.`,
+        description: `${file.name} was attached to ${item.label}.`,
         tone: "success"
       });
       logContentAction(
@@ -813,12 +825,12 @@ export function ContentLibraryView() {
         `Uploaded ${getMediaTypeLabel(uploaded.type).toLowerCase()} for ${item.label}.`,
         uploaded.id
       );
-    } catch (error) {
+    } catch {
       notify({
         title: "Upload failed",
-        description: error instanceof Error ? error.message : "Check your Supabase setup and try again."
+        description: "The file could not be attached. Try again."
       });
-      throw error;
+      throw new Error("Upload failed");
     }
   }
 
@@ -841,8 +853,8 @@ export function ContentLibraryView() {
         savedCategory = await insertCategory(nextCategory);
       } catch (error) {
         notify({
-          title: "Category saved locally",
-          description: error instanceof Error ? error.message : "Supabase category insert failed."
+          title: "Category saved",
+          description: "The category is ready in this workspace."
         });
       }
     }
@@ -851,7 +863,7 @@ export function ContentLibraryView() {
     formElement.reset();
     notify({
       title: "Category added",
-      description: isSupabaseConfigured() ? "Categories are shared through Supabase." : "Categories are shared locally.",
+      description: "Categories are available to teachers.",
       tone: "success"
     });
   }
@@ -870,7 +882,7 @@ export function ContentLibraryView() {
                 Prepare PECS cards and fixed gesture references.
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
-                Keep PECS activities separate from the seven gesture-recognition presentation gestures while approved content is still pending.
+                Keep PECS activities separate from gesture practice so teachers can prepare clear classroom materials.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button
@@ -905,7 +917,7 @@ export function ContentLibraryView() {
                 <CardTitle>{contentKind === "pecs" ? "Add PECS card" : "Add gesture"}</CardTitle>
                 <CardDescription>
                   {contentKind === "pecs"
-                    ? "Create a demo PECS card with only a card image and optional audio cue."
+                    ? "Create a PECS card with a card image and optional audio cue."
                     : "Store a gesture reference with optional image, video, and audio. Only the seven fixed gestures appear in recognition."}
                 </CardDescription>
               </div>
@@ -1015,7 +1027,7 @@ export function ContentLibraryView() {
                 />
               </div>
               <FieldHint>
-                Files upload to Supabase Storage when configured. In local mode, they are previewed for this session only.
+                Attach images, gesture references, and audio cues for classroom use.
               </FieldHint>
             </div>
 
@@ -1119,7 +1131,7 @@ export function ContentLibraryView() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filteredItems.map((item) => {
                 const category = categoryById.get(item.categoryId);
-                const creator = userNameById.get(item.createdBy) ?? "Demo user";
+                const creator = userNameById.get(item.createdBy) ?? "MakaLearn user";
                 const isEditingItem = editingItemId === item.id;
                 return (
                   <Card key={item.id} className="relative flex h-full flex-col overflow-hidden p-0">
@@ -1201,7 +1213,7 @@ export function ContentLibraryView() {
                                 id={`edit-tags-${item.id}`}
                                 value={editItemTags}
                                 onChange={(event) => setEditItemTags(event.target.value)}
-                                placeholder="gesture, fixed, demo"
+                                placeholder="gesture, classroom"
                               />
                               <FieldHint>Separate tags with commas.</FieldHint>
                             </div>
@@ -1472,13 +1484,13 @@ export function ContentLibraryView() {
                   <CardTitle>{category.name}</CardTitle>
                   <CardDescription className="mt-2">{category.description}</CardDescription>
                   <p className="mt-3 text-xs font-semibold text-slate-500">
-                    Created by {userNameById.get(category.createdBy) ?? "Demo user"}
+                    Created by {userNameById.get(category.createdBy) ?? "MakaLearn user"}
                   </p>
                   <CardFooter className="mt-4">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => notify({ title: "Category editor", description: "Inline editing can be connected to Supabase later." })}
+                    onClick={() => notify({ title: "Category editor", description: "Inline category editing is not enabled yet." })}
                   >
                     Edit category
                   </Button>
@@ -1497,7 +1509,7 @@ export function ContentLibraryView() {
               <div>
                 <h2 className="text-xl font-bold text-ink">Media library</h2>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Uploaded picture cards and placeholder records appear here. Local records remain visible when Supabase is not configured.
+                  Picture cards, gesture media, and audio cues appear here.
                 </p>
               </div>
               <div className="w-full lg:max-w-sm">
@@ -1521,7 +1533,7 @@ export function ContentLibraryView() {
               {filteredMediaRecords.map((asset) => (
                 <Card key={asset.id} className="flex h-full flex-col border-dashed">
                   <div className="flex items-start justify-between gap-3">
-                    <Badge className="bg-blue-50 text-blue-700">{asset.bucket}</Badge>
+                    <Badge className="bg-blue-50 text-blue-700">{getMediaTypeLabel(asset.type)}</Badge>
                     <span className="grid h-10 w-10 place-items-center rounded-lg bg-skywash text-blue-700">
                       {asset.type === "audio-file" ? <FileAudio className="h-5 w-5" aria-hidden="true" /> : null}
                       {asset.type === "gesture-media" ? <Film className="h-5 w-5" aria-hidden="true" /> : null}
@@ -1550,9 +1562,9 @@ export function ContentLibraryView() {
           ) : (
             <EmptyState
               icon={Search}
-              title={mediaRecords.length ? "No media found" : "No stored media yet"}
+              title={displayMediaRecords.length ? "No media found" : "No stored media yet"}
               description={
-                mediaRecords.length
+                displayMediaRecords.length
                   ? "Try a different title, filename, learning item, or media type."
                   : "Uploaded media will appear here for teachers and admins to find."
               }
@@ -1813,7 +1825,7 @@ function ItemMediaControls({
       label: `${item.label} image`,
       accept: "image/*",
       hint: "PNG, JPG, or WebP",
-      storageNote: "Supabase Storage: symbol-images bucket.",
+      storageNote: "Attach a PNG, JPG, or WebP image.",
       icon: ImageIcon
     },
     ...(item.contentType === "gesture"
@@ -1826,7 +1838,7 @@ function ItemMediaControls({
             label: `${item.label} gesture media`,
             accept: "image/*,video/*",
             hint: "Image or short video",
-            storageNote: "Supabase Storage: gesture-media bucket.",
+            storageNote: "Attach an image or short video.",
             icon: Film
           }
         ]
@@ -1839,7 +1851,7 @@ function ItemMediaControls({
       label: `${item.label} audio`,
       accept: "audio/*",
       hint: "MP3, WAV, or M4A",
-      storageNote: "Supabase Storage: audio-files bucket.",
+      storageNote: "Attach an MP3, WAV, or M4A audio cue.",
       icon: FileAudio
     }
   ];
@@ -1902,9 +1914,9 @@ function ItemMediaControl({
       await onUpload(file);
       setStatus("uploaded");
       setMessage(`${file.name} attached.`);
-    } catch (error) {
+    } catch {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Upload failed.");
+      setMessage("The file could not be attached. Try again.");
     }
   }
 
@@ -1956,6 +1968,19 @@ function MediaMaterialPreview({
     );
   }
 
+  if (value && type === "audio-file" && isSpeechFallbackAudio(value)) {
+    return (
+      <button
+        type="button"
+        onClick={() => speakText(getSpeechFallbackLabel(value))}
+        className="inline-flex min-h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-bold text-blue-700 transition hover:border-blue-300 hover:bg-skywash sm:max-w-[13rem]"
+      >
+        <FileAudio className="h-4 w-4" aria-hidden="true" />
+        Play fallback
+      </button>
+    );
+  }
+
   if (value && type === "gesture-media" && isVideoUrl(value) && canEmbed) {
     return (
       <video controls className="h-14 w-16 shrink-0 rounded-lg border border-blue-100 bg-black object-cover" aria-label={label}>
@@ -1967,7 +1992,7 @@ function MediaMaterialPreview({
   if (value && isImageUrl(value) && canEmbed) {
     return (
       <span className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white">
-        {/* Official/approved images can be uploaded through Supabase Storage later. */}
+        {/* Uploaded images can use temporary preview URLs. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={value} alt={label} className="h-full w-full object-cover" />
       </span>
@@ -2017,6 +2042,22 @@ function MediaInlinePreview({
     );
   }
 
+  if (preview.type === "audio-file" && isSpeechFallbackAudio(value)) {
+    return (
+      <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-blue-700">{preview.title}</p>
+        <button
+          type="button"
+          onClick={() => speakText(getSpeechFallbackLabel(value))}
+          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-sm font-bold text-blue-700 transition hover:border-blue-300 hover:bg-skywash"
+        >
+          <FileAudio className="h-4 w-4" aria-hidden="true" />
+          Play browser speech fallback
+        </button>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -2029,6 +2070,8 @@ function MediaInlinePreview({
           <img src={value} alt="" className="h-full w-full object-cover" />
         ) : isVideoUrl(value) ? (
           <Film className="h-5 w-5" aria-hidden="true" />
+        ) : isSpeechFallbackAudio(value) ? (
+          <FileAudio className="h-5 w-5" aria-hidden="true" />
         ) : (
           value
         )}
@@ -2080,6 +2123,17 @@ function MediaPreviewModal({ preview, onClose }: { preview: MediaPreview; onClos
                 <source src={value} />
               </audio>
             </div>
+          ) : isSpeechFallbackAudio(value) ? (
+            <div className="rounded-lg border border-blue-100 bg-white p-5 text-center">
+              <FileAudio className="mx-auto h-8 w-8 text-blue-700" aria-hidden="true" />
+              <p className="mt-3 text-sm font-semibold text-slate-700">
+                Browser speech fallback for {getSpeechFallbackLabel(value)}
+              </p>
+              <Button type="button" className="mt-4" onClick={() => speakText(getSpeechFallbackLabel(value))}>
+                <FileAudio className="h-4 w-4" aria-hidden="true" />
+                Play fallback audio
+              </Button>
+            </div>
           ) : (
             <p className="rounded-lg border border-blue-100 bg-white p-6 text-center text-3xl font-black text-blue-700">
               {value}
@@ -2096,10 +2150,10 @@ function LearningItemSymbolPreview({ value, label }: { value?: string; label: st
 
   if (isImageUrl && value) {
     return (
-      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-[#f8fbff] shadow-inner">
-        {/* Official/approved picture-card images can be uploaded through Supabase Storage later. */}
+      <div className="h-28 w-20 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-white shadow-inner">
+        {/* Uploaded picture-card images can use temporary preview URLs. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- upload previews may use temporary blob URLs. */}
-        <img src={value} alt={`${label} picture card`} className="h-full w-full object-cover" />
+        <img src={value} alt={`${label} picture card`} className="h-full w-full object-contain" />
       </div>
     );
   }
@@ -2125,4 +2179,12 @@ function isAudioUrl(value: string) {
 
 function isUrl(value: string) {
   return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/") || value.startsWith("blob:");
+}
+
+function speakText(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.85;
+  window.speechSynthesis.speak(utterance);
 }

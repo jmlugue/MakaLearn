@@ -1,6 +1,6 @@
 # MakaLearn
 
-MakaLearn is an MVP for teacher-guided Makaton learning support. The current scope focuses on PECS content, PECS-based activities, a gesture recognition presentation tab, settings/help, and an admin panel for teacher account and content oversight.
+MakaLearn is an MVP for teacher-guided Makaton learning support. The current scope focuses on PECS content, a learner-facing PECS sentence Playground, PECS-based activities, a gesture recognition presentation tab, settings/help, and an admin panel for teacher account and content oversight.
 
 Current learning content is placeholder-only. The app does not include official Makaton symbols, gestures, audio, videos, or a real gesture recognition model.
 
@@ -34,11 +34,11 @@ npm run build
 src/
 |- app/             # App Router pages
 |- components/      # Layout, common UI, and local shadcn-style primitives
-|- data/            # Local placeholder records
+|- data/            # Local placeholder records and PECS card manifest mapping
 |- features/        # Page-level feature components and local flows
 |- lib/             # Shared utilities and Supabase helpers
 |- types/           # Database-ready TypeScript models
-`- utils/           # Lesson, activity, gesture feedback, and legacy helper utilities
+`- utils/           # Lesson, activity, gesture feedback, sentence validation, and legacy helper utilities
 ```
 
 ## Main routes
@@ -48,6 +48,7 @@ src/
 - `/content` PECS and gesture content library with in-app media previews
 - `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, hand visibility checks, and placeholder teacher feedback
 - `/activities` PECS-only activity library, player, manual creator, adaptive question generation, and AI draft helper
+- `/playground` PECS/AAC sentence builder with category filters, drag/drop or tap card selection, rule-based sentence checking, and speech/audio playback
 - `/settings` profile, accessibility, and display settings
 - `/help` teacher/admin guide
 - `/admin` admin-only teacher account, content monitoring, uploads, logs, and development tools
@@ -58,6 +59,10 @@ Legacy routes `/dashboard`, `/learners`, and `/progress` redirect to `/content` 
 
 - PECS and gestures are separate content types.
 - PECS cards support image and audio uploads only.
+- The Playground uses provided PECS/AAC PNG cards from `public/pecs/generated_cards/` and the manifest mapping in `public/pecs/pecs_arasaac_manifest.json`.
+- Playground card images are used as provided. Category and sentence-role information is shown only in the website UI outside the image.
+- Playground is available in teacher UI and Student Mode. Other teacher-only pages remain restricted while Student Mode is active.
+- Playground sentence checks use `validatePecsSentence`, a rule-based PECS arrangement validator with supported patterns such as `I want water`, `I am happy`, `Please sit`, greetings, responses, and safety expressions.
 - Teachers can store additional gesture records in Content Library.
 - Gesture Recognition uses MediaPipe hand landmarks and a rule-based sample predictor for seven fixed labels: I want to go to toilet, I want to eat food, I want to drink water, Help, Yes, No, and Sit down. These temporary finger-pose mappings are not official Makaton gestures and will be replaced by an approved trained model.
 - See `GESTURE_SAMPLE_POSES.md` for the complete demo pose-to-prediction mapping.
@@ -97,6 +102,7 @@ Current integration points:
 Planned updates before production:
 
 - Add a `content_type` field to learning items so PECS and gestures are separated in Supabase, not inferred from tags.
+- Add a `sentence_role` field to `learning_items` when updating the Supabase schema. Until then, Playground uses the supplied PECS manifest as a frontend fallback for sentence roles.
 - Wire real admin teacher creation/deactivation through Supabase Auth and profiles.
 - Review schema, RLS, and seed data against the new PECS/gesture scope.
 - Keep MediaPipe for live hand landmarks and replace the placeholder practice result/feedback logic with the approved recognition model when it is available.
@@ -109,3 +115,4 @@ Planned updates before production:
 - `generateCorrectiveFeedbackPlaceholder` and `generateFeedbackPlaceholder` are marked for future model/AI replacement.
 - Gesture hand tracking is a presentation simulation. It accepts one or two visible hands and one person in the UI but does not perform real recognition.
 - The AI activity draft is local adaptive logic, not a connected LLM.
+- Playground validation is local rule-based logic, not NLP, grammar correction, or AI.

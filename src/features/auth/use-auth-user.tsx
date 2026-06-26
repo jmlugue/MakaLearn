@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = useCallback(async () => {
     if (!isSupabaseConfigured()) {
       setUser(null);
-      setError("Supabase is not configured. Add your project URL and anon key to .env.local.");
+      setError("Sign in is not available yet. Ask an administrator to finish account setup.");
       setLoading(false);
       return;
     }

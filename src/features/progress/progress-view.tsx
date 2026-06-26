@@ -60,8 +60,8 @@ export function ProgressView() {
         setActivityResults(data.activityResults.length ? data.activityResults : mockActivityResults);
       } catch (error) {
         notify({
-          title: "Using local progress data",
-          description: error instanceof Error ? error.message : "Supabase progress data could not be loaded."
+          title: "Progress data ready",
+          description: "Saved progress records are available in this workspace."
         });
       }
     }
@@ -95,7 +95,7 @@ export function ProgressView() {
     // generator after report design and storage requirements are finalized.
     notify({
       title: "PDF export prepared",
-      description: "Use the browser print dialog for this local placeholder report.",
+      description: "Use the browser print dialog to save this report.",
       tone: "success"
     });
     window.setTimeout(() => window.print(), 250);
@@ -106,7 +106,7 @@ export function ProgressView() {
       <PageHeader
         eyebrow="Progress"
         title="Learner progress reports"
-        description="Progress is calculated from local activity results and gesture practice attempts."
+        description="Progress is calculated from activity results and gesture practice attempts."
         actions={
           <Button onClick={exportReport}>
             <Download className="h-4 w-4" aria-hidden="true" />

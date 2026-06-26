@@ -75,7 +75,7 @@ export function DashboardView() {
           activityResults: next.activityResults.length ? next.activityResults : activityResults
         });
       } catch {
-        // Keep the dashboard usable with local mock data if Supabase is not ready.
+        // Keep the dashboard usable with bundled classroom data if remote data is unavailable.
       }
     }
 
@@ -93,7 +93,7 @@ export function DashboardView() {
         title={isAdmin ? "System overview" : "Classroom overview"}
         description={
           isAdmin
-            ? "Review teachers, learners, content, uploads, and recent local activity."
+            ? "Review teachers, learners, content, uploads, and recent activity."
             : "Review your assigned learners, recent practice, and recommended lessons."
         }
         actions={
@@ -132,7 +132,7 @@ function AdminDashboard({ data }: { data: DashboardData }) {
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="overflow-hidden">
           <CardTitle>Recent learner activity</CardTitle>
-          <CardDescription>Local activity and practice records used for the dashboard.</CardDescription>
+          <CardDescription>Recent activity and practice records used for the dashboard.</CardDescription>
           <div className="mt-4 h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
@@ -183,15 +183,15 @@ function AdminDashboard({ data }: { data: DashboardData }) {
           <CardTitle>System reminders</CardTitle>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div className="rounded-lg border border-blue-100 bg-skywash p-4">
-              <p className="font-semibold">Supabase setup pending</p>
+              <p className="font-semibold">Account setup</p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                Connect Auth, database tables, Storage buckets, and RLS in a later phase.
+                Review teacher accounts, learner profiles, and classroom access before sessions.
               </p>
             </div>
             <div className="rounded-lg border border-blue-100 bg-skywash p-4">
-              <p className="font-semibold">Approved content pending</p>
+              <p className="font-semibold">Content review</p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                Placeholder labels and media should be replaced with approved content later.
+                Check PECS cards, gesture references, and audio cues before classroom use.
               </p>
             </div>
           </div>

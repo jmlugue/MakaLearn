@@ -1,0 +1,452 @@
+[
+  {
+    "filename": "hello.png",
+    "label": "Hello",
+    "category": "Greetings",
+    "sentence_role": "greeting",
+    "arasaac_search_term": "hello",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "goodbye.png",
+    "label": "Goodbye",
+    "category": "Greetings",
+    "sentence_role": "greeting",
+    "arasaac_search_term": "goodbye",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "good_morning.png",
+    "label": "Good morning",
+    "category": "Greetings",
+    "sentence_role": "greeting",
+    "arasaac_search_term": "good morning",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "thank_you.png",
+    "label": "Thank you",
+    "category": "Greetings",
+    "sentence_role": "polite_word",
+    "arasaac_search_term": "thanks",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "please.png",
+    "label": "Please",
+    "category": "Greetings",
+    "sentence_role": "polite_word",
+    "arasaac_search_term": "please",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "sorry.png",
+    "label": "Sorry",
+    "category": "Greetings",
+    "sentence_role": "greeting",
+    "arasaac_search_term": "sorry",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "happy.png",
+    "label": "Happy",
+    "category": "Emotions",
+    "sentence_role": "emotion",
+    "arasaac_search_term": "happy",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "sad.png",
+    "label": "Sad",
+    "category": "Emotions",
+    "sentence_role": "emotion",
+    "arasaac_search_term": "sad",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "angry.png",
+    "label": "Angry",
+    "category": "Emotions",
+    "sentence_role": "emotion",
+    "arasaac_search_term": "angry",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "scared.png",
+    "label": "Scared",
+    "category": "Emotions",
+    "sentence_role": "emotion",
+    "arasaac_search_term": "scared",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "tired.png",
+    "label": "Tired",
+    "category": "Emotions",
+    "sentence_role": "emotion",
+    "arasaac_search_term": "tired",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "sick.png",
+    "label": "Sick",
+    "category": "Emotions",
+    "sentence_role": "emotion",
+    "arasaac_search_term": "sick",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "i.png",
+    "label": "I",
+    "category": "Family",
+    "sentence_role": "subject",
+    "arasaac_search_term": "I",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "you.png",
+    "label": "You",
+    "category": "Family",
+    "sentence_role": "subject",
+    "arasaac_search_term": "you",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "mother.png",
+    "label": "Mother",
+    "category": "Family",
+    "sentence_role": "subject",
+    "arasaac_search_term": "mother",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "father.png",
+    "label": "Father",
+    "category": "Family",
+    "sentence_role": "subject",
+    "arasaac_search_term": "father",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "teacher.png",
+    "label": "Teacher",
+    "category": "Family",
+    "sentence_role": "subject",
+    "arasaac_search_term": "teacher",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "friend.png",
+    "label": "Friend",
+    "category": "Family",
+    "sentence_role": "subject",
+    "arasaac_search_term": "friend",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "eat.png",
+    "label": "Eat",
+    "category": "Food",
+    "sentence_role": "verb",
+    "arasaac_search_term": "eat",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "drink.png",
+    "label": "Drink",
+    "category": "Food",
+    "sentence_role": "verb",
+    "arasaac_search_term": "drink",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "food.png",
+    "label": "Food",
+    "category": "Food",
+    "sentence_role": "object",
+    "arasaac_search_term": "food",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "water.png",
+    "label": "Water",
+    "category": "Food",
+    "sentence_role": "object",
+    "arasaac_search_term": "glass of water",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "rice.png",
+    "label": "Rice",
+    "category": "Food",
+    "sentence_role": "object",
+    "arasaac_search_term": "rice",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "bread.png",
+    "label": "Bread",
+    "category": "Food",
+    "sentence_role": "object",
+    "arasaac_search_term": "bread",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "milk.png",
+    "label": "Milk",
+    "category": "Food",
+    "sentence_role": "object",
+    "arasaac_search_term": "milk",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "banana.png",
+    "label": "Banana",
+    "category": "Food",
+    "sentence_role": "object",
+    "arasaac_search_term": "banana",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "sit.png",
+    "label": "Sit",
+    "category": "Classroom Commands",
+    "sentence_role": "command",
+    "arasaac_search_term": "sit down",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "stand.png",
+    "label": "Stand",
+    "category": "Classroom Commands",
+    "sentence_role": "command",
+    "arasaac_search_term": "stand up",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "listen.png",
+    "label": "Listen",
+    "category": "Classroom Commands",
+    "sentence_role": "command",
+    "arasaac_search_term": "listen",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "look.png",
+    "label": "Look",
+    "category": "Classroom Commands",
+    "sentence_role": "command",
+    "arasaac_search_term": "look",
+    "special_card_type": "safe_look_fallback",
+    "search_note": "Special local fallback included so the card set remains complete and standardized if ARASAAC lookup fails."
+  },
+  {
+    "filename": "read.png",
+    "label": "Read",
+    "category": "Classroom Commands",
+    "sentence_role": "verb",
+    "arasaac_search_term": "read",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "write.png",
+    "label": "Write",
+    "category": "Classroom Commands",
+    "sentence_role": "verb",
+    "arasaac_search_term": "write",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "wait.png",
+    "label": "Wait",
+    "category": "Classroom Commands",
+    "sentence_role": "command",
+    "arasaac_search_term": "wait",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "stop.png",
+    "label": "Stop",
+    "category": "Classroom Commands",
+    "sentence_role": "command",
+    "arasaac_search_term": "stop",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "toilet.png",
+    "label": "Toilet",
+    "category": "Daily Needs",
+    "sentence_role": "object",
+    "arasaac_search_term": "toilet",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "help.png",
+    "label": "Help",
+    "category": "Daily Needs",
+    "sentence_role": "command",
+    "arasaac_search_term": "help",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "rest.png",
+    "label": "Rest",
+    "category": "Daily Needs",
+    "sentence_role": "object",
+    "arasaac_search_term": "rest",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "sleep.png",
+    "label": "Sleep",
+    "category": "Daily Needs",
+    "sentence_role": "verb",
+    "arasaac_search_term": "sleep",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "wash_hands.png",
+    "label": "Wash hands",
+    "category": "Daily Needs",
+    "sentence_role": "verb",
+    "arasaac_search_term": "wash hands",
+    "special_card_type": "safe_wash_hands",
+    "search_note": "Special local fallback is used to prevent incorrect matches such as wash cars."
+  },
+  {
+    "filename": "more.png",
+    "label": "More",
+    "category": "Daily Needs",
+    "sentence_role": "response",
+    "arasaac_search_term": "more",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "finished.png",
+    "label": "Finished",
+    "category": "Daily Needs",
+    "sentence_role": "response",
+    "arasaac_search_term": "finished",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "danger.png",
+    "label": "Danger",
+    "category": "Safety Words",
+    "sentence_role": "safety_word",
+    "arasaac_search_term": "danger",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "hot.png",
+    "label": "Hot",
+    "category": "Safety Words",
+    "sentence_role": "safety_word",
+    "arasaac_search_term": "hot",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "hurt.png",
+    "label": "Hurt",
+    "category": "Safety Words",
+    "sentence_role": "safety_word",
+    "arasaac_search_term": "pain",
+    "special_card_type": "safe_hurt_no_blood",
+    "search_note": "Special local fallback uses a non-bloody bandage symbol for SPED learner safety."
+  },
+  {
+    "filename": "yes.png",
+    "label": "Yes",
+    "category": "Safety Words",
+    "sentence_role": "response",
+    "arasaac_search_term": "yes",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "no.png",
+    "label": "No",
+    "category": "Safety Words",
+    "sentence_role": "response",
+    "arasaac_search_term": "no",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "want.png",
+    "label": "Want",
+    "category": "Daily Needs",
+    "sentence_role": "verb",
+    "arasaac_search_term": "want",
+    "special_card_type": "",
+    "search_note": ""
+  },
+  {
+    "filename": "am.png",
+    "label": "Am",
+    "category": "Daily Needs",
+    "sentence_role": "be_verb",
+    "arasaac_search_term": "am",
+    "special_card_type": "text_only",
+    "search_note": "Special local fallback uses a text-only symbol because these are function words."
+  },
+  {
+    "filename": "is.png",
+    "label": "Is",
+    "category": "Daily Needs",
+    "sentence_role": "be_verb",
+    "arasaac_search_term": "is",
+    "special_card_type": "text_only",
+    "search_note": "Special local fallback uses a text-only symbol because these are function words."
+  },
+  {
+    "filename": "are.png",
+    "label": "Are",
+    "category": "Daily Needs",
+    "sentence_role": "be_verb",
+    "arasaac_search_term": "are",
+    "special_card_type": "text_only",
+    "search_note": "Special local fallback uses a text-only symbol because these are function words."
+  }
+]

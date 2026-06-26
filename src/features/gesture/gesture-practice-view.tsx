@@ -105,6 +105,10 @@ export function GesturePracticeView() {
   const selectedGesture = learningItems.find((item) => item.id === selectedGestureId) ?? learningItems[0];
   const selectedPredictionGuide = supportedGesturePredictions.find((gesture) => gesture.label === selectedGesture?.label);
   const selectedCategory = categories.find((category) => category.id === selectedGesture?.categoryId);
+  const detectedGesture = prediction
+    ? learningItems.find((item) => item.label === prediction.label)
+    : undefined;
+  const referenceInstruction = getGesturePerformanceInstruction(selectedGesture, selectedPredictionGuide?.pose);
   const meta = trackingMeta[trackingState];
   const hasValidHands = trackingState === "hands-visible";
   const isCorrectGesture = Boolean(prediction && selectedGesture && prediction.label === selectedGesture.label);
@@ -121,8 +125,8 @@ export function GesturePracticeView() {
         setCategories(data.categories.length ? data.categories : mockCategories);
       } catch (error) {
         notify({
-          title: "Using local gesture data",
-          description: error instanceof Error ? error.message : "Supabase gesture data could not be loaded."
+          title: "Gesture data ready",
+          description: "Saved gesture references are available in this workspace."
         });
       }
     }
@@ -145,17 +149,28 @@ export function GesturePracticeView() {
   }, [learningItems]);
 
   useEffect(() => {
-    if (!isCorrectGesture || !selectedGesture?.audioUrl) return;
-    const audioKey = `${selectedGesture.id}:${prediction?.label ?? ""}`;
+    if (!prediction) return;
+    const audioKey = detectedGesture?.id ?? prediction.label;
     if (lastAutoAudioKeyRef.current === audioKey) return;
     lastAutoAudioKeyRef.current = audioKey;
-    playAudioSource(selectedGesture.audioUrl, selectedGesture.label, () => {
+
+    if (detectedGesture?.audioUrl) {
+      playAudioSource(detectedGesture.audioUrl, detectedGesture.label, () => {
+        notify({
+          title: "Audio unavailable",
+          description: "Use the reference panel audio control or check the uploaded audio file."
+        });
+      });
+      return;
+    }
+
+    speakAudioCuePlaceholder(prediction.label, () => {
       notify({
         title: "Audio unavailable",
         description: "Use the reference panel audio control or check the uploaded audio file."
       });
     });
-  }, [isCorrectGesture, notify, prediction?.label, selectedGesture?.audioUrl, selectedGesture?.id, selectedGesture?.label]);
+  }, [detectedGesture?.audioUrl, detectedGesture?.id, detectedGesture?.label, notify, prediction]);
 
   async function prepareHandTracker() {
     if (handLandmarkerRef.current && drawingUtilsRef.current) return handLandmarkerRef.current;
@@ -297,16 +312,15 @@ export function GesturePracticeView() {
       nextPrediction
         ? nextPrediction.label === selectedGesture?.label
           ? generateCorrectiveFeedbackPlaceholder(nextPrediction.label)
-          : `Detected "${nextPrediction.label}". Check the reference and try "${selectedGesture?.label ?? "the selected gesture"}" again slowly.`
+          : `Detected "${nextPrediction.label}". Use the reference panel to compare it with "${selectedGesture?.label ?? "the selected gesture"}".`
         : "No supported pose matched yet. Check the examples and hold one pose steadily."
     );
   }
 
   function handleGestureChange(nextGestureId: string) {
     setSelectedGestureId(nextGestureId);
-    lastAutoAudioKeyRef.current = null;
     clearPrediction();
-    setFeedback(cameraStarted ? "Target changed. Hold the new gesture in frame when ready." : "Start the camera to show hand visibility and validation feedback.");
+    setFeedback(cameraStarted ? "Reference changed. Hold a supported gesture in frame when ready." : "Start the camera to show hand visibility and validation feedback.");
   }
 
   if (isStudentMode) {
@@ -346,19 +360,19 @@ export function GesturePracticeView() {
               aria-live="polite"
             >
               <p className="text-xl font-black">
-                {isCorrectGesture ? "Good match" : prediction ? "Try again slowly" : meta.label}
+                {isCorrectGesture ? "Reference matched" : prediction ? "Gesture detected" : meta.label}
               </p>
               <p className="mt-1 text-sm font-semibold">
                 {isCorrectGesture
-                  ? `You matched ${selectedGesture?.label}.`
+                  ? `You matched the visible reference: ${selectedGesture?.label}.`
                   : prediction
                     ? `The camera saw ${prediction.label}.`
                     : meta.detail}
               </p>
-              {isCorrectGesture && selectedGesture?.audioUrl ? (
+              {prediction ? (
                 <p className="mt-2 inline-flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide text-green-800">
                   <Volume2 className="h-4 w-4" aria-hidden="true" />
-                  Audio played
+                  Audio cue triggered
                 </p>
               ) : null}
             </div>
@@ -372,12 +386,12 @@ export function GesturePracticeView() {
 
         <Card className="flex min-h-0 flex-col overflow-hidden bg-[#fbfdff] p-4">
           <GestureSelector
-            id="student-gesture-target"
-            label="Choose gesture"
+            id="student-gesture-reference"
+            label="Reference gesture"
             items={learningItems}
             selectedGestureId={selectedGesture?.id ?? ""}
             onChange={handleGestureChange}
-            helperText="Change the target without leaving student mode."
+            helperText="Change the reference without leaving student mode."
           />
 
           <div className="mt-3 rounded-lg border border-blue-100 bg-white/70 p-3">
@@ -386,9 +400,8 @@ export function GesturePracticeView() {
               {selectedPredictionGuide ? <Badge className="bg-mint text-green-700">{selectedPredictionGuide.pose}</Badge> : null}
             </div>
             <CardTitle className="mt-2 text-2xl">{selectedGesture?.label ?? "Gesture reference"}</CardTitle>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {selectedGesture?.instruction ?? "Wait for the teacher to choose a gesture."}
-            </p>
+            <p className="mt-2 text-xs font-bold uppercase tracking-wide text-blue-700">How to perform it</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{referenceInstruction}</p>
           </div>
 
           {selectedGesture ? (
@@ -428,7 +441,7 @@ export function GesturePracticeView() {
       <PageHeader
         eyebrow="Gesture Recognition"
         title="Sample gesture prediction"
-        description="Show a supported one-hand or two-hand pose and hold it briefly to see a live demo prediction."
+        description="View a supported classroom reference, then hold any supported gesture to hear its audio cue."
       />
 
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -436,7 +449,7 @@ export function GesturePracticeView() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle>Camera and hand detector</CardTitle>
-              <CardDescription>The landmark outline follows the hand while demo rules match its finger pose.</CardDescription>
+              <CardDescription>The hand outline helps the teacher check position and visibility.</CardDescription>
             </div>
             <Button onClick={startCamera}>
               <Camera className="h-4 w-4" aria-hidden="true" />
@@ -477,26 +490,30 @@ export function GesturePracticeView() {
         </Card>
 
         <div className="grid gap-4">
-          <Card className="bg-[#fbfdff]">
-            <CardTitle>Gesture target</CardTitle>
-            <CardDescription>Choose the gesture to practice. These demo mappings are not official Makaton gestures.</CardDescription>
-            <div className="mt-4">
-              <GestureSelector
-                id="teacher-gesture-target"
-                label="Practice target"
-                items={learningItems}
-                selectedGestureId={selectedGesture?.id ?? ""}
-                onChange={handleGestureChange}
-                helperText={selectedPredictionGuide?.pose ?? "Select a supported sample pose."}
-              />
-            </div>
-          </Card>
-
           {selectedGesture ? (
             <Card className="flex h-full flex-col">
-              <Badge>{selectedCategory?.name ?? "Sample gesture"}</Badge>
-              <CardTitle className="mt-3">{selectedGesture.label}</CardTitle>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{selectedGesture.instruction}</p>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <Badge>{selectedCategory?.name ?? "Sample gesture"}</Badge>
+                  <CardTitle className="mt-3">Gesture reference</CardTitle>
+                  <CardDescription>Choose the reference you want to view while the camera listens for any supported gesture.</CardDescription>
+                </div>
+                <GestureSelector
+                  id="teacher-gesture-reference"
+                  label="Reference gesture"
+                  items={learningItems}
+                  selectedGestureId={selectedGesture.id}
+                  onChange={handleGestureChange}
+                  helperText="Changing the reference does not limit what the detector can hear."
+                />
+              </div>
+              <div className="mt-4 rounded-lg border border-blue-100 bg-skywash p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">How to perform it</p>
+                <p className="mt-1 text-sm font-semibold leading-6 text-ink">{referenceInstruction}</p>
+                {selectedGesture.instruction ? (
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{selectedGesture.instruction}</p>
+                ) : null}
+              </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <PracticeReferenceMedia
                   title="Reference image"
@@ -587,7 +604,7 @@ export function GesturePracticeView() {
                 <Sparkles className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
                 <div>
                   <p className="font-semibold">Predicted: {prediction.label}</p>
-                  <p className="mt-1 text-sm">Matched demo pose: {prediction.pose}.</p>
+                  <p className="mt-1 text-sm">Matched pose: {prediction.pose}.</p>
                 </div>
               </div>
             ) : null}
@@ -608,6 +625,11 @@ export function GesturePracticeView() {
       </section>
     </>
   );
+}
+
+function getGesturePerformanceInstruction(item?: LearningItem, pose?: string) {
+  if (!item) return "Choose a reference gesture to view the classroom cue.";
+  return pose ?? item.description ?? "Copy the reference slowly and keep both hands visible in the camera frame.";
 }
 
 function getFixedGestureItems(items: LearningItem[]) {
@@ -776,7 +798,7 @@ function PracticeReferenceMedia({
             <p className="text-center text-sm font-semibold text-slate-500">{emptyText}</p>
           )
         ) : isImageUrl(mediaValue) && canEmbedMedia(mediaValue) ? (
-          // Official/approved gesture images can be uploaded through Supabase Storage later.
+          // Uploaded gesture images can use temporary preview URLs.
           // eslint-disable-next-line @next/next/no-img-element
           <img src={mediaSrc} alt={label} className={`${compact ? "max-h-32" : "max-h-64"} w-full rounded-md object-contain`} />
         ) : isVideoUrl(mediaValue) && canEmbedMedia(mediaValue) ? (

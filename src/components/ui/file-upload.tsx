@@ -13,7 +13,7 @@ export function FileUpload({
   onUpload,
   onRemove,
   existingFileName,
-  successMessage = "Uploaded to Supabase Storage.",
+  successMessage = "File attached.",
   icon: Icon = FileUp,
   compact = false
 }: {
@@ -50,9 +50,9 @@ export function FileUpload({
       await onUpload(file);
       setStatus("uploaded");
       setMessage(successMessage);
-    } catch (error) {
+    } catch {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Upload failed.");
+      setMessage("The file could not be attached. Try again.");
     }
   }
 
@@ -65,9 +65,9 @@ export function FileUpload({
     setMessage("");
     try {
       await onRemove?.();
-    } catch (error) {
+    } catch {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Could not remove this file.");
+      setMessage("Could not remove this file.");
     }
   }
 
