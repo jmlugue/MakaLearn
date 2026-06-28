@@ -47,7 +47,7 @@ src/
 - `/login` Supabase Auth sign-in
 - `/content` PECS and gesture content library with in-app media previews
 - `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, hand visibility checks, and placeholder teacher feedback
-- `/activities` PECS-only activity library, player, manual creator, adaptive question generation, and AI draft helper
+- `/activities` PECS activity library, player, manual creator, adaptive question generation, and draft helper
 - `/playground` PECS/AAC sentence builder with category filters, drag/drop or tap card selection, rule-based sentence checking, and speech/audio playback
 - `/settings` profile, accessibility, and display settings
 - `/help` teacher/admin guide
@@ -68,12 +68,11 @@ Legacy routes `/dashboard`, `/learners`, and `/progress` redirect to `/content` 
 - See `GESTURE_SAMPLE_POSES.md` for the complete demo pose-to-prediction mapping.
 - Gesture records support reference image, gesture image/video, and audio uploads.
 - PECS and gesture images/videos/audio can be previewed inside the website.
-- Activities can only be created from PECS cards.
+- Activities can be created from PECS cards. Gesture lessons link to Gesture Practice instead of creating Activity Library records.
 - Activity question generation adapts to each PECS card label and description, so greetings and choices do not use request-only wording.
-- Gesture activity creation is removed; gestures are handled only in the gesture recognition tab.
-- The AI draft button in Activity creation creates an editable local draft from selected PECS cards. Teachers review and edit before saving.
+- The draft button in Activity creation creates an editable local draft from selected learning items. Teachers review and edit before saving.
 - Drag-and-drop answers remain visual cards after dropping, and scored incorrect answers use red feedback.
-- Lessons no longer show an Open Activity action, so deleted activities are not implied by lesson records.
+- Saving a PECS lesson creates a related playable activity and the lesson shows an Open activity action. Gesture lessons show a Practice gesture action.
 - Activity scoring is session-only in this scope and does not record learner progress.
 - The real icon-only logo is served from `public/makalearn_logo_current.png` and used in the primary brand surfaces.
 - Admins can create local teacher account previews, deactivate/reactivate teachers, change roles, monitor teacher-managed content, review uploads, and see logs.

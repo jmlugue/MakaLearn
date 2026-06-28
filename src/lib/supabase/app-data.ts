@@ -650,7 +650,7 @@ export function createActivityQuestions(
 
 function createAdaptivePrompt(type: Activity["type"], item: LearningItem) {
   if (type === "gesture-practice") {
-    return `Practise “${item.label}” with teacher guidance.`;
+    return `Practise "${item.label}" with teacher guidance.`;
   }
 
   if (type === "fill-blank") {
@@ -658,18 +658,25 @@ function createAdaptivePrompt(type: Activity["type"], item: LearningItem) {
   }
 
   if (type === "choose-correct-symbol") {
-    return `Choose the PECS card for "${item.label}".`;
+    return `Which PECS card fits this situation? ${formatPromptDescription(item.description)}`;
   }
 
   if (type === "simple-quiz") {
-    return `Which PECS word fits this classroom use: ${item.description}`;
+    return `Which PECS word matches this classroom use? ${formatPromptDescription(item.description)}`;
   }
 
   if (type === "drag-drop-symbol") {
     return item.label;
   }
 
-  return `Match "${item.label}" to its PECS card.`;
+  return `Match the word "${item.label}" to its PECS card.`;
+}
+
+function formatPromptDescription(description: string) {
+  const trimmed = description.trim();
+  if (!trimmed) return "Choose the best classroom communication card.";
+
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
 function createFillBlankPrompt(item: LearningItem) {

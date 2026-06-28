@@ -49,6 +49,44 @@ function uniqueTags(tags: string[]) {
   return [...new Set(tags.filter(Boolean))];
 }
 
+function createPecsDescription(label: string, category: PecsCardCategory) {
+  const lowerLabel = label.toLowerCase();
+
+  if (category === "Greetings") {
+    return `Use when greeting someone, saying goodbye, or starting a classroom interaction with "${label}".`;
+  }
+
+  if (category === "Emotions") {
+    return `Use when the learner needs to express feeling ${lowerLabel} or talk about emotions.`;
+  }
+
+  if (category === "Food") {
+    return `Use when the learner wants ${lowerLabel}, is choosing food, or is talking about snack and meal routines.`;
+  }
+
+  if (category === "Daily Needs") {
+    return `Use when the learner needs ${lowerLabel} or wants to communicate an everyday request.`;
+  }
+
+  if (category === "Classroom Commands") {
+    return `Use when practising the classroom direction "${label}" or following a teacher-guided routine.`;
+  }
+
+  if (category === "Safety Words") {
+    return `Use when the learner needs to communicate "${label}" during safety, discomfort, or urgent classroom situations.`;
+  }
+
+  if (category === "Family") {
+    return `Use when the learner is talking about ${lowerLabel} or identifying familiar people.`;
+  }
+
+  return `Use when the learner needs to communicate "${label}" in a classroom routine.`;
+}
+
+function isGenericPecsDescription(description: string) {
+  return /^A (provided )?PECS\/AAC card/i.test(description) || /^A PECS card/i.test(description);
+}
+
 export function createPecsManifestCategories(createdBy = "user-admin"): Category[] {
   return pecsCardManifest.reduce<Category[]>((records, card) => {
     const id = getPecsCategoryId(card.category);
@@ -57,7 +95,7 @@ export function createPecsManifestCategories(createdBy = "user-admin"): Category
     records.push({
       id,
       name: card.category,
-      description: `Provided PECS/AAC cards for ${card.category.toLowerCase()} practice.`,
+      description: `PECS/AAC cards for ${card.category.toLowerCase()} practice.`,
       color: categoryColors[card.category],
       createdBy
     });
@@ -88,6 +126,7 @@ export function ensurePecsManifestItems(records: LearningItem[]) {
 
     return {
       ...item,
+      description: isGenericPecsDescription(item.description) ? createPecsDescription(card.label, card.category) : item.description,
       symbolImageUrl: isEmbeddableMediaUrl(item.symbolImageUrl) ? item.symbolImageUrl : card.imagePath,
       audioUrl: isEmbeddableMediaUrl(item.audioUrl) ? item.audioUrl : card.audioPath,
       sentenceRole: item.sentenceRole ?? card.sentenceRole,
@@ -108,7 +147,7 @@ export function ensurePecsManifestItems(records: LearningItem[]) {
       contentType: "pecs",
       label: card.label,
       categoryId: getPecsCategoryId(card.category),
-      description: `A provided PECS/AAC card for ${card.label.toLowerCase()} classroom communication practice.`,
+      description: createPecsDescription(card.label, card.category),
       instruction: "Use this card during teacher-guided PECS/AAC sentence building and classroom routines.",
       symbolImageUrl: card.imagePath,
       audioUrl: card.audioPath,

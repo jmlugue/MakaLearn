@@ -28,8 +28,8 @@ export default function LoginPage() {
             <div className="login-loop" aria-hidden="true" />
             <div className="relative z-10 flex h-full flex-col">
               <div className="flex items-center">
-                <span className="grid h-20 w-20 place-items-center overflow-hidden rounded-[1.6rem] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.2)] sm:h-24 sm:w-24">
-                  <Image src="/makalearn_logo_current.png" alt="" width={160} height={160} className="h-full w-full object-contain p-2" priority />
+                <span className="grid h-28 w-28 place-items-center overflow-hidden rounded-[1.8rem] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.2)] sm:h-32 sm:w-32">
+                  <Image src="/makalearn_logo_current.png" alt="" width={208} height={208} className="h-full w-full scale-125 object-contain object-center" priority />
                 </span>
               </div>
               <p className="mt-8 max-w-md text-lg font-semibold leading-8 text-blue-50">
@@ -43,7 +43,6 @@ export default function LoginPage() {
                   </div>
                 ))}
               </div>
-              <p className="mt-auto pt-12 text-sm leading-6 text-blue-100">Use the account provided by your school administrator.</p>
             </div>
           </section>
           <section className="relative grid place-items-center bg-white/40 px-5 py-10 backdrop-blur-2xl sm:px-10 lg:px-12">

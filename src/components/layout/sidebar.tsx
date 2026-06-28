@@ -14,7 +14,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, signOut } = useAuthUser();
   const { isStudentMode, enterStudentMode, exitStudentMode } = useStudentMode();
-  const items = isStudentMode ? studentNavItems : user.role === "admin" ? [...baseNavItems, adminNavItem] : baseNavItems;
+  const items = isStudentMode ? studentNavItems : user.role === "admin" ? [adminNavItem, ...baseNavItems] : baseNavItems;
 
   return (
     <aside className="glass-panel-strong fixed bottom-4 left-4 top-4 z-30 hidden w-64 rounded-[1.75rem] border p-4 lg:flex lg:flex-col">

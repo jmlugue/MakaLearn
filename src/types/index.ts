@@ -91,6 +91,7 @@ export type Lesson = {
   activityType: ActivityType;
   estimatedDuration: number;
   notes: string;
+  relatedActivityId?: string;
   source: "manual" | "auto-generated";
   visibility: "shared" | "private";
   createdBy: string;

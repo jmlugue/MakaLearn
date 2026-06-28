@@ -12,7 +12,7 @@ export function MobileNav() {
   const pathname = usePathname();
   const { user, signOut } = useAuthUser();
   const { isStudentMode, enterStudentMode, exitStudentMode } = useStudentMode();
-  const items = isStudentMode ? studentNavItems : user.role === "admin" ? [...baseNavItems, adminNavItem] : baseNavItems;
+  const items = isStudentMode ? studentNavItems : user.role === "admin" ? [adminNavItem, ...baseNavItems] : baseNavItems;
 
   return (
     <nav className="glass-panel-strong fixed bottom-2 left-2 right-2 z-40 flex gap-2 overflow-x-auto rounded-2xl border px-2 py-2 lg:hidden">

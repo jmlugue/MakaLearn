@@ -1,17 +1,18 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   BookOpen,
   BookPlus,
-  Clock,
   FileAudio,
   Film,
   FolderOpen,
   Maximize2,
   Image as ImageIcon,
   Layers,
+  PlayCircle,
   Plus,
   Search,
   Trash2,
@@ -27,6 +28,7 @@ import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/compone
 import { FileUpload } from "@/components/ui/file-upload";
 import { SelectionList } from "@/components/ui/selection-list";
 import { EmptyState } from "@/components/common/empty-state";
+import { LoadingState } from "@/components/common/loading-state";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { insertAuditLog } from "@/lib/audit-logs";
@@ -42,8 +44,10 @@ import {
   deleteLesson,
   fetchMakaLearnData,
   insertCategory,
+  insertActivity,
   insertLearningItem,
   insertLesson,
+  createActivityQuestions,
   updateLearningItemDetails,
   updateLearningItemMedia
 } from "@/lib/supabase/app-data";
@@ -58,8 +62,8 @@ import {
   isSpeechFallbackAudio
 } from "@/utils/pecs-content-library";
 import { formatDate } from "@/lib/utils";
-import { activityTypeLabels, getActivityTypeLabel } from "@/utils/activity-labels";
-import type { ActivityType, Category, LearningItem, Lesson, MediaAsset } from "@/types";
+import { getActivityTypeLabel } from "@/utils/activity-labels";
+import type { Activity, ActivityType, Category, LearningItem, Lesson, MediaAsset } from "@/types";
 
 type Tab = "items" | "lessons" | "categories" | "media";
 type ContentKind = "pecs" | "gesture";
@@ -79,6 +83,15 @@ type ContentLibraryLocalState = {
 };
 
 const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
+const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
+
+const pecsLessonActivityTypes: ActivityType[] = [
+  "match-word-symbol",
+  "choose-correct-symbol",
+  "fill-blank",
+  "drag-drop-symbol",
+  "simple-quiz"
+];
 
 const tabMeta: Record<Tab, { label: string; description: string; icon: LucideIcon }> = {
   items: {
@@ -103,14 +116,6 @@ const tabMeta: Record<Tab, { label: string; description: string; icon: LucideIco
   }
 };
 
-const activityTypes: ActivityType[] = [
-  "match-word-symbol",
-  "choose-correct-symbol",
-  "fill-blank",
-  "drag-drop-symbol",
-  "simple-quiz"
-];
-
 const fixedGestureLabels = new Set([
   "I want to go to toilet",
   "I want to eat food",
@@ -122,7 +127,7 @@ const fixedGestureLabels = new Set([
 ]);
 
 function readLocalContentLibrary(): ContentLibraryLocalState | null {
-  if (typeof window === "undefined" || isSupabaseConfigured()) return null;
+  if (typeof window === "undefined") return null;
 
   try {
     const value = window.localStorage.getItem(CONTENT_LIBRARY_STORAGE_KEY);
@@ -130,6 +135,86 @@ function readLocalContentLibrary(): ContentLibraryLocalState | null {
   } catch {
     return null;
   }
+}
+
+function readLocalActivities(): Activity[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const value = window.localStorage.getItem(LOCAL_ACTIVITIES_STORAGE_KEY);
+    const parsed = value ? (JSON.parse(value) as unknown) : [];
+    return Array.isArray(parsed) ? (parsed as Activity[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalContentLibrary(state: ContentLibraryLocalState) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(CONTENT_LIBRARY_STORAGE_KEY, JSON.stringify(state));
+}
+
+function writeLocalActivity(activity: Activity) {
+  if (typeof window === "undefined") return;
+
+  const activities = readLocalActivities();
+  window.localStorage.setItem(
+    LOCAL_ACTIVITIES_STORAGE_KEY,
+    JSON.stringify([activity, ...activities.filter((candidate) => candidate.id !== activity.id)])
+  );
+}
+
+function mergeById<T extends { id: string }>(primary: T[], fallback: T[]) {
+  const fallbackById = new Map(fallback.map((item) => [item.id, item]));
+  const merged = primary.map((item) => ({ ...(fallbackById.get(item.id) ?? {}), ...item }) as T);
+  const seen = new Set(merged.map((item) => item.id));
+  return [...merged, ...fallback.filter((item) => !seen.has(item.id))];
+}
+
+function mergeLessons(primary: Lesson[], fallback: Lesson[]) {
+  const fallbackById = new Map(fallback.map((lesson) => [lesson.id, lesson]));
+  const merged = primary.map((lesson) => {
+    const local = fallbackById.get(lesson.id);
+    if (!local) return lesson;
+
+    return {
+      ...local,
+      ...lesson,
+      learningItemIds: lesson.learningItemIds.length ? lesson.learningItemIds : local.learningItemIds,
+      relatedActivityId: lesson.relatedActivityId ?? local.relatedActivityId
+    };
+  });
+  const seen = new Set(merged.map((lesson) => lesson.id));
+  return [...merged, ...fallback.filter((lesson) => !seen.has(lesson.id))];
+}
+
+function hydrateLessonsFromLocalActivities(records: Lesson[]) {
+  const activities = readLocalActivities();
+  if (!activities.length) return records;
+
+  return records.map((lesson) => {
+    if (lesson.learningItemIds.length) return lesson;
+    const relatedActivity =
+      activities.find((activity) => activity.id === lesson.relatedActivityId) ??
+      activities.find((activity) => activity.title === `${lesson.title} activity`);
+
+    if (!relatedActivity?.learningItemIds.length) return lesson;
+
+    return {
+      ...lesson,
+      learningItemIds: relatedActivity.learningItemIds,
+      relatedActivityId: lesson.relatedActivityId ?? relatedActivity.id,
+      activityType: relatedActivity.type
+    };
+  });
+}
+
+function createLearningItemInstruction(contentType: ContentKind, label: string, description: string) {
+  if (contentType === "gesture") {
+    return `Use the ${label} reference during guided gesture practice. ${description}`;
+  }
+
+  return `Use the ${label} card during guided PECS practice. ${description}`;
 }
 
 function normalizeLearningItems(records: LearningItem[]) {
@@ -152,9 +237,13 @@ function ensureFixedGestureItems(records: LearningItem[]) {
     return {
       ...item,
       categoryId: item.categoryId || required.categoryId,
+      description: isGenericGestureDescription(item.description) ? required.description : item.description,
       symbolImageUrl: item.symbolImageUrl || required.symbolImageUrl,
       gestureMediaUrl: item.gestureMediaUrl || required.gestureMediaUrl,
-      audioUrl: shouldUseGeneratedGestureAudio(item.audioUrl) ? required.audioUrl : item.audioUrl
+      audioUrl: shouldUseGeneratedGestureAudio(item.audioUrl) ? required.audioUrl : item.audioUrl,
+      tags: item.tags.includes("demo")
+        ? [...new Set(item.tags.filter((tag) => tag !== "demo").concat("classroom"))]
+        : item.tags
     };
   });
   const existingLabels = new Set(upgraded.map((item) => item.label));
@@ -169,11 +258,35 @@ function shouldUseGeneratedGestureAudio(value?: string) {
   return !value || (/demo\.mp3$/i.test(value) && !value.startsWith("/audio/"));
 }
 
+function isGenericGestureDescription(description: string) {
+  return /demo gesture/i.test(description) || /^Fixed gesture/i.test(description);
+}
+
 function ensureGestureCategory(records: Category[]) {
   const withPecsCategories = ensurePecsManifestCategories(records);
-  return withPecsCategories.some((category) => category.id === "cat-gestures")
+  const gestureCategory = mockCategories.find((category) => category.id === "cat-gestures") ?? mockCategories[0];
+  const categoriesWithGesture = withPecsCategories.some((category) => category.id === "cat-gestures")
     ? withPecsCategories
-    : [...withPecsCategories, mockCategories.find((category) => category.id === "cat-gestures") ?? mockCategories[0]];
+    : [...withPecsCategories, gestureCategory];
+
+  return categoriesWithGesture.map((category) => {
+    if (
+      category.id === "cat-gestures" &&
+      (/demo/i.test(category.description) || /presentation gestures/i.test(category.description))
+    ) {
+      return { ...category, description: gestureCategory.description };
+    }
+
+    if (category.id === "cat-pecs-needs" && /demo/i.test(category.description)) {
+      return { ...category, description: "Picture exchange cards for everyday classroom requests." };
+    }
+
+    if (category.id === "cat-pecs-choices" && /demo/i.test(category.description)) {
+      return { ...category, description: "Picture exchange cards for quick answer choices." };
+    }
+
+    return category;
+  });
 }
 
 function isFixedGesture(item: LearningItem) {
@@ -199,12 +312,11 @@ export function ContentLibraryView() {
   const [lessonInstructions, setLessonInstructions] = useState(
     "Introduce the learning items, model each one, practise together, then review the learner's response."
   );
-  const [lessonActivityType, setLessonActivityType] = useState<ActivityType>("simple-quiz");
-  const [lessonDuration, setLessonDuration] = useState(10);
+  const [lessonActivityType, setLessonActivityType] = useState<ActivityType>("choose-correct-symbol");
   const [lessonItemIds, setLessonItemIds] = useState<string[]>(
     learningItems.filter((item) => item.contentType === "pecs").slice(0, 2).map((item) => item.id)
   );
-  const [lessonNotes, setLessonNotes] = useState("Manual lesson draft created in MakaLearn.");
+  const [lessonItemSearch, setLessonItemSearch] = useState("");
   const [lessonError, setLessonError] = useState("");
   const [lessonFormOpen, setLessonFormOpen] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
@@ -214,10 +326,9 @@ export function ContentLibraryView() {
   const [editItemLabel, setEditItemLabel] = useState("");
   const [editItemCategoryId, setEditItemCategoryId] = useState("");
   const [editItemDescription, setEditItemDescription] = useState("");
-  const [editItemInstruction, setEditItemInstruction] = useState("");
   const [editItemTags, setEditItemTags] = useState("");
   const [newItemFiles, setNewItemFiles] = useState<NewItemFiles>({});
-  const [contentReady, setContentReady] = useState(isSupabaseConfigured());
+  const [contentReady, setContentReady] = useState(false);
   const [itemPendingDelete, setItemPendingDelete] = useState<LearningItem | null>(null);
   const [lessonPendingDelete, setLessonPendingDelete] = useState<Lesson | null>(null);
   const [deleteAssociatedMedia, setDeleteAssociatedMedia] = useState(true);
@@ -232,7 +343,7 @@ export function ContentLibraryView() {
         const localContent = readLocalContentLibrary();
         if (active && localContent) {
           setItems(ensureFixedGestureItems(localContent.items));
-          setLessons(localContent.lessons);
+          setLessons(hydrateLessonsFromLocalActivities(localContent.lessons));
           setCategories(ensureGestureCategory(localContent.categories));
           setMediaRecords(localContent.mediaRecords);
         }
@@ -245,15 +356,23 @@ export function ContentLibraryView() {
       try {
         const data = await fetchMakaLearnData();
         if (!active || !data) return;
+        const localContent = readLocalContentLibrary();
         setUsers(data.users.length ? data.users : demoUsers);
-        setItems(ensureFixedGestureItems(data.learningItems.length ? data.learningItems : learningItems));
+        setItems(ensureFixedGestureItems(mergeById(data.learningItems.length ? data.learningItems : learningItems, localContent?.items ?? [])));
         // An empty lessons table is valid after the final lesson is deleted.
         // Falling back to mock lessons here would make deleted records reappear.
-        setLessons(data.lessons);
-        setCategories(ensureGestureCategory(data.categories.length ? data.categories : mockCategories));
-        setMediaRecords(data.mediaAssets.length ? data.mediaAssets : mediaAssets);
+        setLessons(hydrateLessonsFromLocalActivities(mergeLessons(data.lessons, localContent?.lessons ?? [])));
+        setCategories(ensureGestureCategory(mergeById(data.categories.length ? data.categories : mockCategories, localContent?.categories ?? [])));
+        setMediaRecords(mergeById(data.mediaAssets.length ? data.mediaAssets : mediaAssets, localContent?.mediaRecords ?? []));
         setContentReady(true);
       } catch (error) {
+        const localContent = readLocalContentLibrary();
+        if (active && localContent) {
+          setItems(ensureFixedGestureItems(localContent.items));
+          setLessons(hydrateLessonsFromLocalActivities(localContent.lessons));
+          setCategories(ensureGestureCategory(localContent.categories));
+          setMediaRecords(localContent.mediaRecords);
+        }
         notify({
           title: "Content ready",
           description: "Saved content is available in this workspace."
@@ -270,7 +389,7 @@ export function ContentLibraryView() {
   }, [notify]);
 
   useEffect(() => {
-    if (!contentReady || typeof window === "undefined" || isSupabaseConfigured()) return;
+    if (!contentReady || typeof window === "undefined") return;
 
     const value: ContentLibraryLocalState = {
       items,
@@ -278,7 +397,7 @@ export function ContentLibraryView() {
       categories,
       mediaRecords
     };
-    window.localStorage.setItem(CONTENT_LIBRARY_STORAGE_KEY, JSON.stringify(value));
+    writeLocalContentLibrary(value);
   }, [categories, contentReady, items, lessons, mediaRecords]);
 
   const userNameById = useMemo(() => new Map(users.map((candidate) => [candidate.id, candidate.name])), [users]);
@@ -335,6 +454,22 @@ export function ContentLibraryView() {
     categories: categories.length,
     media: displayMediaRecords.length
   };
+  const filteredLessonFormItems = useMemo(() => {
+    const query = lessonItemSearch.trim().toLowerCase();
+    if (!query) return items;
+
+    return items.filter((item) =>
+      [item.label, item.description, item.contentType, categoryById.get(item.categoryId)?.name ?? "", item.tags.join(" ")]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [categoryById, items, lessonItemSearch]);
+  const lessonSelectedItems = useMemo(
+    () => lessonItemIds.map((id) => items.find((item) => item.id === id)).filter((item): item is LearningItem => Boolean(item)),
+    [items, lessonItemIds]
+  );
+  const lessonSelectionHasPecs = lessonSelectedItems.some((item) => item.contentType === "pecs");
 
   function logContentAction(
     action: "upload" | "create" | "edit" | "delete",
@@ -360,10 +495,9 @@ export function ContentLibraryView() {
     setLessonTitle(nextDraft.title);
     setLessonObjective(nextDraft.objective);
     setLessonInstructions(nextDraft.instructions);
-    setLessonActivityType(nextDraft.activityType);
-    setLessonDuration(nextDraft.estimatedDuration);
+    setLessonActivityType(nextDraft.activityType === "gesture-practice" ? "choose-correct-symbol" : nextDraft.activityType);
     setLessonItemIds(nextDraft.learningItemIds);
-    setLessonNotes(nextDraft.notes);
+    setLessonItemSearch("");
     setTab("lessons");
     setLessonFormOpen(true);
     logContentAction("create", "lesson-draft", item.label, `Generated a lesson draft from ${item.label}.`, item.id);
@@ -381,10 +515,9 @@ export function ContentLibraryView() {
     setLessonInstructions(
       "Introduce the learning items, model each one, practise together, then review the learner's response."
     );
-    setLessonActivityType("simple-quiz");
-    setLessonDuration(10);
-    setLessonItemIds(pecsItems.slice(0, 2).map((item) => item.id));
-    setLessonNotes("Manual lesson draft created in MakaLearn.");
+    setLessonActivityType("choose-correct-symbol");
+    setLessonItemIds(items.slice(0, 2).map((item) => item.id));
+    setLessonItemSearch("");
     setLessonError("");
   }
 
@@ -393,7 +526,6 @@ export function ContentLibraryView() {
     setEditItemLabel(item.label);
     setEditItemCategoryId(item.categoryId);
     setEditItemDescription(item.description);
-    setEditItemInstruction(item.instruction);
     setEditItemTags(item.tags.join(", "));
     setEditItemError("");
   }
@@ -404,7 +536,6 @@ export function ContentLibraryView() {
     setEditItemLabel("");
     setEditItemCategoryId("");
     setEditItemDescription("");
-    setEditItemInstruction("");
     setEditItemTags("");
   }
 
@@ -412,14 +543,13 @@ export function ContentLibraryView() {
     const label = editItemLabel.trim();
     const categoryId = editItemCategoryId.trim();
     const description = editItemDescription.trim();
-    const instruction = editItemInstruction.trim();
     const tags = editItemTags
       .split(",")
       .map((tag) => tag.trim())
       .filter(Boolean);
 
-    if (!label || !categoryId || !description || !instruction) {
-      setEditItemError("Add a label, category, description, and classroom instruction.");
+    if (!label || !categoryId || !description) {
+      setEditItemError("Add a label, category, and description.");
       return;
     }
 
@@ -428,7 +558,7 @@ export function ContentLibraryView() {
       label,
       categoryId,
       description,
-      instruction,
+      instruction: createLearningItemInstruction(item.contentType, label, description),
       tags: tags.length ? tags : item.tags,
       updatedAt: new Date().toISOString()
     };
@@ -472,14 +602,26 @@ export function ContentLibraryView() {
       setLessonError("Add a title, objective, teaching sequence, and at least one learning item.");
       return;
     }
+    const selectedLessonItems = lessonItemIds
+      .map((id) => items.find((item) => item.id === id))
+      .filter((item): item is LearningItem => Boolean(item));
+    if (!selectedLessonItems.length) {
+      setLessonError("Select at least one visible learning item before saving.");
+      return;
+    }
+    const selectedPecsItems = selectedLessonItems.filter((item) => item.contentType === "pecs");
+    const createsActivity = selectedPecsItems.length > 0;
+    const resolvedActivityType: ActivityType = createsActivity ? lessonActivityType : "gesture-practice";
+    const activityLearningItems = selectedPecsItems;
+    const activityId = `activity-lesson-${Date.now()}`;
     const base = draft ?? {
       title: lessonTitle,
       objective: lessonObjective,
       learningItemIds: lessonItemIds,
       instructions: lessonInstructions,
-      activityType: lessonActivityType,
-      estimatedDuration: lessonDuration,
-      notes: lessonNotes,
+      activityType: resolvedActivityType,
+      estimatedDuration: 10,
+      notes: "",
       source: "manual" as const,
       visibility: "shared" as const
     };
@@ -489,17 +631,35 @@ export function ContentLibraryView() {
       objective: lessonObjective,
       instructions: lessonInstructions,
       learningItemIds: lessonItemIds,
-      activityType: lessonActivityType,
-      estimatedDuration: lessonDuration,
-      notes: lessonNotes,
+      activityType: resolvedActivityType,
+      estimatedDuration: 10,
+      notes: "",
+      relatedActivityId: createsActivity ? activityId : undefined,
       id: `lesson-${Date.now()}`,
       createdBy: user.id
     };
+    const nextActivity: Activity | null = createsActivity
+      ? {
+          id: activityId,
+          title: `${lessonTitle.trim()} activity`,
+          type: resolvedActivityType,
+          prompt: lessonInstructions.trim() || "Complete each activity step with teacher guidance.",
+          learningItemIds: activityLearningItems.map((item) => item.id),
+          questions: createActivityQuestions(resolvedActivityType, activityLearningItems, items),
+          visibility: "shared",
+          createdBy: user.id
+        }
+      : null;
 
     let savedLesson = nextLesson;
+    let activitySavedToSupabase = false;
     if (isSupabaseConfigured()) {
       try {
         savedLesson = await insertLesson(nextLesson);
+        if (nextActivity) {
+          await insertActivity(nextActivity);
+          activitySavedToSupabase = true;
+        }
       } catch (error) {
         notify({
           title: "Lesson saved",
@@ -507,20 +667,33 @@ export function ContentLibraryView() {
         });
       }
     }
+    if (nextActivity && !activitySavedToSupabase) {
+      writeLocalActivity(nextActivity);
+    }
 
-    setLessons((current) => [savedLesson, ...current]);
+    const savedLessonWithLocalLink = { ...savedLesson, relatedActivityId: createsActivity ? activityId : undefined };
+    const nextLessons = [savedLessonWithLocalLink, ...lessons.filter((lesson) => lesson.id !== savedLessonWithLocalLink.id)];
+    setLessons(nextLessons);
+    writeLocalContentLibrary({
+      items,
+      lessons: nextLessons,
+      categories,
+      mediaRecords
+    });
     logContentAction(
       "create",
       "lesson",
       savedLesson.title,
-      `${savedLesson.source === "auto-generated" ? "Saved generated" : "Created manual"} lesson.`,
+      createsActivity
+        ? `${savedLesson.source === "auto-generated" ? "Saved generated" : "Created manual"} lesson with a related activity.`
+        : `${savedLesson.source === "auto-generated" ? "Saved generated" : "Created manual"} gesture lesson.`,
       savedLesson.id
     );
     resetLessonForm();
     setLessonFormOpen(false);
     notify({
       title: "Lesson saved",
-      description: "The lesson was added to the lesson library.",
+      description: createsActivity ? "The lesson and related activity were added." : "The gesture lesson was added.",
       tone: "success"
     });
   }
@@ -599,10 +772,9 @@ export function ContentLibraryView() {
     const label = String(form.get("itemLabel") ?? "").trim();
     const categoryId = String(form.get("itemCategory") ?? "").trim();
     const description = String(form.get("itemDescription") ?? "").trim();
-    const instruction = String(form.get("itemInstruction") ?? "").trim();
 
-    if (!label || !categoryId || !description || !instruction) {
-      setItemError("Add a label, category, description, and classroom instruction.");
+    if (!label || !categoryId || !description) {
+      setItemError("Add a label, category, and description.");
       return;
     }
 
@@ -612,7 +784,7 @@ export function ContentLibraryView() {
       label,
       categoryId,
       description,
-      instruction,
+      instruction: createLearningItemInstruction(contentKind, label, description),
       symbolImageUrl: getSymbolPlaceholder(label),
       gestureMediaUrl: undefined,
       audioUrl: undefined,
@@ -967,27 +1139,15 @@ export function ContentLibraryView() {
               </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div>
-                <Label htmlFor="itemDescription">Description</Label>
-                <Textarea
-                  id="itemDescription"
-                  name="itemDescription"
-                  placeholder="Where this word is used in class."
-                  onChange={() => itemError && setItemError("")}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="itemInstruction">Teacher instruction</Label>
-                <Textarea
-                  id="itemInstruction"
-                  name="itemInstruction"
-                  placeholder="How the teacher should model or prompt it."
-                  onChange={() => itemError && setItemError("")}
-                  required
-                />
-              </div>
+            <div>
+              <Label htmlFor="itemDescription">Description</Label>
+              <Textarea
+                id="itemDescription"
+                name="itemDescription"
+                placeholder={contentKind === "pecs" ? "What this PECS card helps the learner communicate." : "What this gesture helps the learner communicate."}
+                onChange={() => itemError && setItemError("")}
+                required
+              />
             </div>
 
             <div>
@@ -1092,8 +1252,8 @@ export function ContentLibraryView() {
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 {contentKind === "pecs"
-                  ? "PECS cards use image and audio uploads and are the only source for activities."
-                  : "Only these seven fixed gestures appear in gesture recognition and presentation practice."}
+                  ? "PECS cards use image and audio uploads."
+                  : "Gesture records use reference media and audio."}
               </p>
             </div>
             <div className="flex w-full flex-col gap-3 lg:max-w-2xl lg:flex-row">
@@ -1146,12 +1306,24 @@ export function ContentLibraryView() {
                             Created by {creator}
                           </p>
                         </div>
-                        <LearningItemSymbolPreview value={item.symbolImageUrl} label={item.label} />
+                        <LearningItemSymbolPreview
+                          value={item.symbolImageUrl}
+                          label={item.label}
+                          onPreview={() =>
+                            item.symbolImageUrl
+                              ? setMediaPreview({
+                                  title: `${item.label} image`,
+                                  value: item.symbolImageUrl,
+                                  type: "symbol-image",
+                                  label: `${item.label} image`
+                                })
+                              : undefined
+                          }
+                        />
                       </div>
 
                       <div className="mt-5 rounded-lg bg-[#f7fbff] p-4">
                         <p className="text-sm leading-6 text-slate-700">{item.description}</p>
-                        <p className="mt-2 text-sm leading-6 text-slate-600">{item.instruction}</p>
                       </div>
 
                       {isEditingItem ? (
@@ -1197,17 +1369,6 @@ export function ContentLibraryView() {
                               />
                             </div>
                             <div>
-                              <Label htmlFor={`edit-instruction-${item.id}`}>Instruction</Label>
-                              <Textarea
-                                id={`edit-instruction-${item.id}`}
-                                value={editItemInstruction}
-                                onChange={(event) => {
-                                  setEditItemInstruction(event.target.value);
-                                  setEditItemError("");
-                                }}
-                              />
-                            </div>
-                            <div>
                               <Label htmlFor={`edit-tags-${item.id}`}>Tags</Label>
                               <Input
                                 id={`edit-tags-${item.id}`}
@@ -1233,6 +1394,7 @@ export function ContentLibraryView() {
                       <ItemMediaControls
                         item={item}
                         onUpload={handleMediaUpload}
+                        onPreview={setMediaPreview}
                       />
 
                       <CardFooter className="mt-5 grid min-h-[8.75rem] grid-cols-[minmax(0,1fr)_11rem] items-end gap-3">
@@ -1256,6 +1418,10 @@ export function ContentLibraryView() {
                             </>
                           ) : (
                             <>
+                              <Button className="w-full whitespace-nowrap" variant="secondary" size="sm" onClick={() => generateDraft(item)}>
+                                <BookPlus className="h-4 w-4" aria-hidden="true" />
+                                Generate lesson
+                              </Button>
                               <Button className="w-full whitespace-nowrap" variant="outline" size="sm" onClick={() => openEditItem(item)}>
                                 Edit
                               </Button>
@@ -1282,8 +1448,8 @@ export function ContentLibraryView() {
               title={contentKind === "pecs" ? "No PECS cards" : "No fixed gestures"}
               description={
                 contentKind === "pecs"
-                  ? "Add PECS cards before creating symbol-based activities."
-                  : "The gesture list should contain only the seven final presentation gestures."
+                        ? "Add PECS cards before creating symbol-based activities."
+                  : "Add gesture records before creating gesture lessons."
               }
             />
           )}
@@ -1328,9 +1494,7 @@ export function ContentLibraryView() {
               </span>
               <div>
                 <CardTitle>{draft ? "Review generated lesson plan" : "Create lesson plan"}</CardTitle>
-                <CardDescription>
-                  A lesson sets the objective, teaching sequence, learning items, and timing. It can include an activity as one practice step.
-                </CardDescription>
+                <CardDescription>Set the objective, teaching sequence, and learning items.</CardDescription>
               </div>
             </div>
             <form className="mt-5 space-y-4" onSubmit={saveDraft}>
@@ -1358,43 +1522,51 @@ export function ContentLibraryView() {
                   </div>
                 </div>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="lesson-duration">Estimated duration</Label>
-                  <Input id="lesson-duration" type="number" min={5} value={lessonDuration} onChange={(event) => setLessonDuration(Number(event.target.value) || 10)} />
-                </div>
-                <SelectionList
-                  label="Selected learning items"
-                  helper="Use the scrollable list to choose lesson cues."
-                  options={pecsItems.map((item) => ({
-                    value: item.id,
-                    label: item.label,
-                    description: categoryById.get(item.categoryId)?.name ?? "Uncategorized"
-                  }))}
-                  selectedValues={lessonItemIds}
-                  onChange={setLessonItemIds}
-                />
-              </div>
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-800">Optional practice step</p>
-                <div className="mt-3">
-                  <Label htmlFor="lesson-activity">Activity format used in this lesson</Label>
-                  <Select id="lesson-activity" value={lessonActivityType} onChange={(event) => setLessonActivityType(event.target.value as ActivityType)}>
-                    {activityTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {activityTypeLabels[type]}
-                      </option>
-                    ))}
-                  </Select>
-                  <FieldHint>
-                    This adds a practice format to the lesson plan. It does not create a playable item in the Activity Library.
-                  </FieldHint>
+              <div>
+                <Label htmlFor="lesson-item-search">Search learning items</Label>
+                <div className="relative mt-1">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
+                  <Input
+                    id="lesson-item-search"
+                    type="search"
+                    value={lessonItemSearch}
+                    onChange={(event) => setLessonItemSearch(event.target.value)}
+                    placeholder="Search PECS cards or gestures"
+                    className="pl-10"
+                  />
                 </div>
               </div>
               <div>
-                <Label htmlFor="lesson-notes">Notes</Label>
-                <Textarea id="lesson-notes" value={lessonNotes} onChange={(event) => setLessonNotes(event.target.value)} placeholder="Teacher notes for this lesson" />
+                <SelectionList
+                  label="Selected learning items"
+                  helper="Choose PECS cards, gestures, or a focused mix for this lesson."
+                  options={filteredLessonFormItems.map((item) => ({
+                    value: item.id,
+                    label: item.label,
+                    description: `${item.contentType === "gesture" ? "Gesture" : "PECS"} · ${categoryById.get(item.categoryId)?.name ?? "Uncategorized"}`
+                  }))}
+                  selectedValues={lessonItemIds}
+                  onChange={setLessonItemIds}
+                  emptyText={lessonItemSearch ? "No learning items match this search." : "Select at least one learning item."}
+                />
               </div>
+              {lessonSelectionHasPecs ? (
+                <div className="rounded-lg border border-blue-100 bg-white p-4">
+                  <Label htmlFor="lesson-activity-type">Activity format for PECS items</Label>
+                  <Select
+                    id="lesson-activity-type"
+                    value={lessonActivityType}
+                    onChange={(event) => setLessonActivityType(event.target.value as ActivityType)}
+                  >
+                    {pecsLessonActivityTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {getActivityTypeLabel(type)}
+                      </option>
+                    ))}
+                  </Select>
+                  <FieldHint>Saving creates this activity for the selected PECS items. Gesture items stay in Gesture Practice.</FieldHint>
+                </div>
+              ) : null}
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button type="submit">Save lesson</Button>
                 <Button type="button" variant="outline" onClick={closeLessonForm}>
@@ -1406,11 +1578,21 @@ export function ContentLibraryView() {
           ) : null}
 
           <section className="space-y-4">
-            {filteredLessons.length ? (
+            {!contentReady ? (
+              <LoadingState label="Loading lessons" />
+            ) : filteredLessons.length ? (
               <div className="stagger-grid grid gap-4">
-                {filteredLessons.map((lesson) => (
+                {filteredLessons.map((lesson) => {
+                  const lessonItems = lesson.learningItemIds
+                    .map((id) => items.find((item) => item.id === id))
+                    .filter((item): item is LearningItem => Boolean(item));
+                  const lessonHasPecs = lessonItems.some((item) => item.contentType === "pecs");
+                  const lessonActivityHref = lesson.relatedActivityId
+                    ? `/activities?activityId=${lesson.relatedActivityId}&type=${lesson.activityType}`
+                    : `/activities?type=${lesson.activityType}`;
+                  return (
                   <Card key={lesson.id} className="flex h-full flex-col overflow-hidden border-l-4 border-l-blue-300 bg-[#fbfdff]">
-                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_15rem]">
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_14rem]">
                       <div className="min-w-0">
                         <Badge className="mb-3 bg-blue-100 text-blue-800">Lesson plan</Badge>
                         <CardTitle className="text-2xl leading-tight">{lesson.title}</CardTitle>
@@ -1418,13 +1600,32 @@ export function ContentLibraryView() {
                         <p className="mt-2 text-sm leading-6 text-slate-600">{lesson.instructions}</p>
                       </div>
                       <div className="grid content-start gap-2 sm:grid-cols-2 xl:grid-cols-1">
-                        <span className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-sm font-semibold text-blue-700">
-                          <Clock className="h-4 w-4" aria-hidden="true" />
-                          {lesson.estimatedDuration} min
-                        </span>
                         <span className="inline-flex min-h-11 items-center rounded-lg border border-blue-100 bg-white px-3 text-sm font-semibold text-blue-700">
-                          Practice: {getActivityTypeLabel(lesson.activityType)}
+                          Practice: {lessonHasPecs ? getActivityTypeLabel(lesson.activityType) : "Gesture practice"}
                         </span>
+                        {lessonHasPecs ? (
+                          <Link href={lessonActivityHref}>
+                            <Button size="sm" variant="secondary" className="w-full">
+                              <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                              Open activity
+                            </Button>
+                          </Link>
+                        ) : (
+                          <Link href="/gesture-practice">
+                            <Button size="sm" variant="secondary" className="w-full">
+                              <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                              Practice gesture
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-5">
+                      <p className="text-sm font-semibold text-slate-700">Learning items in this lesson</p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {lessonItems.map((item) => (
+                          <LessonLearningItemCard key={item.id} item={item} onPreview={setMediaPreview} />
+                        ))}
                       </div>
                     </div>
                     <CardFooter className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1439,7 +1640,8 @@ export function ContentLibraryView() {
                       </div>
                     </CardFooter>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <EmptyState
@@ -1811,10 +2013,12 @@ function createLocalMediaRecords(item: LearningItem, files: NewItemFiles, upload
 
 function ItemMediaControls({
   item,
-  onUpload
+  onUpload,
+  onPreview
 }: {
   item: LearningItem;
   onUpload: (item: LearningItem, file: File, config: Pick<MediaAsset, "bucket" | "type">) => Promise<void>;
+  onPreview: (preview: MediaPreview) => void;
 }) {
   const controls = [
     {
@@ -1862,6 +2066,7 @@ function ItemMediaControls({
         <ItemMediaControl
           key={control.type}
           {...control}
+          onPreview={onPreview}
           onUpload={(file) => onUpload(item, file, { bucket: control.bucket, type: control.type })}
         />
       ))}
@@ -1878,6 +2083,7 @@ function ItemMediaControl({
   hint,
   storageNote,
   icon: Icon,
+  onPreview,
   onUpload
 }: {
   title: string;
@@ -1888,6 +2094,7 @@ function ItemMediaControl({
   hint: string;
   storageNote: string;
   icon: LucideIcon;
+  onPreview: (preview: MediaPreview) => void;
   onUpload: (file: File) => Promise<void>;
 }) {
   const id = useId();
@@ -1925,7 +2132,14 @@ function ItemMediaControl({
       <input ref={inputRef} id={id} type="file" accept={accept} onChange={handleChange} className="sr-only" />
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
-          <MediaMaterialPreview value={mediaValue} type={type} label={label} fallbackIcon={Icon} />
+          <MediaMaterialPreview
+            value={mediaValue}
+            type={type}
+            label={label}
+            title={title}
+            fallbackIcon={Icon}
+            onPreview={onPreview}
+          />
           <div className="min-w-0">
             <p className="text-sm font-bold text-ink">{title}</p>
             <p className="mt-1 truncate text-xs leading-5 text-slate-500">{displayName}</p>
@@ -1949,12 +2163,16 @@ function MediaMaterialPreview({
   value,
   type,
   label,
-  fallbackIcon: Icon
+  title,
+  fallbackIcon: Icon,
+  onPreview
 }: {
   value?: string;
   type: MediaAsset["type"];
   label: string;
+  title: string;
   fallbackIcon: LucideIcon;
+  onPreview: (preview: MediaPreview) => void;
 }) {
   const canEmbed = Boolean(value && (value.startsWith("http") || value.startsWith("/") || value.startsWith("blob:")));
 
@@ -1981,21 +2199,31 @@ function MediaMaterialPreview({
     );
   }
 
-  if (value && type === "gesture-media" && isVideoUrl(value) && canEmbed) {
+  if (value && type === "gesture-media" && canEmbed && !isPreviewableImage(value, type)) {
     return (
-      <video controls className="h-14 w-16 shrink-0 rounded-lg border border-blue-100 bg-black object-cover" aria-label={label}>
-        <source src={value} />
-      </video>
+      <button
+        type="button"
+        onClick={() => onPreview({ title, value, type, label })}
+        className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-black text-white"
+        aria-label={`Preview ${label}`}
+      >
+        <Film className="h-5 w-5" aria-hidden="true" />
+      </button>
     );
   }
 
-  if (value && isImageUrl(value) && canEmbed) {
+  if (value && isPreviewableImage(value, type) && canEmbed) {
     return (
-      <span className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white">
+      <button
+        type="button"
+        onClick={() => onPreview({ title, value, type, label })}
+        className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white"
+        aria-label={`Preview ${label}`}
+      >
         {/* Uploaded images can use temporary preview URLs. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={value} alt={label} className="h-full w-full object-cover" />
-      </span>
+      </button>
     );
   }
 
@@ -2065,10 +2293,10 @@ function MediaInlinePreview({
       className="group flex min-h-20 w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg border border-blue-100 bg-[#f8fbff] p-3 text-left transition hover:border-blue-300 hover:bg-white"
     >
       <span className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white text-sm font-black text-blue-700">
-        {isImageUrl(value) ? (
+        {isPreviewableImage(value, preview.type) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt="" className="h-full w-full object-cover" />
-        ) : isVideoUrl(value) ? (
+        ) : preview.type === "gesture-media" && isUrl(value) ? (
           <Film className="h-5 w-5" aria-hidden="true" />
         ) : isSpeechFallbackAudio(value) ? (
           <FileAudio className="h-5 w-5" aria-hidden="true" />
@@ -2110,10 +2338,10 @@ function MediaPreviewModal({ preview, onClose }: { preview: MediaPreview; onClos
             <p className="rounded-lg border border-dashed border-blue-100 bg-white p-6 text-center text-sm font-semibold text-slate-500">
               No media added.
             </p>
-          ) : isImageUrl(value) ? (
+          ) : isPreviewableImage(value, preview.type) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={value} alt={preview.label} className="max-h-[70vh] w-full rounded-lg object-contain" />
-          ) : isVideoUrl(value) ? (
+          ) : preview.type === "gesture-media" && isUrl(value) ? (
             <video controls className="max-h-[70vh] w-full rounded-lg bg-black" aria-label={preview.label}>
               <source src={value} />
             </video>
@@ -2145,16 +2373,76 @@ function MediaPreviewModal({ preview, onClose }: { preview: MediaPreview; onClos
   );
 }
 
-function LearningItemSymbolPreview({ value, label }: { value?: string; label: string }) {
+function LessonLearningItemCard({ item, onPreview }: { item: LearningItem; onPreview: (preview: MediaPreview) => void }) {
+  return (
+    <div className="rounded-lg border border-blue-100 bg-white p-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-ink">{item.label}</p>
+          <p className="mt-1 text-xs font-semibold capitalize text-slate-500">{item.contentType}</p>
+        </div>
+        <Badge className={item.contentType === "gesture" ? "bg-mint text-green-700" : "bg-blue-50 text-blue-700"}>
+          {item.contentType === "gesture" ? "Gesture" : "PECS"}
+        </Badge>
+      </div>
+      <div className="mt-3 grid gap-2">
+        <MediaInlinePreview
+          preview={{
+            title: item.contentType === "gesture" ? "Reference image" : "PECS image",
+            value: item.symbolImageUrl,
+            type: "symbol-image",
+            label: `${item.label} image`
+          }}
+          onPreview={onPreview}
+        />
+        {item.contentType === "gesture" ? (
+          <MediaInlinePreview
+            preview={{
+              title: "Gesture media",
+              value: item.gestureMediaUrl,
+              type: "gesture-media",
+              label: `${item.label} gesture media`
+            }}
+            onPreview={onPreview}
+          />
+        ) : null}
+        <MediaInlinePreview
+          preview={{
+            title: "Audio cue",
+            value: item.audioUrl,
+            type: "audio-file",
+            label: `${item.label} audio`
+          }}
+          onPreview={onPreview}
+        />
+      </div>
+    </div>
+  );
+}
+
+function LearningItemSymbolPreview({
+  value,
+  label,
+  onPreview
+}: {
+  value?: string;
+  label: string;
+  onPreview?: () => void;
+}) {
   const isImageUrl = Boolean(value?.startsWith("http") || value?.startsWith("/") || value?.startsWith("blob:"));
 
   if (isImageUrl && value) {
     return (
-      <div className="h-28 w-20 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-white shadow-inner">
+      <button
+        type="button"
+        onClick={onPreview}
+        className="h-28 w-20 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-white shadow-inner transition hover:border-blue-300"
+        aria-label={`Preview ${label} image`}
+      >
         {/* Uploaded picture-card images can use temporary preview URLs. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- upload previews may use temporary blob URLs. */}
         <img src={value} alt={`${label} picture card`} className="h-full w-full object-contain" />
-      </div>
+      </button>
     );
   }
 
@@ -2167,6 +2455,10 @@ function LearningItemSymbolPreview({ value, label }: { value?: string; label: st
 
 function isImageUrl(value: string) {
   return isUrl(value) && /\.(apng|avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(value);
+}
+
+function isPreviewableImage(value: string, type: MediaAsset["type"]) {
+  return isImageUrl(value) || (type === "symbol-image" && isUrl(value));
 }
 
 function isVideoUrl(value: string) {

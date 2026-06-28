@@ -68,6 +68,15 @@ export function validatePecsSentence(
     };
   }
 
+  if (cards.length === 1) {
+    return {
+      isValid: true,
+      patternName: "Single Card",
+      generatedSentence,
+      feedback: "Good job! This card can stand on its own."
+    };
+  }
+
   if (cards.some((card) => !card.sentenceRole)) {
     return {
       isValid: false,

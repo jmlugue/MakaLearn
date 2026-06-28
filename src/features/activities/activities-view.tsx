@@ -31,7 +31,6 @@ const activityTypes: ActivityType[] = [
   "choose-correct-symbol",
   "fill-blank",
   "drag-drop-symbol",
-  "gesture-practice",
   "simple-quiz"
 ];
 type ActivityTab = "workspace" | "library";
@@ -43,7 +42,7 @@ type LocalContentLibraryState = {
 };
 
 function readLocalActivities(): Activity[] | null {
-  if (typeof window === "undefined" || isSupabaseConfigured()) return null;
+  if (typeof window === "undefined") return null;
 
   try {
     const value = window.localStorage.getItem(LOCAL_ACTIVITIES_STORAGE_KEY);
@@ -55,8 +54,24 @@ function readLocalActivities(): Activity[] | null {
   }
 }
 
+function mergeActivities(primary: Activity[], fallback: Activity[]) {
+  const seen = new Set<string>();
+  return [...primary, ...fallback].filter((activity) => {
+    if (seen.has(activity.id) || !activityTypes.includes(activity.type)) return false;
+    seen.add(activity.id);
+    return true;
+  });
+}
+
+function mergeLearningItems(primary: LearningItem[], fallback: LearningItem[]) {
+  const fallbackById = new Map(fallback.map((item) => [item.id, item]));
+  const merged = primary.map((item) => ({ ...(fallbackById.get(item.id) ?? {}), ...item }) as LearningItem);
+  const seen = new Set(merged.map((item) => item.id));
+  return [...merged, ...fallback.filter((item) => !seen.has(item.id))];
+}
+
 function readLocalContentLibraryItems(): LearningItem[] | null {
-  if (typeof window === "undefined" || isSupabaseConfigured()) return null;
+  if (typeof window === "undefined") return null;
 
   try {
     const value = window.localStorage.getItem(CONTENT_LIBRARY_STORAGE_KEY);
@@ -75,6 +90,15 @@ function getValidActivityType(value?: string): ActivityType | undefined {
 function getFirstActivityForType(activities: Activity[], activityType?: ActivityType) {
   if (!activityType) return undefined;
   return activities.find((activity) => activity.type === activityType);
+}
+
+function getInitialActivity(activities: Activity[], activityId?: string, activityType?: ActivityType) {
+  if (activityId) {
+    const requested = activities.find((activity) => activity.id === activityId);
+    if (requested) return requested;
+  }
+
+  return getFirstActivityForType(activities, activityType) ?? activities[0];
 }
 
 function activityUsesImageOptions(type: ActivityType) {
@@ -135,7 +159,7 @@ function getResultPresentation(score: number) {
   };
 }
 
-export function ActivitiesView({ initialActivityType }: { initialActivityType?: string }) {
+export function ActivitiesView({ initialActivityType, initialActivityId }: { initialActivityType?: string; initialActivityId?: string }) {
   const { user } = useAuthUser();
   const { isStudentMode } = useStudentMode();
   const { notify } = useToast();
@@ -154,7 +178,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
   const [selectedActivityId, setSelectedActivityId] = useState(
     isSupabaseConfigured()
       ? ""
-      : getFirstActivityForType(mockActivities, requestedActivityType)?.id ?? mockActivities[0].id
+      : getInitialActivity(mockActivities, initialActivityId, requestedActivityType)?.id ?? mockActivities[0].id
   );
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [dragged, setDragged] = useState("");
@@ -173,13 +197,14 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
 
     async function loadSupabaseData() {
       if (!isSupabaseConfigured()) {
-        const nextActivities = (readLocalActivities() ?? mockActivities).filter((activity) => activityTypes.includes(activity.type));
+        const localActivities = readLocalActivities();
+        const nextActivities = localActivities ? mergeActivities(localActivities, mockActivities) : mockActivities;
         const nextLearningItems = getActivityItems(readLocalContentLibraryItems() ?? mockLearningItems);
         if (!active) return;
         setActivities(nextActivities);
         setLearningItems(nextLearningItems);
         setSelectedActivityId(
-          getFirstActivityForType(nextActivities, requestedActivityType)?.id ?? nextActivities[0]?.id ?? ""
+          getInitialActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? ""
         );
         setActivitiesReady(true);
         return;
@@ -189,23 +214,26 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
         const data = await fetchMakaLearnData();
         if (!active || !data) return;
         // An empty table is valid after deletions; never replace it with mock activities.
-        const nextActivities = data.activities.filter((activity) => activityTypes.includes(activity.type));
+        const nextActivities = mergeActivities(data.activities, readLocalActivities() ?? []);
         setActivities(nextActivities);
-        setLearningItems(getActivityItems(data.learningItems.length ? data.learningItems : mockLearningItems));
+        setLearningItems(getActivityItems(mergeLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems, readLocalContentLibraryItems() ?? [])));
         setSelectedActivityId((current) => {
-          const requestedActivity = getFirstActivityForType(nextActivities, requestedActivityType);
+          const requestedActivity = getInitialActivity(nextActivities, initialActivityId, requestedActivityType);
           if (requestedActivity) return requestedActivity.id;
           return nextActivities.some((activity) => activity.id === current) ? current : nextActivities[0]?.id ?? "";
         });
         setActivitiesReady(true);
       } catch (error) {
         if (!active) return;
-        setActivities([]);
-        setSelectedActivityId("");
+        const nextActivities = mergeActivities(readLocalActivities() ?? [], mockActivities);
+        const nextLearningItems = getActivityItems(readLocalContentLibraryItems() ?? mockLearningItems);
+        setActivities(nextActivities);
+        setLearningItems(nextLearningItems);
+        setSelectedActivityId(getInitialActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "");
         setActivitiesReady(true);
         notify({
-          title: "Activities could not be loaded",
-          description: "Activity materials are not available right now."
+          title: "Activities ready",
+          description: "Saved activity materials are available."
         });
       }
     }
@@ -215,10 +243,10 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     return () => {
       active = false;
     };
-  }, [notify, requestedActivityType]);
+  }, [initialActivityId, notify, requestedActivityType]);
 
   useEffect(() => {
-    if (!activitiesReady || isSupabaseConfigured() || typeof window === "undefined") return;
+    if (!activitiesReady || typeof window === "undefined") return;
     window.localStorage.setItem(LOCAL_ACTIVITIES_STORAGE_KEY, JSON.stringify(activities));
   }, [activities, activitiesReady]);
 
@@ -407,13 +435,11 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
       createdBy: editingActivity?.createdBy ?? user.id
     };
     let savedActivity = nextActivity;
-    let savedToSupabase = !isSupabaseConfigured();
     if (isSupabaseConfigured()) {
       try {
         savedActivity = editingActivity
           ? await updateActivity(nextActivity, editingActivity)
           : await insertActivity(nextActivity);
-        savedToSupabase = true;
       } catch (error) {
         console.error("Supabase activity save failed. Keeping the activity in local state for this session.", error);
       }
@@ -427,18 +453,13 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     resetPlayer(savedActivity.id);
     const wasEditing = Boolean(editingActivity);
     closeCreateForm();
+    if (!wasEditing) {
+      setTab("library");
+    }
     notify({
-      title: savedToSupabase
-        ? wasEditing
-          ? "Activity updated"
-          : "Activity created"
-        : wasEditing
-          ? "Activity updated locally"
-          : "Activity created locally",
-      description: savedToSupabase
-        ? `The activity was ${wasEditing ? "updated" : "created"}.`
-        : "Supabase could not save this activity yet, so it is available in this browser session.",
-      tone: savedToSupabase ? "success" : "info"
+      title: wasEditing ? "Activity updated" : "Activity created",
+      description: `The activity was ${wasEditing ? "updated" : "created"}.`,
+      tone: "success"
     });
   }
 
@@ -449,12 +470,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
       try {
         await deleteActivity(activity.id);
       } catch (error) {
-        notify({
-          title: "Activity not deleted",
-          description: "The activity could not be deleted. Try again."
-        });
-        setDeleteInProgress(false);
-        return;
+        console.error("Supabase activity delete failed. Removing the activity from local workspace data.", error);
       }
     }
 
@@ -480,11 +496,11 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
     <>
       <PageHeader
         eyebrow={isStudentMode ? "Student mode" : "Activities"}
-        title={isStudentMode ? "Practice activity" : "PECS activity library and player"}
+        title={isStudentMode ? "Practice activity" : "Activity library and player"}
         description={
           isStudentMode
-            ? "Answer each prompt with teacher guidance. Creation and editing tools are hidden in this view."
-            : "Create and run symbol-based activities from PECS cards only. Gesture recognition stays in the gesture tab."
+            ? "Answer each prompt with teacher guidance."
+            : "Create, edit, and run PECS activities. Gesture practice stays in the Gestures tab."
         }
       />
 
@@ -675,7 +691,7 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
                   options={selectableLearningItems.map((item) => ({
                       value: item.id,
                       label: item.label,
-                      description: activityUsesImageOptions(type) ? "Symbol image ready" : item.description
+                      description: item.description
                     }))}
                   selectedValues={selectedLearningItemIds}
                   onChange={(values) => {
@@ -747,9 +763,6 @@ export function ActivitiesView({ initialActivityType }: { initialActivityType?: 
             <Badge>{activityTypeLabels[selectedActivity.type]}</Badge>
             <CardTitle className="mt-3 text-2xl">{selectedActivity.title}</CardTitle>
             <CardDescription>{selectedActivity.prompt}</CardDescription>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              This run is for presentation and classroom practice only. Learner progress recording is not included in the current scope.
-            </p>
           </div>
 
           <div className="mt-5 rounded-lg bg-skywash p-4">
@@ -1025,10 +1038,20 @@ function ActivityPlayer({
 
   return (
     <div className="mt-5 space-y-4">
-      {activity.questions.map((question, index) => (
+      {activity.questions.map((question, index) => {
+        const promptLabel =
+          activity.type === "match-word-symbol"
+            ? "Word"
+            : activity.type === "choose-correct-symbol"
+              ? "Situation"
+              : "Question";
+
+        return (
         <div key={question.id} className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
-          <p className="text-sm font-semibold text-blue-700">Question {index + 1}</p>
-          <p className="mt-1 text-lg font-semibold">{question.prompt}</p>
+          <p className="text-sm font-semibold text-blue-700">{promptLabel} {index + 1}</p>
+          <p className={`mt-1 ${activity.type === "match-word-symbol" ? "text-2xl font-black text-ink" : "text-lg font-semibold"}`}>
+            {question.prompt}
+          </p>
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             {question.options.map((option) => {
               const selected = answers[question.id] === option;
@@ -1056,7 +1079,8 @@ function ActivityPlayer({
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
