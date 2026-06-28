@@ -6,6 +6,8 @@ import {
   AlertTriangle,
   BookOpen,
   BookPlus,
+  ChevronLeft,
+  ChevronRight,
   FileAudio,
   Film,
   FolderOpen,
@@ -84,6 +86,8 @@ type ContentLibraryLocalState = {
 
 const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
 const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
+const CONTENT_ITEMS_PER_PAGE = 6;
+const allContentCategoriesLabel = "All categories";
 
 const pecsLessonActivityTypes: ActivityType[] = [
   "match-word-symbol",
@@ -304,6 +308,8 @@ export function ContentLibraryView() {
   const [users, setUsers] = useState(demoUsers);
   const [contentKind, setContentKind] = useState<ContentKind>("pecs");
   const [search, setSearch] = useState("");
+  const [contentCategoryId, setContentCategoryId] = useState<typeof allContentCategoriesLabel | string>(allContentCategoriesLabel);
+  const [contentPage, setContentPage] = useState(1);
   const [lessonSearch, setLessonSearch] = useState("");
   const [mediaSearch, setMediaSearch] = useState("");
   const [draft, setDraft] = useState<Omit<Lesson, "id" | "createdBy"> | null>(null);
@@ -405,14 +411,46 @@ export function ContentLibraryView() {
   const pecsItems = useMemo(() => items.filter((item) => item.contentType === "pecs"), [items]);
   const gestureItems = useMemo(() => items.filter((item) => item.contentType === "gesture"), [items]);
   const activeItems = contentKind === "pecs" ? pecsItems : gestureItems;
+  const contentCategoryOptions = useMemo(() => {
+    const usedCategoryIds = new Set(activeItems.map((item) => item.categoryId));
+    return categories.filter((category) => usedCategoryIds.has(category.id));
+  }, [activeItems, categories]);
   const defaultCategoryId =
     contentKind === "gesture"
       ? categories.find((category) => category.id === "cat-gestures")?.id ?? categories[0]?.id ?? ""
       : categories.find((category) => category.id !== "cat-gestures")?.id ?? categories[0]?.id ?? "";
-  const filteredItems = useMemo(
-    () => activeItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase())),
-    [activeItems, search]
-  );
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return activeItems.filter((item) => {
+      const category = categoryById.get(item.categoryId);
+      const categoryMatches = contentCategoryId === allContentCategoriesLabel || item.categoryId === contentCategoryId;
+      const queryMatches =
+        !query ||
+        [item.label, item.description, item.tags.join(" "), category?.name ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+
+      return categoryMatches && queryMatches;
+    });
+  }, [activeItems, categoryById, contentCategoryId, search]);
+  const contentTotalPages = Math.max(1, Math.ceil(filteredItems.length / CONTENT_ITEMS_PER_PAGE));
+  const currentContentPage = Math.min(contentPage, contentTotalPages);
+  const pagedItems = useMemo(() => {
+    const start = (currentContentPage - 1) * CONTENT_ITEMS_PER_PAGE;
+    return filteredItems.slice(start, start + CONTENT_ITEMS_PER_PAGE);
+  }, [currentContentPage, filteredItems]);
+  const contentPageStart = filteredItems.length ? (currentContentPage - 1) * CONTENT_ITEMS_PER_PAGE + 1 : 0;
+  const contentPageEnd = Math.min(currentContentPage * CONTENT_ITEMS_PER_PAGE, filteredItems.length);
+
+  useEffect(() => {
+    setContentPage(1);
+  }, [contentCategoryId, contentKind, search]);
+
+  useEffect(() => {
+    setContentPage((current) => Math.min(current, contentTotalPages));
+  }, [contentTotalPages]);
   const displayMediaRecords = useMemo(
     () => ensurePecsManifestMediaRecords(items, mediaRecords),
     [items, mediaRecords]
@@ -1244,52 +1282,89 @@ export function ContentLibraryView() {
       </div>
 
       {tab === "items" ? (
-        <section className="space-y-4">
-          <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-ink">
-                {contentKind === "pecs" ? "PECS card board" : "Fixed gesture board"}
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                {contentKind === "pecs"
-                  ? "PECS cards use image and audio uploads."
-                  : "Gesture records use reference media and audio."}
-              </p>
-            </div>
-            <div className="flex w-full flex-col gap-3 lg:max-w-2xl lg:flex-row">
-              <div className="grid grid-cols-2 rounded-lg border border-blue-100 bg-skywash p-1">
-                {(["pecs", "gesture"] as ContentKind[]).map((kind) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    onClick={() => {
-                      setContentKind(kind);
-                      setSearch("");
-                    }}
-                    className={`min-h-10 rounded-md px-4 text-sm font-semibold transition ${
-                      contentKind === kind ? "bg-blue-600 text-white shadow-sm" : "text-blue-700 hover:bg-white"
-                    }`}
-                    aria-pressed={contentKind === kind}
-                  >
-                    {kind === "pecs" ? `PECS (${pecsItems.length})` : `Gestures (${gestureItems.length})`}
-                  </button>
-                ))}
+        <section className="grid overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-soft xl:h-[calc(100vh-13rem)] xl:min-h-[44rem] xl:grid-rows-[auto_minmax(0,1fr)_auto]">
+          <div className="border-b border-blue-100 bg-white/95 p-3 sm:p-4">
+            <div className="grid gap-3 lg:grid-cols-[16rem_minmax(0,1fr)]">
+              <div className="rounded-xl border border-blue-100 bg-skywash p-2">
+                <p className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-blue-700">Library</p>
+                <div className="grid grid-cols-2 gap-1 lg:grid-cols-1">
+                  {(["pecs", "gesture"] as ContentKind[]).map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => {
+                        setContentKind(kind);
+                        setSearch("");
+                        setContentCategoryId(allContentCategoriesLabel);
+                      }}
+                      className={`min-h-11 rounded-lg px-3 text-left text-sm font-bold transition ${
+                        contentKind === kind ? "bg-blue-600 text-white shadow-sm" : "bg-white/70 text-blue-700 hover:bg-white"
+                      }`}
+                      aria-pressed={contentKind === kind}
+                    >
+                      {kind === "pecs" ? `PECS cards (${pecsItems.length})` : `Gestures (${gestureItems.length})`}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="relative w-full">
-                <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={contentKind === "pecs" ? "Search PECS cards" : "Search fixed gestures"}
-                  className="pl-10"
-                />
+
+              <div className="grid gap-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-ink">
+                      {contentKind === "pecs" ? "PECS card board" : "Fixed gesture board"}
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                      {contentKind === "pecs"
+                        ? "Search, filter, and update classroom PECS cards from one board."
+                        : "Search, filter, and update fixed gesture references from one board."}
+                    </p>
+                  </div>
+                  <div className="w-full lg:max-w-sm">
+                    <Label htmlFor="content-library-search">Search content</Label>
+                    <div className="relative mt-1">
+                      <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
+                      <Input
+                        id="content-library-search"
+                        type="search"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder={contentKind === "pecs" ? "Search PECS cards" : "Search fixed gestures"}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold text-ink">Categories</p>
+                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1 clean-scrollbar">
+                    {[{ id: allContentCategoriesLabel, name: allContentCategoriesLabel, color: "#bfdbfe" }, ...contentCategoryOptions].map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => setContentCategoryId(category.id)}
+                        className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition ${
+                          contentCategoryId === category.id
+                            ? "border-blue-500 bg-blue-600 text-white shadow-soft"
+                            : "border-blue-100 bg-white text-slate-700 hover:border-blue-300 hover:bg-skywash"
+                        }`}
+                        aria-pressed={contentCategoryId === category.id}
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: category.color }} />
+                        {category.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {filteredItems.length ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filteredItems.map((item) => {
+            <div className="min-h-0 overflow-y-auto bg-[#f8fbff] p-3 clean-scrollbar sm:p-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {pagedItems.map((item) => {
                 const category = categoryById.get(item.categoryId);
                 const creator = userNameById.get(item.createdBy) ?? "MakaLearn user";
                 const isEditingItem = editingItemId === item.id;
@@ -1441,6 +1516,7 @@ export function ContentLibraryView() {
                   </Card>
                 );
               })}
+              </div>
             </div>
           ) : (
             <EmptyState
@@ -1453,6 +1529,38 @@ export function ContentLibraryView() {
               }
             />
           )}
+          <div className="flex flex-col gap-3 border-t border-blue-100 bg-white/95 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+            <p className="text-sm font-semibold text-slate-600">
+              {filteredItems.length
+                ? `Showing ${contentPageStart}-${contentPageEnd} of ${filteredItems.length}`
+                : "No content matches this view"}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={currentContentPage <= 1}
+                onClick={() => setContentPage((current) => Math.max(1, current - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                Previous
+              </Button>
+              <span className="min-w-20 rounded-lg border border-blue-100 bg-skywash px-3 py-2 text-center text-sm font-bold text-blue-700">
+                {currentContentPage} / {contentTotalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={currentContentPage >= contentTotalPages}
+                onClick={() => setContentPage((current) => Math.min(contentTotalPages, current + 1))}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
         </section>
       ) : null}
 
