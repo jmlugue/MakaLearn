@@ -97,16 +97,11 @@ function canUseAudioUrl(value?: string) {
 }
 
 function getFeedbackTitle(result: PecsSentenceValidationResult) {
-  if (result.isValid) return result.patternName ?? "Sentence ready";
-  if (/^try again/i.test(result.feedback)) return "Check the card order";
-  return "Needs a change";
+  return result.isValid ? "Good job" : "Try again";
 }
 
 function getFeedbackMessage(result: PecsSentenceValidationResult) {
-  if (result.isValid) return result.feedback;
-
-  const message = result.feedback.replace(/^try again\.?\s*/i, "").trim();
-  return message || "Check the sentence and try another card order.";
+  return result.feedback;
 }
 
 export function PlaygroundView() {
@@ -218,7 +213,7 @@ export function PlaygroundView() {
     const nextResult = validatePecsSentence(sentenceCards, approvedCardIds);
     setResult(nextResult);
     notify({
-      title: nextResult.isValid ? nextResult.patternName ?? "Sentence ready" : "Sentence needs a change",
+      title: getFeedbackTitle(nextResult),
       description: nextResult.feedback,
       tone: nextResult.isValid ? "success" : "info"
     });
@@ -334,7 +329,6 @@ export function PlaygroundView() {
                               {result.generatedSentence}
                             </p>
                           ) : null}
-                          {result.suggestion ? <p className="text-sm leading-6 text-slate-700">{result.suggestion}</p> : null}
                         </div>
                       ) : (
                         <div className="flex items-start gap-3">

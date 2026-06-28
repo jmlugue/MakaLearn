@@ -45,8 +45,7 @@ export function validatePecsSentence(
     return {
       isValid: false,
       generatedSentence,
-      feedback: "Drag PECS cards into the sentence box first.",
-      suggestion: "Start with one card, such as Hello, Yes, or I."
+      feedback: "Add a card first."
     };
   }
 
@@ -54,8 +53,7 @@ export function validatePecsSentence(
     return {
       isValid: false,
       generatedSentence,
-      feedback: "This sentence is too long. Try using fewer cards.",
-      suggestion: "Use up to five PECS cards."
+      feedback: "Use fewer cards."
     };
   }
 
@@ -63,8 +61,7 @@ export function validatePecsSentence(
     return {
       isValid: false,
       generatedSentence,
-      feedback: "Use cards from the approved PECS card library.",
-      suggestion: "Remove any card that is not shown in the Playground library."
+      feedback: "Use a card from the library."
     };
   }
 
@@ -73,7 +70,7 @@ export function validatePecsSentence(
       isValid: true,
       patternName: "Single Card",
       generatedSentence,
-      feedback: "Good job! This card can stand on its own."
+      feedback: "Good job."
     };
   }
 
@@ -81,8 +78,7 @@ export function validatePecsSentence(
     return {
       isValid: false,
       generatedSentence,
-      feedback: "Some cards need a sentence role before they can be checked.",
-      suggestion: "Choose cards that have role information in the PECS manifest."
+      feedback: "Try another card."
     };
   }
 
@@ -94,7 +90,7 @@ export function validatePecsSentence(
       isValid: true,
       patternName: "Basic Request",
       generatedSentence,
-      feedback: "Good job! This sentence is correct."
+      feedback: "Good job."
     };
   }
 
@@ -102,8 +98,7 @@ export function validatePecsSentence(
     return {
       isValid: false,
       generatedSentence,
-      feedback: "Almost correct. Add something you want, like water or food.",
-      suggestion: "Try I + want + water."
+      feedback: "Add one more card."
     };
   }
 
@@ -113,16 +108,14 @@ export function validatePecsSentence(
         isValid: true,
         patternName: pattern.name,
         generatedSentence,
-        feedback: "Good job! This sentence is correct."
+        feedback: "Good job."
       };
     }
   }
 
-  const hasSentenceVerb = roles.includes("verb") || roles.includes("be_verb");
   return {
     isValid: false,
     generatedSentence,
-    feedback: "Try again. Check the order of the PECS cards.",
-    suggestion: hasSentenceVerb && roles[0] !== "subject" ? "Try starting with who is speaking, like I." : "Try a supported pattern, such as I want water or Please sit."
+    feedback: "Try again."
   };
 }

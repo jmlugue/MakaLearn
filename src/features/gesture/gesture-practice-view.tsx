@@ -3,12 +3,11 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
-import { Camera, CheckCircle2, Eye, Hand, RotateCcw, ScanLine, Sparkles, TriangleAlert, UserRound, Volume2, XCircle } from "lucide-react";
+import { Camera, CheckCircle2, Eye, Hand, ScanLine, Sparkles, TriangleAlert, UserRound, Volume2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { FieldHint, Label, Select } from "@/components/ui/form";
-import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { categories as mockCategories, learningItems as mockLearningItems } from "@/data/mock-data";
@@ -279,16 +278,6 @@ export function GesturePracticeView() {
     }
   }
 
-  function resetTracking() {
-    setTrackingState(cameraStarted ? "no-hands" : "idle");
-    setDetectedHandCount(0);
-    lastHandCountRef.current = -1;
-    noHandsFrameCountRef.current = 0;
-    lastAutoAudioKeyRef.current = null;
-    clearPrediction();
-    setFeedback(cameraStarted ? "Tracking reset. Place one or two hands in frame and hold a supported pose." : trackingMeta.idle.detail);
-  }
-
   function clearPrediction() {
     predictionCandidateRef.current = { label: null, frames: 0 };
     currentPredictionLabelRef.current = null;
@@ -310,9 +299,7 @@ export function GesturePracticeView() {
     setPrediction(nextPrediction);
     setFeedback(
       nextPrediction
-        ? nextPrediction.label === selectedGesture?.label
-          ? generateCorrectiveFeedbackPlaceholder(nextPrediction.label)
-          : `Detected "${nextPrediction.label}". Use the reference panel to compare it with "${selectedGesture?.label ?? "the selected gesture"}".`
+        ? generateCorrectiveFeedbackPlaceholder()
         : "No supported pose matched yet. Check the examples and hold one pose steadily."
     );
   }
@@ -380,6 +367,7 @@ export function GesturePracticeView() {
             <div className="rounded-lg border border-blue-100 bg-skywash p-4">
               <p className="font-semibold text-ink">Feedback</p>
               <p className="mt-1 text-sm leading-6 text-slate-600">{feedback}</p>
+              <RecognizedGestureMessage prediction={prediction} />
             </div>
           </div>
         </Card>
@@ -437,114 +425,60 @@ export function GesturePracticeView() {
   }
 
   return (
-    <>
-      <PageHeader
-        eyebrow="Gesture Recognition"
-        title="Sample gesture prediction"
-        description="View a supported classroom reference, then hold any supported gesture to hear its audio cue."
-      />
-
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="overflow-hidden">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle>Camera and hand detector</CardTitle>
-              <CardDescription>The hand outline helps the teacher check position and visibility.</CardDescription>
-            </div>
+    <section className="grid gap-3 xl:h-[calc(100vh-4.25rem)] xl:min-h-0 xl:grid-cols-[1.08fr_0.92fr]">
+      <Card className="flex min-h-0 flex-col overflow-hidden p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <Badge>Teacher view</Badge>
+            <CardTitle className="mt-2 text-2xl">Gesture recognition</CardTitle>
+            <CardDescription>View the learner, selected reference, and detector feedback in one workspace.</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <Button onClick={startCamera}>
               <Camera className="h-4 w-4" aria-hidden="true" />
               {cameraStarted ? "Restart camera" : "Start camera"}
             </Button>
           </div>
+        </div>
 
-          <div className={`relative mt-5 overflow-hidden rounded-2xl border border-slate-700/70 bg-ink shadow-inner ${cameraStarted ? "camera-live-glow" : ""}`}>
-            {cameraStarted ? (
-              <video ref={videoRef} autoPlay playsInline muted className="aspect-video w-full -scale-x-100 object-cover" />
-            ) : (
-              <div className="grid aspect-video place-items-center text-center text-white">
-                <div>
-                  <Camera className="mx-auto h-12 w-12" aria-hidden="true" />
-                  <p className="mt-3 font-semibold">Camera preview will appear here</p>
-                </div>
-              </div>
-            )}
+        <CameraPanel
+          cameraStarted={cameraStarted}
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          trackerStatus={trackerStatus}
+          detectedHandCount={detectedHandCount}
+        />
 
-            {cameraStarted ? (
-              <div className="pointer-events-none absolute inset-0">
-                <canvas ref={canvasRef} className="absolute inset-0 h-full w-full -scale-x-100" aria-hidden="true" />
-                <div className="absolute inset-4 rounded-lg border border-white/35" />
-                <div className="absolute bottom-3 left-3 rounded-md bg-slate-950/70 px-3 py-2 text-xs font-semibold text-white">
-                  {trackerStatus === "loading"
-                    ? "Preparing hand tracking..."
-                    : `${detectedHandCount} hand${detectedHandCount === 1 ? "" : "s"} visible`}
-                </div>
-              </div>
-            ) : null}
-          </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <TrackingMetric icon={Hand} label="Hands" value={`${detectedHandCount}/2`} valid={hasValidHands} />
+          <TrackingMetric icon={UserRound} label="Camera" value={cameraStarted ? "Live" : "Off"} valid={cameraStarted} />
+          <TrackingMetric icon={Eye} label="Outline" value={hasValidHands ? "Following" : "Waiting"} valid={hasValidHands} />
+        </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <TrackingMetric icon={Hand} label="Hands" value={`${detectedHandCount}/2`} valid={hasValidHands} />
-            <TrackingMetric icon={UserRound} label="Camera" value={cameraStarted ? "Live" : "Off"} valid={cameraStarted} />
-            <TrackingMetric icon={Eye} label="Outline" value={hasValidHands ? "Following" : "Waiting"} valid={hasValidHands} />
-          </div>
-        </Card>
+        <div className="mt-3 grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
+          <motion.div
+            key={trackingState}
+            initial={{ opacity: 0.65, y: 7, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: "spring", stiffness: 360, damping: 30 }}
+            className={`rounded-lg border p-3 ${
+              meta.tone === "ready"
+                ? "border-green-200 bg-mint text-green-900"
+                : meta.tone === "warning"
+                  ? "border-orange-200 bg-coral text-orange-950"
+                  : "border-blue-100 bg-skywash text-slate-700"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <ScanLine className="h-5 w-5" aria-hidden="true" />
+              <p className="font-semibold">{meta.label}</p>
+            </div>
+            <p className="mt-1 text-sm leading-5">{meta.detail}</p>
+          </motion.div>
 
-        <div className="grid gap-4">
-          {selectedGesture ? (
-            <Card className="flex h-full flex-col">
-              <div className="flex flex-col gap-4">
-                <div>
-                  <Badge>{selectedCategory?.name ?? "Sample gesture"}</Badge>
-                  <CardTitle className="mt-3">Gesture reference</CardTitle>
-                  <CardDescription>Choose the reference you want to view while the camera listens for any supported gesture.</CardDescription>
-                </div>
-                <GestureSelector
-                  id="teacher-gesture-reference"
-                  label="Reference gesture"
-                  items={learningItems}
-                  selectedGestureId={selectedGesture.id}
-                  onChange={handleGestureChange}
-                  helperText="Changing the reference does not limit what the detector can hear."
-                />
-              </div>
-              <div className="mt-4 rounded-lg border border-blue-100 bg-skywash p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">How to perform it</p>
-                <p className="mt-1 text-sm font-semibold leading-6 text-ink">{referenceInstruction}</p>
-                {selectedGesture.instruction ? (
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{selectedGesture.instruction}</p>
-                ) : null}
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <PracticeReferenceMedia
-                  title="Reference image"
-                  value={selectedGesture.symbolImageUrl}
-                  label={`${selectedGesture.label} reference image`}
-                  emptyText="No reference image added"
-                />
-                <PracticeReferenceMedia
-                  title="Gesture image/video"
-                  value={selectedGesture.gestureMediaUrl}
-                  label={`${selectedGesture.label} gesture reference`}
-                  emptyText="No gesture media added"
-                />
-                <PracticeReferenceMedia
-                  title="Audio cue"
-                  value={selectedGesture.audioUrl}
-                  label={`${selectedGesture.label} audio cue`}
-                  emptyText="No audio cue added"
-                  kind="audio"
-                  className="md:col-span-2"
-                />
-              </div>
-            </Card>
-          ) : null}
-
-          <Card className="flex h-full flex-col">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle>Detection status</CardTitle>
-                <CardDescription>The result appears after the same supported pose is stable for several frames.</CardDescription>
-              </div>
+          <div className="rounded-lg border border-blue-100 bg-skywash p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-semibold text-ink">Feedback</p>
               <AnimatePresence mode="wait">
                 <motion.span
                   key={trackingState}
@@ -557,73 +491,111 @@ export function GesturePracticeView() {
                 </motion.span>
               </AnimatePresence>
             </div>
+            <p className="mt-1 text-sm leading-5 text-slate-600">{feedback}</p>
+            <RecognizedGestureMessage prediction={prediction} compact />
+          </div>
+        </div>
+      </Card>
 
-            <motion.div
-              key={trackingState}
-              initial={{ opacity: 0.65, y: 7, scale: 0.985 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ type: "spring", stiffness: 360, damping: 30 }}
-              className={`mt-4 rounded-lg border p-4 ${
-                meta.tone === "ready"
-                  ? "border-green-200 bg-mint text-green-900"
-                  : meta.tone === "warning"
-                    ? "border-orange-200 bg-coral text-orange-950"
-                    : "border-blue-100 bg-skywash text-slate-700"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <ScanLine className="h-5 w-5" aria-hidden="true" />
-                <p className="font-semibold">{meta.label}</p>
+      <Card className="flex min-h-0 flex-col overflow-hidden bg-[#fbfdff] p-4">
+        {selectedGesture ? (
+          <>
+            <div className="grid gap-3 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge>{selectedCategory?.name ?? "Sample gesture"}</Badge>
+                  {selectedPredictionGuide ? <Badge className="bg-mint text-green-700">{selectedPredictionGuide.pose}</Badge> : null}
+                </div>
+                <CardTitle className="mt-2 text-2xl">{selectedGesture.label}</CardTitle>
+                <CardDescription>Reference cue for teacher-guided practice.</CardDescription>
               </div>
-              <p className="mt-2 text-sm leading-6">{meta.detail}</p>
-            </motion.div>
+              <GestureSelector
+                id="teacher-gesture-reference"
+                label="Reference gesture"
+                items={learningItems}
+                selectedGestureId={selectedGesture.id}
+                onChange={handleGestureChange}
+                helperText="The detector still listens for every supported sample pose."
+              />
+            </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-4">
+            <div className="mt-3 rounded-lg border border-blue-100 bg-skywash p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">How to perform it</p>
+              <p className="mt-1 text-sm font-semibold leading-5 text-ink">{referenceInstruction}</p>
+              {selectedGesture.instruction ? (
+                <p className="mt-1 text-sm leading-5 text-slate-600">{selectedGesture.instruction}</p>
+              ) : null}
+            </div>
+
+            <div className="mt-3 grid min-h-0 gap-2 sm:grid-cols-2">
+              <PracticeReferenceMedia
+                title="Reference image"
+                value={selectedGesture.symbolImageUrl}
+                label={`${selectedGesture.label} reference image`}
+                emptyText="No reference image added"
+                compact
+              />
+              <PracticeReferenceMedia
+                title="Gesture image/video"
+                value={selectedGesture.gestureMediaUrl}
+                label={`${selectedGesture.label} gesture reference`}
+                emptyText="No gesture media added"
+                compact
+              />
+              <PracticeReferenceMedia
+                title="Audio cue"
+                value={selectedGesture.audioUrl}
+                label={`${selectedGesture.label} audio cue`}
+                emptyText="No audio cue added"
+                kind="audio"
+                compact
+                className="sm:col-span-2"
+              />
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Sample prediction</p>
-                <p className="mt-2 text-lg font-black text-ink">{prediction?.label ?? "Waiting for a supported pose"}</p>
+                <p className="mt-1 text-base font-black text-ink">{prediction?.label ?? "Waiting for a supported pose"}</p>
               </div>
-              <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-4">
+              <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Rule match</p>
-                <p className="mt-2 text-sm font-semibold text-ink">
+                <p className="mt-1 text-sm font-semibold text-ink">
                   {prediction
                     ? `${prediction.matchPercent}% sample match`
                     : hasValidHands
                       ? "Checking finger pose..."
-                      : "Move your hands into the camera frame"}
+                      : "Move hands into frame"}
                 </p>
               </div>
             </div>
+          </>
+        ) : null}
+      </Card>
+    </section>
+  );
+}
 
-            {prediction ? (
-              <div
-                className="mt-4 flex items-start gap-3 rounded-lg border border-green-200 bg-mint p-4 text-green-950"
-                role="status"
-                aria-live="polite"
-              >
-                <Sparkles className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-                <div>
-                  <p className="font-semibold">Predicted: {prediction.label}</p>
-                  <p className="mt-1 text-sm">Matched pose: {prediction.pose}.</p>
-                </div>
-              </div>
-            ) : null}
+function RecognizedGestureMessage({
+  prediction,
+  compact = false
+}: {
+  prediction: DemoGesturePrediction | null;
+  compact?: boolean;
+}) {
+  if (!prediction) return null;
 
-            <div className="mt-4 rounded-lg bg-skywash p-4">
-              <p className="font-semibold text-ink">Corrective feedback preview</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">{feedback}</p>
-            </div>
-
-            <CardFooter className="mt-4">
-              <Button variant="secondary" onClick={resetTracking}>
-                <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                Reset tracking
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
-      </section>
-    </>
+  return (
+    <div
+      className={`mt-3 flex items-start gap-3 rounded-lg border border-blue-200 bg-white text-blue-950 shadow-sm ${compact ? "p-3" : "p-4"}`}
+      role="status"
+      aria-live="polite"
+    >
+      <Sparkles className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+      <div>
+        <p className={compact ? "text-sm font-black" : "font-black"}>Recognized Gesture: {prediction.label}</p>
+      </div>
+    </div>
   );
 }
 
