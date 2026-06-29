@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -11,7 +12,6 @@ import {
   FileAudio,
   Film,
   FolderOpen,
-  Maximize2,
   Image as ImageIcon,
   Layers,
   PlayCircle,
@@ -71,12 +71,6 @@ type Tab = "items" | "lessons" | "categories" | "media";
 type ContentKind = "pecs" | "gesture";
 type NewItemMediaKey = "symbol" | "gesture" | "audio";
 type NewItemFiles = Partial<Record<NewItemMediaKey, File>>;
-type MediaPreview = {
-  title: string;
-  value?: string;
-  type: MediaAsset["type"];
-  label: string;
-};
 type ContentLibraryLocalState = {
   items: LearningItem[];
   lessons: Lesson[];
@@ -86,7 +80,7 @@ type ContentLibraryLocalState = {
 
 const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
 const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
-const CONTENT_ITEMS_PER_PAGE = 6;
+const CONTENT_ITEMS_PER_PAGE = 25;
 const allContentCategoriesLabel = "All categories";
 
 const pecsLessonActivityTypes: ActivityType[] = [
@@ -327,6 +321,7 @@ export function ContentLibraryView() {
   const [lessonFormOpen, setLessonFormOpen] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
   const [itemError, setItemError] = useState("");
+  const [selectedItemId, setSelectedItemId] = useState("");
   const [editingItemId, setEditingItemId] = useState("");
   const [editItemError, setEditItemError] = useState("");
   const [editItemLabel, setEditItemLabel] = useState("");
@@ -339,7 +334,6 @@ export function ContentLibraryView() {
   const [lessonPendingDelete, setLessonPendingDelete] = useState<Lesson | null>(null);
   const [deleteAssociatedMedia, setDeleteAssociatedMedia] = useState(true);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
-  const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -441,6 +435,10 @@ export function ContentLibraryView() {
     const start = (currentContentPage - 1) * CONTENT_ITEMS_PER_PAGE;
     return filteredItems.slice(start, start + CONTENT_ITEMS_PER_PAGE);
   }, [currentContentPage, filteredItems]);
+  const selectedItem = useMemo(
+    () => items.find((item) => item.id === selectedItemId) ?? null,
+    [items, selectedItemId]
+  );
   const contentPageStart = filteredItems.length ? (currentContentPage - 1) * CONTENT_ITEMS_PER_PAGE + 1 : 0;
   const contentPageEnd = Math.min(currentContentPage * CONTENT_ITEMS_PER_PAGE, filteredItems.length);
 
@@ -1363,159 +1361,17 @@ export function ContentLibraryView() {
 
           {filteredItems.length ? (
             <div className="min-h-0 overflow-y-auto bg-[#f8fbff] p-3 clean-scrollbar sm:p-4">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {pagedItems.map((item) => {
-                const category = categoryById.get(item.categoryId);
-                const creator = userNameById.get(item.createdBy) ?? "MakaLearn user";
-                const isEditingItem = editingItemId === item.id;
-                return (
-                  <Card key={item.id} className="relative flex h-full flex-col overflow-hidden p-0">
-                    <div className="absolute inset-y-0 left-0 w-2" style={{ backgroundColor: category?.color ?? "#dbeafe" }} />
-                    <div className="flex h-full flex-col p-5 pl-6">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <Badge className="bg-white text-blue-700 ring-1 ring-blue-100">{category?.name ?? "Uncategorized"}</Badge>
-                          <CardTitle className="mt-3 text-2xl leading-tight">{item.label}</CardTitle>
-                          <p className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
-                            <User className="h-3.5 w-3.5" aria-hidden="true" />
-                            Created by {creator}
-                          </p>
-                        </div>
-                        <LearningItemSymbolPreview
-                          value={item.symbolImageUrl}
-                          label={item.label}
-                          onPreview={() =>
-                            item.symbolImageUrl
-                              ? setMediaPreview({
-                                  title: `${item.label} image`,
-                                  value: item.symbolImageUrl,
-                                  type: "symbol-image",
-                                  label: `${item.label} image`
-                                })
-                              : undefined
-                          }
-                        />
-                      </div>
-
-                      <div className="mt-5 rounded-lg bg-[#f7fbff] p-4">
-                        <p className="text-sm leading-6 text-slate-700">{item.description}</p>
-                      </div>
-
-                      {isEditingItem ? (
-                        <div className="mt-4 rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
-                          <div className="grid gap-3">
-                            <div>
-                              <Label htmlFor={`edit-label-${item.id}`}>Label</Label>
-                              <Input
-                                id={`edit-label-${item.id}`}
-                                value={editItemLabel}
-                                onChange={(event) => {
-                                  setEditItemLabel(event.target.value);
-                                  setEditItemError("");
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor={`edit-category-${item.id}`}>Category</Label>
-                              <Select
-                                id={`edit-category-${item.id}`}
-                                value={editItemCategoryId}
-                                onChange={(event) => {
-                                  setEditItemCategoryId(event.target.value);
-                                  setEditItemError("");
-                                }}
-                              >
-                                {categories.map((categoryOption) => (
-                                  <option key={categoryOption.id} value={categoryOption.id}>
-                                    {categoryOption.name}
-                                  </option>
-                                ))}
-                              </Select>
-                            </div>
-                            <div>
-                              <Label htmlFor={`edit-description-${item.id}`}>Description</Label>
-                              <Textarea
-                                id={`edit-description-${item.id}`}
-                                value={editItemDescription}
-                                onChange={(event) => {
-                                  setEditItemDescription(event.target.value);
-                                  setEditItemError("");
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor={`edit-tags-${item.id}`}>Tags</Label>
-                              <Input
-                                id={`edit-tags-${item.id}`}
-                                value={editItemTags}
-                                onChange={(event) => setEditItemTags(event.target.value)}
-                                placeholder="gesture, classroom"
-                              />
-                              <FieldHint>Separate tags with commas.</FieldHint>
-                            </div>
-                            <FieldError message={editItemError} />
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              <Button type="button" size="sm" onClick={() => saveItemText(item)}>
-                                Save text
-                              </Button>
-                              <Button type="button" size="sm" variant="outline" onClick={closeEditItem}>
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <ItemMediaControls
-                        item={item}
-                        onUpload={handleMediaUpload}
-                        onPreview={setMediaPreview}
-                      />
-
-                      <CardFooter className="mt-5 grid min-h-[8.75rem] grid-cols-[minmax(0,1fr)_11rem] items-end gap-3">
-                        <p className="pb-1 text-xs font-medium leading-5 text-slate-500">
-                          Last updated {formatDate(item.updatedAt)}
-                        </p>
-                        <div className="grid w-44 gap-2 justify-self-end">
-                          {item.contentType === "pecs" ? (
-                            <>
-                              <Button className="w-full whitespace-nowrap" variant="secondary" size="sm" onClick={() => generateDraft(item)}>
-                                <BookPlus className="h-4 w-4" aria-hidden="true" />
-                                Generate lesson
-                              </Button>
-                              <Button className="w-full whitespace-nowrap" variant="outline" size="sm" onClick={() => openEditItem(item)}>
-                                Edit
-                              </Button>
-                              <Button className="w-full whitespace-nowrap" variant="danger" size="sm" onClick={() => requestDeleteItem(item)}>
-                                <Trash2 className="h-4 w-4" aria-hidden="true" />
-                                Delete
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button className="w-full whitespace-nowrap" variant="secondary" size="sm" onClick={() => generateDraft(item)}>
-                                <BookPlus className="h-4 w-4" aria-hidden="true" />
-                                Generate lesson
-                              </Button>
-                              <Button className="w-full whitespace-nowrap" variant="outline" size="sm" onClick={() => openEditItem(item)}>
-                                Edit
-                              </Button>
-                              {isFixedGesture(item) ? (
-                                <Badge className="justify-center bg-mint text-green-700">Fixed gesture</Badge>
-                              ) : (
-                                <Button className="w-full whitespace-nowrap" variant="danger" size="sm" onClick={() => requestDeleteItem(item)}>
-                                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                                  Delete
-                                </Button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </CardFooter>
-                    </div>
-                  </Card>
-                );
-              })}
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+                {pagedItems.map((item) => (
+                  <LearningItemLibraryCard
+                    key={item.id}
+                    item={item}
+                    onOpen={() => {
+                      setSelectedItemId(item.id);
+                      closeEditItem();
+                    }}
+                  />
+                ))}
               </div>
             </div>
           ) : (
@@ -1732,7 +1588,7 @@ export function ContentLibraryView() {
                       <p className="text-sm font-semibold text-slate-700">Learning items in this lesson</p>
                       <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         {lessonItems.map((item) => (
-                          <LessonLearningItemCard key={item.id} item={item} onPreview={setMediaPreview} />
+                          <LessonLearningItemCard key={item.id} item={item} />
                         ))}
                       </div>
                     </div>
@@ -1853,14 +1709,13 @@ export function ContentLibraryView() {
                   <CardTitle className="mt-3">{asset.title}</CardTitle>
                   <CardDescription className="break-all">{asset.fileName}</CardDescription>
                   <div className="mt-3">
-                    <MediaInlinePreview
-                      preview={{
+                    <MediaInlineDisplay
+                      media={{
                         title: asset.title,
                         value: asset.publicUrl,
                         type: asset.type,
                         label: asset.title
                       }}
-                      onPreview={setMediaPreview}
                     />
                   </div>
                   <CardFooter className="mt-3">
@@ -1883,7 +1738,47 @@ export function ContentLibraryView() {
         </section>
       ) : null}
 
-      {mediaPreview ? <MediaPreviewModal preview={mediaPreview} onClose={() => setMediaPreview(null)} /> : null}
+      {selectedItem ? (
+        <LearningItemDetailModal
+          item={selectedItem}
+          category={categoryById.get(selectedItem.categoryId)}
+          creator={userNameById.get(selectedItem.createdBy) ?? "MakaLearn user"}
+          categories={categories}
+          isEditing={editingItemId === selectedItem.id}
+          editItemLabel={editItemLabel}
+          editItemCategoryId={editItemCategoryId}
+          editItemDescription={editItemDescription}
+          editItemTags={editItemTags}
+          editItemError={editItemError}
+          onClose={() => {
+            setSelectedItemId("");
+            closeEditItem();
+          }}
+          onGenerateLesson={() => {
+            generateDraft(selectedItem);
+            setSelectedItemId("");
+            closeEditItem();
+          }}
+          onDelete={() => requestDeleteItem(selectedItem)}
+          onEdit={() => openEditItem(selectedItem)}
+          onCancelEdit={closeEditItem}
+          onSaveEdit={() => saveItemText(selectedItem)}
+          onEditLabelChange={(value) => {
+            setEditItemLabel(value);
+            setEditItemError("");
+          }}
+          onEditCategoryChange={(value) => {
+            setEditItemCategoryId(value);
+            setEditItemError("");
+          }}
+          onEditDescriptionChange={(value) => {
+            setEditItemDescription(value);
+            setEditItemError("");
+          }}
+          onEditTagsChange={setEditItemTags}
+          onUpload={handleMediaUpload}
+        />
+      ) : null}
 
       {itemPendingDelete ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
@@ -2119,14 +2014,248 @@ function createLocalMediaRecords(item: LearningItem, files: NewItemFiles, upload
   return records;
 }
 
+function LearningItemLibraryCard({
+  item,
+  onOpen
+}: {
+  item: LearningItem;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Open details for ${item.label}`}
+      className="group rounded-lg border border-blue-100 bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft focus:outline-none focus:ring-4 focus:ring-blue-100"
+    >
+      <span className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <LearningItemCardImage value={item.symbolImageUrl} label={item.label} />
+      </span>
+    </button>
+  );
+}
+
+function LearningItemCardImage({ value, label }: { value?: string; label: string }) {
+  const isImage = Boolean(value && isUrl(value));
+
+  if (isImage && value) {
+    return (
+      <>
+        {/* Uploaded picture-card images can use temporary object URLs. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- upload images may use temporary blob URLs. */}
+        <img src={value} alt={`${label} picture card`} className="h-full w-full object-contain" />
+      </>
+    );
+  }
+
+  return (
+    <span className="grid h-full w-full place-items-center bg-[#f8fbff] p-4 text-center text-4xl font-black text-blue-700">
+      {value || label}
+    </span>
+  );
+}
+
+function LearningItemDetailModal({
+  item,
+  category,
+  creator,
+  categories,
+  isEditing,
+  editItemLabel,
+  editItemCategoryId,
+  editItemDescription,
+  editItemTags,
+  editItemError,
+  onClose,
+  onGenerateLesson,
+  onDelete,
+  onEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onEditLabelChange,
+  onEditCategoryChange,
+  onEditDescriptionChange,
+  onEditTagsChange,
+  onUpload
+}: {
+  item: LearningItem;
+  category?: Category;
+  creator: string;
+  categories: Category[];
+  isEditing: boolean;
+  editItemLabel: string;
+  editItemCategoryId: string;
+  editItemDescription: string;
+  editItemTags: string;
+  editItemError: string;
+  onClose: () => void;
+  onGenerateLesson: () => void;
+  onDelete: () => void;
+  onEdit: () => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  onEditLabelChange: (value: string) => void;
+  onEditCategoryChange: (value: string) => void;
+  onEditDescriptionChange: (value: string) => void;
+  onEditTagsChange: (value: string) => void;
+  onUpload: (item: LearningItem, file: File, config: Pick<MediaAsset, "bucket" | "type">) => Promise<void>;
+}) {
+  const modal = (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/55 px-3 py-5 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="learning-item-detail-title"
+        className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-blue-100 bg-white shadow-soft"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-blue-100 p-4 sm:p-5">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-700">
+              {item.contentType === "gesture" ? "Gesture reference" : "PECS card"}
+            </p>
+            <h2 id="learning-item-detail-title" className="mt-1 text-2xl font-black leading-tight text-ink">
+              {item.label}
+            </h2>
+          </div>
+          <Button type="button" variant="ghost" size="icon" aria-label="Close item details" onClick={onClose}>
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+
+        <div className="min-h-0 overflow-y-auto bg-[#f8fbff] p-4 clean-scrollbar sm:p-5">
+          <div className="grid gap-5 lg:grid-cols-[18rem_minmax(0,1fr)]">
+            <div className="space-y-3">
+              <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white shadow-sm">
+                <LearningItemCardImage value={item.symbolImageUrl} label={item.label} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-blue-50 text-blue-700">{category?.name ?? "Uncategorized"}</Badge>
+                {isFixedGesture(item) ? <Badge className="bg-mint text-green-700">Fixed gesture</Badge> : null}
+              </div>
+              <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                <User className="h-3.5 w-3.5" aria-hidden="true" />
+                Created by {creator}
+              </p>
+              <p className="text-xs font-medium leading-5 text-slate-500">Last updated {formatDate(item.updatedAt)}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Description</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{item.description}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {item.tags.map((tag) => (
+                    <Badge key={tag} className="bg-white text-slate-600 ring-1 ring-blue-100">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {isEditing ? (
+                <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
+                  <div className="grid gap-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <Label htmlFor={`edit-label-${item.id}`}>Label</Label>
+                        <Input
+                          id={`edit-label-${item.id}`}
+                          value={editItemLabel}
+                          onChange={(event) => onEditLabelChange(event.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`edit-category-${item.id}`}>Category</Label>
+                        <Select
+                          id={`edit-category-${item.id}`}
+                          value={editItemCategoryId}
+                          onChange={(event) => onEditCategoryChange(event.target.value)}
+                        >
+                          {categories.map((categoryOption) => (
+                            <option key={categoryOption.id} value={categoryOption.id}>
+                              {categoryOption.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor={`edit-description-${item.id}`}>Description</Label>
+                      <Textarea
+                        id={`edit-description-${item.id}`}
+                        value={editItemDescription}
+                        onChange={(event) => onEditDescriptionChange(event.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`edit-tags-${item.id}`}>Tags</Label>
+                      <Input
+                        id={`edit-tags-${item.id}`}
+                        value={editItemTags}
+                        onChange={(event) => onEditTagsChange(event.target.value)}
+                        placeholder="gesture, classroom"
+                      />
+                      <FieldHint>Separate tags with commas.</FieldHint>
+                    </div>
+                    <FieldError message={editItemError} />
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button type="button" size="sm" onClick={onSaveEdit}>
+                        Save text
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={onCancelEdit}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-ink">Media</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">Attach classroom media for this card.</p>
+                  </div>
+                </div>
+                <ItemMediaControls item={item} onUpload={onUpload} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-2 border-t border-blue-100 bg-white p-4 sm:flex sm:items-center sm:justify-between">
+          <p className="text-xs font-medium leading-5 text-slate-500">
+            Additional content can be attached later through these media fields.
+          </p>
+          <div className="grid gap-2 sm:flex sm:justify-end">
+            <Button type="button" variant="secondary" size="sm" onClick={onGenerateLesson}>
+              <BookPlus className="h-4 w-4" aria-hidden="true" />
+              Generate lesson
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+              Edit
+            </Button>
+            {isFixedGesture(item) ? null : (
+              <Button type="button" variant="danger" size="sm" onClick={onDelete}>
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Delete
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return createPortal(modal, document.body);
+}
+
 function ItemMediaControls({
   item,
-  onUpload,
-  onPreview
+  onUpload
 }: {
   item: LearningItem;
   onUpload: (item: LearningItem, file: File, config: Pick<MediaAsset, "bucket" | "type">) => Promise<void>;
-  onPreview: (preview: MediaPreview) => void;
 }) {
   const controls = [
     {
@@ -2174,7 +2303,6 @@ function ItemMediaControls({
         <ItemMediaControl
           key={control.type}
           {...control}
-          onPreview={onPreview}
           onUpload={(file) => onUpload(item, file, { bucket: control.bucket, type: control.type })}
         />
       ))}
@@ -2191,7 +2319,6 @@ function ItemMediaControl({
   hint,
   storageNote,
   icon: Icon,
-  onPreview,
   onUpload
 }: {
   title: string;
@@ -2202,7 +2329,6 @@ function ItemMediaControl({
   hint: string;
   storageNote: string;
   icon: LucideIcon;
-  onPreview: (preview: MediaPreview) => void;
   onUpload: (file: File) => Promise<void>;
 }) {
   const id = useId();
@@ -2240,13 +2366,12 @@ function ItemMediaControl({
       <input ref={inputRef} id={id} type="file" accept={accept} onChange={handleChange} className="sr-only" />
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
-          <MediaMaterialPreview
+          <MediaMaterialDisplay
             value={mediaValue}
             type={type}
             label={label}
             title={title}
             fallbackIcon={Icon}
-            onPreview={onPreview}
           />
           <div className="min-w-0">
             <p className="text-sm font-bold text-ink">{title}</p>
@@ -2267,20 +2392,18 @@ function ItemMediaControl({
   );
 }
 
-function MediaMaterialPreview({
+function MediaMaterialDisplay({
   value,
   type,
   label,
   title,
-  fallbackIcon: Icon,
-  onPreview
+  fallbackIcon: Icon
 }: {
   value?: string;
   type: MediaAsset["type"];
   label: string;
   title: string;
   fallbackIcon: LucideIcon;
-  onPreview: (preview: MediaPreview) => void;
 }) {
   const canEmbed = Boolean(value && (value.startsWith("http") || value.startsWith("/") || value.startsWith("blob:")));
 
@@ -2307,31 +2430,27 @@ function MediaMaterialPreview({
     );
   }
 
-  if (value && type === "gesture-media" && canEmbed && !isPreviewableImage(value, type)) {
+  if (value && type === "gesture-media" && canEmbed && !isDisplayableImage(value, type)) {
     return (
-      <button
-        type="button"
-        onClick={() => onPreview({ title, value, type, label })}
+      <span
         className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-black text-white"
-        aria-label={`Preview ${label}`}
+        aria-label={label}
       >
         <Film className="h-5 w-5" aria-hidden="true" />
-      </button>
+      </span>
     );
   }
 
-  if (value && isPreviewableImage(value, type) && canEmbed) {
+  if (value && isDisplayableImage(value, type) && canEmbed) {
     return (
-      <button
-        type="button"
-        onClick={() => onPreview({ title, value, type, label })}
+      <span
         className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white"
-        aria-label={`Preview ${label}`}
+        aria-label={label}
       >
-        {/* Uploaded images can use temporary preview URLs. */}
+        {/* Uploaded images can use temporary object URLs. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={value} alt={label} className="h-full w-full object-cover" />
-      </button>
+      </span>
     );
   }
 
@@ -2350,38 +2469,41 @@ function MediaMaterialPreview({
   );
 }
 
-function MediaInlinePreview({
-  preview,
-  onPreview
+function MediaInlineDisplay({
+  media
 }: {
-  preview: MediaPreview;
-  onPreview: (preview: MediaPreview) => void;
+  media: {
+    title: string;
+    value?: string;
+    type: MediaAsset["type"];
+    label: string;
+  };
 }) {
-  const value = preview.value?.trim();
+  const value = media.value?.trim();
 
   if (!value) {
     return (
       <div className="rounded-lg border border-dashed border-blue-100 bg-[#f8fbff] p-3 text-sm font-semibold text-slate-500">
-        {preview.title}: no media added
+        {media.title}: no media added
       </div>
     );
   }
 
-  if (preview.type === "audio-file" && isAudioUrl(value)) {
+  if (media.type === "audio-file" && isAudioUrl(value)) {
     return (
       <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
-        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-blue-700">{preview.title}</p>
-        <audio controls className="w-full" aria-label={preview.label}>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-blue-700">{media.title}</p>
+        <audio controls className="w-full" aria-label={media.label}>
           <source src={value} />
         </audio>
       </div>
     );
   }
 
-  if (preview.type === "audio-file" && isSpeechFallbackAudio(value)) {
+  if (media.type === "audio-file" && isSpeechFallbackAudio(value)) {
     return (
       <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
-        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-blue-700">{preview.title}</p>
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-blue-700">{media.title}</p>
         <button
           type="button"
           onClick={() => speakText(getSpeechFallbackLabel(value))}
@@ -2395,16 +2517,12 @@ function MediaInlinePreview({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => onPreview(preview)}
-      className="group flex min-h-20 w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg border border-blue-100 bg-[#f8fbff] p-3 text-left transition hover:border-blue-300 hover:bg-white"
-    >
+    <div className="flex min-h-20 w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg border border-blue-100 bg-[#f8fbff] p-3 text-left">
       <span className="grid h-14 w-16 shrink-0 place-items-center overflow-hidden rounded-lg border border-blue-100 bg-white text-sm font-black text-blue-700">
-        {isPreviewableImage(value, preview.type) ? (
+        {isDisplayableImage(value, media.type) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt="" className="h-full w-full object-cover" />
-        ) : preview.type === "gesture-media" && isUrl(value) ? (
+        ) : media.type === "gesture-media" && isUrl(value) ? (
           <Film className="h-5 w-5" aria-hidden="true" />
         ) : isSpeechFallbackAudio(value) ? (
           <FileAudio className="h-5 w-5" aria-hidden="true" />
@@ -2413,75 +2531,14 @@ function MediaInlinePreview({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-bold text-ink">{preview.title}</span>
+        <span className="block text-sm font-bold text-ink">{media.title}</span>
         <span className="mt-1 block truncate text-xs text-slate-500">{getMediaFileName(value, "Stored media") ?? value}</span>
       </span>
-      <Maximize2 className="h-4 w-4 shrink-0 text-blue-600 opacity-70 transition group-hover:opacity-100" aria-hidden="true" />
-    </button>
-  );
-}
-
-function MediaPreviewModal({ preview, onClose }: { preview: MediaPreview; onClose: () => void }) {
-  const value = preview.value?.trim();
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={preview.title}
-        className="w-full max-w-3xl overflow-hidden rounded-lg border border-blue-100 bg-white shadow-soft"
-      >
-        <div className="flex items-center justify-between gap-3 border-b border-blue-100 p-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Media preview</p>
-            <h2 className="text-lg font-bold text-ink">{preview.title}</h2>
-          </div>
-          <Button type="button" variant="ghost" size="icon" aria-label="Close media preview" onClick={onClose}>
-            <X className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </div>
-        <div className="bg-[#f8fbff] p-4">
-          {!value ? (
-            <p className="rounded-lg border border-dashed border-blue-100 bg-white p-6 text-center text-sm font-semibold text-slate-500">
-              No media added.
-            </p>
-          ) : isPreviewableImage(value, preview.type) ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={value} alt={preview.label} className="max-h-[70vh] w-full rounded-lg object-contain" />
-          ) : preview.type === "gesture-media" && isUrl(value) ? (
-            <video controls className="max-h-[70vh] w-full rounded-lg bg-black" aria-label={preview.label}>
-              <source src={value} />
-            </video>
-          ) : isAudioUrl(value) ? (
-            <div className="rounded-lg border border-blue-100 bg-white p-5">
-              <audio controls className="w-full" aria-label={preview.label}>
-                <source src={value} />
-              </audio>
-            </div>
-          ) : isSpeechFallbackAudio(value) ? (
-            <div className="rounded-lg border border-blue-100 bg-white p-5 text-center">
-              <FileAudio className="mx-auto h-8 w-8 text-blue-700" aria-hidden="true" />
-              <p className="mt-3 text-sm font-semibold text-slate-700">
-                Browser speech fallback for {getSpeechFallbackLabel(value)}
-              </p>
-              <Button type="button" className="mt-4" onClick={() => speakText(getSpeechFallbackLabel(value))}>
-                <FileAudio className="h-4 w-4" aria-hidden="true" />
-                Play fallback audio
-              </Button>
-            </div>
-          ) : (
-            <p className="rounded-lg border border-blue-100 bg-white p-6 text-center text-3xl font-black text-blue-700">
-              {value}
-            </p>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
 
-function LessonLearningItemCard({ item, onPreview }: { item: LearningItem; onPreview: (preview: MediaPreview) => void }) {
+function LessonLearningItemCard({ item }: { item: LearningItem }) {
   return (
     <div className="rounded-lg border border-blue-100 bg-white p-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -2494,69 +2551,33 @@ function LessonLearningItemCard({ item, onPreview }: { item: LearningItem; onPre
         </Badge>
       </div>
       <div className="mt-3 grid gap-2">
-        <MediaInlinePreview
-          preview={{
+        <MediaInlineDisplay
+          media={{
             title: item.contentType === "gesture" ? "Reference image" : "PECS image",
             value: item.symbolImageUrl,
             type: "symbol-image",
             label: `${item.label} image`
           }}
-          onPreview={onPreview}
         />
         {item.contentType === "gesture" ? (
-          <MediaInlinePreview
-            preview={{
+          <MediaInlineDisplay
+            media={{
               title: "Gesture media",
               value: item.gestureMediaUrl,
               type: "gesture-media",
               label: `${item.label} gesture media`
             }}
-            onPreview={onPreview}
           />
         ) : null}
-        <MediaInlinePreview
-          preview={{
+        <MediaInlineDisplay
+          media={{
             title: "Audio cue",
             value: item.audioUrl,
             type: "audio-file",
             label: `${item.label} audio`
           }}
-          onPreview={onPreview}
         />
       </div>
-    </div>
-  );
-}
-
-function LearningItemSymbolPreview({
-  value,
-  label,
-  onPreview
-}: {
-  value?: string;
-  label: string;
-  onPreview?: () => void;
-}) {
-  const isImageUrl = Boolean(value?.startsWith("http") || value?.startsWith("/") || value?.startsWith("blob:"));
-
-  if (isImageUrl && value) {
-    return (
-      <button
-        type="button"
-        onClick={onPreview}
-        className="h-28 w-20 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-white shadow-inner transition hover:border-blue-300"
-        aria-label={`Preview ${label} image`}
-      >
-        {/* Uploaded picture-card images can use temporary preview URLs. */}
-        {/* eslint-disable-next-line @next/next/no-img-element -- upload previews may use temporary blob URLs. */}
-        <img src={value} alt={`${label} picture card`} className="h-full w-full object-contain" />
-      </button>
-    );
-  }
-
-  return (
-    <div className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border border-blue-100 bg-[#f8fbff] text-xl font-black text-blue-700 shadow-inner">
-      {value}
     </div>
   );
 }
@@ -2565,7 +2586,7 @@ function isImageUrl(value: string) {
   return isUrl(value) && /\.(apng|avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(value);
 }
 
-function isPreviewableImage(value: string, type: MediaAsset["type"]) {
+function isDisplayableImage(value: string, type: MediaAsset["type"]) {
   return isImageUrl(value) || (type === "symbol-image" && isUrl(value));
 }
 

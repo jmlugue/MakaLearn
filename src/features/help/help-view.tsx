@@ -15,8 +15,7 @@ const manualSections = [
     steps: [
       "Open Content, then choose PECS or Gestures on the content board.",
       "Use Add learning item for new records, or Edit on an existing record to update label, category, description, instruction, and tags.",
-      "Attach PECS images, gesture image/video references, and audio cues from the upload controls on each content card.",
-      "Select a media thumbnail to preview it in a larger viewer."
+      "Attach PECS images, gesture image/video references, and audio cues from the upload controls on each content card."
     ]
   },
   {
