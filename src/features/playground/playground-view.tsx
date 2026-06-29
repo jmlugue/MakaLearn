@@ -8,14 +8,12 @@ import {
   Library,
   MessageSquareText,
   RotateCcw,
-  Search,
+  Shuffle,
   Volume2,
   X
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
-import { Input, Label } from "@/components/ui/form";
+import { CardFooter } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
 import { learningItems as mockLearningItems } from "@/data/mock-data";
@@ -29,7 +27,7 @@ import {
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { validatePecsSentence, type PecsSentenceValidationResult } from "@/utils/pecs-sentence-validation";
-import type { LearningItem, SentenceRole } from "@/types";
+import type { LearningItem } from "@/types";
 
 type PlaygroundCard = PecsManifestCard & {
   id: string;
@@ -64,7 +62,7 @@ function getPecsItems(items: LearningItem[]) {
   return items.filter((item) => item.contentType === "pecs");
 }
 
-function buildPlaygroundCards(items: LearningItem[]) {
+function buildPlaygroundCards(items: LearningItem[]): PlaygroundCard[] {
   const itemByLabel = new Map(getPecsItems(items).map((item) => [normalizePecsLabel(item.label), item]));
 
   return pecsCardManifest.map((card) => {
@@ -88,10 +86,6 @@ function isEmbeddableMediaUrl(value: string) {
   return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/") || value.startsWith("blob:");
 }
 
-function getRoleLabel(role: SentenceRole) {
-  return role.replace("_", " ");
-}
-
 function canUseAudioUrl(value?: string) {
   return Boolean(value && isEmbeddableMediaUrl(value));
 }
@@ -104,17 +98,29 @@ function getFeedbackMessage(result: PecsSentenceValidationResult) {
   return result.feedback;
 }
 
+function shuffleValues<T>(values: T[]) {
+  const shuffled = [...values];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  return shuffled;
+}
+
 export function PlaygroundView() {
   const { notify } = useToast();
   const [learningItems, setLearningItems] = useState<LearningItem[]>(mockLearningItems);
   const [ready, setReady] = useState(!isSupabaseConfigured());
   const [activeCategory, setActiveCategory] = useState<PecsCardCategory | typeof allCategoriesLabel>(allCategoriesLabel);
-  const [search, setSearch] = useState("");
+  const [cardOrderIds, setCardOrderIds] = useState<string[]>([]);
   const [sentenceCards, setSentenceCards] = useState<PlaygroundCard[]>([]);
   const [draggedLibraryCardId, setDraggedLibraryCardId] = useState("");
   const [draggedSentenceIndex, setDraggedSentenceIndex] = useState<number | null>(null);
   const [result, setResult] = useState<PecsSentenceValidationResult | null>(null);
   const [speaking, setSpeaking] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [toolbarReady, setToolbarReady] = useState(false);
 
   useEffect(() => {
@@ -157,30 +163,40 @@ export function PlaygroundView() {
 
   const cards = useMemo(() => buildPlaygroundCards(learningItems), [learningItems]);
   const approvedCardIds = useMemo(() => new Set(cards.map((card) => card.id)), [cards]);
+  const orderedCards = useMemo(() => {
+    const cardById = new Map(cards.map((card) => [card.id, card]));
+    const ordered: PlaygroundCard[] = [];
+
+    for (const id of cardOrderIds) {
+      const card = cardById.get(id);
+      if (card) ordered.push(card);
+    }
+
+    const orderedIds = new Set(ordered.map((card) => card.id));
+    const missingCards = cards.filter((card) => !orderedIds.has(card.id));
+
+    return [...ordered, ...missingCards];
+  }, [cardOrderIds, cards]);
   const filteredCards = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    return activeCategory === allCategoriesLabel
+      ? orderedCards
+      : orderedCards.filter((card) => card.category === activeCategory);
+  }, [activeCategory, orderedCards]);
 
-    return cards.filter((card) => {
-      const categoryMatches = activeCategory === allCategoriesLabel || card.category === activeCategory;
-      const queryMatches =
-        !query ||
-        [card.label, card.category, getRoleLabel(card.sentenceRole)]
-          .join(" ")
-          .toLowerCase()
-          .includes(query);
-
-      return categoryMatches && queryMatches;
-    });
-  }, [activeCategory, cards, search]);
+  useEffect(() => {
+    setCardOrderIds(cards.map((card) => card.id));
+  }, [cards]);
 
   function addCard(card: PlaygroundCard) {
     setSentenceCards((current) => (current.length >= 5 ? current : [...current, card]));
     setResult(null);
+    setShowSuccessModal(false);
   }
 
   function removeCard(index: number) {
     setSentenceCards((current) => current.filter((_, cardIndex) => cardIndex !== index));
     setResult(null);
+    setShowSuccessModal(false);
   }
 
   function moveCard(fromIndex: number, toIndex: number) {
@@ -192,6 +208,7 @@ export function PlaygroundView() {
       return next;
     });
     setResult(null);
+    setShowSuccessModal(false);
   }
 
   function handleSentenceDrop(event: DragEvent<HTMLDivElement>, targetIndex?: number) {
@@ -212,10 +229,16 @@ export function PlaygroundView() {
   function checkSentence() {
     const nextResult = validatePecsSentence(sentenceCards, approvedCardIds);
     setResult(nextResult);
+
+    if (nextResult.isValid) {
+      setShowSuccessModal(true);
+      return;
+    }
+
     notify({
       title: getFeedbackTitle(nextResult),
       description: nextResult.feedback,
-      tone: nextResult.isValid ? "success" : "info"
+      tone: "info"
     });
   }
 
@@ -239,6 +262,14 @@ export function PlaygroundView() {
   function resetSentence() {
     setSentenceCards([]);
     setResult(null);
+    setShowSuccessModal(false);
+  }
+
+  function mixUpCards() {
+    setCardOrderIds((current) => {
+      const sourceIds = current.length === cards.length ? current : cards.map((card) => card.id);
+      return shuffleValues(sourceIds);
+    });
   }
 
   const dropZoneClass = `min-h-32 rounded-xl border-2 border-dashed p-2 transition-colors sm:min-h-36 sm:p-3 ${
@@ -251,23 +282,75 @@ export function PlaygroundView() {
       {toolbarReady && typeof document !== "undefined"
         ? createPortal(
             <div className="fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:px-6 lg:bottom-0 lg:left-72 lg:px-8 lg:py-4">
-              <div className="mx-auto grid h-full max-w-7xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-2xl border border-blue-100 bg-white/95 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl">
-                <div className="border-b border-blue-100 bg-white/90 p-3 sm:p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="mx-auto grid h-full max-w-7xl grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] overflow-hidden rounded-2xl border border-blue-100 bg-white/95 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1">
+                <section className="flex min-h-0 flex-col bg-[#f8fbff] p-3 sm:p-4">
+                  <div className="shrink-0 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
                     <div>
-                      <CardTitle>Build your sentence here</CardTitle>
-                      <CardDescription>Drop up to five cards. Selected cards fill this workspace from left to right.</CardDescription>
+                      <p className="text-sm font-bold text-ink">Categories</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {filterCategories.map((category) => (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => setActiveCategory(category)}
+                            className={`inline-flex min-h-10 shrink-0 items-center rounded-xl border px-3 text-sm font-bold transition ${
+                              activeCategory === category
+                                ? "border-blue-500 bg-blue-600 text-white shadow-soft"
+                                : "border-blue-100 bg-white text-slate-700 hover:border-blue-300 hover:bg-skywash"
+                            }`}
+                            aria-pressed={activeCategory === category}
+                          >
+                            {category}
+                          </button>
+                        ))}
+                        <Button type="button" className="min-h-10 shrink-0" onClick={mixUpCards}>
+                          <Shuffle className="h-4 w-4" aria-hidden="true" />
+                          Mix Up
+                        </Button>
+                      </div>
                     </div>
-                    <Badge className="bg-white text-slate-700">{sentenceCards.length}/5</Badge>
                   </div>
 
+                  <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-blue-100 bg-white p-3 shadow-sm clean-scrollbar">
+                      {!ready ? (
+                        <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-blue-100 bg-[#f8fbff] text-sm font-semibold text-slate-600">
+                          Loading PECS cards...
+                        </div>
+                      ) : filteredCards.length ? (
+                        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                          {filteredCards.map((card) => (
+                            <button
+                              key={card.id}
+                              type="button"
+                              draggable
+                              onClick={() => addCard(card)}
+                              onDragStart={() => setDraggedLibraryCardId(card.id)}
+                              onDragEnd={() => setDraggedLibraryCardId("")}
+                              aria-label={`Add ${card.label} to sentence`}
+                              className="group rounded-lg border border-blue-100 bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft focus:outline-none focus:ring-4 focus:ring-blue-100"
+                            >
+                              <span className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                {/* Provided PECS/AAC card images are used unchanged from public/pecs. */}
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={card.imageUrl} alt={`${card.label} PECS card`} className="h-full w-full object-contain" />
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState icon={Library} title="No cards found" description="Try another category." />
+                      )}
+                  </div>
+                </section>
+
+                <section className="flex min-h-0 flex-col border-t border-blue-100 bg-white p-3 sm:p-4 lg:border-l lg:border-t-0">
                   <div
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={handleSentenceDrop}
-                    className={`${dropZoneClass} mt-3`}
+                    className={`${dropZoneClass} min-h-0 flex-1 overflow-y-auto clean-scrollbar`}
                   >
                     {sentenceCards.length ? (
-                      <div className="flex gap-2 overflow-x-auto pb-1">
+                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         {sentenceCards.map((card, index) => (
                           <div
                             key={`${card.id}-${index}`}
@@ -276,9 +359,9 @@ export function PlaygroundView() {
                             onDragEnd={() => setDraggedSentenceIndex(null)}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleSentenceDrop(event, index)}
-                            className="flex w-36 shrink-0 flex-col rounded-lg border border-blue-100 bg-white p-2 shadow-sm sm:w-40"
+                            className="flex min-w-0 flex-col rounded-lg border border-blue-100 bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft"
                           >
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="mb-2 flex items-center justify-between gap-2">
                               <span className="flex items-center gap-1 text-xs font-bold text-slate-500">
                                 <GripVertical className="h-4 w-4" aria-hidden="true" />
                                 {index + 1}
@@ -287,13 +370,9 @@ export function PlaygroundView() {
                                 <X className="h-4 w-4" aria-hidden="true" />
                               </Button>
                             </div>
-                            <div className="grid h-28 w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white sm:h-32">
+                            <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={card.imageUrl} alt={`${card.label} selected card`} className="h-full w-full object-contain" />
-                            </div>
-                            <div className="mt-2">
-                              <span className="block truncate text-sm font-bold text-ink">{card.label}</span>
-                              <Badge className="mt-1 bg-emerald-50 text-emerald-700">{getRoleLabel(card.sentenceRole)}</Badge>
                             </div>
                           </div>
                         ))}
@@ -303,14 +382,14 @@ export function PlaygroundView() {
                         <div>
                           <MessageSquareText className="mx-auto h-7 w-7 text-blue-600" aria-hidden="true" />
                           <p className="mt-2 text-base font-bold text-ink">Drop cards here</p>
-                          <p className="mt-1 text-sm leading-5 text-slate-600">You can also tap a card in the library below to add it.</p>
+                          <p className="mt-1 text-sm leading-5 text-slate-600">You can also tap a card in the library on the left to add it.</p>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                    <div className={`rounded-xl border p-3 shadow-sm ${result ? (result.isValid ? "border-emerald-200 bg-emerald-50/90" : "border-amber-200 bg-amber-50/90") : "border-blue-100 bg-white/75"}`}>
+                  <div className="mt-3 grid shrink-0 gap-3">
+                    <div className={`rounded-xl border p-3 shadow-sm ${result ? (result.isValid ? "border-emerald-200 bg-emerald-50/90" : "border-amber-200 bg-amber-50/90") : "border-blue-100 bg-[#f8fbff]"}`}>
                       {result ? (
                         <div className="space-y-3">
                           <div className="flex items-start gap-3">
@@ -343,7 +422,7 @@ export function PlaygroundView() {
                       )}
                     </div>
 
-                    <CardFooter className="mt-0 flex flex-col gap-2 border-t-0 pt-0 sm:flex-row lg:justify-end">
+                    <CardFooter className="mt-0 grid gap-2 border-t-0 pt-0 sm:grid-cols-3">
                       <Button type="button" className="min-h-10" onClick={checkSentence}>
                         <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                         Check Sentence
@@ -358,93 +437,37 @@ export function PlaygroundView() {
                       </Button>
                     </CardFooter>
                   </div>
-                </div>
-
-                <div className="grid min-h-0 gap-3 bg-[#f8fbff] p-3 lg:grid-cols-[12rem_minmax(0,1fr)]">
-                  <aside className="flex min-h-0 flex-col rounded-xl border border-blue-100 bg-white/80 p-3 shadow-sm">
-                    <div className="shrink-0">
-                      <p className="text-sm font-bold text-ink">Categories</p>
-                      <p className="mt-1 hidden text-xs leading-5 text-slate-500 lg:block">Choose a card group.</p>
-                    </div>
-
-                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:pb-0">
-                      {filterCategories.map((category) => (
-                        <button
-                          key={category}
-                          type="button"
-                          onClick={() => setActiveCategory(category)}
-                          className={`min-h-11 shrink-0 rounded-xl border px-4 text-left text-sm font-bold transition lg:w-full ${
-                            activeCategory === category
-                              ? "border-blue-500 bg-blue-600 text-white shadow-soft"
-                              : "border-blue-100 bg-white/70 text-slate-700 hover:border-blue-300 hover:bg-white"
-                          }`}
-                          aria-pressed={activeCategory === category}
-                        >
-                          {category}
-                        </button>
-                      ))}
-                    </div>
-                  </aside>
-
-                  <div className="flex min-h-0 flex-col rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
-                    <div className="shrink-0 border-b border-blue-50 pb-3">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                        <div>
-                          <CardTitle>PECS/AAC card library</CardTitle>
-                          <CardDescription>Use the approved classroom card set. Category and role labels stay outside the images.</CardDescription>
-                        </div>
-                        <div className="w-full lg:max-w-sm">
-                          <Label htmlFor="playground-search">Search cards</Label>
-                          <div className="relative mt-1">
-                            <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
-                            <Input
-                              id="playground-search"
-                              value={search}
-                              onChange={(event) => setSearch(event.target.value)}
-                              className="pl-10"
-                              placeholder="Search word, category, or role"
-                            />
-                          </div>
-                        </div>
+                </section>
+                {showSuccessModal ? (
+                  <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/50 px-3 py-6 backdrop-blur-sm">
+                    <div
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="playground-success-title"
+                      className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-emerald-200 bg-white p-5 text-center shadow-[0_24px_80px_rgba(16,185,129,0.28)] clean-scrollbar sm:p-6"
+                    >
+                      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+                        <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
                       </div>
-                    </div>
-
-                    <div className="min-h-0 flex-1 overflow-y-auto pt-3">
-                      {!ready ? (
-                        <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-blue-100 bg-[#f8fbff] text-sm font-semibold text-slate-600">
-                          Loading PECS cards...
-                        </div>
-                      ) : filteredCards.length ? (
-                        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                          {filteredCards.map((card) => (
-                            <button
-                              key={card.id}
-                              type="button"
-                              draggable
-                              onClick={() => addCard(card)}
-                              onDragStart={() => setDraggedLibraryCardId(card.id)}
-                              onDragEnd={() => setDraggedLibraryCardId("")}
-                              className="group flex min-h-[23rem] flex-col rounded-lg border border-blue-100 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft focus:outline-none focus:ring-4 focus:ring-blue-100"
-                            >
-                              <span className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
-                                {/* Provided PECS/AAC card images are used unchanged from public/pecs. */}
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={card.imageUrl} alt={`${card.label} PECS card`} className="h-full w-full object-contain" />
-                              </span>
-                              <span className="mt-3 flex flex-wrap gap-2">
-                                <Badge>{card.category}</Badge>
-                                <Badge className="bg-emerald-50 text-emerald-700">{getRoleLabel(card.sentenceRole)}</Badge>
-                              </span>
-                              <span className="mt-auto pt-3 text-sm font-bold text-blue-700">Add to sentence</span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <EmptyState icon={Library} title="No cards found" description="Try another category or search word." />
-                      )}
+                      <h2 id="playground-success-title" className="mt-4 text-4xl font-black tracking-wide text-emerald-600 sm:text-5xl">
+                        GOOD WORK
+                      </h2>
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                        {sentenceCards.map((card, index) => (
+                          <div key={`success-${card.id}-${index}`} className="rounded-lg border border-blue-100 bg-white p-2 shadow-sm">
+                            <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={card.imageUrl} alt={`${card.label} correct sentence card`} className="h-full w-full object-contain" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <Button type="button" className="mt-6 min-h-12 px-6" onClick={() => setShowSuccessModal(false)}>
+                        PLAY AGAIN
+                      </Button>
                     </div>
                   </div>
-                </div>
+                ) : null}
               </div>
             </div>,
             document.body
