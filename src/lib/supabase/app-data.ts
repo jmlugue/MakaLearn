@@ -3,14 +3,12 @@ import { mapMediaAssetRow } from "@/lib/supabase/media";
 import type {
   Activity,
   ActivityQuestion,
-  ActivityResult,
   AppUser,
   Category,
   Learner,
   LearningItem,
   Lesson,
-  MediaAsset,
-  PracticeAttempt
+  MediaAsset
 } from "@/types";
 import type { Database } from "@/types/database";
 
@@ -23,8 +21,6 @@ type LessonRow = Tables["lessons"]["Row"];
 type LessonItemRow = Tables["lesson_items"]["Row"];
 type ActivityRow = Tables["activities"]["Row"];
 type ActivityItemRow = Tables["activity_items"]["Row"];
-type PracticeAttemptRow = Tables["practice_attempts"]["Row"];
-type ActivityResultRow = Tables["activity_results"]["Row"];
 
 export type MakaLearnData = {
   users: AppUser[];
@@ -34,8 +30,6 @@ export type MakaLearnData = {
   mediaAssets: MediaAsset[];
   lessons: Lesson[];
   activities: Activity[];
-  practiceAttempts: PracticeAttempt[];
-  activityResults: ActivityResult[];
 };
 
 function getClientOrThrow() {
@@ -140,34 +134,6 @@ function mapActivity(row: ActivityRow, questions: ActivityItemRow[]): Activity {
   };
 }
 
-function mapPracticeAttempt(row: PracticeAttemptRow): PracticeAttempt {
-  return {
-    id: row.id,
-    learnerId: row.learner_id ?? undefined,
-    learningItemId: row.learning_item_id,
-    status: row.status,
-    feedback: row.feedback,
-    attemptedAt: row.attempted_at,
-    savedBy: row.saved_by
-  };
-}
-
-function mapActivityResult(row: ActivityResultRow): ActivityResult {
-  return {
-    id: row.id,
-    learnerId: row.learner_id ?? undefined,
-    activityId: row.activity_id,
-    activityType: row.activity_type,
-    scorePercentage: row.score_percentage,
-    correctCount: row.correct_count,
-    incorrectCount: row.incorrect_count,
-    timeSpentSeconds: row.time_spent_seconds,
-    completedAt: row.completed_at,
-    relatedLearningItemIds: row.related_learning_item_ids,
-    savedBy: row.saved_by
-  };
-}
-
 async function expectData<T>(
   request: PromiseLike<{ data: T | null; error: { message: string } | null }>
 ): Promise<NonNullable<T>> {
@@ -191,9 +157,7 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData | null> {
     lessons,
     lessonItems,
     activities,
-    activityItems,
-    practiceAttempts,
-    activityResults
+    activityItems
   ] = await Promise.all([
     expectData(supabase.from("profiles").select("*").order("name")),
     expectData(supabase.from("categories").select("*").order("name")),
@@ -203,9 +167,7 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData | null> {
     expectData(supabase.from("lessons").select("*").order("created_at", { ascending: false })),
     expectData(supabase.from("lesson_items").select("*").order("position")),
     expectData(supabase.from("activities").select("*").order("created_at", { ascending: false })),
-    expectData(supabase.from("activity_items").select("*").order("position")),
-    expectData(supabase.from("practice_attempts").select("*").order("attempted_at", { ascending: false })),
-    expectData(supabase.from("activity_results").select("*").order("completed_at", { ascending: false }))
+    expectData(supabase.from("activity_items").select("*").order("position"))
   ]);
 
   return {
@@ -215,9 +177,7 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData | null> {
     learningItems: learningItems.map(mapLearningItem),
     mediaAssets: mediaAssets.map(mapMediaAssetRow),
     lessons: lessons.map((lesson) => mapLesson(lesson, lessonItems)),
-    activities: activities.map((activity) => mapActivity(activity, activityItems)),
-    practiceAttempts: practiceAttempts.map(mapPracticeAttempt),
-    activityResults: activityResults.map(mapActivityResult)
+    activities: activities.map((activity) => mapActivity(activity, activityItems))
   };
 }
 
@@ -405,7 +365,7 @@ export async function insertActivity(activity: Activity) {
 export async function deleteActivity(activityId: string) {
   const supabase = getClientOrThrow();
 
-  // The schema cascades this deletion to activity_items and activity_results.
+  // The schema cascades this deletion to activity_items.
   const deletedRows = (await expectData(
     supabase.from("activities").delete().eq("id", activityId).select("id")
   )) as Array<{ id: string }>;
@@ -488,52 +448,6 @@ export async function updateActivity(activity: Activity, previousActivity: Activ
     }
     throw error;
   }
-}
-
-export async function insertPracticeAttempt(attempt: PracticeAttempt) {
-  const supabase = getClientOrThrow();
-  const row = (await expectData(
-    supabase
-      .from("practice_attempts")
-      .insert({
-        id: attempt.id,
-        learner_id: attempt.learnerId ?? null,
-        learning_item_id: attempt.learningItemId,
-        status: attempt.status,
-        feedback: attempt.feedback,
-        attempted_at: attempt.attemptedAt,
-        saved_by: attempt.savedBy
-      })
-      .select()
-      .single()
-  )) as PracticeAttemptRow;
-
-  return mapPracticeAttempt(row);
-}
-
-export async function insertActivityResult(result: ActivityResult) {
-  const supabase = getClientOrThrow();
-  const row = (await expectData(
-    supabase
-      .from("activity_results")
-      .insert({
-        id: result.id,
-        learner_id: result.learnerId ?? null,
-        activity_id: result.activityId,
-        activity_type: result.activityType,
-        score_percentage: result.scorePercentage,
-        correct_count: result.correctCount,
-        incorrect_count: result.incorrectCount,
-        time_spent_seconds: result.timeSpentSeconds,
-        completed_at: result.completedAt,
-        related_learning_item_ids: result.relatedLearningItemIds,
-        saved_by: result.savedBy
-      })
-      .select()
-      .single()
-  )) as ActivityResultRow;
-
-  return mapActivityResult(row);
 }
 
 export async function updateLearningItemMedia(

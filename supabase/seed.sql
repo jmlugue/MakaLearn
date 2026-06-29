@@ -105,38 +105,6 @@ values
   ('q-choice-drink', 'activity-choice', 'Choose Drink', 'DRK', array['HEL', 'EAT', 'DRK'], 'item-drink', 0)
 on conflict (id) do nothing;
 
-insert into public.practice_attempts (
-  id,
-  learner_id,
-  learning_item_id,
-  status,
-  feedback,
-  attempted_at,
-  saved_by
-)
-values
-  ('attempt-1', 'learner-ella', 'item-hello', 'Correct', 'Clear start and finish. Keep the pace steady.', '2026-06-02T10:00:00.000Z', coalesce((select id from public.profiles where email = 'teacher@makalearn.local'), 'seed-teacher')),
-  ('attempt-2', 'learner-noah', 'item-eat', 'Good attempt', 'Good effort. Try holding the final position a little longer.', '2026-06-03T11:15:00.000Z', coalesce((select id from public.profiles where email = 'teacher@makalearn.local'), 'seed-teacher'))
-on conflict (id) do nothing;
-
-insert into public.activity_results (
-  id,
-  learner_id,
-  activity_id,
-  activity_type,
-  score_percentage,
-  correct_count,
-  incorrect_count,
-  time_spent_seconds,
-  completed_at,
-  related_learning_item_ids,
-  saved_by
-)
-values
-  ('result-1', 'learner-ella', 'activity-match', 'match-word-symbol', 100, 2, 0, 110, '2026-06-04T09:10:00.000Z', array['item-hello', 'item-eat'], coalesce((select id from public.profiles where email = 'teacher@makalearn.local'), 'seed-teacher')),
-  ('result-2', 'learner-noah', 'activity-choice', 'choose-correct-symbol', 50, 1, 1, 150, '2026-06-06T09:35:00.000Z', array['item-drink'], coalesce((select id from public.profiles where email = 'teacher@makalearn.local'), 'seed-teacher'))
-on conflict (id) do nothing;
-
 insert into public.audit_logs (
   id,
   category,

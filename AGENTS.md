@@ -32,8 +32,6 @@ Later, Supabase will handle:
 - Lessons
 - Categories
 - Activities
-- Practice attempts
-- Activity results
 - Storage uploads
 - Row Level Security
 
@@ -45,13 +43,11 @@ Use:
 - Tailwind CSS
 - shadcn/ui
 - lucide-react
-- Recharts
 
 Prepare for later:
 - Supabase Auth
 - Supabase Database
 - Supabase Storage
-- PDF export for learner progress reports
 
 Use the Next.js App Router.
 
@@ -74,12 +70,10 @@ Create these pages:
 
 - Public landing page
 - Login page
-- Dashboard
 - Learners
 - Content Library
 - Gesture Practice
 - Activities
-- Progress
 - Settings
 - Help / Guide
 - Admin Panel
@@ -95,12 +89,10 @@ Mobile navigation:
 - Bottom navigation or a clear mobile menu
 
 Main navigation items:
-- Dashboard
 - Learners
 - Content Library
 - Gesture Practice
 - Activities
-- Progress
 - Settings
 - Help / Guide
 - Admin Panel, admin only
@@ -115,7 +107,7 @@ Learners do not have their own login in the MVP. Teachers select learner profile
 
 After login:
 - Teacher should go to Content Library.
-- Admin should go to Admin Dashboard.
+- Admin should go to Admin Panel.
 
 For the local-first build, simulate the role using local state, demo login buttons, or a simple local user object. Later this will be replaced by Supabase Auth and a `profiles` table.
 
@@ -133,8 +125,6 @@ For local data, create mock records for:
 - Learning items
 - Lessons
 - Activities
-- Practice attempts
-- Activity results
 - Uploaded media records
 
 ## Content policy for learning content
@@ -226,7 +216,6 @@ Learners page should include:
 - Add learner button
 - Edit learner profile
 - Archive learner
-- View progress button
 - Profile photo
 - Active/inactive filter
 
@@ -244,11 +233,8 @@ Flow:
 - Start practice
 - Use webcam preview
 - Simulate result
-- Optionally assign/save result to learner
 
-Demo mode:
-- Allow practice without selecting a learner.
-- Demo mode must not save results.
+Gesture practice remains session-only in this MVP.
 
 Fake controls:
 - Simulate Correct
@@ -256,7 +242,6 @@ Fake controls:
 - Simulate Needs Practice
 - Simulate No Hand Detected
 - Reset attempt
-- Save attempt
 
 Saved statuses:
 - Correct
@@ -288,68 +273,12 @@ Activities page should include:
 - Create/edit activities
 - Auto-generate activities from learning items
 
-Activity results should include:
-- Learner
-- Activity type
-- Score percentage
-- Correct count
-- Incorrect count
-- Time spent
-- Completed at
-- Related learning items
-
-If no learner is selected, activity can run in demo mode but must not save results.
+Activity scoring is session-only in this MVP.
 
 Activities:
 - Teachers/admins can manually create activities.
 - Activities can also be auto-generated from learning items.
 - Teacher chooses whether an activity is shared/private.
-
-## Progress
-
-Progress is calculated using:
-- Activity results
-- Gesture practice attempts
-
-Progress page should include:
-- All learners overview
-- Select learner
-- Individual learner report
-- Completed lessons
-- Practice attempts history
-- Activity results
-- Accuracy percentage
-- Most practiced learning items
-- Progress chart
-- PDF export
-
-PDF export should generate a simple learner progress report in a later phase. For the first build, the UI can include a working placeholder or a local implementation if straightforward.
-
-## Dashboard
-
-Use one `/dashboard` page that changes based on role.
-
-Admin dashboard should show:
-- Total teachers
-- Total learners
-- Total learning items
-- Total lessons
-- Total practice attempts
-- Recent uploads
-- Recent learner activity
-- Teacher account list
-- Quick actions
-- System reminders/notes
-
-Teacher dashboard should exist, but teacher does not land there by default.
-
-Teacher dashboard should show:
-- Assigned learners
-- Recently used learning items
-- Recent practice attempts
-- Quick actions
-- Upcoming/recommended lessons
-- Learner progress alerts
 
 ## Admin Panel
 
@@ -385,7 +314,7 @@ Help page should include:
 - How to create lessons
 - How to use gesture practice
 - How to run activities
-- How to read progress reports
+- How session-only activity scoring works
 - Note explaining that official content/model data will be added later
 
 ## UI style
@@ -394,7 +323,6 @@ Use:
 - Soft blue/white palette
 - Professional teacher-facing style
 - Friendly learner-facing areas
-- Medium-detail dashboards
 - Rounded cards
 - Large buttons
 - Clear labels
@@ -466,7 +394,6 @@ Add comments at future integration points:
 - Gesture recognition model
 - Corrective feedback model
 - AI feedback
-- PDF export
 
 ## README
 

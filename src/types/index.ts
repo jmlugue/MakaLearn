@@ -124,36 +124,6 @@ export type ActivityQuestion = {
   learningItemId: string;
 };
 
-export type PracticeStatus =
-  | "Correct"
-  | "Good attempt"
-  | "Needs practice"
-  | "No hand detected";
-
-export type PracticeAttempt = {
-  id: string;
-  learnerId?: string;
-  learningItemId: string;
-  status: PracticeStatus;
-  feedback: string;
-  attemptedAt: string;
-  savedBy: string;
-};
-
-export type ActivityResult = {
-  id: string;
-  learnerId?: string;
-  activityId: string;
-  activityType: ActivityType;
-  scorePercentage: number;
-  correctCount: number;
-  incorrectCount: number;
-  timeSpentSeconds: number;
-  completedAt: string;
-  relatedLearningItemIds: string[];
-  savedBy: string;
-};
-
 export type AuditLog = {
   id: string;
   category: AuditLogCategory;

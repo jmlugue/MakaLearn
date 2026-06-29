@@ -1,13 +1,11 @@
 import type {
   Activity,
-  ActivityResult,
   AppUser,
   Category,
   Learner,
   LearningItem,
   Lesson,
-  MediaAsset,
-  PracticeAttempt
+  MediaAsset
 } from "@/types";
 
 // Future Supabase: replace these local records with typed queries from profiles,
@@ -60,8 +58,8 @@ export const categories: Category[] = [
   }
 ];
 
-// Learners remain in the type system for a future phase, but the current app
-// scope no longer exposes learner management or progress recording.
+// Learners remain in the type system for classroom profile management.
+// The current MVP does not store learner session records.
 export const learners: Learner[] = [];
 
 // These labels are starter educational records for classroom setup.
@@ -400,9 +398,6 @@ export const activities: Activity[] = [
     ]
   }
 ];
-
-export const practiceAttempts: PracticeAttempt[] = [];
-export const activityResults: ActivityResult[] = [];
 
 export const mediaAssets: MediaAsset[] = [
   {

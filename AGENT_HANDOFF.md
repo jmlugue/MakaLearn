@@ -18,13 +18,10 @@ The app now prioritizes:
 
 The following product areas were removed from active navigation and current flows:
 
-- Admin dashboard
-- Teacher dashboard
 - Learners tab
-- Progress tracking tab
-- Learner selection and saved learner results in activities/gesture practice
+- Learner selection in activities/gesture practice
 
-Legacy routes `/dashboard`, `/learners`, and `/progress` redirect to `/content`.
+Legacy route `/learners` redirects to `/content`.
 
 ## Current routes
 
@@ -59,7 +56,7 @@ Legacy routes `/dashboard`, `/learners`, and `/progress` redirect to `/content`.
 - Activity generation adapts prompts to PECS labels/descriptions. Fill-in-the-blank no longer always uses `I want to ____`.
 - Drag-and-drop dropped answers stay rendered as card images/placeholders, not URL text.
 - Scored wrong answers use red feedback styling.
-- Activity scoring is local/session-only and does not save learner results.
+- Activity scoring is local/session-only.
 - Activity creation includes a `Draft with AI` button that generates editable local draft fields from selected PECS cards.
 - Gesture practice starts the webcam, draws a live landmark outline over up to two moving hands, checks visibility, and shows placeholder teacher feedback. The MediaPipe runtime, WASM files, and hand-landmarker model are stored locally in the project.
 - Lesson cards no longer include an Open Activity action, avoiding confusion after activities are deleted.
@@ -70,8 +67,8 @@ Legacy routes `/dashboard`, `/learners`, and `/progress` redirect to `/content`.
 ## Key files and folders
 
 - `src/types/index.ts` - database-ready TypeScript models. `LearningItem` now has `contentType: "pecs" | "gesture"` and users can be `deactivated`.
-- `src/data/mock-data.ts` - revised placeholder users, PECS cards, fixed gestures, PECS activities, media records, and empty learner/progress arrays.
-- `src/components/layout/nav-items.ts` - active navigation after removing dashboard/learners/progress.
+- `src/data/mock-data.ts` - revised placeholder users, PECS cards, fixed gestures, PECS activities, media records, and an empty learner array.
+- `src/components/layout/nav-items.ts` - active navigation after removing learner profile and reporting links from the MVP.
 - `src/features/auth/login-panel.tsx` - sign-in redirects: admin to `/admin`, teacher to `/content`.
 - `src/components/layout/brand-logo.tsx` - shared logo rendering from `public/makalearn_logo.png`.
 - `src/features/content/content-library-view.tsx` - PECS/gesture separation, upload rules, stored custom gestures, media previews, PECS lesson drafts.
@@ -90,7 +87,7 @@ Before production or a full Supabase reconnection, review:
 - Add a `content_type` column to `learning_items`.
 - Update seed data for PECS/fixed gestures.
 - Wire teacher create/deactivate to Supabase Auth and `profiles`.
-- Remove or postpone learner/progress tables depending on final scope.
+- Learner reporting tables are removed from the current schema.
 - Review RLS policies for admin-only teacher management and teacher-managed content.
 - Keep storage buckets for PECS images, gesture media, and audio files.
 
@@ -122,6 +119,6 @@ Both commands still show the existing Next.js warning that `src/features/content
 ## Suggested next work
 
 - Review the UI in browser on desktop and mobile widths.
-- Decide whether to delete the unused legacy feature files for learners/progress/dashboard or keep them parked for a later phase.
+- Decide whether to delete or restore the unused legacy learner feature files in a later phase.
 - Update Supabase schema and seed files to match the new PECS/gesture/admin scope.
 - Replace the Content Library preview `<img>` warning if image optimization becomes important.

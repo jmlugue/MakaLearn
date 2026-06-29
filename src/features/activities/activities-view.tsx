@@ -914,7 +914,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                   Delete {activityPendingDelete.title}?
                 </h2>
                 <p id="delete-activity-description" className="mt-2 text-sm leading-6 text-slate-600">
-                  This removes the activity, its questions, and associated saved results. This action cannot be undone.
+                  This removes the activity and its questions. This action cannot be undone.
                 </p>
               </div>
               <Button

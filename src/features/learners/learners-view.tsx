@@ -336,9 +336,6 @@ export function LearnersView() {
                       <Archive className="h-4 w-4" aria-hidden="true" />
                       Archive
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => notify({ title: "Progress opened", description: "Use the Progress page to review this learner." })}>
-                      View progress
-                    </Button>
                   </CardFooter>
                 </Card>
               ))}

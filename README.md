@@ -11,7 +11,6 @@ Current learning content is placeholder-only. The app does not include official 
 - Tailwind CSS
 - shadcn/ui-style local components
 - lucide-react
-- Recharts remains installed for future reporting needs
 - Supabase client helpers are present for future/back-end integration
 
 ## Run locally
@@ -38,7 +37,7 @@ src/
 |- features/        # Page-level feature components and local flows
 |- lib/             # Shared utilities and Supabase helpers
 |- types/           # Database-ready TypeScript models
-`- utils/           # Lesson, activity, gesture feedback, sentence validation, and legacy helper utilities
+`- utils/           # Lesson, activity, gesture feedback, and sentence validation utilities
 ```
 
 ## Main routes
@@ -53,7 +52,7 @@ src/
 - `/help` teacher/admin guide
 - `/admin` admin-only teacher account, content monitoring, uploads, logs, and development tools
 
-Legacy routes `/dashboard`, `/learners`, and `/progress` redirect to `/content` because dashboards, learner management, and progress tracking are removed from the current scope.
+Legacy route `/learners` redirects to `/content` because learner management is not active in the current navigation.
 
 ## Current product behavior
 
@@ -73,7 +72,7 @@ Legacy routes `/dashboard`, `/learners`, and `/progress` redirect to `/content` 
 - The draft button in Activity creation creates an editable local draft from selected learning items. Teachers review and edit before saving.
 - Drag-and-drop answers remain visual cards after dropping, and scored incorrect answers use red feedback.
 - Saving a PECS lesson creates a related playable activity and the lesson shows an Open activity action. Gesture lessons show a Practice gesture action.
-- Activity scoring is session-only in this scope and does not record learner progress.
+- Activity scoring is session-only in this scope.
 - The real icon-only logo is served from `public/makalearn_logo_current.png` and used in the primary brand surfaces.
 - Admins can create local teacher account previews, deactivate/reactivate teachers, change roles, monitor teacher-managed content, review uploads, and see logs.
 
@@ -95,7 +94,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 Current integration points:
 
 - Auth and profile role lookup
-- Table helpers for profiles, categories, learning items, media assets, lessons, activities, practice attempts, and activity results
+- Table helpers for profiles, categories, learning items, media assets, lessons, and activities
 - Storage upload helpers for picture-card images, gesture media, audio, and legacy learner photos
 
 Planned updates before production:
@@ -106,7 +105,7 @@ Planned updates before production:
 - Review schema, RLS, and seed data against the new PECS/gesture scope.
 - Keep MediaPipe for live hand landmarks and replace the placeholder practice result/feedback logic with the approved recognition model when it is available.
 - Replace local adaptive activity generation with a connected LLM only after model, privacy, and API key handling are approved.
-- Decide whether learner profiles and progress tracking return in a later phase.
+- Decide whether learner profile management returns in a later phase.
 
 ## Placeholder logic notes
 

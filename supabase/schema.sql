@@ -20,7 +20,6 @@ create type public.activity_type as enum (
   'gesture-practice',
   'simple-quiz'
 );
-create type public.practice_status as enum ('Correct', 'Good attempt', 'Needs practice', 'No hand detected');
 create type public.audit_log_category as enum ('auth', 'content');
 create type public.audit_log_action as enum ('login', 'logout', 'upload', 'create', 'edit', 'delete');
 
@@ -131,30 +130,6 @@ create table public.activity_items (
   position int not null default 0
 );
 
-create table public.practice_attempts (
-  id text primary key default ('attempt-' || gen_random_uuid()::text),
-  learner_id text references public.learners(id) on delete set null,
-  learning_item_id text not null references public.learning_items(id) on delete cascade,
-  status public.practice_status not null,
-  feedback text not null,
-  attempted_at timestamptz not null default now(),
-  saved_by text not null
-);
-
-create table public.activity_results (
-  id text primary key default ('result-' || gen_random_uuid()::text),
-  learner_id text references public.learners(id) on delete set null,
-  activity_id text not null references public.activities(id) on delete cascade,
-  activity_type public.activity_type not null,
-  score_percentage numeric(5, 2) not null check (score_percentage >= 0 and score_percentage <= 100),
-  correct_count int not null default 0,
-  incorrect_count int not null default 0,
-  time_spent_seconds int not null default 0,
-  completed_at timestamptz not null default now(),
-  related_learning_item_ids text[] not null default '{}',
-  saved_by text not null
-);
-
 create table public.audit_logs (
   id text primary key default ('log-' || gen_random_uuid()::text),
   category public.audit_log_category not null,
@@ -172,8 +147,6 @@ create index categories_created_by_idx on public.categories(created_by);
 create index learners_assigned_teacher_idx on public.learners(assigned_teacher_id);
 create index learning_items_category_idx on public.learning_items(category_id);
 create index media_assets_related_item_idx on public.media_assets(related_item_id);
-create index practice_attempts_learner_idx on public.practice_attempts(learner_id);
-create index activity_results_learner_idx on public.activity_results(learner_id);
 create index audit_logs_created_at_idx on public.audit_logs(created_at desc);
 create index audit_logs_category_action_idx on public.audit_logs(category, action);
 
@@ -186,8 +159,6 @@ alter table public.lessons enable row level security;
 alter table public.lesson_items enable row level security;
 alter table public.activities enable row level security;
 alter table public.activity_items enable row level security;
-alter table public.practice_attempts enable row level security;
-alter table public.activity_results enable row level security;
 alter table public.audit_logs enable row level security;
 
 create or replace function public.current_user_role()
@@ -282,34 +253,6 @@ create policy "Authenticated write activities" on public.activities for all to a
 
 create policy "Authenticated read activity items" on public.activity_items for select to authenticated using (true);
 create policy "Authenticated write activity items" on public.activity_items for all to authenticated using (true) with check (true);
-
-create policy "Role-aware read practice attempts"
-on public.practice_attempts for select
-to authenticated
-using (
-  public.current_user_role() = 'admin'
-  or saved_by = auth.uid()::text
-  or learner_id in (select id from public.learners where assigned_teacher_id = auth.uid()::text)
-);
-
-create policy "Authenticated insert practice attempts"
-on public.practice_attempts for insert
-to authenticated
-with check (saved_by = auth.uid()::text);
-
-create policy "Role-aware read activity results"
-on public.activity_results for select
-to authenticated
-using (
-  public.current_user_role() = 'admin'
-  or saved_by = auth.uid()::text
-  or learner_id in (select id from public.learners where assigned_teacher_id = auth.uid()::text)
-);
-
-create policy "Authenticated insert activity results"
-on public.activity_results for insert
-to authenticated
-with check (saved_by = auth.uid()::text);
 
 create policy "Admins read audit logs"
 on public.audit_logs for select

@@ -234,7 +234,7 @@ export function LoginPanel() {
         </Button>
       </form>
       <p className="mt-5 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500">
-        Teachers open the content library. Administrators open the admin dashboard.
+        Teachers open the content library. Administrators open the admin panel.
       </p>
       </div>
     </Card>

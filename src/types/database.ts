@@ -5,7 +5,6 @@ import type {
   AppUser,
   Learner,
   MediaAsset,
-  PracticeStatus,
   PreferredLearningMode,
   UserRole
 } from "@/types";
@@ -327,78 +326,6 @@ export type Database = {
           options?: string[];
           learning_item_id?: string;
           position?: number;
-        };
-        Relationships: [];
-      };
-      practice_attempts: {
-        Row: {
-          id: string;
-          learner_id: string | null;
-          learning_item_id: string;
-          status: PracticeStatus;
-          feedback: string;
-          attempted_at: string;
-          saved_by: string;
-        };
-        Insert: {
-          id?: string;
-          learner_id?: string | null;
-          learning_item_id: string;
-          status: PracticeStatus;
-          feedback: string;
-          attempted_at?: string;
-          saved_by: string;
-        };
-        Update: {
-          id?: string;
-          learner_id?: string | null;
-          learning_item_id?: string;
-          status?: PracticeStatus;
-          feedback?: string;
-          attempted_at?: string;
-          saved_by?: string;
-        };
-        Relationships: [];
-      };
-      activity_results: {
-        Row: {
-          id: string;
-          learner_id: string | null;
-          activity_id: string;
-          activity_type: ActivityType;
-          score_percentage: number;
-          correct_count: number;
-          incorrect_count: number;
-          time_spent_seconds: number;
-          completed_at: string;
-          related_learning_item_ids: string[];
-          saved_by: string;
-        };
-        Insert: {
-          id?: string;
-          learner_id?: string | null;
-          activity_id: string;
-          activity_type: ActivityType;
-          score_percentage: number;
-          correct_count: number;
-          incorrect_count: number;
-          time_spent_seconds: number;
-          completed_at?: string;
-          related_learning_item_ids: string[];
-          saved_by: string;
-        };
-        Update: {
-          id?: string;
-          learner_id?: string | null;
-          activity_id?: string;
-          activity_type?: ActivityType;
-          score_percentage?: number;
-          correct_count?: number;
-          incorrect_count?: number;
-          time_spent_seconds?: number;
-          completed_at?: string;
-          related_learning_item_ids?: string[];
-          saved_by?: string;
         };
         Relationships: [];
       };
