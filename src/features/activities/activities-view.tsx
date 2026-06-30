@@ -362,17 +362,20 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     setResult(null);
   }
 
-  function scoreActivity() {
+  function scoreActivity(questionIds?: string[]) {
     if (!selectedActivity) {
       notify({ title: "No activity selected", description: "Choose or create an activity before scoring." });
       return;
     }
-    const correct = selectedActivity.questions.reduce(
+    const questionsToScore = questionIds?.length
+      ? selectedActivity.questions.filter((question) => questionIds.includes(question.id))
+      : selectedActivity.questions;
+    const correct = questionsToScore.reduce(
       (sum, question) => sum + (answers[question.id] === question.answer ? 1 : 0),
       0
     );
-    const incorrect = selectedActivity.questions.length - correct;
-    const score = selectedActivity.questions.length ? Math.round((correct / selectedActivity.questions.length) * 100) : 0;
+    const incorrect = questionsToScore.length - correct;
+    const score = questionsToScore.length ? Math.round((correct / questionsToScore.length) * 100) : 0;
     setResult({ score, correct, incorrect });
     if (isStudentMode) return;
 
@@ -859,7 +862,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
           })() : null}
 
           <CardFooter className="mt-5 flex flex-col gap-2 sm:flex-row">
-            <Button onClick={scoreActivity}>
+            <Button onClick={() => scoreActivity()}>
               <Play className="h-4 w-4" aria-hidden="true" />
               Score activity
             </Button>

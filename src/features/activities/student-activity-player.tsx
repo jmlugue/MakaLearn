@@ -4,13 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   CheckCircle2,
+  GripVertical,
   Lightbulb,
   RotateCcw,
+  SkipForward,
+  Star,
   Volume2,
   XCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { cn } from "@/lib/utils";
+import { activityTypeLabels } from "@/utils/activity-labels";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 type ActivityScore = {
@@ -27,7 +32,7 @@ type StudentActivityPlayerProps = {
   dragged: string;
   setDragged: (value: string) => void;
   chooseAnswer: (questionId: string, value: string) => void;
-  onScore: () => void;
+  onScore: (questionIds?: string[]) => void;
   onReset: () => void;
 };
 
@@ -77,6 +82,41 @@ function getQuestionTitle(activity: Activity, question: ActivityQuestion, learni
   }
 
   return question.prompt;
+}
+
+function getSymbolOptionValue(item: LearningItem) {
+  return item.symbolImageUrl ?? item.label;
+}
+
+function seededRandom(seed: number) {
+  const value = Math.sin(seed) * 10000;
+  return value - Math.floor(value);
+}
+
+function shuffleOptions(options: string[], seed: number) {
+  const shuffled = [...options];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(seededRandom(seed + index * 97) * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  return shuffled;
+}
+
+function getMatchWordOptions(question: ActivityQuestion, learningItems: LearningItem[], shuffleSeed: number) {
+  const libraryOptions = learningItems
+    .filter((item) => item.contentType === "pecs" && item.symbolImageUrl)
+    .map(getSymbolOptionValue)
+    .filter((value) => value && value !== question.answer);
+  const fallbackOptions = question.options.filter((value) => value && value !== question.answer);
+  const optionPool = [...libraryOptions, ...fallbackOptions].filter(
+    (value, index, values) => values.indexOf(value) === index
+  );
+  const randomizedDistractors = shuffleOptions(optionPool, shuffleSeed);
+  const choices = [question.answer, ...randomizedDistractors.slice(0, 4)];
+
+  return shuffleOptions(choices, shuffleSeed + 211);
 }
 
 function getFirstHintQuestion(activity: Activity, answers: Record<string, string>) {
@@ -171,9 +211,23 @@ export function StudentActivityPlayer({
 }: StudentActivityPlayerProps) {
   const [hintedQuestionId, setHintedQuestionId] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [matchQuestionIndex, setMatchQuestionIndex] = useState(0);
+  const [matchFeedback, setMatchFeedback] = useState<"idle" | "correct" | "wrong">("idle");
+  const [matchOptionRound, setMatchOptionRound] = useState(0);
   const hintTimer = useRef<number | null>(null);
+  const onScoreRef = useRef(onScore);
   const backgroundUrl = useMemo(() => getActivityBackground(activity.id), [activity.id]);
-  const isDragDropActivity = activity.type === "drag-drop-symbol";
+
+  useEffect(() => {
+    onScoreRef.current = onScore;
+  }, [onScore]);
+
+  useEffect(() => {
+    setMatchQuestionIndex(0);
+    setHintedQuestionId("");
+    setMatchFeedback("idle");
+    setMatchOptionRound((current) => current + 1);
+  }, [activity.id]);
 
   useEffect(() => {
     return () => {
@@ -207,6 +261,98 @@ export function StudentActivityPlayer({
     }
   }
 
+  async function listenToMatchQuestion() {
+    if (isListening) return;
+
+    const totalSteps = Math.min(activity.questions.length, 5);
+    const question = activity.questions[Math.min(matchQuestionIndex, Math.max(totalSteps - 1, 0))];
+    const word = question ? getQuestionTitle(activity, question, learningItems) : activity.title;
+
+    setIsListening(true);
+    try {
+      await speakText(word);
+    } finally {
+      setIsListening(false);
+    }
+  }
+
+  if (activity.type === "match-word-symbol") {
+    return (
+      <MatchWordSymbolStudentLayout
+        activity={activity}
+        learningItems={learningItems}
+        answers={answers}
+        currentQuestionIndex={matchQuestionIndex}
+        hintedQuestionId={hintedQuestionId}
+        matchFeedback={matchFeedback}
+        optionSetVersion={matchOptionRound}
+        isListening={isListening}
+        result={result}
+        onHint={() => {
+          const totalSteps = Math.min(activity.questions.length, 5);
+          const question = activity.questions[Math.min(matchQuestionIndex, Math.max(totalSteps - 1, 0))];
+          if (!question) return;
+
+          setHintedQuestionId(question.id);
+          if (hintTimer.current) {
+            window.clearTimeout(hintTimer.current);
+          }
+          hintTimer.current = window.setTimeout(() => setHintedQuestionId(""), 1600);
+        }}
+        onListen={listenToMatchQuestion}
+        onReset={() => {
+          setMatchQuestionIndex(0);
+          setMatchFeedback("idle");
+          setMatchOptionRound((current) => current + 1);
+          onReset();
+        }}
+        onSkip={() => {
+          const totalSteps = Math.min(activity.questions.length, 5);
+          setMatchFeedback("idle");
+          setMatchQuestionIndex((current) => (current + 1 < totalSteps ? current + 1 : current));
+        }}
+        onChooseAnswer={(question, option) => {
+          chooseAnswer(question.id, option);
+          if (option !== question.answer) {
+            setMatchFeedback("wrong");
+            return;
+          }
+
+          setMatchFeedback("correct");
+          const totalSteps = Math.min(activity.questions.length, 5);
+          window.setTimeout(() => {
+            if (matchQuestionIndex + 1 < totalSteps) {
+              setMatchQuestionIndex(matchQuestionIndex + 1);
+              setMatchFeedback("idle");
+              return;
+            }
+            onScoreRef.current();
+          }, 280);
+        }}
+      />
+    );
+  }
+
+  if (activity.type === "drag-drop-symbol") {
+    return (
+      <DragDropSymbolStudentLayout
+        activity={activity}
+        learningItems={learningItems}
+        answers={answers}
+        result={result}
+        dragged={dragged}
+        hintedQuestionId={hintedQuestionId}
+        isListening={isListening}
+        setDragged={setDragged}
+        chooseAnswer={chooseAnswer}
+        onHint={showHint}
+        onListen={listenToActivity}
+        onReset={onReset}
+        onScore={onScore}
+      />
+    );
+  }
+
   return (
     <section
       className="relative h-[calc(100vh-1rem)] overflow-hidden rounded-[2rem] border border-white/90 bg-[#cfeeff] shadow-[0_18px_58px_rgba(37,99,235,0.18)]"
@@ -232,47 +378,525 @@ export function StudentActivityPlayer({
 
         <div className="relative z-10 min-h-0">
           <div
-            className={cn(
-              "mx-auto grid h-full w-full grid-rows-[auto_minmax(0,1fr)] px-1 py-1 sm:px-3",
-              isDragDropActivity ? "max-w-[96rem]" : "max-w-[90rem]"
-            )}
+            className="mx-auto grid h-full w-full max-w-[90rem] grid-rows-[auto_minmax(0,1fr)] px-1 py-1 sm:px-3"
           >
             <GamePromptCard activity={activity} learningItems={learningItems} />
 
-            {activity.type === "drag-drop-symbol" ? (
-              <DragMatchBoard
-                activity={activity}
-                learningItems={learningItems}
-                answers={answers}
-                result={result}
-                dragged={dragged}
-                hintedQuestionId={hintedQuestionId}
-                setDragged={setDragged}
-                chooseAnswer={chooseAnswer}
-              />
-            ) : (
-              <div className={cn("mt-5 grid min-h-0 gap-4 overflow-visible px-1 sm:px-4", getChoiceGridClass(activity.questions.length))}>
-                {activity.questions.map((question, index) => (
-                  <QuestionChoicePanel
-                    key={question.id}
-                    activity={activity}
-                    question={question}
-                    singleQuestion={activity.questions.length === 1}
-                    learningItems={learningItems}
-                    selectedAnswer={answers[question.id]}
-                    scored={Boolean(result)}
-                    hinted={hintedQuestionId === question.id}
-                    chooseAnswer={chooseAnswer}
-                  />
-                ))}
-              </div>
-            )}
+            <div className={cn("mt-5 grid min-h-0 gap-4 overflow-visible px-1 sm:px-4", getChoiceGridClass(activity.questions.length))}>
+              {activity.questions.map((question) => (
+                <QuestionChoicePanel
+                  key={question.id}
+                  activity={activity}
+                  question={question}
+                  singleQuestion={activity.questions.length === 1}
+                  learningItems={learningItems}
+                  selectedAnswer={answers[question.id]}
+                  scored={Boolean(result)}
+                  hinted={hintedQuestionId === question.id}
+                  chooseAnswer={chooseAnswer}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
       <ActivityCornerActions onReset={onReset} onScore={onScore} />
     </section>
+  );
+}
+
+function DragDropSymbolStudentLayout({
+  activity,
+  learningItems,
+  answers,
+  result,
+  dragged,
+  hintedQuestionId,
+  isListening,
+  setDragged,
+  chooseAnswer,
+  onHint,
+  onListen,
+  onReset,
+  onScore
+}: {
+  activity: Activity;
+  learningItems: LearningItem[];
+  answers: Record<string, string>;
+  result: ActivityScore | null;
+  dragged: string;
+  hintedQuestionId: string;
+  isListening: boolean;
+  setDragged: (value: string) => void;
+  chooseAnswer: (questionId: string, value: string) => void;
+  onHint: () => void;
+  onListen: () => void;
+  onReset: () => void;
+  onScore: (questionIds?: string[]) => void;
+}) {
+  const [cardShuffleSeed, setCardShuffleSeed] = useState(() => Math.random());
+  const visibleQuestions = activity.questions.slice(0, 5);
+  const draggableCards = useMemo(() => {
+    const cards = visibleQuestions
+      .map((question) => question.answer)
+      .filter((value, index, values) => values.indexOf(value) === index);
+
+    return shuffleOptions(cards, cardShuffleSeed);
+  }, [cardShuffleSeed, visibleQuestions]);
+  const placedCount = visibleQuestions.filter((question) => answers[question.id]).length;
+  const checkedCorrect = result?.correct ?? 0;
+  const scoreValue = result ? `${result.correct}/${result.correct + result.incorrect}` : `0/${visibleQuestions.length}`;
+  const feedbackText = result
+    ? result.incorrect === 0
+      ? "Great matching!"
+      : "Try again with the red matches."
+    : hintedQuestionId
+      ? "Try the highlighted word first."
+      : dragged
+        ? "Now choose the matching word."
+        : placedCount > 0
+          ? "Keep matching the cards."
+          : "Drag each picture to its word.";
+
+  function placeCard(questionId: string, value: string) {
+    chooseAnswer(questionId, value);
+    setDragged("");
+  }
+
+  function resetActivity() {
+    setCardShuffleSeed(Math.random());
+    onReset();
+  }
+
+  useEffect(() => {
+    setCardShuffleSeed(Math.random());
+  }, [activity.id]);
+
+  return (
+    <section
+      className="fixed inset-0 z-40 grid h-screen w-screen overflow-hidden bg-[#dff5ff] p-2 sm:p-3 lg:p-4"
+      style={{
+        backgroundImage:
+          `linear-gradient(180deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), url('${getActivityBackground(activity.id)}')`,
+        backgroundPosition: "center",
+        backgroundSize: "cover"
+      }}
+    >
+      <div className="grid h-full min-h-0 grid-rows-[3.75rem_minmax(0,1fr)_minmax(0,1fr)_4.25rem] gap-2 rounded-[2rem] border border-white/80 bg-white/28 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[4.25rem_minmax(0,1fr)_minmax(0,1fr)_4.5rem] sm:p-3">
+        <header className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3 pl-16 sm:pl-20">
+            <div className="min-w-0 rounded-2xl border border-blue-100 bg-white/90 px-3 py-1.5 shadow-sm sm:px-4 sm:py-2">
+              <p className="truncate text-sm font-black text-[#10285e] sm:text-lg">{activityTypeLabels[activity.type]}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-1 rounded-2xl border border-yellow-100 bg-white/90 px-3 py-1.5 shadow-sm sm:gap-2 sm:px-4 sm:py-2" aria-label={`${checkedCorrect} of ${visibleQuestions.length} matches correct after check`}>
+            {Array.from({ length: 5 }, (_, index) => (
+              <Star
+                key={index}
+                className={cn(
+                  "h-6 w-6 sm:h-7 sm:w-7",
+                  index < checkedCorrect ? "fill-yellow-300 text-yellow-400" : "fill-white text-yellow-200"
+                )}
+                aria-hidden="true"
+              />
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-2 sm:gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-10 rounded-2xl border-2 border-yellow-200 bg-yellow-100 px-3 text-sm font-black text-amber-900 shadow-[0_8px_18px_rgba(245,158,11,0.14)] hover:bg-yellow-200 sm:min-h-12 sm:px-4 sm:text-base"
+              onClick={onHint}
+            >
+              <Lightbulb className="h-5 w-5" aria-hidden="true" />
+              Hint
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-10 rounded-2xl border-2 border-sky-200 bg-sky-100 px-3 text-sm font-black text-blue-800 shadow-[0_8px_18px_rgba(14,165,233,0.14)] hover:bg-sky-200 sm:min-h-12 sm:px-4 sm:text-base"
+              onClick={onListen}
+              disabled={isListening}
+            >
+              <Volume2 className="h-5 w-5" aria-hidden="true" />
+              {isListening ? "Listening" : "Listen"}
+            </Button>
+          </div>
+        </header>
+
+        <main className="relative grid min-h-0 grid-cols-1 place-items-center gap-2 overflow-hidden sm:flex sm:items-center sm:justify-center">
+          {dragged ? (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-100 bg-white/92 px-4 py-2 text-sm font-black text-blue-700 shadow-sm md:block">
+              Drop on the matching word
+            </div>
+          ) : null}
+          {visibleQuestions.map((question, index) => {
+            const answer = answers[question.id];
+            const isCorrect = answer === question.answer;
+            const hinted = hintedQuestionId === question.id;
+            return (
+              <button
+                key={question.id}
+                type="button"
+                onClick={() => {
+                  if (dragged) {
+                    placeCard(question.id, dragged);
+                    return;
+                  }
+                  if (answer) {
+                    chooseAnswer(question.id, "");
+                  }
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (dragged) {
+                    placeCard(question.id, dragged);
+                  }
+                }}
+                className={cn(
+                  "mx-auto grid h-full max-h-full min-h-0 w-auto max-w-full aspect-[3/4] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[1.15rem] border-[3px] bg-white/90 p-1.5 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_20px_rgba(37,99,235,0.08)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100",
+                  hinted ? "border-amber-400 ring-8 ring-amber-100" : "border-white",
+                  result && answer && (isCorrect ? "bg-emerald-50/95 ring-8 ring-emerald-100" : "bg-rose-50/95 ring-8 ring-rose-100")
+                )}
+                aria-label={answer ? `Remove card from ${question.prompt}` : `Drop card on ${question.prompt}`}
+              >
+                <span className="truncate rounded-lg border border-blue-100 bg-white px-2 py-1 text-xs font-black uppercase leading-none text-[#10285e] sm:text-sm lg:text-base">
+                  {question.prompt || `Word ${index + 1}`}
+                </span>
+                <span className="grid min-h-0 place-items-center py-1">
+                  {answer ? (
+                    <DroppedCardPreview value={answer} learningItems={learningItems} compact />
+                  ) : (
+                    <span className="grid h-full min-h-0 w-full place-items-center rounded-[1.1rem] border-[3px] border-dashed border-blue-100 bg-sky-50/70 text-xs font-black text-blue-400 sm:text-sm">
+                      Drop card here
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </main>
+
+        <section className="grid min-h-0 grid-cols-1 place-items-center gap-2 overflow-hidden pb-1 sm:flex sm:items-center sm:justify-center">
+          {draggableCards.map((card, index) => {
+            const selected = dragged === card;
+            const used = visibleQuestions.some((question) => answers[question.id] === card);
+            return (
+              <DragChoiceCard
+                key={`${card}-${index}`}
+                value={card}
+                learningItems={learningItems}
+                selected={selected}
+                used={used}
+                onSelect={() => setDragged(card)}
+              />
+            );
+          })}
+        </section>
+
+        <footer className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
+          <div className="flex min-h-12 items-center gap-2 rounded-2xl border border-yellow-100 bg-white/90 px-3 shadow-sm sm:min-h-14 sm:px-4">
+            <Star className="h-6 w-6 fill-yellow-300 text-yellow-400 sm:h-7 sm:w-7" aria-hidden="true" />
+            <span className="text-lg font-black text-[#10285e]">{scoreValue}</span>
+          </div>
+
+          <div className="mx-auto flex min-h-12 w-full max-w-xl items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-white/90 px-3 text-center shadow-sm sm:min-h-14 sm:gap-3 sm:px-4">
+            <BrandLogo markClassName="h-9 w-9 rounded-xl sm:h-11 sm:w-11" />
+            <p className="text-sm font-black text-[#10285e] sm:text-lg">{feedbackText}</p>
+          </div>
+
+          <div className="flex justify-end gap-2 sm:gap-3">
+            <Button
+              type="button"
+              className="min-h-12 rounded-2xl border-2 border-green-300 bg-[#50c819] px-3 text-sm font-black text-white shadow-[0_8px_18px_rgba(67,167,22,0.22)] hover:bg-[#48b513] sm:min-h-14 sm:px-5 sm:text-base"
+              onClick={() => onScore(visibleQuestions.map((question) => question.id))}
+            >
+              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+              Check
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-12 rounded-2xl border-2 border-blue-200 bg-blue-100 px-3 text-sm font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.14)] hover:bg-blue-200 sm:min-h-14 sm:px-5 sm:text-base"
+              onClick={resetActivity}
+            >
+              <RotateCcw className="h-5 w-5" aria-hidden="true" />
+              Reset
+            </Button>
+          </div>
+        </footer>
+      </div>
+    </section>
+  );
+}
+
+function MatchWordSymbolStudentLayout({
+  activity,
+  learningItems,
+  answers,
+  currentQuestionIndex,
+  hintedQuestionId,
+  matchFeedback,
+  optionSetVersion,
+  isListening,
+  result,
+  onHint,
+  onListen,
+  onReset,
+  onSkip,
+  onChooseAnswer
+}: {
+  activity: Activity;
+  learningItems: LearningItem[];
+  answers: Record<string, string>;
+  currentQuestionIndex: number;
+  hintedQuestionId: string;
+  matchFeedback: "idle" | "correct" | "wrong";
+  optionSetVersion: number;
+  isListening: boolean;
+  result: ActivityScore | null;
+  onHint: () => void;
+  onListen: () => void;
+  onReset: () => void;
+  onSkip: () => void;
+  onChooseAnswer: (question: ActivityQuestion, option: string) => void;
+}) {
+  const [optionShuffleSeed, setOptionShuffleSeed] = useState(() => Math.random());
+  const totalSteps = Math.min(activity.questions.length, 5);
+  const safeQuestionIndex = Math.min(currentQuestionIndex, Math.max(totalSteps - 1, 0));
+  const currentQuestion = activity.questions[safeQuestionIndex];
+  const currentStep = safeQuestionIndex + 1;
+  const currentWord = currentQuestion ? getQuestionTitle(activity, currentQuestion, learningItems) : "";
+  const selectedAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
+  const options = useMemo(
+    () => (currentQuestion ? getMatchWordOptions(currentQuestion, learningItems, optionShuffleSeed) : []),
+    [currentQuestion, learningItems, optionShuffleSeed]
+  );
+  const shouldShowHint = hintedQuestionId === currentQuestion?.id;
+  const motivationText = hintedQuestionId === currentQuestion?.id
+    ? "Look for the matching picture."
+    : matchFeedback === "wrong"
+      ? "Try again."
+      : matchFeedback === "correct"
+      ? "Nice choice."
+      : "You can do it!";
+
+  useEffect(() => {
+    setOptionShuffleSeed(Math.random());
+  }, [activity.id, currentQuestion?.id, optionSetVersion]);
+
+  return (
+    <section
+      className="fixed inset-0 z-40 grid h-screen w-screen overflow-hidden bg-[#dff5ff] p-3 sm:p-4 lg:p-5"
+      style={{
+        backgroundImage:
+          `linear-gradient(180deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), url('${getActivityBackground(activity.id)}')`,
+        backgroundPosition: "center",
+        backgroundSize: "cover"
+      }}
+    >
+      <div className="grid h-full min-h-0 grid-rows-[5rem_minmax(0,1fr)_5.5rem] gap-3 rounded-[2rem] border border-white/80 bg-white/28 p-3 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[5.5rem_minmax(0,1fr)_5.75rem] sm:gap-4 sm:p-4">
+        <header className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3 pl-16 sm:pl-20">
+            <div className="min-w-0 rounded-2xl border border-blue-100 bg-white/90 px-4 py-2 shadow-sm">
+              <p className="truncate text-base font-black text-[#10285e] sm:text-lg">{activityTypeLabels[activity.type]}</p>
+            </div>
+          </div>
+
+          <div className="hidden min-w-0 justify-center sm:flex">
+            <StepProgress currentStep={currentStep} totalSteps={totalSteps} />
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-12 rounded-2xl border-2 border-sky-200 bg-sky-100 px-4 text-base font-black text-blue-800 shadow-[0_8px_18px_rgba(14,165,233,0.14)] hover:bg-sky-200 sm:min-h-14 sm:px-6"
+              onClick={onListen}
+              disabled={isListening}
+            >
+              <Volume2 className="h-5 w-5" aria-hidden="true" />
+              {isListening ? "Listening" : "Listen"}
+            </Button>
+          </div>
+        </header>
+
+        <main className="grid min-h-0 grid-rows-[minmax(5.5rem,0.48fr)_minmax(0,1.52fr)] gap-3 sm:grid-rows-[minmax(6rem,0.52fr)_minmax(0,1.48fr)] sm:gap-4">
+          <div className="flex min-h-0 items-center justify-center">
+            <div
+              className={cn(
+                "grid h-full max-h-40 w-full max-w-5xl place-items-center rounded-[2rem] border-4 border-white bg-white/92 px-5 text-center shadow-[0_12px_0_rgba(147,197,253,0.26),0_26px_48px_rgba(37,99,235,0.14)] sm:max-h-48 lg:max-h-52",
+                hintedQuestionId === currentQuestion?.id && "ring-8 ring-amber-100"
+              )}
+            >
+              <h1 className="text-5xl font-black leading-none text-[#10285e] sm:text-6xl lg:text-7xl">
+                {currentWord}
+              </h1>
+            </div>
+          </div>
+
+          <div className="grid min-h-0 grid-cols-1 items-stretch gap-3 sm:grid-cols-5 sm:gap-3 lg:gap-4">
+            {options.map((option) => {
+              const selected = selectedAnswer === option;
+              return (
+                <button
+                  key={`${currentQuestion?.id}-${option}`}
+                  type="button"
+                  onClick={() => currentQuestion && onChooseAnswer(currentQuestion, option)}
+                  aria-pressed={selected}
+                  className={cn(
+                    "grid h-full min-h-0 overflow-hidden rounded-[1.75rem] border-4 bg-white/92 p-2 text-center shadow-[0_12px_0_rgba(147,197,253,0.22),0_24px_40px_rgba(37,99,235,0.12)] transition hover:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:p-3",
+                    shouldShowHint && option === currentQuestion?.answer
+                      ? "border-amber-400 ring-8 ring-amber-100"
+                      : selected
+                        ? "border-blue-500 ring-8 ring-blue-100"
+                        : "border-white hover:border-blue-200"
+                  )}
+                >
+                  <span className="grid h-full min-h-0 place-items-center overflow-hidden rounded-[1.2rem] bg-white/85 p-1 sm:p-2">
+                    <SymbolOption value={option} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </main>
+
+        <footer className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-14 rounded-2xl border-2 border-yellow-200 bg-yellow-100 px-4 text-base font-black text-amber-900 shadow-[0_8px_18px_rgba(245,158,11,0.14)] hover:bg-yellow-200 sm:px-6"
+            onClick={onHint}
+          >
+            <Lightbulb className="h-5 w-5" aria-hidden="true" />
+            Hint
+          </Button>
+
+          <div className="mx-auto flex min-h-14 w-full max-w-xl items-center justify-center gap-3 rounded-2xl border border-blue-100 bg-white/90 px-4 text-center shadow-sm">
+            <BrandLogo markClassName="h-11 w-11 rounded-xl" />
+            <p className="text-base font-black text-[#10285e] sm:text-lg">{motivationText}</p>
+          </div>
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-14 rounded-2xl border-2 border-blue-200 bg-blue-100 px-4 text-base font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.14)] hover:bg-blue-200 sm:px-6"
+            onClick={onSkip}
+          >
+            <SkipForward className="h-5 w-5" aria-hidden="true" />
+            Skip
+          </Button>
+        </footer>
+      </div>
+
+      {result ? (
+        <MatchCompletionModal
+          activity={activity}
+          learningItems={learningItems}
+          answers={answers}
+          result={result}
+          onReset={onReset}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function MatchCompletionModal({
+  activity,
+  learningItems,
+  answers,
+  result,
+  onReset
+}: {
+  activity: Activity;
+  learningItems: LearningItem[];
+  answers: Record<string, string>;
+  result: ActivityScore;
+  onReset: () => void;
+}) {
+  const completedQuestions = activity.questions.slice(0, 5);
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-sky-900/20 px-3 py-6">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="match-complete-title"
+        className="relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-[1.75rem] border border-emerald-200 bg-gradient-to-b from-white via-white to-sky-50 p-5 text-center shadow-[0_24px_80px_rgba(37,99,235,0.2)] sm:p-6"
+      >
+        <div className="relative max-h-[calc(90vh-2.5rem)] overflow-y-auto clean-scrollbar">
+          <div className="relative mx-auto h-20 w-20 rounded-full bg-gradient-to-b from-lime-300 to-green-300 shadow-[0_12px_24px_rgba(16,185,129,0.16),inset_0_-6px_0_rgba(15,23,42,0.08)]" aria-hidden="true">
+            <span className="absolute h-3 w-3 rounded-full bg-ink" style={{ left: "21px", top: "30px" }} />
+            <span className="absolute h-3 w-3 rounded-full bg-ink" style={{ right: "21px", top: "30px" }} />
+            <span className="absolute left-1/2 h-6 w-10 -translate-x-1/2 rounded-b-full border-b-[5px] border-green-800" style={{ top: "42px" }} />
+          </div>
+          <h2 id="match-complete-title" className="mt-4 flex items-center justify-center gap-3 text-4xl font-black tracking-wide text-emerald-600 sm:text-5xl">
+            <Star className="h-8 w-8 fill-yellow-300 text-yellow-400 sm:h-10 sm:w-10" aria-hidden="true" />
+            <span>GOOD JOB</span>
+            <Star className="h-8 w-8 fill-yellow-300 text-yellow-400 sm:h-10 sm:w-10" aria-hidden="true" />
+          </h2>
+          <p className="mt-2 text-base font-semibold text-slate-700">
+            You matched {result.correct} of {result.correct + result.incorrect} cards.
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-3">
+            {completedQuestions.map((question, index) => {
+              const value = answers[question.id] || question.answer;
+              return (
+                <div key={`match-complete-${question.id}-${index}`} className="w-24 rounded-xl border border-blue-100 bg-white p-2 shadow-sm sm:w-28 md:w-32">
+                  <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    <span className="grid min-h-0 w-full place-items-center overflow-hidden p-1">
+                      <SymbolOption value={value} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <Button type="button" className="mt-6 min-h-12 px-6" onClick={onReset}>
+            <RotateCcw className="h-5 w-5" aria-hidden="true" />
+            Try again
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepProgress({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
+  const visibleSteps = 5;
+
+  return (
+    <div className="flex items-center gap-2 rounded-2xl border border-blue-100 bg-white/90 px-4 py-3 shadow-sm" aria-label={`Question ${currentStep} of ${totalSteps}`}>
+      {Array.from({ length: visibleSteps }, (_, index) => {
+        const step = index + 1;
+        const active = step === currentStep;
+        const available = step <= totalSteps;
+        return (
+          <div key={step} className="flex items-center gap-2">
+            {index > 0 ? <span className={cn("h-0.5 w-6 rounded-full", step <= currentStep ? "bg-blue-500" : "bg-blue-100")} aria-hidden="true" /> : null}
+            <span
+              className={cn(
+                "grid h-9 w-9 place-items-center rounded-full border-2 text-sm font-black",
+                active
+                  ? "border-blue-600 bg-blue-600 text-white shadow-[0_0_0_4px_rgba(37,99,235,0.12)]"
+                  : available
+                    ? "border-blue-200 bg-white text-blue-700"
+                    : "border-slate-200 bg-slate-50 text-slate-300"
+              )}
+            >
+              {step}
+            </span>
+          </div>
+        );
+      })}
+      <span className="sr-only">{currentStep} of {totalSteps}</span>
+    </div>
   );
 }
 
@@ -627,11 +1251,13 @@ function DragChoiceCard({
   value,
   learningItems,
   selected,
+  used = false,
   onSelect
 }: {
   value: string;
   learningItems: LearningItem[];
   selected: boolean;
+  used?: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -642,29 +1268,46 @@ function DragChoiceCard({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "grid h-44 grid-rows-[minmax(0,1fr)_2.75rem] overflow-hidden rounded-[1.5rem] border-4 bg-white/92 text-center shadow-[0_10px_0_rgba(147,197,253,0.22),0_18px_28px_rgba(37,99,235,0.12)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:h-48",
-        selected ? "border-blue-500 ring-8 ring-blue-100" : "border-white hover:border-blue-200"
+        "relative mx-auto grid h-full max-h-full min-h-0 w-auto max-w-full aspect-[3/4] grid-rows-[minmax(0,1fr)] overflow-hidden rounded-[1.15rem] border-[3px] bg-white/92 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_18px_rgba(37,99,235,0.08)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100",
+        selected ? "border-blue-500 ring-8 ring-blue-100" : "border-white hover:border-blue-200",
+        used && !selected ? "opacity-75" : ""
       )}
+      aria-label={`Select ${getDisplayLabel(value, learningItems)} card`}
     >
-      <span className="grid min-h-0 place-items-center overflow-hidden px-3 pt-3">
-        <SymbolOption value={value} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
+      <span className="absolute left-1.5 top-1.5 z-10 grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-white shadow-sm sm:h-6 sm:w-6" aria-hidden="true">
+        <GripVertical className="h-3 w-3" />
       </span>
-      <span className="grid min-h-0 place-items-center border-t border-blue-100 bg-white/92 px-2 text-base font-black uppercase leading-tight text-[#10285e]">
-        <span className="line-clamp-2">{getDisplayLabel(value, learningItems)}</span>
+      <span className="grid min-h-0 place-items-center overflow-hidden p-1.5">
+        <SymbolOption value={value} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
       </span>
     </button>
   );
 }
 
-function DroppedCardPreview({ value, learningItems }: { value: string; learningItems: LearningItem[] }) {
+function DroppedCardPreview({
+  value,
+  learningItems,
+  compact = false
+}: {
+  value: string;
+  learningItems: LearningItem[];
+  compact?: boolean;
+}) {
   return (
-    <span className="grid h-full max-h-36 w-full max-w-64 grid-rows-[minmax(0,1fr)_2.25rem] overflow-hidden rounded-[1.25rem] bg-white/88 shadow-[0_8px_18px_rgba(37,99,235,0.12)]">
-      <span className="grid min-h-0 place-items-center overflow-hidden px-3 pt-3">
+    <span
+      className={cn(
+        "grid h-full min-h-0 w-full max-w-full overflow-hidden rounded-[1rem] bg-white/88 shadow-[0_8px_18px_rgba(37,99,235,0.12)]",
+        compact ? "grid-rows-[minmax(0,1fr)]" : "max-h-36 max-w-64 grid-rows-[minmax(0,1fr)_2.25rem]"
+      )}
+    >
+      <span className={cn("grid min-h-0 place-items-center overflow-hidden", compact ? "p-1" : "px-3 pt-3")}>
         <SymbolOption value={value} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
       </span>
-      <span className="grid min-h-0 place-items-center border-t border-blue-100 bg-white/95 px-2 text-sm font-black uppercase leading-tight text-[#0d255a]">
-        <span className="line-clamp-2">{getDisplayLabel(value, learningItems)}</span>
-      </span>
+      {compact ? null : (
+        <span className="grid min-h-0 place-items-center border-t border-blue-100 bg-white/95 px-2 text-sm font-black uppercase leading-tight text-[#0d255a]">
+          <span className="line-clamp-2">{getDisplayLabel(value, learningItems)}</span>
+        </span>
+      )}
     </span>
   );
 }
