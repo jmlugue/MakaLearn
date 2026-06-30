@@ -4,13 +4,11 @@ import { DragEvent, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2,
-  GripVertical,
   Library,
   MessageSquareText,
   RotateCcw,
   Shuffle,
-  Volume2,
-  X
+  Volume2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
@@ -95,8 +93,8 @@ function getFeedbackTitle(result: PecsSentenceValidationResult) {
   return result.isValid ? "Good job" : "Try again";
 }
 
-function getFeedbackMessage(result: PecsSentenceValidationResult) {
-  return result.feedback;
+function getSpeechLabel(label: string) {
+  return normalizePecsLabel(label) === "am" ? "am" : label;
 }
 
 function shuffleValues<T>(values: T[]) {
@@ -234,6 +232,7 @@ export function PlaygroundView() {
 
     if (nextResult.isValid) {
       setShowSuccessModal(true);
+      void speakSentenceLike();
       return;
     }
 
@@ -247,15 +246,34 @@ export function PlaygroundView() {
   async function speakSentence() {
     if (!sentenceCards.length || speaking) return;
 
+    const currentResult = validatePecsSentence(sentenceCards, approvedCardIds);
+    if (currentResult.isValid && "speechSynthesis" in window) {
+      await speakSentenceLike();
+      return;
+    }
+
     setSpeaking(true);
     try {
       for (const card of sentenceCards) {
-        if (canUseAudioUrl(card.audioUrl)) {
+        if (normalizePecsLabel(card.label) === "am" && "speechSynthesis" in window) {
+          await speakText(getSpeechLabel(card.label));
+        } else if (canUseAudioUrl(card.audioUrl)) {
           await playAudio(card.audioUrl as string);
         } else if ("speechSynthesis" in window) {
-          await speakText(card.label);
+          await speakText(getSpeechLabel(card.label));
         }
       }
+    } finally {
+      setSpeaking(false);
+    }
+  }
+
+  async function speakSentenceLike() {
+    if (!sentenceCards.length || speaking || !("speechSynthesis" in window)) return;
+
+    setSpeaking(true);
+    try {
+      await speakText(sentenceCards.map((card) => getSpeechLabel(card.label)).join(" "));
     } finally {
       setSpeaking(false);
     }
@@ -274,10 +292,8 @@ export function PlaygroundView() {
     });
   }
 
-  const dropZoneClass = `min-h-32 rounded-xl border-2 border-dashed p-2 transition-colors sm:min-h-36 sm:p-3 ${
-    sentenceCards.length ? "border-blue-200 bg-[#f8fbff]" : "border-blue-200 bg-skywash"
-  }`;
-  const emptyDropZoneClass = "grid min-h-28 place-items-center rounded-lg bg-white/55 p-4 text-center";
+  const dropZoneClass = "relative min-h-72 flex-1 overflow-hidden rounded-2xl border border-blue-100 bg-[#f8fbff] shadow-inner";
+  const sentenceCanvasClass = "absolute bottom-[9%] left-[5%] right-[5%] top-[24%] overflow-hidden p-2 sm:left-[6%] sm:right-[6%] sm:top-[23%] sm:p-3";
 
   return (
     <>
@@ -286,7 +302,7 @@ export function PlaygroundView() {
             <div className={isStudentMode ? "fixed inset-0 z-40 px-2 py-2 sm:px-3 lg:px-4" : "fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:px-6 lg:bottom-0 lg:left-72 lg:px-8 lg:py-4"}>
               <div className={`mx-auto grid h-full overflow-hidden rounded-2xl border border-blue-100 bg-white/95 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
                 isStudentMode
-                  ? "max-w-none grid-rows-[minmax(0,1fr)_minmax(20rem,0.78fr)] lg:grid-cols-[minmax(0,1.22fr)_minmax(24rem,0.78fr)] lg:grid-rows-1"
+                  ? "max-w-none grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] lg:grid-rows-1"
                   : "max-w-7xl grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
               }`}>
                 <section className={`flex min-h-0 flex-col bg-[#f8fbff] ${isStudentMode ? "p-3 sm:p-4 lg:p-5" : "p-3 sm:p-4"}`}>
@@ -323,7 +339,7 @@ export function PlaygroundView() {
                           Loading PECS cards...
                         </div>
                       ) : filteredCards.length ? (
-                        <div className={`grid ${isStudentMode ? "gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4" : "gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"}`}>
+                        <div className={`grid ${isStudentMode ? "grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" : "gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"}`}>
                           {filteredCards.map((card) => (
                             <button
                               key={card.id}
@@ -333,7 +349,7 @@ export function PlaygroundView() {
                               onDragStart={() => setDraggedLibraryCardId(card.id)}
                               onDragEnd={() => setDraggedLibraryCardId("")}
                               aria-label={`Add ${card.label} to sentence`}
-                              className={`group rounded-lg border border-blue-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft focus:outline-none focus:ring-4 focus:ring-blue-100 ${isStudentMode ? "p-3" : "p-2"}`}
+                              className="group rounded-lg border border-blue-100 bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft focus:outline-none focus:ring-4 focus:ring-blue-100"
                             >
                               <span className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                                 {/* Provided PECS/AAC card images are used unchanged from public/pecs. */}
@@ -353,44 +369,41 @@ export function PlaygroundView() {
                   <div
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={handleSentenceDrop}
-                    className={`${dropZoneClass} min-h-0 flex-1 overflow-y-auto clean-scrollbar`}
+                    className={dropZoneClass}
+                    aria-label="Sentence card drop area"
                   >
+                    {/* User-provided board artwork for the student playground drop area. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/playground-drop-area.png"
+                      alt=""
+                      className="pointer-events-none absolute inset-0 h-full w-full select-none object-fill"
+                      draggable={false}
+                    />
                     {sentenceCards.length ? (
-                      <div className={`grid ${isStudentMode ? "gap-3 sm:grid-cols-2 xl:grid-cols-2" : "gap-2 sm:grid-cols-2 xl:grid-cols-3"}`}>
+                      <div className={`${sentenceCanvasClass} flex flex-wrap items-center justify-center ${isStudentMode ? "gap-2 sm:gap-3" : "gap-2"}`}>
                         {sentenceCards.map((card, index) => (
-                          <div
+                          <button
                             key={`${card.id}-${index}`}
+                            type="button"
                             draggable
+                            onClick={() => removeCard(index)}
                             onDragStart={() => setDraggedSentenceIndex(index)}
                             onDragEnd={() => setDraggedSentenceIndex(null)}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleSentenceDrop(event, index)}
-                            className={`flex min-w-0 flex-col rounded-lg border border-blue-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft ${isStudentMode ? "p-3" : "p-2"}`}
+                            aria-label={`Remove ${card.label} from sentence`}
+                            className="grid w-[17%] min-w-14 max-w-28 place-items-center rounded-lg border border-blue-100 bg-white p-1.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft sm:min-w-20 sm:max-w-32"
                           >
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <span className="flex items-center gap-1 text-xs font-bold text-slate-500">
-                                <GripVertical className="h-4 w-4" aria-hidden="true" />
-                                {index + 1}
-                              </span>
-                              <Button type="button" size="icon" variant="ghost" className="h-7 w-7" aria-label={`Remove ${card.label}`} onClick={() => removeCard(index)}>
-                                <X className="h-4 w-4" aria-hidden="true" />
-                              </Button>
-                            </div>
                             <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={card.imageUrl} alt={`${card.label} selected card`} className="h-full w-full object-contain" />
                             </div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     ) : (
-                      <div className={emptyDropZoneClass}>
-                        <div>
-                          <MessageSquareText className="mx-auto h-7 w-7 text-blue-600" aria-hidden="true" />
-                          <p className="mt-2 text-base font-bold text-ink">Drop cards here</p>
-                          <p className="mt-1 text-sm leading-5 text-slate-600">You can also tap a card in the library to add it.</p>
-                        </div>
-                      </div>
+                      <span className="sr-only">Drop selected cards here.</span>
                     )}
                   </div>
 
@@ -406,14 +419,8 @@ export function PlaygroundView() {
                               <p className={`text-lg font-bold ${result.isValid ? "text-emerald-800" : "text-amber-900"}`}>
                                 {getFeedbackTitle(result)}
                               </p>
-                              <p className="mt-1 text-sm leading-6 text-slate-700">{getFeedbackMessage(result)}</p>
                             </div>
                           </div>
-                          {result.generatedSentence ? (
-                            <p className="rounded-lg border border-white/80 bg-white/75 p-3 text-sm font-bold text-ink">
-                              {result.generatedSentence}
-                            </p>
-                          ) : null}
                         </div>
                       ) : (
                         <div className="flex items-start gap-3">
@@ -422,24 +429,29 @@ export function PlaygroundView() {
                           </span>
                           <div>
                             <p className="text-lg font-bold text-ink">Sentence feedback</p>
-                            <p className="mt-1 text-sm leading-6 text-slate-600">Build a sentence and check it when the learner is ready.</p>
                           </div>
                         </div>
                       )}
                     </div>
 
                     <CardFooter className="mt-0 grid gap-2 border-t-0 pt-0 sm:grid-cols-3">
-                      <Button type="button" className="min-h-10" onClick={checkSentence}>
+                      <Button type="button" className="min-h-10 bg-blue-600 text-white hover:bg-blue-700" onClick={checkSentence}>
                         <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                        Check Sentence
+                        Check
                       </Button>
-                      <Button type="button" variant="secondary" className="min-h-10" onClick={speakSentence} disabled={!sentenceCards.length || speaking}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="min-h-10 border-emerald-500/40 bg-emerald-600 text-white hover:bg-emerald-700"
+                        onClick={speakSentence}
+                        disabled={!sentenceCards.length || speaking}
+                      >
                         <Volume2 className="h-4 w-4" aria-hidden="true" />
-                        {speaking ? "Speaking..." : "Speak Sentence"}
+                        {speaking ? "Listening..." : "Listen"}
                       </Button>
-                      <Button type="button" variant="outline" className="min-h-10" onClick={resetSentence}>
+                      <Button type="button" variant="outline" className="min-h-10 border-red-500/40 bg-red-600 text-white hover:bg-red-700" onClick={resetSentence}>
                         <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                        Reset
+                        Clear
                       </Button>
                     </CardFooter>
                   </div>
@@ -456,11 +468,12 @@ export function PlaygroundView() {
                         <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
                       </div>
                       <h2 id="playground-success-title" className="mt-4 text-4xl font-black tracking-wide text-emerald-600 sm:text-5xl">
-                        GOOD WORK
+                        GOOD JOB
                       </h2>
-                      <div className="mt-5 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                      <p className="mt-2 text-base font-semibold text-slate-700">You built a nice sentence.</p>
+                      <div className="mt-5 flex flex-wrap justify-center gap-3">
                         {sentenceCards.map((card, index) => (
-                          <div key={`success-${card.id}-${index}`} className="rounded-lg border border-blue-100 bg-white p-2 shadow-sm">
+                          <div key={`success-${card.id}-${index}`} className="w-24 rounded-lg border border-blue-100 bg-white p-2 shadow-sm sm:w-28 md:w-32">
                             <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={card.imageUrl} alt={`${card.label} correct sentence card`} className="h-full w-full object-contain" />

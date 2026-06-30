@@ -16,7 +16,7 @@ export type PecsSentenceValidationResult = {
 
 const validPatterns: Array<{ name: string; roles: SentenceRole[] }> = [
   { name: "Emotion Sentence", roles: ["subject", "be_verb", "emotion"] },
-  { name: "Action Sentence", roles: ["subject", "verb", "object"] },
+  { name: "Intransitive Action", roles: ["subject", "verb"] },
   { name: "Simple Command", roles: ["command"] },
   { name: "Polite Command", roles: ["polite_word", "command"] },
   { name: "Response", roles: ["response"] },
@@ -30,6 +30,67 @@ function normalizeLabel(label: string) {
 
 function rolesMatch(left: SentenceRole[], right: SentenceRole[]) {
   return left.length === right.length && left.every((role, index) => role === right[index]);
+}
+
+const edibleObjectLabels = new Set(["food", "rice", "bread", "banana"]);
+const drinkableObjectLabels = new Set(["water", "milk"]);
+const intransitiveCommandLabels = new Set(["sit", "stand", "listen", "look", "wait", "stop", "help", "rest"]);
+
+function getContextualRoles(cards: PecsSentenceCard[], index: number): SentenceRole[] {
+  const card = cards[index];
+  const role = card.sentenceRole;
+  if (!role) return [];
+
+  const label = normalizeLabel(card.label);
+  const previousLabel = index > 0 ? normalizeLabel(cards[index - 1].label) : "";
+  const roles = new Set<SentenceRole>([role]);
+
+  if (index === 1 && label === "help" && cards[0]?.sentenceRole === "subject") {
+    roles.add("verb");
+  }
+
+  if (index === 1 && role === "command" && intransitiveCommandLabels.has(label) && cards.length === 2 && cards[0]?.sentenceRole === "subject") {
+    roles.add("verb");
+  }
+
+  if (index === 1 && role === "object" && label === "rest" && cards.length === 2 && cards[0]?.sentenceRole === "subject") {
+    roles.add("verb");
+  }
+
+  if (index === 2 && role === "subject" && label !== "i" && previousLabel === "help") {
+    roles.add("object");
+  }
+
+  return [...roles];
+}
+
+function sequenceCanMatch(actualRoles: SentenceRole[][], expectedRoles: SentenceRole[]) {
+  return (
+    actualRoles.length === expectedRoles.length &&
+    actualRoles.every((roles, index) => roles.includes(expectedRoles[index]))
+  );
+}
+
+function canUseActionObject(cards: PecsSentenceCard[], labels: string[]) {
+  if (cards.length !== 3 || cards[0].sentenceRole !== "subject") return false;
+
+  const verb = labels[1];
+  const object = labels[2];
+  const objectRole = cards[2].sentenceRole;
+
+  if (verb === "help") {
+    return objectRole === "subject" && object !== "i";
+  }
+
+  if (verb === "eat") {
+    return edibleObjectLabels.has(object);
+  }
+
+  if (verb === "drink") {
+    return drinkableObjectLabels.has(object);
+  }
+
+  return false;
 }
 
 // Rule-based PECS/Makaton symbol arrangement validation. This is intentionally
@@ -83,6 +144,7 @@ export function validatePecsSentence(
   }
 
   const roles = cards.map((card) => card.sentenceRole as SentenceRole);
+  const contextualRoles = cards.map((_, index) => getContextualRoles(cards, index));
   const labels = cards.map((card) => normalizeLabel(card.label));
 
   if (rolesMatch(roles, ["subject", "verb", "object"]) && labels[1] === "want") {
@@ -102,8 +164,17 @@ export function validatePecsSentence(
     };
   }
 
+  if (sequenceCanMatch(contextualRoles, ["subject", "verb", "object"]) && canUseActionObject(cards, labels)) {
+    return {
+      isValid: true,
+      patternName: "Action Sentence",
+      generatedSentence,
+      feedback: "Good job."
+    };
+  }
+
   for (const pattern of validPatterns) {
-    if (rolesMatch(roles, pattern.roles)) {
+    if (sequenceCanMatch(contextualRoles, pattern.roles)) {
       return {
         isValid: true,
         patternName: pattern.name,

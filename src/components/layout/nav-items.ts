@@ -10,9 +10,7 @@ import {
 
 export const baseNavItems = [
   { href: "/content", label: "Content", icon: BookOpen },
-  { href: "/gesture-practice", label: "Gestures", icon: Hand },
   { href: "/activities", label: "Activities", icon: Activity },
-  { href: "/playground", label: "Playground", icon: Puzzle },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/help", label: "Help", icon: HelpCircle }
 ];
