@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
+import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { learningItems as mockLearningItems } from "@/data/mock-data";
 import {
   normalizePecsLabel,
@@ -111,6 +112,7 @@ function shuffleValues<T>(values: T[]) {
 
 export function PlaygroundView() {
   const { notify } = useToast();
+  const { isStudentMode } = useStudentMode();
   const [learningItems, setLearningItems] = useState<LearningItem[]>(mockLearningItems);
   const [ready, setReady] = useState(!isSupabaseConfigured());
   const [activeCategory, setActiveCategory] = useState<PecsCardCategory | typeof allCategoriesLabel>(allCategoriesLabel);
@@ -281,9 +283,13 @@ export function PlaygroundView() {
     <>
       {toolbarReady && typeof document !== "undefined"
         ? createPortal(
-            <div className="fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:px-6 lg:bottom-0 lg:left-72 lg:px-8 lg:py-4">
-              <div className="mx-auto grid h-full max-w-7xl grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] overflow-hidden rounded-2xl border border-blue-100 bg-white/95 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1">
-                <section className="flex min-h-0 flex-col bg-[#f8fbff] p-3 sm:p-4">
+            <div className={isStudentMode ? "fixed inset-0 z-40 px-2 py-2 sm:px-3 lg:px-4" : "fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:px-6 lg:bottom-0 lg:left-72 lg:px-8 lg:py-4"}>
+              <div className={`mx-auto grid h-full overflow-hidden rounded-2xl border border-blue-100 bg-white/95 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
+                isStudentMode
+                  ? "max-w-none grid-rows-[minmax(0,1fr)_minmax(20rem,0.78fr)] lg:grid-cols-[minmax(0,1.22fr)_minmax(24rem,0.78fr)] lg:grid-rows-1"
+                  : "max-w-7xl grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
+              }`}>
+                <section className={`flex min-h-0 flex-col bg-[#f8fbff] ${isStudentMode ? "p-3 sm:p-4 lg:p-5" : "p-3 sm:p-4"}`}>
                   <div className="shrink-0 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
                     <div>
                       <p className="text-sm font-bold text-ink">Categories</p>
@@ -311,13 +317,13 @@ export function PlaygroundView() {
                     </div>
                   </div>
 
-                  <div className="mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-blue-100 bg-white p-3 shadow-sm clean-scrollbar">
+                  <div className={`mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-blue-100 bg-white shadow-sm clean-scrollbar ${isStudentMode ? "p-4" : "p-3"}`}>
                       {!ready ? (
                         <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-blue-100 bg-[#f8fbff] text-sm font-semibold text-slate-600">
                           Loading PECS cards...
                         </div>
                       ) : filteredCards.length ? (
-                        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                        <div className={`grid ${isStudentMode ? "gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4" : "gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"}`}>
                           {filteredCards.map((card) => (
                             <button
                               key={card.id}
@@ -327,7 +333,7 @@ export function PlaygroundView() {
                               onDragStart={() => setDraggedLibraryCardId(card.id)}
                               onDragEnd={() => setDraggedLibraryCardId("")}
                               aria-label={`Add ${card.label} to sentence`}
-                              className="group rounded-lg border border-blue-100 bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft focus:outline-none focus:ring-4 focus:ring-blue-100"
+                              className={`group rounded-lg border border-blue-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft focus:outline-none focus:ring-4 focus:ring-blue-100 ${isStudentMode ? "p-3" : "p-2"}`}
                             >
                               <span className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                                 {/* Provided PECS/AAC card images are used unchanged from public/pecs. */}
@@ -343,14 +349,14 @@ export function PlaygroundView() {
                   </div>
                 </section>
 
-                <section className="flex min-h-0 flex-col border-t border-blue-100 bg-white p-3 sm:p-4 lg:border-l lg:border-t-0">
+                <section className={`flex min-h-0 flex-col border-t border-blue-100 bg-white lg:border-l lg:border-t-0 ${isStudentMode ? "p-3 sm:p-4 lg:p-5" : "p-3 sm:p-4"}`}>
                   <div
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={handleSentenceDrop}
                     className={`${dropZoneClass} min-h-0 flex-1 overflow-y-auto clean-scrollbar`}
                   >
                     {sentenceCards.length ? (
-                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      <div className={`grid ${isStudentMode ? "gap-3 sm:grid-cols-2 xl:grid-cols-2" : "gap-2 sm:grid-cols-2 xl:grid-cols-3"}`}>
                         {sentenceCards.map((card, index) => (
                           <div
                             key={`${card.id}-${index}`}
@@ -359,7 +365,7 @@ export function PlaygroundView() {
                             onDragEnd={() => setDraggedSentenceIndex(null)}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleSentenceDrop(event, index)}
-                            className="flex min-w-0 flex-col rounded-lg border border-blue-100 bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft"
+                            className={`flex min-w-0 flex-col rounded-lg border border-blue-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft ${isStudentMode ? "p-3" : "p-2"}`}
                           >
                             <div className="mb-2 flex items-center justify-between gap-2">
                               <span className="flex items-center gap-1 text-xs font-bold text-slate-500">
@@ -382,7 +388,7 @@ export function PlaygroundView() {
                         <div>
                           <MessageSquareText className="mx-auto h-7 w-7 text-blue-600" aria-hidden="true" />
                           <p className="mt-2 text-base font-bold text-ink">Drop cards here</p>
-                          <p className="mt-1 text-sm leading-5 text-slate-600">You can also tap a card in the library on the left to add it.</p>
+                          <p className="mt-1 text-sm leading-5 text-slate-600">You can also tap a card in the library to add it.</p>
                         </div>
                       </div>
                     )}
