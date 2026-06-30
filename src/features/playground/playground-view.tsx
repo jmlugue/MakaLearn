@@ -97,6 +97,14 @@ function getSpeechLabel(label: string) {
   return normalizePecsLabel(label) === "am" ? "am" : label;
 }
 
+function getDropAreaCardClass(cardCount: number) {
+  if (cardCount <= 1) return "w-[42%] max-w-64";
+  if (cardCount === 2) return "w-[34%] max-w-52";
+  if (cardCount === 3) return "w-[27%] max-w-44";
+  if (cardCount === 4) return "w-[21%] max-w-36";
+  return "w-[17%] max-w-32";
+}
+
 function shuffleValues<T>(values: T[]) {
   const shuffled = [...values];
 
@@ -299,13 +307,20 @@ export function PlaygroundView() {
     <>
       {toolbarReady && typeof document !== "undefined"
         ? createPortal(
-            <div className={isStudentMode ? "fixed inset-0 z-40 px-2 py-2 sm:px-3 lg:px-4" : "fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:px-6 lg:bottom-0 lg:left-72 lg:px-8 lg:py-4"}>
-              <div className={`mx-auto grid h-full overflow-hidden rounded-2xl border border-blue-100 bg-white/95 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
+            <div
+              className={
                 isStudentMode
-                  ? "max-w-none grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] lg:grid-rows-1"
-                  : "max-w-7xl grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
+                  ? "fixed inset-0 z-40 bg-cover bg-center bg-no-repeat px-2 py-2 sm:px-3 lg:px-4"
+                  : "fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:px-6 lg:bottom-0 lg:left-72 lg:px-8 lg:py-4"
+              }
+              style={isStudentMode ? { backgroundImage: "url('/playground/student-mode-background.png')" } : undefined}
+            >
+              <div className={`mx-auto grid h-full overflow-hidden rounded-2xl border border-blue-100 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
+                isStudentMode
+                  ? "max-w-none grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] bg-white/80 lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] lg:grid-rows-1"
+                  : "max-w-7xl grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] bg-white/95 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
               }`}>
-                <section className={`flex min-h-0 flex-col bg-[#f8fbff] ${isStudentMode ? "p-3 sm:p-4 lg:p-5" : "p-3 sm:p-4"}`}>
+                <section className={`flex min-h-0 flex-col ${isStudentMode ? "bg-[#f8fbff]/80 p-3 sm:p-4 lg:p-5" : "bg-[#f8fbff] p-3 sm:p-4"}`}>
                   <div className="shrink-0 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
                     <div>
                       <p className="text-sm font-bold text-ink">Categories</p>
@@ -365,7 +380,7 @@ export function PlaygroundView() {
                   </div>
                 </section>
 
-                <section className={`flex min-h-0 flex-col border-t border-blue-100 bg-white lg:border-l lg:border-t-0 ${isStudentMode ? "p-3 sm:p-4 lg:p-5" : "p-3 sm:p-4"}`}>
+                <section className={`flex min-h-0 flex-col border-t border-blue-100 lg:border-l lg:border-t-0 ${isStudentMode ? "bg-white/85 p-3 sm:p-4 lg:p-5" : "bg-white p-3 sm:p-4"}`}>
                   <div
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={handleSentenceDrop}
@@ -393,7 +408,7 @@ export function PlaygroundView() {
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleSentenceDrop(event, index)}
                             aria-label={`Remove ${card.label} from sentence`}
-                            className="grid w-[17%] min-w-14 max-w-28 place-items-center rounded-lg border border-blue-100 bg-white p-1.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft sm:min-w-20 sm:max-w-32"
+                            className={`${getDropAreaCardClass(sentenceCards.length)} grid min-w-14 place-items-center rounded-lg border border-blue-100 bg-white p-1.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft sm:min-w-20`}
                           >
                             <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
