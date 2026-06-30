@@ -208,18 +208,22 @@ export function GesturePracticeView() {
 
     setTrackerStatus("loading");
     const vision = await import("@mediapipe/tasks-vision");
-    const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
-    const handLandmarker = await vision.HandLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: "/models/hand_landmarker.task" },
-      runningMode: "VIDEO",
-      numHands: 2,
-      minHandDetectionConfidence: 0.5,
-      minHandPresenceConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
+    let handLandmarker = handLandmarkerRef.current;
 
-    handLandmarkerRef.current = handLandmarker;
-    handConnectionsRef.current = vision.HandLandmarker.HAND_CONNECTIONS;
+    if (!handLandmarker) {
+      const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
+      handLandmarker = await vision.HandLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: "/models/hand_landmarker.task" },
+        runningMode: "VIDEO",
+        numHands: 2,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+      handLandmarkerRef.current = handLandmarker;
+      handConnectionsRef.current = vision.HandLandmarker.HAND_CONNECTIONS;
+    }
+
     const context = canvasRef.current?.getContext("2d");
     if (!context) throw new Error("The tracking canvas is unavailable.");
     drawingUtilsRef.current = new vision.DrawingUtils(context);
@@ -310,6 +314,32 @@ export function GesturePracticeView() {
         description: "Allow camera access and restart the camera to use the live hand outline."
       });
     }
+  }
+
+  function stopCamera() {
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
+
+    drawingUtilsRef.current = null;
+    setCameraStarted(false);
+    setTrackingState("idle");
+    setDetectedHandCount(0);
+    lastHandCountRef.current = -1;
+    lastVideoTimeRef.current = -1;
+    noHandsFrameCountRef.current = 0;
+    lastAutoAudioKeyRef.current = null;
+    clearPrediction();
+    setFeedback("");
   }
 
   function clearPrediction() {
@@ -429,6 +459,7 @@ export function GesturePracticeView() {
               playful
               focusMode={cameraFocusMode}
               onStartCamera={startCamera}
+              onStopCamera={stopCamera}
             />
 
             <LearnerFeedbackBar
@@ -515,6 +546,7 @@ export function GesturePracticeView() {
           canvasRef={canvasRef}
           trackerStatus={trackerStatus}
           detectedHandCount={detectedHandCount}
+          onStopCamera={stopCamera}
         />
 
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -953,7 +985,8 @@ function CameraPanel({
   detectedHandCount,
   playful = false,
   focusMode = false,
-  onStartCamera
+  onStartCamera,
+  onStopCamera
 }: {
   cameraStarted: boolean;
   videoRef: RefObject<HTMLVideoElement>;
@@ -963,8 +996,10 @@ function CameraPanel({
   playful?: boolean;
   focusMode?: boolean;
   onStartCamera?: () => void;
+  onStopCamera?: () => void;
 }) {
   const canStartFromPanel = Boolean(playful && !cameraStarted && onStartCamera);
+  const canStopFromPanel = Boolean(cameraStarted && onStopCamera);
 
   return (
     <div
@@ -976,13 +1011,26 @@ function CameraPanel({
       )}
     >
       {cameraStarted ? (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className={cn(playful && "rounded-[1.45rem]", focusMode ? "h-full min-h-0" : "aspect-video", "w-full -scale-x-100 object-cover")}
-        />
+        <button
+          type="button"
+          onClick={onStopCamera}
+          disabled={!canStopFromPanel}
+          className={cn(
+            playful && "rounded-[1.45rem]",
+            "block w-full overflow-hidden focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200",
+            focusMode ? "h-full min-h-0" : "aspect-video",
+            canStopFromPanel ? "cursor-pointer" : "cursor-default"
+          )}
+          aria-label="Turn camera off"
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="h-full w-full -scale-x-100 object-cover"
+          />
+        </button>
       ) : (
         <button
           type="button"

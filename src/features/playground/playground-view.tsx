@@ -8,6 +8,7 @@ import {
   MessageSquareText,
   RotateCcw,
   Shuffle,
+  Star,
   Volume2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -310,10 +311,18 @@ export function PlaygroundView() {
             <div
               className={
                 isStudentMode
-                  ? "fixed inset-0 z-40 bg-cover bg-center bg-no-repeat px-2 py-2 sm:px-3 lg:px-4"
+                  ? "fixed inset-0 z-40 bg-sky-100 bg-no-repeat px-2 pb-2 pt-20 sm:px-3 sm:pb-3 lg:px-4"
                   : "fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:px-6 lg:bottom-0 lg:left-72 lg:px-8 lg:py-4"
               }
-              style={isStudentMode ? { backgroundImage: "url('/playground/student-mode-background.png')" } : undefined}
+              style={
+                isStudentMode
+                  ? {
+                      backgroundImage: "url('/playground/student-mode-background.png')",
+                      backgroundPosition: "top center",
+                      backgroundSize: "100% auto"
+                    }
+                  : undefined
+              }
             >
               <div className={`mx-auto grid h-full overflow-hidden rounded-2xl border border-blue-100 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
                 isStudentMode
@@ -472,33 +481,39 @@ export function PlaygroundView() {
                   </div>
                 </section>
                 {showSuccessModal ? (
-                  <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/50 px-3 py-6 backdrop-blur-sm">
+                  <div className="fixed inset-0 z-[60] grid place-items-center bg-sky-900/20 px-3 py-6">
                     <div
                       role="dialog"
                       aria-modal="true"
                       aria-labelledby="playground-success-title"
-                      className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-emerald-200 bg-white p-5 text-center shadow-[0_24px_80px_rgba(16,185,129,0.28)] clean-scrollbar sm:p-6"
+                      className="relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-[1.75rem] border border-emerald-200 bg-gradient-to-b from-white via-white to-sky-50 p-5 text-center shadow-[0_24px_80px_rgba(37,99,235,0.2)] sm:p-6"
                     >
-                      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                        <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
-                      </div>
-                      <h2 id="playground-success-title" className="mt-4 text-4xl font-black tracking-wide text-emerald-600 sm:text-5xl">
-                        GOOD JOB
-                      </h2>
-                      <p className="mt-2 text-base font-semibold text-slate-700">You built a nice sentence.</p>
-                      <div className="mt-5 flex flex-wrap justify-center gap-3">
-                        {sentenceCards.map((card, index) => (
-                          <div key={`success-${card.id}-${index}`} className="w-24 rounded-lg border border-blue-100 bg-white p-2 shadow-sm sm:w-28 md:w-32">
-                            <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={card.imageUrl} alt={`${card.label} correct sentence card`} className="h-full w-full object-contain" />
+                      <div className="relative max-h-[calc(90vh-2.5rem)] overflow-y-auto clean-scrollbar">
+                        <div className="relative mx-auto h-20 w-20 rounded-full bg-gradient-to-b from-lime-300 to-green-300 shadow-[0_12px_24px_rgba(16,185,129,0.16),inset_0_-6px_0_rgba(15,23,42,0.08)]" aria-hidden="true">
+                          <span className="absolute h-3 w-3 rounded-full bg-ink" style={{ left: "21px", top: "25px" }} />
+                          <span className="absolute h-3 w-3 rounded-full bg-ink" style={{ right: "21px", top: "25px" }} />
+                          <span className="absolute left-1/2 h-6 w-10 -translate-x-1/2 rounded-b-full border-b-[5px] border-green-800" style={{ top: "42px" }} />
+                        </div>
+                        <h2 id="playground-success-title" className="mt-4 flex items-center justify-center gap-3 text-4xl font-black tracking-wide text-emerald-600 sm:text-5xl">
+                          <Star className="h-8 w-8 fill-yellow-300 text-yellow-400 sm:h-10 sm:w-10" aria-hidden="true" />
+                          <span>GOOD JOB</span>
+                          <Star className="h-8 w-8 fill-yellow-300 text-yellow-400 sm:h-10 sm:w-10" aria-hidden="true" />
+                        </h2>
+                        <p className="mt-2 text-base font-semibold text-slate-700">You built a nice sentence.</p>
+                        <div className="mt-5 flex flex-wrap justify-center gap-3">
+                          {sentenceCards.map((card, index) => (
+                            <div key={`success-${card.id}-${index}`} className="w-24 rounded-xl border border-blue-100 bg-white p-2 shadow-sm sm:w-28 md:w-32">
+                              <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={card.imageUrl} alt={`${card.label} correct sentence card`} className="h-full w-full object-contain" />
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                        <Button type="button" className="mt-6 min-h-12 px-6" onClick={() => setShowSuccessModal(false)}>
+                          PLAY AGAIN
+                        </Button>
                       </div>
-                      <Button type="button" className="mt-6 min-h-12 px-6" onClick={() => setShowSuccessModal(false)}>
-                        PLAY AGAIN
-                      </Button>
                     </div>
                   </div>
                 ) : null}

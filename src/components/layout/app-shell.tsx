@@ -93,7 +93,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => setStudentNavOpen(true)}
-            className="fixed left-4 top-4 z-[70] rounded-2xl shadow-[0_12px_30px_rgba(37,99,235,0.18)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100"
+            className="fixed left-4 top-3 z-[70] rounded-2xl shadow-[0_12px_30px_rgba(37,99,235,0.18)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100"
             aria-label="Open student navigation"
             aria-expanded={studentNavOpen}
           >
@@ -150,7 +150,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
         className={cn(
           "app-canvas min-h-screen",
           isStudentMode
-            ? "px-2 pb-2 pt-2 sm:px-3 sm:py-3 lg:px-4"
+            ? cn("px-2 pb-2 sm:px-3 sm:pb-3 lg:px-4", pathname === "/gesture-practice" ? "pt-2 sm:pt-3" : "pt-20")
             : "px-4 pb-24 pt-5 md:px-6 lg:ml-72 lg:px-8 lg:pb-10 lg:pt-7"
         )}
       >
