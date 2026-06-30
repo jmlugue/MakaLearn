@@ -31,6 +31,7 @@ import { useToast } from "@/components/common/toast-provider";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { categories as mockCategories, learningItems as mockLearningItems } from "@/data/mock-data";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
+import { cn } from "@/lib/utils";
 import { generateCorrectiveFeedbackPlaceholder } from "@/utils/gesture-feedback";
 import {
   predictGesturePlaceholder,
@@ -375,15 +376,32 @@ export function GesturePracticeView() {
 
   if (isStudentMode) {
     return (
-      <section className="relative isolate overflow-hidden rounded-[2rem] border border-white/90 bg-[#f4fbff] p-3 shadow-[0_24px_70px_rgba(37,99,235,0.14)] sm:p-5 xl:min-h-[calc(100vh-5.25rem)]">
+      <section
+        className={cn(
+          "relative isolate overflow-hidden rounded-[2rem] border border-white/90 bg-[#f4fbff] shadow-[0_24px_70px_rgba(37,99,235,0.14)]",
+          cameraFocusMode
+            ? "h-[calc(100svh-1rem)] p-2 sm:h-[calc(100svh-1.5rem)] sm:p-3"
+            : "p-3 sm:p-5 xl:min-h-[calc(100vh-5.25rem)]"
+        )}
+      >
         <StudentGestureImageBackground />
-        <div className={`relative z-10 grid gap-4 pb-16 sm:pb-20 xl:pb-24 ${cameraFocusMode ? "" : "xl:grid-cols-[1.13fr_0.87fr] xl:items-start"}`}>
-          <div className="min-w-0">
-            <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
+        <div
+          className={cn(
+            "relative z-10 grid gap-4",
+            cameraFocusMode
+              ? "h-full min-h-0 pb-0"
+              : "pb-16 sm:pb-20 xl:grid-cols-[1.13fr_0.87fr] xl:items-start xl:pb-24"
+          )}
+        >
+          <div className={cn("min-w-0", cameraFocusMode && "flex min-h-0 flex-col")}>
+            <div className={cn("flex flex-wrap items-center justify-center gap-3", cameraFocusMode ? "mb-2" : "mb-4")}>
               <button
                 type="button"
                 onClick={() => setCameraFocusMode((current) => !current)}
-                className="inline-flex min-h-14 items-center gap-3 rounded-full border border-yellow-200 bg-gradient-to-b from-[#fff6a8] to-[#ffe175] px-7 text-lg font-black text-ink shadow-[0_10px_20px_rgba(250,204,21,0.2),inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(250,204,21,0.25)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-yellow-200"
+                className={cn(
+                  "inline-flex items-center gap-3 rounded-full border border-yellow-200 bg-gradient-to-b from-[#fff6a8] to-[#ffe175] font-black text-ink shadow-[0_10px_20px_rgba(250,204,21,0.2),inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(250,204,21,0.25)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-yellow-200",
+                  cameraFocusMode ? "min-h-12 px-5 text-base sm:min-h-14 sm:px-7 sm:text-lg" : "min-h-14 px-7 text-lg"
+                )}
               >
                 <Focus className="h-6 w-6" aria-hidden="true" />
                 Focus Mode
@@ -391,7 +409,10 @@ export function GesturePracticeView() {
               <button
                 type="button"
                 onClick={() => setShowHandLandmarks((current) => !current)}
-                className="inline-flex min-h-14 items-center gap-3 rounded-full border border-blue-100 bg-white/95 px-7 text-lg font-black text-ink shadow-[0_10px_20px_rgba(37,99,235,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(37,99,235,0.16)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200"
+                className={cn(
+                  "inline-flex items-center gap-3 rounded-full border border-blue-100 bg-white/95 font-black text-ink shadow-[0_10px_20px_rgba(37,99,235,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(37,99,235,0.16)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200",
+                  cameraFocusMode ? "min-h-12 px-5 text-base sm:min-h-14 sm:px-7 sm:text-lg" : "min-h-14 px-7 text-lg"
+                )}
                 aria-pressed={showHandLandmarks}
               >
                 {showHandLandmarks ? <Eye className="h-6 w-6" aria-hidden="true" /> : <EyeOff className="h-6 w-6" aria-hidden="true" />}
@@ -406,6 +427,7 @@ export function GesturePracticeView() {
               trackerStatus={trackerStatus}
               detectedHandCount={detectedHandCount}
               playful
+              focusMode={cameraFocusMode}
               onStartCamera={startCamera}
             />
 
@@ -420,6 +442,7 @@ export function GesturePracticeView() {
               }
               feedback={prediction ? "" : feedback}
               success={Boolean(prediction)}
+              compact={cameraFocusMode}
             />
           </div>
 
@@ -840,30 +863,38 @@ function LearnerFeedbackBar({
   stateLabel,
   detail,
   feedback,
-  success
+  success,
+  compact = false
 }: {
   stateLabel: string;
   detail: string;
   feedback: string;
   success: boolean;
+  compact?: boolean;
 }) {
   return (
     <div
-      className={`mt-4 grid gap-4 rounded-[1.75rem] border p-4 shadow-[0_14px_32px_rgba(37,99,235,0.09)] sm:grid-cols-[auto_1fr] sm:items-center ${
-        success
-          ? "border-green-200 bg-green-50/90"
-          : "border-blue-100 bg-white/80"
-      }`}
+      className={cn(
+        "grid border shadow-[0_14px_32px_rgba(37,99,235,0.09)] sm:grid-cols-[auto_1fr] sm:items-center",
+        compact ? "mt-2 gap-3 rounded-2xl p-3" : "mt-4 gap-4 rounded-[1.75rem] p-4",
+        success ? "border-green-200 bg-green-50/90" : "border-blue-100 bg-white/80"
+      )}
       role="status"
       aria-live="polite"
     >
-      <div className={`grid h-20 w-20 place-items-center rounded-full border-4 shadow-inner ${success ? "border-green-400 bg-lime-200" : "border-blue-200 bg-skywash"}`}>
+      <div
+        className={cn(
+          "grid place-items-center rounded-full border-4 shadow-inner",
+          compact ? "h-16 w-16" : "h-20 w-20",
+          success ? "border-green-400 bg-lime-200" : "border-blue-200 bg-skywash"
+        )}
+      >
         <FeedbackMascot success={success} />
       </div>
       <div className="min-w-0">
-        <p className={`text-3xl font-black ${success ? "text-green-700" : "text-ink"}`}>{stateLabel}</p>
-        {detail ? <p className="mt-1 text-base font-bold text-slate-700">{detail}</p> : null}
-        {feedback ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{feedback}</p> : null}
+        <p className={cn("font-black", compact ? "text-2xl" : "text-3xl", success ? "text-green-700" : "text-ink")}>{stateLabel}</p>
+        {detail ? <p className={cn("mt-1 font-bold text-slate-700", compact ? "text-sm" : "text-base")}>{detail}</p> : null}
+        {feedback ? <p className={cn("mt-1 line-clamp-2 text-sm text-slate-600", compact ? "leading-5" : "leading-6")}>{feedback}</p> : null}
       </div>
     </div>
   );
@@ -921,6 +952,7 @@ function CameraPanel({
   trackerStatus,
   detectedHandCount,
   playful = false,
+  focusMode = false,
   onStartCamera
 }: {
   cameraStarted: boolean;
@@ -929,20 +961,39 @@ function CameraPanel({
   trackerStatus: "idle" | "loading" | "ready" | "error";
   detectedHandCount: number;
   playful?: boolean;
+  focusMode?: boolean;
   onStartCamera?: () => void;
 }) {
   const canStartFromPanel = Boolean(playful && !cameraStarted && onStartCamera);
 
   return (
-    <div className={`relative mt-5 overflow-hidden border border-slate-700/70 bg-ink shadow-inner ${playful ? "rounded-[1.75rem] p-1 ring-4 ring-white/70" : "rounded-2xl"} ${cameraStarted ? "camera-live-glow" : ""}`}>
+    <div
+      className={cn(
+        "relative overflow-hidden border border-slate-700/70 bg-ink shadow-inner",
+        focusMode ? "mt-2 min-h-0 flex-1" : "mt-5",
+        playful ? "rounded-[1.75rem] p-1 ring-4 ring-white/70" : "rounded-2xl",
+        cameraStarted && "camera-live-glow"
+      )}
+    >
       {cameraStarted ? (
-        <video ref={videoRef} autoPlay playsInline muted className={`${playful ? "rounded-[1.45rem]" : ""} aspect-video w-full -scale-x-100 object-cover`} />
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={cn(playful && "rounded-[1.45rem]", focusMode ? "h-full min-h-0" : "aspect-video", "w-full -scale-x-100 object-cover")}
+        />
       ) : (
         <button
           type="button"
           onClick={onStartCamera}
           disabled={!canStartFromPanel}
-          className={`${playful ? "rounded-[1.45rem] border border-white/10" : ""} grid aspect-video w-full place-items-center text-center text-white transition ${canStartFromPanel ? "cursor-pointer hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200" : "cursor-default"}`}
+          className={cn(
+            playful && "rounded-[1.45rem] border border-white/10",
+            "grid w-full place-items-center text-center text-white transition",
+            focusMode ? "h-full min-h-0" : "aspect-video",
+            canStartFromPanel ? "cursor-pointer hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200" : "cursor-default"
+          )}
           aria-label={playful ? "Turn camera on" : "Camera preview"}
         >
           <div>

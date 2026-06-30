@@ -11,6 +11,11 @@ type StudentModeContextValue = {
 const StudentModeContext = createContext<StudentModeContextValue | null>(null);
 const STUDENT_MODE_STORAGE_KEY = "makalearn-student-mode";
 
+export function clearStudentModePreference() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(STUDENT_MODE_STORAGE_KEY);
+}
+
 export function StudentModeProvider({ children }: { children: ReactNode }) {
   const [isStudentMode, setIsStudentMode] = useState(false);
 
@@ -25,7 +30,7 @@ export function StudentModeProvider({ children }: { children: ReactNode }) {
 
   function exitStudentMode() {
     setIsStudentMode(false);
-    window.localStorage.removeItem(STUDENT_MODE_STORAGE_KEY);
+    clearStudentModePreference();
   }
 
   const value = useMemo(

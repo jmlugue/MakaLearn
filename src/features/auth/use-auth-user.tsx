@@ -4,6 +4,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { useRouter } from "next/navigation";
 import { insertAuditLog } from "@/lib/audit-logs";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { clearStudentModePreference } from "@/features/student-mode/student-mode-context";
 import type { AppUser } from "@/types";
 
 type AuthContextValue = {
@@ -108,8 +109,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (supabase) {
       await supabase.auth.signOut();
     }
+    clearStudentModePreference();
     setUser(null);
-    router.push("/login");
+    router.replace("/login");
   }, [router, user]);
 
   const value = useMemo(

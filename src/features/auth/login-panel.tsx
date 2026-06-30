@@ -10,6 +10,7 @@ import { useToast } from "@/components/common/toast-provider";
 import { insertAuditLog } from "@/lib/audit-logs";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { clearStudentModePreference } from "@/features/student-mode/student-mode-context";
 import type { AppUser } from "@/types";
 
 export function LoginPanel() {
@@ -85,7 +86,8 @@ export function LoginPanel() {
         description: profile.role === "admin" ? "Opening the admin panel." : "Opening the content library.",
         tone: "success"
       });
-      router.push(profile.role === "admin" ? "/admin" : "/content");
+      clearStudentModePreference();
+      router.replace(profile.role === "admin" ? "/admin" : "/content");
     } catch {
       await supabase.auth.signOut();
       notify({

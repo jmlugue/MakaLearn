@@ -219,7 +219,7 @@ export function PlaygroundView() {
     setShowSuccessModal(false);
   }
 
-  function handleSentenceDrop(event: DragEvent<HTMLDivElement>, targetIndex?: number) {
+  function handleSentenceDrop(event: DragEvent<HTMLElement>, targetIndex?: number) {
     event.preventDefault();
 
     if (draggedSentenceIndex !== null && targetIndex !== undefined) {
