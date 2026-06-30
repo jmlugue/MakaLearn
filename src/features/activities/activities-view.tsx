@@ -38,6 +38,7 @@ type ActivityTab = "workspace" | "library";
 const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
 const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
 const SELECTED_ACTIVITY_SESSION_KEY = "makalearn-selected-activity";
+const MAX_ACTIVITY_LEARNING_ITEMS = 5;
 
 type LocalContentLibraryState = {
   items?: LearningItem[];
@@ -400,7 +401,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     setEditingActivity(activity);
     setTitle(activity.title);
     setType(activity.type);
-    setSelectedLearningItemIds(activity.learningItemIds);
+    setSelectedLearningItemIds(activity.learningItemIds.slice(0, MAX_ACTIVITY_LEARNING_ITEMS));
     setLearningItemSearch("");
     setInstructions(activity.prompt);
     setPrivateActivity(activity.visibility === "private");
@@ -434,6 +435,11 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       .map((id) => learningItems.find((item) => item.id === id))
       .filter((item): item is LearningItem => Boolean(item));
 
+    if (selectedLearningItems.length > MAX_ACTIVITY_LEARNING_ITEMS) {
+      setLearningItemError(`Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items only.`);
+      return;
+    }
+
     if (!selectedLearningItems.length) {
       setLearningItemError(
         type === "gesture-practice"
@@ -465,6 +471,10 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     }
     if (!selectedLearningItemIds.length) {
       setLearningItemError("Select at least one learning item for this activity.");
+      return;
+    }
+    if (selectedLearningItemIds.length > MAX_ACTIVITY_LEARNING_ITEMS) {
+      setLearningItemError(`Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items only.`);
       return;
     }
     const selectedLearningItems = selectedLearningItemIds
@@ -680,7 +690,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                         if (nextType === "gesture-practice") return item.contentType === "gesture";
                         if (item.contentType !== "pecs") return false;
                         return activityUsesImageOptions(nextType) ? Boolean(item.symbolImageUrl) : true;
-                      })
+                      }).slice(0, MAX_ACTIVITY_LEARNING_ITEMS)
                     );
                     setLearningItemError("");
                   }}
@@ -710,10 +720,10 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                   label={type === "gesture-practice" ? "Gestures" : "Learning items"}
                   helper={
                     activityUsesImageOptions(type)
-                      ? "Choose learning items to ask about. Only items with images are shown."
+                      ? `Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items to ask about. Only items with images are shown.`
                       : type === "gesture-practice"
-                        ? "Choose the gestures to include in the guided practice."
-                        : "Choose the learning items this activity should use."
+                        ? `Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} gestures to include in the guided practice.`
+                        : `Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items this activity should use.`
                   }
                   options={selectableLearningItems.map((item) => ({
                       value: item.id,
@@ -722,9 +732,16 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                     }))}
                   selectedValues={selectedLearningItemIds}
                   onChange={(values) => {
-                    setSelectedLearningItemIds(values);
+                    const nextValues = values.slice(0, MAX_ACTIVITY_LEARNING_ITEMS);
+                    setSelectedLearningItemIds(nextValues);
+                    if (values.length > MAX_ACTIVITY_LEARNING_ITEMS) {
+                      setLearningItemError(`Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items only.`);
+                      return;
+                    }
                     if (learningItemError) setLearningItemError("");
                   }}
+                  maxSelected={MAX_ACTIVITY_LEARNING_ITEMS}
+                  maxSelectedMessage={`You can select up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items.`}
                   emptyText={
                     learningItemEmptyText
                   }

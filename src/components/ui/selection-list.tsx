@@ -16,7 +16,9 @@ export function SelectionList({
   options,
   selectedValues,
   onChange,
-  emptyText = "No items selected yet."
+  emptyText = "No items selected yet.",
+  maxSelected,
+  maxSelectedMessage
 }: {
   label: string;
   helper: string;
@@ -24,9 +26,18 @@ export function SelectionList({
   selectedValues: string[];
   onChange: (values: string[]) => void;
   emptyText?: string;
+  maxSelected?: number;
+  maxSelectedMessage?: string;
 }) {
   function toggle(value: string) {
-    onChange(selectedValues.includes(value) ? selectedValues.filter((item) => item !== value) : [...selectedValues, value]);
+    if (selectedValues.includes(value)) {
+      onChange(selectedValues.filter((item) => item !== value));
+      return;
+    }
+
+    if (maxSelected && selectedValues.length >= maxSelected) return;
+
+    onChange([...selectedValues, value]);
   }
 
   return (
@@ -37,21 +48,24 @@ export function SelectionList({
           <p className="mt-1 text-xs leading-5 text-slate-500">{helper}</p>
         </div>
         <Badge className="bg-blue-50 text-blue-700">
-          {selectedValues.length} selected
+          {selectedValues.length}{maxSelected ? `/${maxSelected}` : ""} selected
         </Badge>
       </div>
       <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-blue-100 bg-white p-2 clean-scrollbar">
         <div className="grid gap-2">
           {options.map((option) => {
             const selected = selectedValues.includes(option.value);
+            const disabled = Boolean(maxSelected && !selected && selectedValues.length >= maxSelected);
             return (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => toggle(option.value)}
+                disabled={disabled}
                 className={cn(
                   "flex min-h-14 items-start gap-3 rounded-lg border p-3 text-left transition",
-                  selected ? "border-blue-500 bg-skywash" : "border-blue-50 bg-white hover:border-blue-200 hover:bg-[#f8fbff]"
+                  selected ? "border-blue-500 bg-skywash" : "border-blue-50 bg-white hover:border-blue-200 hover:bg-[#f8fbff]",
+                  disabled && "cursor-not-allowed opacity-50 hover:border-blue-50 hover:bg-white"
                 )}
               >
                 <span
@@ -72,7 +86,11 @@ export function SelectionList({
         </div>
       </div>
       <p className="mt-2 text-xs leading-5 text-slate-500">
-        {selectedValues.length ? "Select again to remove an item. More items may be available by scrolling." : emptyText}
+        {maxSelected && selectedValues.length >= maxSelected
+          ? (maxSelectedMessage ?? `You can select up to ${maxSelected} items.`)
+          : selectedValues.length
+            ? "Select again to remove an item. More items may be available by scrolling."
+            : emptyText}
       </p>
     </div>
   );
