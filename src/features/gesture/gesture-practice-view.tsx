@@ -4,18 +4,19 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
 import {
-  ArrowBigLeft,
-  ArrowBigRight,
+  ArrowLeft,
+  ArrowRight,
   Camera,
   CheckCircle2,
   Eye,
+  EyeOff,
+  Focus,
   Hand,
-  Maximize2,
-  Minimize2,
   MousePointerClick,
   PlayCircle,
   RotateCcw,
   ScanLine,
+  Smile,
   Sparkles,
   Star,
   TriangleAlert,
@@ -109,6 +110,7 @@ export function GesturePracticeView() {
   const currentPredictionLabelRef = useRef<string | null>(null);
   const lastAutoAudioKeyRef = useRef<string | null>(null);
   const noHandsFrameCountRef = useRef(0);
+  const showHandLandmarksRef = useRef(true);
   const [learningItems, setLearningItems] = useState<LearningItem[]>(
     getFixedGestureItems(mockLearningItems)
   );
@@ -118,11 +120,12 @@ export function GesturePracticeView() {
   const [detectedHandCount, setDetectedHandCount] = useState(0);
   const [trackingState, setTrackingState] = useState<TrackingState>("idle");
   const [prediction, setPrediction] = useState<DemoGesturePrediction | null>(null);
-  const [feedback, setFeedback] = useState("Start the camera to show hand visibility and validation feedback.");
+  const [feedback, setFeedback] = useState("");
   const [selectedGestureId, setSelectedGestureId] = useState("");
   const [referenceFlipped, setReferenceFlipped] = useState(false);
   const [carouselDirection, setCarouselDirection] = useState(1);
   const [cameraFocusMode, setCameraFocusMode] = useState(false);
+  const [showHandLandmarks, setShowHandLandmarks] = useState(true);
   const selectedGesture = learningItems.find((item) => item.id === selectedGestureId) ?? learningItems[0];
   const selectedGestureIndex = Math.max(
     0,
@@ -136,7 +139,10 @@ export function GesturePracticeView() {
   const referenceInstruction = getGesturePerformanceInstruction(selectedGesture, selectedPredictionGuide?.pose);
   const meta = trackingMeta[trackingState];
   const hasValidHands = trackingState === "hands-visible";
-  const isCorrectGesture = Boolean(prediction && selectedGesture && prediction.label === selectedGesture.label);
+
+  useEffect(() => {
+    showHandLandmarksRef.current = showHandLandmarks;
+  }, [showHandLandmarks]);
 
   useEffect(() => {
     let active = true;
@@ -236,18 +242,20 @@ export function GesturePracticeView() {
       const result = handLandmarker.detectForVideo(video, performance.now());
       context.clearRect(0, 0, canvas.width, canvas.height);
 
-      result.landmarks.forEach((landmarks) => {
-        drawingUtils.drawConnectors(landmarks, handConnectionsRef.current, {
-          color: "#2dd4bf",
-          lineWidth: 5
+      if (showHandLandmarksRef.current) {
+        result.landmarks.forEach((landmarks) => {
+          drawingUtils.drawConnectors(landmarks, handConnectionsRef.current, {
+            color: "#2dd4bf",
+            lineWidth: 5
+          });
+          drawingUtils.drawLandmarks(landmarks, {
+            color: "#ffffff",
+            fillColor: "#2563eb",
+            lineWidth: 2,
+            radius: 4
+          });
         });
-        drawingUtils.drawLandmarks(landmarks, {
-          color: "#ffffff",
-          fillColor: "#2563eb",
-          lineWidth: 2,
-          radius: 4
-        });
-      });
+      }
 
       const handCount = result.landmarks.length;
       if (handCount === 0) {
@@ -282,7 +290,7 @@ export function GesturePracticeView() {
     noHandsFrameCountRef.current = 0;
     lastAutoAudioKeyRef.current = null;
     clearPrediction();
-    setFeedback("Raise one or two hands in the camera frame to begin.");
+    setFeedback("");
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -326,7 +334,9 @@ export function GesturePracticeView() {
     setFeedback(
       nextPrediction
         ? generateCorrectiveFeedbackPlaceholder()
-        : "No supported pose matched yet. Check the examples and hold one pose steadily."
+        : isStudentMode
+          ? ""
+          : "No supported pose matched yet. Check the examples and hold one pose steadily."
     );
   }
 
@@ -334,7 +344,7 @@ export function GesturePracticeView() {
     setSelectedGestureId(nextGestureId);
     setReferenceFlipped(false);
     clearPrediction();
-    setFeedback(cameraStarted ? "Reference changed. Hold a supported gesture in frame when ready." : "Start the camera to show hand visibility and validation feedback.");
+    setFeedback(cameraStarted ? "Reference changed. Hold a supported gesture in frame when ready." : "");
   }
 
   function moveGesture(direction: -1 | 1) {
@@ -366,37 +376,27 @@ export function GesturePracticeView() {
 
   if (isStudentMode) {
     return (
-      <section className="relative overflow-hidden rounded-[2rem] border border-white/80 bg-gradient-to-b from-white via-[#eef7ff] to-[#e4f2ff] p-3 shadow-[0_24px_70px_rgba(37,99,235,0.14)] sm:p-5 xl:min-h-[calc(100vh-5.25rem)]">
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(7deg,#b8e4cd_0_34%,transparent_35%),linear-gradient(-8deg,transparent_0_44%,#d6f1e0_45%_67%,transparent_68%)]" />
-        <div className="pointer-events-none absolute left-7 top-24 hidden h-10 w-10 rotate-12 text-yellow-300 sm:block">
-          <Star className="h-full w-full fill-current drop-shadow-sm" aria-hidden="true" />
-        </div>
-        <div className="pointer-events-none absolute right-8 top-40 hidden h-9 w-9 -rotate-12 text-yellow-300 lg:block">
-          <Star className="h-full w-full fill-current drop-shadow-sm" aria-hidden="true" />
-        </div>
-        <div className="pointer-events-none absolute right-24 top-8 hidden h-9 w-24 rounded-full bg-blue-100/80 shadow-[28px_10px_0_rgba(219,234,254,0.95),-22px_8px_0_rgba(219,234,254,0.85)] md:block" />
-
+      <section className="relative overflow-hidden rounded-[2rem] border border-white/90 bg-[#f8fbff] p-3 shadow-[0_24px_70px_rgba(37,99,235,0.14)] sm:p-5 xl:min-h-[calc(100vh-5.25rem)]">
         <div className={`relative z-10 grid gap-4 ${cameraFocusMode ? "" : "xl:grid-cols-[1.13fr_0.87fr] xl:items-start"}`}>
           <div className="min-w-0">
-            <div className="mb-4 flex flex-wrap items-center justify-center gap-3 sm:justify-between">
-              <div className="flex flex-wrap justify-center gap-3 sm:justify-start">
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className="inline-flex min-h-14 items-center gap-3 rounded-full border border-yellow-200 bg-gradient-to-b from-[#fff6a8] to-[#ffe175] px-6 text-lg font-black text-ink shadow-[0_10px_20px_rgba(250,204,21,0.2),inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(250,204,21,0.25)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-yellow-200"
-                >
-                  <Camera className="h-6 w-6" aria-hidden="true" />
-                  {cameraStarted ? "Camera on" : "Turn camera on"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCameraFocusMode((current) => !current)}
-                  className="inline-flex min-h-14 items-center gap-3 rounded-full border border-blue-100 bg-white/90 px-5 text-base font-black text-blue-700 shadow-[0_10px_22px_rgba(37,99,235,0.12)] transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100"
-                >
-                  {cameraFocusMode ? <Minimize2 className="h-5 w-5" aria-hidden="true" /> : <Maximize2 className="h-5 w-5" aria-hidden="true" />}
-                  {cameraFocusMode ? "Show cards" : "Big camera"}
-                </button>
-              </div>
+            <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setCameraFocusMode((current) => !current)}
+                className="inline-flex min-h-14 items-center gap-3 rounded-full border border-yellow-200 bg-gradient-to-b from-[#fff6a8] to-[#ffe175] px-7 text-lg font-black text-ink shadow-[0_10px_20px_rgba(250,204,21,0.2),inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(250,204,21,0.25)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-yellow-200"
+              >
+                <Focus className="h-6 w-6" aria-hidden="true" />
+                Focus Mode
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowHandLandmarks((current) => !current)}
+                className="inline-flex min-h-14 items-center gap-3 rounded-full border border-blue-100 bg-white/95 px-7 text-lg font-black text-ink shadow-[0_10px_20px_rgba(37,99,235,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(37,99,235,0.16)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200"
+                aria-pressed={showHandLandmarks}
+              >
+                {showHandLandmarks ? <Eye className="h-6 w-6" aria-hidden="true" /> : <EyeOff className="h-6 w-6" aria-hidden="true" />}
+                Landmarks {showHandLandmarks ? "On" : "Off"}
+              </button>
             </div>
 
             <CameraPanel
@@ -406,27 +406,24 @@ export function GesturePracticeView() {
               trackerStatus={trackerStatus}
               detectedHandCount={detectedHandCount}
               playful
+              onStartCamera={startCamera}
             />
 
             <LearnerFeedbackBar
-              stateLabel={isCorrectGesture ? "Great job!" : prediction ? "Nice try!" : meta.label}
+              stateLabel={prediction ? "Good Job" : "Ready"}
               detail={
-                isCorrectGesture
-                  ? "You matched the card."
-                  : prediction
-                    ? `The camera saw ${prediction.label}.`
-                    : cameraStarted
-                      ? "Keep your hands inside the box."
-                      : "Tap the yellow button when you are ready."
+                prediction
+                  ? formatRecognizedGestureDetail(prediction.label)
+                  : cameraStarted
+                    ? "Keep your hands inside the box."
+                    : ""
               }
-              feedback={feedback}
-              score={isCorrectGesture ? 4 : prediction ? 3 : hasValidHands ? 2 : 1}
-              success={isCorrectGesture}
-              warning={Boolean(prediction && !isCorrectGesture)}
+              feedback={prediction ? "" : feedback}
+              success={Boolean(prediction)}
             />
           </div>
 
-          <div className={cameraFocusMode ? "hidden" : "min-w-0"}>
+          <div className={cameraFocusMode ? "hidden" : "min-w-0 xl:pt-10"}>
             {selectedGesture ? (
               <AnimatePresence custom={carouselDirection} mode="wait">
                 <motion.div
@@ -447,23 +444,23 @@ export function GesturePracticeView() {
               </AnimatePresence>
             ) : null}
 
-            <div className="mt-4 flex items-center justify-center gap-4">
-              <Button type="button" variant="secondary" size="icon" aria-label="Previous card" onClick={() => moveGesture(-1)} className="h-20 w-20 rounded-[1.5rem] border-4 border-white bg-gradient-to-br from-yellow-200 via-white to-blue-100 text-blue-800 shadow-[0_16px_28px_rgba(37,99,235,0.18),inset_0_2px_0_rgba(255,255,255,0.95)]">
-                <ArrowBigLeft className="h-12 w-12 fill-blue-500/20 stroke-[2.7]" aria-hidden="true" />
+            <div className="mt-4 flex items-center justify-center gap-5 sm:gap-8">
+              <Button type="button" variant="secondary" size="icon" aria-label="Previous card" onClick={() => moveGesture(-1)} className="h-16 w-16 rounded-full border-4 border-white bg-white/95 text-[#19294d] shadow-[0_16px_28px_rgba(37,99,235,0.16),inset_0_2px_0_rgba(255,255,255,0.95)] sm:h-20 sm:w-20">
+                <ArrowLeft className="h-9 w-9 stroke-[3.5] sm:h-11 sm:w-11" aria-hidden="true" />
               </Button>
               <div className="flex items-center gap-2" aria-label={`Card ${selectedGestureIndex + 1} of ${learningItems.length}`}>
                 {learningItems.map((item, index) => (
                   <button
                     key={item.id}
                     type="button"
-                    className={`h-3.5 rounded-full transition-all ${index === selectedGestureIndex ? "w-8 bg-blue-600" : "w-3.5 bg-blue-200 hover:bg-blue-300"}`}
+                    className={`h-3.5 w-3.5 rounded-full transition ${index === selectedGestureIndex ? "bg-blue-600 shadow-[0_0_0_4px_rgba(37,99,235,0.16)]" : "bg-blue-200 hover:bg-blue-300"}`}
                     aria-label={`Open ${item.label}`}
                     onClick={() => handleGestureChange(item.id)}
                   />
                 ))}
               </div>
-              <Button type="button" variant="secondary" size="icon" aria-label="Next card" onClick={() => moveGesture(1)} className="h-20 w-20 rounded-[1.5rem] border-4 border-white bg-gradient-to-br from-yellow-200 via-white to-blue-100 text-blue-800 shadow-[0_16px_28px_rgba(37,99,235,0.18),inset_0_2px_0_rgba(255,255,255,0.95)]">
-                <ArrowBigRight className="h-12 w-12 fill-blue-500/20 stroke-[2.7]" aria-hidden="true" />
+              <Button type="button" variant="secondary" size="icon" aria-label="Next card" onClick={() => moveGesture(1)} className="h-16 w-16 rounded-full border-4 border-white bg-white/95 text-[#19294d] shadow-[0_16px_28px_rgba(37,99,235,0.16),inset_0_2px_0_rgba(255,255,255,0.95)] sm:h-20 sm:w-20">
+                <ArrowRight className="h-9 w-9 stroke-[3.5] sm:h-11 sm:w-11" aria-hidden="true" />
               </Button>
             </div>
           </div>
@@ -708,7 +705,7 @@ function LearnerReferenceFlipCard({
   const imageSrc = getGestureReferenceImageSrc(item);
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
+    <div className="mx-auto w-full max-w-[32rem]">
       <div
         role="button"
         tabIndex={0}
@@ -724,16 +721,13 @@ function LearnerReferenceFlipCard({
         aria-label={flipped ? `Hide ${item.label} media` : `Show ${item.label} video and audio`}
       >
         <div
-          className={`relative min-h-[38rem] rounded-[2rem] transition-transform duration-500 [transform-style:preserve-3d] sm:min-h-[43rem] ${
+          className={`relative min-h-[27rem] rounded-[2rem] transition-transform duration-500 [transform-style:preserve-3d] sm:min-h-[34rem] xl:min-h-[36rem] ${
             flipped ? "[transform:rotateY(180deg)]" : ""
           }`}
         >
           <div className="absolute inset-0 flex flex-col overflow-hidden rounded-[2rem] border border-white/90 bg-white shadow-[0_22px_48px_rgba(37,99,235,0.16)] [backface-visibility:hidden]">
-            <div className="flex flex-1 flex-col items-center justify-between gap-5 px-6 pb-8 pt-8 text-center sm:px-9 sm:pt-10">
-              <div>
-                <h2 className="text-4xl font-black text-ink sm:text-5xl">{frontLabel}</h2>
-              </div>
-              <div className="relative grid aspect-[3/4] w-full max-w-[29rem] place-items-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-50 to-sky-100 p-4 sm:max-w-[31rem]">
+            <div className="flex flex-1 flex-col items-center justify-between gap-4 px-5 pb-6 pt-7 text-center sm:px-8 sm:pb-7 sm:pt-9">
+              <div className="relative grid aspect-[1.04/1] w-full max-w-[22rem] place-items-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-50 to-sky-100 p-3 sm:max-w-[25rem]">
                 {imageSrc ? (
                   <GestureReferenceImage src={imageSrc} alt={`${frontLabel} reference`} />
                 ) : (
@@ -749,11 +743,11 @@ function LearnerReferenceFlipCard({
             </div>
           </div>
 
-          <div className="absolute inset-0 flex flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-5 shadow-[0_22px_48px_rgba(37,99,235,0.16)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
-            <h2 className="text-center text-4xl font-black text-ink sm:text-5xl">{frontLabel}</h2>
+          <div className="absolute inset-0 flex flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-4 shadow-[0_22px_48px_rgba(37,99,235,0.16)] [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-5">
+            <h2 className="text-center text-3xl font-black text-ink sm:text-5xl">{frontLabel}</h2>
 
-            <div className="mt-5 flex flex-1 flex-col justify-between gap-4">
-              <div className="grid min-h-[13rem] place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-3 sm:min-h-[16rem]">
+            <div className="mt-4 flex flex-1 flex-col justify-between gap-4">
+              <div className="grid min-h-[11rem] place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-3 sm:min-h-[14rem]">
                 <GestureVideoPreview value={item.gestureMediaUrl} label={`${item.label} gesture reference`} />
               </div>
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -785,7 +779,7 @@ function GestureReferenceImage({ src, alt }: { src: string; alt: string }) {
     <span className="relative block h-full w-full overflow-hidden rounded-[1.5rem] bg-white">
       {/* Gesture Recognition crops guide-card labels/footer visually; the original Content Library media is unchanged. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt={alt} className="absolute left-1/2 top-[-18%] h-[138%] w-[138%] max-w-none -translate-x-1/2 object-contain" />
+      <img src={src} alt={alt} className="h-full w-full object-contain" />
     </span>
   );
 }
@@ -836,53 +830,38 @@ function LearnerFeedbackBar({
   stateLabel,
   detail,
   feedback,
-  score,
-  success,
-  warning
+  success
 }: {
   stateLabel: string;
   detail: string;
   feedback: string;
-  score: number;
   success: boolean;
-  warning: boolean;
 }) {
   return (
     <div
-      className={`mt-4 grid gap-4 rounded-[1.75rem] border p-4 shadow-[0_14px_32px_rgba(37,99,235,0.09)] sm:grid-cols-[auto_1fr_auto] sm:items-center ${
+      className={`mt-4 grid gap-4 rounded-[1.75rem] border p-4 shadow-[0_14px_32px_rgba(37,99,235,0.09)] sm:grid-cols-[auto_1fr] sm:items-center ${
         success
           ? "border-green-200 bg-green-50/90"
-          : warning
-            ? "border-orange-200 bg-orange-50/90"
-            : "border-blue-100 bg-white/80"
+          : "border-blue-100 bg-white/80"
       }`}
       role="status"
       aria-live="polite"
     >
-      <div className={`grid h-20 w-20 place-items-center rounded-full border-4 shadow-inner ${success ? "border-green-400 bg-lime-200" : warning ? "border-orange-300 bg-orange-100" : "border-blue-200 bg-skywash"}`}>
-        <FeedbackMascot success={success} warning={warning} />
+      <div className={`grid h-20 w-20 place-items-center rounded-full border-4 shadow-inner ${success ? "border-green-400 bg-lime-200" : "border-blue-200 bg-skywash"}`}>
+        <FeedbackMascot success={success} />
       </div>
       <div className="min-w-0">
-        <p className={`text-3xl font-black ${success ? "text-green-700" : warning ? "text-orange-700" : "text-ink"}`}>{stateLabel}</p>
-        <p className="mt-1 text-base font-bold text-slate-700">{detail}</p>
-        <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{feedback}</p>
-      </div>
-      <div className="flex items-center justify-center gap-1.5 rounded-full bg-white/80 px-4 py-3 shadow-inner">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            key={star}
-            className={`h-7 w-7 ${star <= score ? "fill-yellow-300 text-yellow-300" : "fill-blue-100 text-blue-100"}`}
-            aria-hidden="true"
-          />
-        ))}
+        <p className={`text-3xl font-black ${success ? "text-green-700" : "text-ink"}`}>{stateLabel}</p>
+        {detail ? <p className="mt-1 text-base font-bold text-slate-700">{detail}</p> : null}
+        {feedback ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">{feedback}</p> : null}
       </div>
     </div>
   );
 }
 
-function FeedbackMascot({ success, warning }: { success: boolean; warning: boolean }) {
+function FeedbackMascot({ success }: { success: boolean }) {
   return (
-    <div className={`relative h-14 w-14 rounded-full shadow-[inset_0_-5px_0_rgba(15,23,42,0.08)] ${success ? "bg-gradient-to-b from-lime-300 to-green-300" : warning ? "bg-gradient-to-b from-amber-200 to-orange-200" : "bg-gradient-to-b from-blue-100 to-blue-200"}`}>
+    <div className={`relative h-14 w-14 rounded-full shadow-[inset_0_-5px_0_rgba(15,23,42,0.08)] ${success ? "bg-gradient-to-b from-lime-300 to-green-300" : "bg-gradient-to-b from-blue-100 to-blue-200"}`}>
       <span className="absolute left-3.5 top-4 h-2.5 w-2.5 rounded-full bg-ink" />
       <span className="absolute right-3.5 top-4 h-2.5 w-2.5 rounded-full bg-ink" />
       {success ? (
@@ -890,13 +869,10 @@ function FeedbackMascot({ success, warning }: { success: boolean; warning: boole
           <span className="absolute left-1/2 top-7 h-4 w-8 -translate-x-1/2 rounded-b-full border-b-4 border-green-800" />
           <Sparkles className="absolute -right-1 -top-1 h-5 w-5 fill-yellow-300 text-yellow-300" aria-hidden="true" />
         </>
-      ) : warning ? (
-        <span className="absolute left-1/2 top-8 h-1.5 w-8 -translate-x-1/2 rounded-full bg-orange-700" />
       ) : (
         <>
-          <span className="absolute left-1/2 top-8 h-2 w-2 -translate-x-1/2 rounded-full bg-blue-700" />
-          <span className="absolute left-5 top-8 h-2 w-2 rounded-full bg-blue-700" />
-          <span className="absolute right-5 top-8 h-2 w-2 rounded-full bg-blue-700" />
+          <span className="absolute left-1/2 top-8 h-1.5 w-7 -translate-x-1/2 rounded-full bg-blue-700" />
+          <Smile className="absolute -right-1 -top-1 h-5 w-5 text-blue-400" aria-hidden="true" />
         </>
       )}
     </div>
@@ -910,6 +886,12 @@ function getLearnerCardLabel(label: string) {
   if (/sit/i.test(label)) return "Sit";
 
   return label.replace(/^I want to /i, "").trim().replace(/^./, (character) => character.toUpperCase());
+}
+
+function formatRecognizedGestureDetail(label: string) {
+  const trimmed = label.trim();
+  if (!trimmed) return "";
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
 function getGestureReferenceImageSrc(item: LearningItem) {
@@ -928,7 +910,8 @@ function CameraPanel({
   canvasRef,
   trackerStatus,
   detectedHandCount,
-  playful = false
+  playful = false,
+  onStartCamera
 }: {
   cameraStarted: boolean;
   videoRef: RefObject<HTMLVideoElement>;
@@ -936,18 +919,29 @@ function CameraPanel({
   trackerStatus: "idle" | "loading" | "ready" | "error";
   detectedHandCount: number;
   playful?: boolean;
+  onStartCamera?: () => void;
 }) {
+  const canStartFromPanel = Boolean(playful && !cameraStarted && onStartCamera);
+
   return (
     <div className={`relative mt-5 overflow-hidden border border-slate-700/70 bg-ink shadow-inner ${playful ? "rounded-[1.75rem] p-1 ring-4 ring-white/70" : "rounded-2xl"} ${cameraStarted ? "camera-live-glow" : ""}`}>
       {cameraStarted ? (
         <video ref={videoRef} autoPlay playsInline muted className={`${playful ? "rounded-[1.45rem]" : ""} aspect-video w-full -scale-x-100 object-cover`} />
       ) : (
-        <div className={`${playful ? "rounded-[1.45rem] border border-white/10" : ""} grid aspect-video place-items-center text-center text-white`}>
+        <button
+          type="button"
+          onClick={onStartCamera}
+          disabled={!canStartFromPanel}
+          className={`${playful ? "rounded-[1.45rem] border border-white/10" : ""} grid aspect-video w-full place-items-center text-center text-white transition ${canStartFromPanel ? "cursor-pointer hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200" : "cursor-default"}`}
+          aria-label={playful ? "Turn camera on" : "Camera preview"}
+        >
           <div>
-            <Camera className="mx-auto h-12 w-12" aria-hidden="true" />
-            <p className="mt-3 text-xl font-black">{playful ? "Camera ready" : "Camera preview will appear here"}</p>
+            <span className="mx-auto grid h-24 w-24 place-items-center rounded-full border border-white/15 bg-white/5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+              <Camera className="h-12 w-12" aria-hidden="true" />
+            </span>
+            <p className="mt-4 text-xl font-black">{playful ? "Camera on" : "Camera preview will appear here"}</p>
           </div>
-        </div>
+        </button>
       )}
 
       {cameraStarted ? (
