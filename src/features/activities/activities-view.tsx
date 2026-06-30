@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
 import { activities as mockActivities, learningItems as mockLearningItems } from "@/data/mock-data";
+import { StudentActivityPlayer } from "@/features/activities/student-activity-player";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { insertAuditLog } from "@/lib/audit-logs";
@@ -36,6 +37,7 @@ const activityTypes: ActivityType[] = [
 type ActivityTab = "workspace" | "library";
 const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
 const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
+const SELECTED_ACTIVITY_SESSION_KEY = "makalearn-selected-activity";
 
 type LocalContentLibraryState = {
   items?: LearningItem[];
@@ -99,6 +101,42 @@ function getInitialActivity(activities: Activity[], activityId?: string, activit
   }
 
   return getFirstActivityForType(activities, activityType) ?? activities[0];
+}
+
+function readSelectedActivitySessionId() {
+  if (typeof window === "undefined") return "";
+
+  try {
+    return window.sessionStorage.getItem(SELECTED_ACTIVITY_SESSION_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeSelectedActivitySessionId(activityId: string) {
+  if (typeof window === "undefined" || !activityId) return;
+
+  try {
+    window.sessionStorage.setItem(SELECTED_ACTIVITY_SESSION_KEY, activityId);
+  } catch {
+    // Session storage can be unavailable in restricted browsers. The player still
+    // works with in-memory state for the current render.
+  }
+}
+
+function getInitialSelectedActivity(activities: Activity[], activityId?: string, activityType?: ActivityType) {
+  if (activityId) {
+    const requested = activities.find((activity) => activity.id === activityId);
+    if (requested) return requested;
+  }
+
+  const storedActivityId = readSelectedActivitySessionId();
+  if (storedActivityId) {
+    const storedActivity = activities.find((activity) => activity.id === storedActivityId);
+    if (storedActivity) return storedActivity;
+  }
+
+  return getInitialActivity(activities, activityId, activityType);
 }
 
 function activityUsesImageOptions(type: ActivityType) {
@@ -178,7 +216,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   const [selectedActivityId, setSelectedActivityId] = useState(
     isSupabaseConfigured()
       ? ""
-      : getInitialActivity(mockActivities, initialActivityId, requestedActivityType)?.id ?? mockActivities[0].id
+      : getInitialSelectedActivity(mockActivities, initialActivityId, requestedActivityType)?.id ?? mockActivities[0].id
   );
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [dragged, setDragged] = useState("");
@@ -203,9 +241,11 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         if (!active) return;
         setActivities(nextActivities);
         setLearningItems(nextLearningItems);
-        setSelectedActivityId(
-          getInitialActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? ""
-        );
+        setSelectedActivityId((current) => {
+          if (initialActivityId) return getInitialActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "";
+          if (nextActivities.some((activity) => activity.id === current)) return current;
+          return getInitialSelectedActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "";
+        });
         setActivitiesReady(true);
         return;
       }
@@ -218,9 +258,10 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         setActivities(nextActivities);
         setLearningItems(getActivityItems(mergeLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems, readLocalContentLibraryItems() ?? [])));
         setSelectedActivityId((current) => {
-          const requestedActivity = getInitialActivity(nextActivities, initialActivityId, requestedActivityType);
+          const requestedActivity = initialActivityId ? getInitialActivity(nextActivities, initialActivityId, requestedActivityType) : undefined;
           if (requestedActivity) return requestedActivity.id;
-          return nextActivities.some((activity) => activity.id === current) ? current : nextActivities[0]?.id ?? "";
+          if (nextActivities.some((activity) => activity.id === current)) return current;
+          return getInitialSelectedActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "";
         });
         setActivitiesReady(true);
       } catch (error) {
@@ -229,7 +270,11 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         const nextLearningItems = getActivityItems(readLocalContentLibraryItems() ?? mockLearningItems);
         setActivities(nextActivities);
         setLearningItems(nextLearningItems);
-        setSelectedActivityId(getInitialActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "");
+        setSelectedActivityId((current) => {
+          if (initialActivityId) return getInitialActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "";
+          if (nextActivities.some((activity) => activity.id === current)) return current;
+          return getInitialSelectedActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "";
+        });
         setActivitiesReady(true);
         notify({
           title: "Activities ready",
@@ -249,6 +294,10 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     if (!activitiesReady || typeof window === "undefined") return;
     window.localStorage.setItem(LOCAL_ACTIVITIES_STORAGE_KEY, JSON.stringify(activities));
   }, [activities, activitiesReady]);
+
+  useEffect(() => {
+    writeSelectedActivitySessionId(selectedActivityId);
+  }, [selectedActivityId]);
 
   useEffect(() => {
     if (!isStudentMode) return;
@@ -324,6 +373,8 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     const incorrect = selectedActivity.questions.length - correct;
     const score = selectedActivity.questions.length ? Math.round((correct / selectedActivity.questions.length) * 100) : 0;
     setResult({ score, correct, incorrect });
+    if (isStudentMode) return;
+
     const presentation = getResultPresentation(score);
     notify({
       title: presentation.heading,
@@ -494,15 +545,13 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
 
   return (
     <>
-      <PageHeader
-        eyebrow={isStudentMode ? "Student mode" : "Activities"}
-        title={isStudentMode ? "Practice activity" : "Activity library and player"}
-        description={
-          isStudentMode
-            ? "Answer each prompt with teacher guidance."
-            : "Create, edit, and run PECS activities. Gesture practice stays in the Gestures tab."
-        }
-      />
+      {!isStudentMode ? (
+        <PageHeader
+          eyebrow="Activities"
+          title="Activity library and player"
+          description="Create, edit, and run PECS activities. Gesture practice stays in the Gestures tab."
+        />
+      ) : null}
 
       {!isStudentMode ? <div className="grid gap-3 sm:grid-cols-2">
         <button
@@ -550,29 +599,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         </button>
       </div> : null}
       {tab === "workspace" ? (
-      <section className="mt-4 space-y-4">
-        {isStudentMode && activities.length > 1 ? (
-          <Card className="bg-[#fbfdff]">
-            <CardTitle>Choose an activity</CardTitle>
-            <CardDescription>Pick one activity to practise.</CardDescription>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {activities.map((activity) => (
-                <button
-                  key={activity.id}
-                  type="button"
-                  onClick={() => resetPlayer(activity.id)}
-                  className={`min-h-16 rounded-lg border p-3 text-left text-sm font-semibold transition ${
-                    selectedActivity?.id === activity.id
-                      ? "border-blue-500 bg-blue-600 text-white"
-                      : "border-blue-100 bg-white text-ink hover:border-blue-300"
-                  }`}
-                >
-                  {activity.title}
-                </button>
-              ))}
-            </div>
-          </Card>
-        ) : null}
+      <section className={isStudentMode ? "mt-0" : "mt-4 space-y-4"}>
 
         {!isStudentMode ? <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -758,6 +785,19 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         </div> : null}
 
         {selectedActivity ? (
+        isStudentMode ? (
+          <StudentActivityPlayer
+            activity={selectedActivity}
+            learningItems={learningItems}
+            answers={answers}
+            result={result}
+            dragged={dragged}
+            setDragged={setDragged}
+            chooseAnswer={chooseAnswer}
+            onScore={scoreActivity}
+            onReset={() => resetPlayer()}
+          />
+        ) : (
         <Card>
           <div>
             <Badge>{activityTypeLabels[selectedActivity.type]}</Badge>
@@ -815,6 +855,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
             </Button> : null}
           </CardFooter>
         </Card>
+        )
         ) : (
           <EmptyState
             icon={PlayCircle}

@@ -93,11 +93,11 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => setStudentNavOpen(true)}
-            className="fixed left-3 top-3 z-[70] rounded-2xl shadow-[0_12px_30px_rgba(37,99,235,0.18)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100"
+            className="fixed left-4 top-4 z-[70] rounded-2xl shadow-[0_12px_30px_rgba(37,99,235,0.18)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100"
             aria-label="Open student navigation"
             aria-expanded={studentNavOpen}
           >
-            <BrandLogo markClassName="h-14 w-14 rounded-2xl" />
+            <BrandLogo markClassName="h-12 w-12 rounded-2xl" />
           </button>
           {studentNavOpen ? (
             <div className="fixed inset-0 z-[80] bg-slate-950/35 backdrop-blur-sm" role="presentation" onClick={() => setStudentNavOpen(false)}>

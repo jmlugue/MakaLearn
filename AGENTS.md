@@ -416,4 +416,6 @@ Common commands:
 - `npm run build`
 - `npm run lint`
 
+Do not start the dev server automatically. The user will run `npm run dev` manually when they want the app served locally.
+
 After implementation, run build/lint checks and fix errors where possible.
