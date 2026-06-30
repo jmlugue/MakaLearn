@@ -18,7 +18,6 @@ import {
   ScanLine,
   Smile,
   Sparkles,
-  Star,
   TriangleAlert,
   UserRound,
   Volume2,
@@ -376,8 +375,9 @@ export function GesturePracticeView() {
 
   if (isStudentMode) {
     return (
-      <section className="relative overflow-hidden rounded-[2rem] border border-white/90 bg-[#f8fbff] p-3 shadow-[0_24px_70px_rgba(37,99,235,0.14)] sm:p-5 xl:min-h-[calc(100vh-5.25rem)]">
-        <div className={`relative z-10 grid gap-4 ${cameraFocusMode ? "" : "xl:grid-cols-[1.13fr_0.87fr] xl:items-start"}`}>
+      <section className="relative isolate overflow-hidden rounded-[2rem] border border-white/90 bg-[#f4fbff] p-3 shadow-[0_24px_70px_rgba(37,99,235,0.14)] sm:p-5 xl:min-h-[calc(100vh-5.25rem)]">
+        <StudentGestureImageBackground />
+        <div className={`relative z-10 grid gap-4 pb-16 sm:pb-20 xl:pb-24 ${cameraFocusMode ? "" : "xl:grid-cols-[1.13fr_0.87fr] xl:items-start"}`}>
           <div className="min-w-0">
             <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
               <button
@@ -618,6 +618,16 @@ export function GesturePracticeView() {
         ) : null}
       </Card>
     </section>
+  );
+}
+
+function StudentGestureImageBackground() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: "url('/gesture-practice/student-mode-background.png')" }}
+    />
   );
 }
 
