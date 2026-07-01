@@ -24,15 +24,19 @@ import {
 } from "@/lib/supabase/app-data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { activityTypeLabels } from "@/utils/activity-labels";
+import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
+import {
+  getStarterLearningItemPromptDescription,
+  upgradeStarterLearningItemPrompts
+} from "@/utils/starter-learning-item-prompts";
 import type { Activity, ActivityType, LearningItem } from "@/types";
 
 const activityTypes: ActivityType[] = [
   "match-word-symbol",
   "choose-correct-symbol",
   "fill-blank",
-  "drag-drop-symbol",
-  "simple-quiz"
+  "drag-drop-symbol"
 ];
 type ActivityTab = "workspace" | "library";
 const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
@@ -51,10 +55,30 @@ function readLocalActivities(): Activity[] | null {
     const value = window.localStorage.getItem(LOCAL_ACTIVITIES_STORAGE_KEY);
     if (value === null) return null;
     const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed) ? (parsed as Activity[]).filter((activity) => activityTypes.includes(activity.type)) : null;
+    return Array.isArray(parsed)
+      ? upgradeStarterActivityPrompts((parsed as Activity[]).filter((activity) => activityTypes.includes(activity.type)))
+      : null;
   } catch {
     return null;
   }
+}
+
+function upgradeStarterActivityPrompts(records: Activity[]) {
+  return records.map((activity) => {
+    if (activity.type !== "choose-correct-symbol" && activity.type !== "fill-blank") {
+      return activity;
+    }
+
+    return {
+      ...activity,
+      questions: activity.questions.map((question) => {
+        const prompt = activity.type === "fill-blank"
+          ? createFillBlankPromptForLabel(question.answer)
+          : getStarterLearningItemPromptDescription(question.learningItemId);
+        return prompt ? { ...question, prompt } : question;
+      })
+    };
+  });
 }
 
 function mergeActivities(primary: Activity[], fallback: Activity[]) {
@@ -153,8 +177,7 @@ function getActivityDraftInstructions(type: ActivityType, items: LearningItem[])
     "choose-correct-symbol": `Read each prompt aloud and ask the learner to choose the correct picture. Give one repeat if needed before moving on.`,
     "fill-blank": `Read each sentence with a pause at the blank. Let the learner choose the missing word, then read the completed sentence together.`,
     "drag-drop-symbol": `Ask the learner to drag each picture to its matching word. On touch screens, tap a picture first and then choose its word.`,
-    "gesture-practice": `Model each selected gesture once, then ask the learner to copy it. Mark the attempt after the learner has had enough time to respond.`,
-    "simple-quiz": `Ask one short question for each selected item. Read the choices aloud when helpful and review incorrect answers at the end.`
+    "gesture-practice": `Model each selected gesture once, then ask the learner to copy it. Mark the attempt after the learner has had enough time to respond.`
   };
 
   return instructions[type];
@@ -223,7 +246,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   const [dragged, setDragged] = useState("");
   const [result, setResult] = useState<{ score: number; correct: number; incorrect: number } | null>(null);
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<ActivityType>("simple-quiz");
+  const [type, setType] = useState<ActivityType>("fill-blank");
   const [selectedLearningItemIds, setSelectedLearningItemIds] = useState<string[]>([]);
   const [instructions, setInstructions] = useState("");
   const [privateActivity, setPrivateActivity] = useState(false);
@@ -238,7 +261,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       if (!isSupabaseConfigured()) {
         const localActivities = readLocalActivities();
         const nextActivities = localActivities ? mergeActivities(localActivities, mockActivities) : mockActivities;
-        const nextLearningItems = getActivityItems(readLocalContentLibraryItems() ?? mockLearningItems);
+        const nextLearningItems = getActivityItems(upgradeStarterLearningItemPrompts(readLocalContentLibraryItems() ?? mockLearningItems));
         if (!active) return;
         setActivities(nextActivities);
         setLearningItems(nextLearningItems);
@@ -257,7 +280,13 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         // An empty table is valid after deletions; never replace it with mock activities.
         const nextActivities = mergeActivities(data.activities, readLocalActivities() ?? []);
         setActivities(nextActivities);
-        setLearningItems(getActivityItems(mergeLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems, readLocalContentLibraryItems() ?? [])));
+        setLearningItems(
+          getActivityItems(
+            upgradeStarterLearningItemPrompts(
+              mergeLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems, readLocalContentLibraryItems() ?? [])
+            )
+          )
+        );
         setSelectedActivityId((current) => {
           const requestedActivity = initialActivityId ? getInitialActivity(nextActivities, initialActivityId, requestedActivityType) : undefined;
           if (requestedActivity) return requestedActivity.id;
@@ -268,7 +297,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       } catch (error) {
         if (!active) return;
         const nextActivities = mergeActivities(readLocalActivities() ?? [], mockActivities);
-        const nextLearningItems = getActivityItems(readLocalContentLibraryItems() ?? mockLearningItems);
+        const nextLearningItems = getActivityItems(upgradeStarterLearningItemPrompts(readLocalContentLibraryItems() ?? mockLearningItems));
         setActivities(nextActivities);
         setLearningItems(nextLearningItems);
         setSelectedActivityId((current) => {
@@ -418,7 +447,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   function closeCreateForm() {
     const shouldReturnToLibrary = Boolean(editingActivity) && editReturnTab === "library";
     setTitle("");
-    setType("simple-quiz");
+    setType("fill-blank");
     setSelectedLearningItemIds([]);
     setLearningItemSearch("");
     setInstructions("");
@@ -1100,6 +1129,7 @@ function ActivityPlayer({
   return (
     <div className="mt-5 space-y-4">
       {activity.questions.map((question, index) => {
+        const shouldShowSymbolOptions = activityUsesImageOptions(activity.type) || activity.type === "fill-blank";
         const promptLabel =
           activity.type === "match-word-symbol"
             ? "Word"
@@ -1128,10 +1158,13 @@ function ActivityPlayer({
                 key={option}
                 variant={selected && !scored ? "primary" : "outline"}
                 onClick={() => chooseAnswer(question.id, option)}
-                className={`${activityUsesImageOptions(activity.type) ? "min-h-32 p-3" : "min-h-16"} ${scoredClass}`}
+                className={`${shouldShowSymbolOptions ? "min-h-36 flex-col p-3" : "min-h-16"} ${scoredClass}`}
               >
-                {activityUsesImageOptions(activity.type) ? (
-                  <SymbolOption value={option} learningItems={learningItems} />
+                {shouldShowSymbolOptions ? (
+                  <>
+                    <SymbolOption value={option} learningItems={learningItems} />
+                    {activity.type === "fill-blank" ? <span className="mt-2 text-base font-black">{option}</span> : null}
+                  </>
                 ) : (
                   option
                 )}

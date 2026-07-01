@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { mapMediaAssetRow } from "@/lib/supabase/media";
+import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
 import type {
   Activity,
   ActivityQuestion,
@@ -572,11 +573,7 @@ function createAdaptivePrompt(type: Activity["type"], item: LearningItem) {
   }
 
   if (type === "choose-correct-symbol") {
-    return `Which PECS card fits this situation? ${formatPromptDescription(item.description)}`;
-  }
-
-  if (type === "simple-quiz") {
-    return `Which PECS word matches this classroom use? ${formatPromptDescription(item.description)}`;
+    return formatPromptDescription(item.description);
   }
 
   if (type === "drag-drop-symbol") {
@@ -594,20 +591,7 @@ function formatPromptDescription(description: string) {
 }
 
 function createFillBlankPrompt(item: LearningItem) {
-  const label = item.label.trim();
-  const normalized = label.toLowerCase();
-
-  if (["hello", "hi"].includes(normalized)) return "Say ____ when greeting someone.";
-  if (["yes", "no"].includes(normalized)) return "Answer ____ when making a choice.";
-  if (normalized.includes("help")) return "I need ____.";
-  if (normalized.includes("eat") || normalized.includes("food")) return "I want to ____.";
-  if (normalized.includes("drink") || normalized.includes("water")) return "I want to ____.";
-  if (normalized.includes("more")) return "I want ____.";
-  if (normalized.includes("stop")) return "Please ____.";
-  if (normalized.includes("toilet")) return "I need the ____.";
-
-  const firstSentence = item.description.split(/[.!?]/)[0]?.trim();
-  return firstSentence ? `${firstSentence}: ____.` : `Choose the word ____ when it matches the card.`;
+  return createFillBlankPromptForLabel(item.label);
 }
 
 function getLearningItemContentType(row: LearningItemRow): LearningItem["contentType"] {

@@ -102,8 +102,7 @@ export type ActivityType =
   | "choose-correct-symbol"
   | "fill-blank"
   | "drag-drop-symbol"
-  | "gesture-practice"
-  | "simple-quiz";
+  | "gesture-practice";
 
 export type Activity = {
   id: string;

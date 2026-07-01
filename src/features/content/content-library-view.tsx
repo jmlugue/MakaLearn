@@ -63,6 +63,7 @@ import {
   getSpeechFallbackLabel,
   isSpeechFallbackAudio
 } from "@/utils/pecs-content-library";
+import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
 import { formatDate } from "@/lib/utils";
 import { getActivityTypeLabel } from "@/utils/activity-labels";
 import type { Activity, ActivityType, Category, LearningItem, Lesson, MediaAsset } from "@/types";
@@ -87,8 +88,7 @@ const pecsLessonActivityTypes: ActivityType[] = [
   "match-word-symbol",
   "choose-correct-symbol",
   "fill-blank",
-  "drag-drop-symbol",
-  "simple-quiz"
+  "drag-drop-symbol"
 ];
 
 const tabMeta: Record<Tab, { label: string; description: string; icon: LucideIcon }> = {
@@ -342,7 +342,7 @@ export function ContentLibraryView() {
       if (!isSupabaseConfigured()) {
         const localContent = readLocalContentLibrary();
         if (active && localContent) {
-          setItems(ensureFixedGestureItems(localContent.items));
+          setItems(ensureFixedGestureItems(upgradeStarterLearningItemPrompts(localContent.items)));
           setLessons(hydrateLessonsFromLocalActivities(localContent.lessons));
           setCategories(ensureGestureCategory(localContent.categories));
           setMediaRecords(localContent.mediaRecords);
@@ -358,7 +358,13 @@ export function ContentLibraryView() {
         if (!active || !data) return;
         const localContent = readLocalContentLibrary();
         setUsers(data.users.length ? data.users : demoUsers);
-        setItems(ensureFixedGestureItems(mergeById(data.learningItems.length ? data.learningItems : learningItems, localContent?.items ?? [])));
+        setItems(
+          ensureFixedGestureItems(
+            upgradeStarterLearningItemPrompts(
+              mergeById(data.learningItems.length ? data.learningItems : learningItems, localContent?.items ?? [])
+            )
+          )
+        );
         // An empty lessons table is valid after the final lesson is deleted.
         // Falling back to mock lessons here would make deleted records reappear.
         setLessons(hydrateLessonsFromLocalActivities(mergeLessons(data.lessons, localContent?.lessons ?? [])));
@@ -368,7 +374,7 @@ export function ContentLibraryView() {
       } catch (error) {
         const localContent = readLocalContentLibrary();
         if (active && localContent) {
-          setItems(ensureFixedGestureItems(localContent.items));
+          setItems(ensureFixedGestureItems(upgradeStarterLearningItemPrompts(localContent.items)));
           setLessons(hydrateLessonsFromLocalActivities(localContent.lessons));
           setCategories(ensureGestureCategory(localContent.categories));
           setMediaRecords(localContent.mediaRecords);

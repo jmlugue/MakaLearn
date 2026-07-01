@@ -143,6 +143,26 @@ function getChoiceGridClass(questionCount: number) {
   return "md:grid-cols-2 xl:grid-cols-3";
 }
 
+function getCompactSymbolGridClass(itemCount: number) {
+  if (itemCount <= 1) {
+    return "max-w-[12rem] grid-cols-1";
+  }
+
+  if (itemCount === 2) {
+    return "max-w-[24rem] grid-cols-2";
+  }
+
+  if (itemCount === 3) {
+    return "max-w-[36rem] grid-cols-3";
+  }
+
+  if (itemCount === 4) {
+    return "max-w-[48rem] grid-cols-2 sm:grid-cols-4";
+  }
+
+  return "max-w-[60rem] grid-cols-3 sm:grid-cols-5";
+}
+
 function getActivityBackground(activityId: string) {
   const index = activityId.split("").reduce((sum, character) => sum + character.charCodeAt(0), 0) % activityBackgrounds.length;
   return activityBackgrounds[index];
@@ -276,6 +296,20 @@ export function StudentActivityPlayer({
     }
   }
 
+  function chooseAnswerAndComplete(questionId: string, value: string) {
+    const nextAnswers = { ...answers, [questionId]: value };
+    chooseAnswer(questionId, value);
+
+    const questionIds = activity.questions.map((question) => question.id);
+    const allAnswersCorrect = activity.questions.length > 0 && activity.questions.every(
+      (question) => nextAnswers[question.id] === question.answer
+    );
+
+    if (allAnswersCorrect) {
+      window.setTimeout(() => onScoreRef.current(questionIds), 0);
+    }
+  }
+
   if (activity.type === "match-word-symbol") {
     return (
       <MatchWordSymbolStudentLayout
@@ -393,7 +427,7 @@ export function StudentActivityPlayer({
                   selectedAnswer={answers[question.id]}
                   scored={Boolean(result)}
                   hinted={hintedQuestionId === question.id}
-                  chooseAnswer={chooseAnswer}
+                  chooseAnswer={chooseAnswerAndComplete}
                 />
               ))}
             </div>
@@ -402,6 +436,16 @@ export function StudentActivityPlayer({
       </div>
 
       <ActivityCornerActions onReset={onReset} onScore={onScore} />
+
+      {result?.incorrect === 0 ? (
+        <ActivityCompletionModal
+          activity={activity}
+          learningItems={learningItems}
+          answers={answers}
+          result={result}
+          onReset={onReset}
+        />
+      ) : null}
     </section>
   );
 }
@@ -527,7 +571,10 @@ function DragDropSymbolStudentLayout({
           </div>
         </header>
 
-        <main className="relative grid min-h-0 grid-cols-1 place-items-center gap-2 overflow-hidden sm:flex sm:items-center sm:justify-center">
+        <main className={cn(
+          "relative mx-auto grid h-full min-h-0 w-full content-center place-items-center gap-1.5 overflow-hidden sm:gap-2",
+          getCompactSymbolGridClass(visibleQuestions.length)
+        )}>
           {dragged ? (
             <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-100 bg-white/92 px-4 py-2 text-sm font-black text-blue-700 shadow-sm md:block">
               Drop on the matching word
@@ -558,7 +605,7 @@ function DragDropSymbolStudentLayout({
                   }
                 }}
                 className={cn(
-                  "mx-auto grid h-full max-h-full min-h-0 w-auto max-w-full aspect-[3/4] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[1.15rem] border-[3px] bg-white/90 p-1.5 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_20px_rgba(37,99,235,0.08)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100",
+                  "mx-auto grid aspect-[3/4] h-auto max-h-full min-h-0 w-full max-w-[11.25rem] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[1.15rem] border-[3px] bg-white/90 p-2 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_20px_rgba(37,99,235,0.08)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100",
                   hinted ? "border-amber-400 ring-8 ring-amber-100" : "border-white",
                   result && answer && (isCorrect ? "bg-emerald-50/95 ring-8 ring-emerald-100" : "bg-rose-50/95 ring-8 ring-rose-100")
                 )}
@@ -581,7 +628,10 @@ function DragDropSymbolStudentLayout({
           })}
         </main>
 
-        <section className="grid min-h-0 grid-cols-1 place-items-center gap-2 overflow-hidden pb-1 sm:flex sm:items-center sm:justify-center">
+        <section className={cn(
+          "mx-auto grid h-full min-h-0 w-full content-center place-items-center gap-1.5 overflow-hidden pb-1 sm:gap-2",
+          getCompactSymbolGridClass(draggableCards.length)
+        )}>
           {draggableCards.map((card, index) => {
             const selected = dragged === card;
             const used = visibleQuestions.some((question) => answers[question.id] === card);
@@ -598,15 +648,16 @@ function DragDropSymbolStudentLayout({
           })}
         </section>
 
-        <footer className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
-          <div className="flex min-h-12 items-center gap-2 rounded-2xl border border-yellow-100 bg-white/90 px-3 shadow-sm sm:min-h-14 sm:px-4">
+        <footer className="grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(0,34rem)_minmax(0,1fr)] items-center gap-2 sm:gap-3">
+          <div className="flex min-h-12 w-fit items-center gap-2 rounded-2xl border border-yellow-100 bg-white/90 px-3 shadow-sm sm:min-h-14 sm:px-4">
             <Star className="h-6 w-6 fill-yellow-300 text-yellow-400 sm:h-7 sm:w-7" aria-hidden="true" />
             <span className="text-lg font-black text-[#10285e]">{scoreValue}</span>
           </div>
 
-          <div className="mx-auto flex min-h-12 w-full max-w-xl items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-white/90 px-3 text-center shadow-sm sm:min-h-14 sm:gap-3 sm:px-4">
+          <div className="mx-auto grid min-h-12 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-blue-100 bg-white/90 px-3 text-center shadow-sm sm:min-h-14 sm:gap-3 sm:px-4">
             <BrandLogo markClassName="h-9 w-9 rounded-xl sm:h-11 sm:w-11" />
             <p className="text-sm font-black text-[#10285e] sm:text-lg">{feedbackText}</p>
+            <span className="h-9 w-9 sm:h-11 sm:w-11" aria-hidden="true" />
           </div>
 
           <div className="flex justify-end gap-2 sm:gap-3">
@@ -630,6 +681,17 @@ function DragDropSymbolStudentLayout({
           </div>
         </footer>
       </div>
+
+      {result?.incorrect === 0 ? (
+        <ActivityCompletionModal
+          activity={activity}
+          learningItems={learningItems}
+          answers={answers}
+          result={result}
+          onReset={resetActivity}
+          questionIds={visibleQuestions.map((question) => question.id)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -795,7 +857,7 @@ function MatchWordSymbolStudentLayout({
       </div>
 
       {result ? (
-        <MatchCompletionModal
+        <ActivityCompletionModal
           activity={activity}
           learningItems={learningItems}
           answers={answers}
@@ -807,20 +869,27 @@ function MatchWordSymbolStudentLayout({
   );
 }
 
-function MatchCompletionModal({
+function ActivityCompletionModal({
   activity,
   learningItems,
   answers,
   result,
-  onReset
+  onReset,
+  questionIds
 }: {
   activity: Activity;
   learningItems: LearningItem[];
   answers: Record<string, string>;
   result: ActivityScore;
   onReset: () => void;
+  questionIds?: string[];
 }) {
-  const completedQuestions = activity.questions.slice(0, 5);
+  const completedQuestions = questionIds?.length
+    ? activity.questions.filter((question) => questionIds.includes(question.id))
+    : activity.questions.slice(0, 5);
+  const summaryText = activity.type === "match-word-symbol" || activity.type === "drag-drop-symbol"
+    ? `You matched ${result.correct} of ${result.correct + result.incorrect} cards.`
+    : `You got ${result.correct} of ${result.correct + result.incorrect} answers right.`;
 
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-sky-900/20 px-3 py-6">
@@ -842,7 +911,7 @@ function MatchCompletionModal({
             <Star className="h-8 w-8 fill-yellow-300 text-yellow-400 sm:h-10 sm:w-10" aria-hidden="true" />
           </h2>
           <p className="mt-2 text-base font-semibold text-slate-700">
-            You matched {result.correct} of {result.correct + result.incorrect} cards.
+            {summaryText}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             {completedQuestions.map((question, index) => {
@@ -1012,6 +1081,7 @@ function QuestionChoicePanel({
 }) {
   const isFillBlank = activity.type === "fill-blank";
   const title = getQuestionTitle(activity, question, learningItems);
+  const shouldShowSymbolOptions = activityUsesImageOptions(activity.type) || isFillBlank;
 
   return (
     <article
@@ -1048,7 +1118,8 @@ function QuestionChoicePanel({
               option={option}
               optionIndex={optionIndex}
               learningItems={learningItems}
-              showSymbol={activityUsesImageOptions(activity.type)}
+              showSymbol={shouldShowSymbolOptions}
+              showLabel={isFillBlank}
               selected={selected}
               correct={correct}
               scored={scored}
@@ -1084,6 +1155,7 @@ function LargeAnswerCard({
   optionIndex,
   learningItems,
   showSymbol,
+  showLabel = false,
   selected,
   correct,
   scored,
@@ -1093,6 +1165,7 @@ function LargeAnswerCard({
   optionIndex: number;
   learningItems: LearningItem[];
   showSymbol: boolean;
+  showLabel?: boolean;
   selected: boolean;
   correct: boolean;
   scored: boolean;
@@ -1114,7 +1187,10 @@ function LargeAnswerCard({
       aria-pressed={selected}
       className={cn(
         showSymbol
-          ? "relative grid h-[20rem] min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-[2rem] border-4 p-3 text-center transition hover:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:h-[22rem] lg:h-[24rem]"
+          ? cn(
+              "relative grid h-[20rem] min-h-0 overflow-hidden rounded-[2rem] border-4 p-3 text-center transition hover:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:h-[22rem] lg:h-[24rem]",
+              showLabel ? "grid-rows-[minmax(0,1fr)_auto]" : "grid-rows-[minmax(0,1fr)]"
+            )
           : "relative flex min-h-32 flex-col items-center justify-center gap-2 rounded-[2rem] border-4 p-3 text-center transition hover:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:min-h-44 lg:min-h-48",
         statusClass
       )}
@@ -1131,10 +1207,17 @@ function LargeAnswerCard({
         </span>
       ) : null}
       {showSymbol ? (
-        <span className="grid h-full min-h-0 w-full place-items-center overflow-hidden rounded-[1.35rem] bg-white/82 p-2">
-          <SymbolOption value={option} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
-          <span className="sr-only">{getDisplayLabel(option, learningItems)}</span>
-        </span>
+        <>
+          <span className="grid h-full min-h-0 w-full place-items-center overflow-hidden rounded-[1.35rem] bg-white/82 p-2">
+            <SymbolOption value={option} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
+            <span className="sr-only">{getDisplayLabel(option, learningItems)}</span>
+          </span>
+          {showLabel ? (
+            <span className="mt-2 rounded-2xl bg-white/85 px-3 py-2 text-xl font-black uppercase leading-tight text-[#10285e] shadow-sm sm:text-2xl">
+              {getDisplayLabel(option, learningItems)}
+            </span>
+          ) : null}
+        </>
       ) : (
         <span className="text-2xl font-black uppercase leading-tight text-[#10285e] sm:text-3xl lg:text-4xl">
           {getDisplayLabel(option, learningItems)}
@@ -1268,7 +1351,7 @@ function DragChoiceCard({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "relative mx-auto grid h-full max-h-full min-h-0 w-auto max-w-full aspect-[3/4] grid-rows-[minmax(0,1fr)] overflow-hidden rounded-[1.15rem] border-[3px] bg-white/92 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_18px_rgba(37,99,235,0.08)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100",
+        "relative mx-auto grid aspect-[3/4] h-auto max-h-full min-h-0 w-full max-w-[10.25rem] grid-rows-[minmax(0,1fr)] overflow-hidden rounded-[1.15rem] border-[3px] bg-white/92 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_18px_rgba(37,99,235,0.08)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100",
         selected ? "border-blue-500 ring-8 ring-blue-100" : "border-white hover:border-blue-200",
         used && !selected ? "opacity-75" : ""
       )}
