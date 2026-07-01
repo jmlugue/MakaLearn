@@ -1,6 +1,7 @@
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { mapMediaAssetRow } from "@/lib/supabase/media";
 import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
+import { createChooseCorrectSymbolPrompt } from "@/utils/starter-learning-item-prompts";
 import type {
   Activity,
   ActivityQuestion,
@@ -573,7 +574,7 @@ function createAdaptivePrompt(type: Activity["type"], item: LearningItem) {
   }
 
   if (type === "choose-correct-symbol") {
-    return formatPromptDescription(item.description);
+    return createChooseCorrectSymbolPrompt(item);
   }
 
   if (type === "drag-drop-symbol") {
@@ -581,13 +582,6 @@ function createAdaptivePrompt(type: Activity["type"], item: LearningItem) {
   }
 
   return `Match the word "${item.label}" to its PECS card.`;
-}
-
-function formatPromptDescription(description: string) {
-  const trimmed = description.trim();
-  if (!trimmed) return "Choose the best classroom communication card.";
-
-  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
 function createFillBlankPrompt(item: LearningItem) {

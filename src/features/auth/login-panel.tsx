@@ -4,7 +4,6 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Lock, Mail, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { FieldError, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
 import { insertAuditLog } from "@/lib/audit-logs";
@@ -148,16 +147,15 @@ export function LoginPanel() {
     .join(" ");
 
   return (
-    <Card className="w-full max-w-md border-0 bg-white p-0 shadow-none">
-      <div>
-      <div className="mb-6">
-        <p className="text-sm font-bold text-blue-600">Welcome back</p>
-        <h1 className="mt-2 text-3xl font-black tracking-[-0.035em] text-ink">Sign in to your account</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
+    <div className="w-full">
+      <div className="mb-9">
+        <p className="text-base font-bold text-blue-600">Welcome back</p>
+        <h1 className="mt-3 text-4xl font-black tracking-[-0.035em] text-ink">Sign in to your account</h1>
+        <p className="mt-3 text-base leading-7 text-slate-600">
           Enter your school email and password to continue.
         </p>
       </div>
-      <form className="space-y-4" onSubmit={handleSubmit}>
+      <form className="space-y-5" onSubmit={handleSubmit}>
         {formError ? (
           <div
             id="login-error"
@@ -172,24 +170,26 @@ export function LoginPanel() {
           </div>
         ) : null}
         <div>
-          <Label htmlFor="email" className={emailHasError ? "text-red-700" : undefined}>
+          <Label htmlFor="email" className={cn("text-base", emailHasError && "text-red-700")}>
             Email
           </Label>
           <div className="relative mt-1">
-            <Mail
+            <span
               className={cn(
-                "pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400",
-                emailHasError && "text-red-500"
+                "pointer-events-none absolute left-4 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl bg-blue-600 text-white shadow-[0_8px_18px_rgba(37,99,235,0.25)] ring-1 ring-blue-300",
+                emailHasError && "bg-red-500"
               )}
               aria-hidden="true"
-            />
+            >
+              <Mail className="h-5 w-5" />
+            </span>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(event) => handleEmailChange(event.target.value)}
               placeholder="teacher@makalearn.local"
-              className={cn("pl-10 pr-10", emailHasError && errorInputClass)}
+              className={cn("min-h-14 bg-white/95 pl-16 pr-10 text-base shadow-[0_12px_30px_rgba(37,99,235,0.08)]", emailHasError && errorInputClass)}
               aria-invalid={emailHasError}
               aria-describedby={emailDescription || undefined}
             />
@@ -200,24 +200,26 @@ export function LoginPanel() {
           <FieldError id="email-error" message={errors.email} />
         </div>
         <div>
-          <Label htmlFor="password" className={passwordHasError ? "text-red-700" : undefined}>
+          <Label htmlFor="password" className={cn("text-base", passwordHasError && "text-red-700")}>
             Password
           </Label>
           <div className="relative mt-1">
-            <Lock
+            <span
               className={cn(
-                "pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400",
-                passwordHasError && "text-red-500"
+                "pointer-events-none absolute left-4 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl bg-blue-600 text-white shadow-[0_8px_18px_rgba(37,99,235,0.25)] ring-1 ring-blue-300",
+                passwordHasError && "bg-red-500"
               )}
               aria-hidden="true"
-            />
+            >
+              <Lock className="h-5 w-5" />
+            </span>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(event) => handlePasswordChange(event.target.value)}
               placeholder="At least 6 characters"
-              className={cn("pl-10 pr-10", passwordHasError && errorInputClass)}
+              className={cn("min-h-14 bg-white/95 pl-16 pr-10 text-base shadow-[0_12px_30px_rgba(37,99,235,0.08)]", passwordHasError && errorInputClass)}
               aria-invalid={passwordHasError}
               aria-describedby={passwordDescription || undefined}
             />
@@ -227,18 +229,14 @@ export function LoginPanel() {
           </div>
           <FieldError id="password-error" message={errors.password} />
         </div>
-        <button type="button" onClick={resetPassword} className="block text-sm font-semibold text-blue-700">
+        <button type="button" onClick={resetPassword} className="block text-base font-semibold text-blue-700">
           Forgot password?
         </button>
-        <Button className="w-full" type="submit" disabled={loading}>
+        <Button className="w-full text-base" type="submit" disabled={loading}>
           <UserRound className="h-4 w-4" aria-hidden="true" />
           {loading ? "Signing in..." : "Sign in"}
         </Button>
       </form>
-      <p className="mt-5 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500">
-        Teachers open the content library. Administrators open the admin panel.
-      </p>
-      </div>
-    </Card>
+    </div>
   );
 }

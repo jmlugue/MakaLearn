@@ -7,7 +7,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   BookOpen,
-  Check,
   Hand,
   ListChecks
 } from "lucide-react";
@@ -26,18 +25,18 @@ const LearningScene = dynamic(
 const highlights = [
   {
     icon: BookOpen,
-    title: "Keep classroom content together",
-    text: "Organise picture cards, gesture references, audio, lessons, and activities in one shared library."
+    title: "Content library",
+    text: "Cards, gestures, audio, and lessons in one place."
   },
   {
     icon: Hand,
-    title: "Practise with live guidance",
-    text: "Use the webcam hand outline to practise supported classroom gestures with live feedback."
+    title: "Guided practice",
+    text: "Run gesture and activity sessions with clear controls."
   },
   {
     icon: ListChecks,
-    title: "Prepare activities quickly",
-    text: "Build any supported activity type from your learning items, then review it before using it in class."
+    title: "Quick activities",
+    text: "Build practice tasks from existing learning items."
   }
 ];
 
@@ -81,9 +80,6 @@ export default function LandingPage() {
           <p className="mt-7 max-w-xl text-xl font-semibold leading-8 text-slate-700">
             Plan, teach, and practise communication skills in one classroom workspace.
           </p>
-          <p className="mt-3 max-w-xl text-base leading-7 text-slate-600">
-            Made for teachers who need a simple way to organise learning materials, guide activities, and support each session.
-          </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href="/login" className="inline-flex">
               <Button size="lg" className="w-full sm:w-auto">
@@ -95,10 +91,6 @@ export default function LandingPage() {
                 See how it works
               </Button>
             </Link>
-          </div>
-          <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-slate-600">
-            <span className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-teal-600" /> Shared teacher library</span>
-            <span className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-teal-600" /> Classroom-friendly controls</span>
           </div>
         </motion.div>
 
@@ -113,7 +105,7 @@ export default function LandingPage() {
       </section>
 
       <section className="relative z-10 mx-auto max-w-7xl border-t border-blue-100 py-12">
-        <p className="max-w-2xl text-sm font-bold uppercase tracking-[0.16em] text-blue-600">Built around the classroom day</p>
+        <p className="max-w-2xl text-sm font-bold uppercase tracking-[0.16em] text-blue-600">Built for classroom flow</p>
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           {highlights.map((item, index) => (
             <Reveal key={item.title} delay={index * 0.08} className="h-full">

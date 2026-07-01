@@ -267,7 +267,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     async function loadSupabaseData() {
       if (!isSupabaseConfigured()) {
         const localActivities = readLocalActivities();
-        const nextActivities = localActivities ? mergeActivities(localActivities, mockActivities) : mockActivities;
+        const nextActivities = upgradeStarterActivityPrompts(localActivities ? mergeActivities(localActivities, mockActivities) : mockActivities);
         const nextLearningItems = getActivityItems(upgradeStarterLearningItemPrompts(readLocalContentLibraryItems() ?? mockLearningItems));
         if (!active) return;
         setActivities(nextActivities);
@@ -285,7 +285,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         const data = await fetchMakaLearnData();
         if (!active || !data) return;
         // An empty table is valid after deletions; never replace it with mock activities.
-        const nextActivities = mergeActivities(data.activities, readLocalActivities() ?? []);
+        const nextActivities = upgradeStarterActivityPrompts(mergeActivities(data.activities, readLocalActivities() ?? []));
         setActivities(nextActivities);
         setLearningItems(
           getActivityItems(
@@ -303,7 +303,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         setActivitiesReady(true);
       } catch (error) {
         if (!active) return;
-        const nextActivities = mergeActivities(readLocalActivities() ?? [], mockActivities);
+        const nextActivities = upgradeStarterActivityPrompts(mergeActivities(readLocalActivities() ?? [], mockActivities));
         const nextLearningItems = getActivityItems(upgradeStarterLearningItemPrompts(readLocalContentLibraryItems() ?? mockLearningItems));
         setActivities(nextActivities);
         setLearningItems(nextLearningItems);
@@ -345,10 +345,6 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   }, [isStudentMode]);
 
   const selectedActivity = activities.find((activity) => activity.id === selectedActivityId) ?? activities[0];
-  const selectedItems = useMemo(
-    () => selectedActivity?.learningItemIds.map((id) => learningItems.find((item) => item.id === id)).filter(Boolean) ?? [],
-    [learningItems, selectedActivity]
-  );
   const filteredActivities = useMemo(() => {
     const query = activitySearch.trim().toLowerCase();
     if (!query) return activities;
@@ -861,6 +857,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         isStudentMode ? (
           <StudentActivityPlayer
             activity={selectedActivity}
+            activities={activities}
             learningItems={learningItems}
             answers={answers}
             result={result}
@@ -870,32 +867,12 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
             onScore={scoreActivity}
             onClearResult={() => setResult(null)}
             onReset={() => resetPlayer()}
+            onSelectActivity={openActivity}
           />
         ) : (
         <Card>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="flex flex-wrap gap-2">
-                <Badge>{activityTypeLabels[selectedActivity.type]}</Badge>
-                <Badge className="bg-white text-blue-700">{selectedActivity.visibility}</Badge>
-                <Badge className="bg-white text-blue-700">
-                  {selectedActivity.questions.length} {selectedActivity.questions.length === 1 ? "question" : "questions"}
-                </Badge>
-              </div>
-              <CardTitle className="mt-3 text-2xl">{selectedActivity.title}</CardTitle>
-              <CardDescription className="mt-1">{selectedActivity.prompt}</CardDescription>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-skywash p-3">
-            <span className="text-xs font-bold uppercase text-slate-500">Items</span>
-            {selectedItems.map((item) =>
-              item ? (
-                <Badge key={item.id} className="bg-white text-blue-700">
-                  {item.label}
-                </Badge>
-              ) : null
-            )}
+          <div>
+            <CardTitle className="text-2xl">{selectedActivity.title}</CardTitle>
           </div>
 
             <ActivityPlayer

@@ -1,76 +1,97 @@
 "use client";
 
-import { useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { useReducedMotion } from "framer-motion";
-import type { Group, Mesh } from "three";
+import Image from "next/image";
+import { useState } from "react";
+import { motion, useReducedMotion, type PanInfo } from "framer-motion";
 
-function LearningTiles({ staticScene }: { staticScene: boolean }) {
-  const group = useRef<Group>(null);
-  const ring = useRef<Mesh>(null);
+const pecsCards = [
+  { label: "Hello", src: "/pecs/generated_cards/hello.png" },
+  { label: "Please", src: "/pecs/generated_cards/please.png" },
+  { label: "Help", src: "/pecs/generated_cards/help.png" },
+  { label: "More", src: "/pecs/generated_cards/more.png" },
+  { label: "Drink", src: "/pecs/generated_cards/drink.png" }
+];
 
-  useFrame(({ clock, pointer }) => {
-    if (!group.current || !ring.current || staticScene) return;
-    const time = clock.getElapsedTime();
-    group.current.rotation.y += (pointer.x * 0.18 - group.current.rotation.y) * 0.035;
-    group.current.rotation.x += (-pointer.y * 0.1 - group.current.rotation.x) * 0.035;
-    group.current.position.y = Math.sin(time * 0.65) * 0.08;
-    ring.current.rotation.z = time * 0.18;
-  });
-
-  const tiles = [
-    { position: [-1.35, 0.35, 0.1] as [number, number, number], rotation: [0.04, 0.28, -0.12] as [number, number, number], color: "#2563eb" },
-    { position: [0.1, 0.7, -0.25] as [number, number, number], rotation: [-0.1, -0.18, 0.06] as [number, number, number], color: "#ffffff" },
-    { position: [1.35, -0.2, 0.25] as [number, number, number], rotation: [0.08, -0.3, 0.12] as [number, number, number], color: "#5eead4" },
-    { position: [-0.45, -0.85, 0.35] as [number, number, number], rotation: [-0.08, 0.2, -0.04] as [number, number, number], color: "#c7d2fe" }
-  ];
-
-  return (
-    <group ref={group} rotation={[0.08, -0.12, 0]}>
-      <mesh ref={ring} position={[0, 0, -1.2]} rotation={[1.22, 0, 0]}>
-        <torusGeometry args={[2.15, 0.035, 20, 96]} />
-        <meshStandardMaterial color="#67e8f9" transparent opacity={0.48} />
-      </mesh>
-      {tiles.map((tile, index) => (
-        <group key={tile.color} position={tile.position} rotation={tile.rotation}>
-          <mesh castShadow>
-            <boxGeometry args={[1.25, 1.55, 0.12]} />
-            <meshStandardMaterial color={tile.color} roughness={0.3} metalness={0.04} />
-          </mesh>
-          <mesh position={[0, 0.24, 0.071]}>
-            {index % 2 === 0 ? <circleGeometry args={[0.27, 32]} /> : <boxGeometry args={[0.48, 0.48, 0.025]} />}
-            <meshStandardMaterial color={index === 1 ? "#2563eb" : "#ffffff"} />
-          </mesh>
-          <mesh position={[0, -0.39, 0.071]}>
-            <boxGeometry args={[0.72, 0.09, 0.025]} />
-            <meshStandardMaterial color={index === 1 ? "#93c5fd" : "#dbeafe"} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
+function getCardOffset(index: number, activeIndex: number) {
+  const raw = index - activeIndex;
+  const half = pecsCards.length / 2;
+  if (raw > half) return raw - pecsCards.length;
+  if (raw < -half) return raw + pecsCards.length;
+  return raw;
 }
 
 export function LearningScene() {
   const reduceMotion = useReducedMotion();
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  function rotate(direction: 1 | -1) {
+    setActiveIndex((current) => (current + direction + pecsCards.length) % pecsCards.length);
+  }
+
+  function handleDragEnd(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
+    if (Math.abs(info.offset.x) < 45) return;
+    rotate(info.offset.x < 0 ? 1 : -1);
+  }
 
   return (
-    <div className="relative h-[430px] w-full overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-br from-blue-600/10 via-white/30 to-cyan-300/20 shadow-[0_35px_90px_rgba(30,64,175,0.2)] backdrop-blur-xl sm:h-[520px]">
-      <Canvas
-        aria-label="Floating classroom learning cards"
-        camera={{ position: [0, 0, 6.4], fov: 44 }}
-        dpr={[1, 1.5]}
-        gl={{ antialias: true, alpha: true }}
-        shadows
+    <div className="pecs-carousel-scene relative h-[430px] w-full overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-br from-blue-600/10 via-white/35 to-cyan-300/20 shadow-[0_35px_90px_rgba(30,64,175,0.2)] backdrop-blur-xl sm:h-[520px]">
+      <div className="absolute inset-8 rounded-[2rem] border border-blue-100/60 bg-white/35" aria-hidden="true" />
+      <div className="absolute left-8 top-8 h-16 w-16 rounded-3xl bg-blue-200/30" aria-hidden="true" />
+      <div className="absolute bottom-10 right-10 h-24 w-24 rounded-full bg-teal-200/30" aria-hidden="true" />
+
+      <motion.div
+        className="relative z-10 flex h-full cursor-grab touch-pan-y select-none items-center justify-center px-6 active:cursor-grabbing"
+        drag={reduceMotion ? false : "x"}
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.16}
+        onDragEnd={handleDragEnd}
+        aria-label="Swipe PECS cards"
       >
-        <ambientLight intensity={1.8} />
-        <directionalLight position={[3, 5, 5]} intensity={2.4} castShadow />
-        <pointLight position={[-4, -2, 3]} color="#60a5fa" intensity={4} />
-        <LearningTiles staticScene={Boolean(reduceMotion)} />
-      </Canvas>
-      <div className="pointer-events-none absolute inset-x-5 bottom-5 flex items-center justify-between rounded-2xl border border-white/60 bg-white/55 px-4 py-3 text-sm font-bold text-slate-700 shadow-lg backdrop-blur-xl">
-        <span>Interactive learning materials</span>
-        <span className="rounded-full bg-blue-600 px-3 py-1 text-xs text-white">Move your pointer</span>
+        <div className="relative h-[22rem] w-full max-w-[34rem] [perspective:1200px] sm:h-[27rem]">
+          {pecsCards.map((card, index) => {
+            const offset = getCardOffset(index, activeIndex);
+            const isActive = offset === 0;
+            const visible = Math.abs(offset) <= 2;
+
+            return (
+              <motion.div
+                key={card.src}
+                className="absolute inset-0 grid place-items-center"
+                animate={{
+                  x: offset * 124,
+                  y: Math.abs(offset) * 14,
+                  rotateY: offset * -22,
+                  rotateZ: offset * 4,
+                  scale: isActive ? 1 : 0.84,
+                  opacity: visible ? (isActive ? 1 : 0.72) : 0,
+                  zIndex: 10 - Math.abs(offset)
+                }}
+                transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 28 }}
+                aria-hidden={!isActive}
+              >
+                <article className="h-56 w-40 rounded-2xl border border-blue-100 bg-white p-3 shadow-[0_22px_55px_rgba(37,99,235,0.18)] sm:h-72 sm:w-52">
+                  <div className="flex h-full flex-col rounded-xl border border-slate-900/20 bg-white p-2">
+                    <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg bg-slate-50">
+                      <Image src={card.src} alt={`${card.label} PECS card`} fill sizes="220px" className="object-contain p-2" />
+                    </div>
+                    <p className="mt-2 text-center text-lg font-black uppercase text-ink sm:text-xl">{card.label}</p>
+                  </div>
+                </article>
+              </motion.div>
+            );
+          })}
+        </div>
+      </motion.div>
+
+      <div className="absolute inset-x-5 bottom-6 z-20 flex items-center justify-center">
+        <div className="flex gap-1.5" aria-hidden="true">
+          {pecsCards.map((card, index) => (
+            <span
+              key={card.label}
+              className={`h-2 rounded-full transition-all ${activeIndex === index ? "w-6 bg-blue-600" : "w-2 bg-blue-200"}`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

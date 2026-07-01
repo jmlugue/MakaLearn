@@ -46,7 +46,7 @@ export default function LoginPage() {
             </div>
           </section>
           <section className="relative grid place-items-center bg-white/40 px-5 py-10 backdrop-blur-2xl sm:px-10 lg:px-12">
-            <div className="glass-panel-strong w-full max-w-md rounded-[1.75rem] border p-5 sm:p-7">
+            <div className="glass-panel-strong w-full max-w-lg rounded-[1.75rem] border px-12 py-8 sm:px-16 sm:py-10">
               <LoginPanel />
             </div>
           </section>
