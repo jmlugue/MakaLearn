@@ -89,7 +89,7 @@ export function SelectionList({
         {maxSelected && selectedValues.length >= maxSelected
           ? (maxSelectedMessage ?? `You can select up to ${maxSelected} items.`)
           : selectedValues.length
-            ? "Select again to remove an item. More items may be available by scrolling."
+            ? "Tap again to remove."
             : emptyText}
       </p>
     </div>

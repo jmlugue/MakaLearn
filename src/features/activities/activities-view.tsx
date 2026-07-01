@@ -1,11 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Bot, Library, Pencil, Play, PlayCircle, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, Library, Pencil, Play, PlayCircle, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
-import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/form";
+import { FieldError, FieldHint, Input, Label, Textarea } from "@/components/ui/form";
 import { SelectionList } from "@/components/ui/selection-list";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/common/empty-state";
@@ -38,6 +38,13 @@ const activityTypes: ActivityType[] = [
   "fill-blank",
   "drag-drop-symbol"
 ];
+const activityTypeDescriptions: Record<ActivityType, string> = {
+  "match-word-symbol": "Match words to pictures.",
+  "choose-correct-symbol": "Pick the right picture.",
+  "fill-blank": "Choose the missing word.",
+  "drag-drop-symbol": "Drag pictures to words.",
+  "gesture-practice": "Practice gestures."
+};
 type ActivityTab = "workspace" | "library";
 const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
 const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
@@ -444,6 +451,20 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     setTab("workspace");
   }
 
+  function changeActivityType(nextType: ActivityType) {
+    setType(nextType);
+    setSelectedLearningItemIds((current) =>
+      current.filter((id) => {
+        const item = learningItems.find((candidate) => candidate.id === id);
+        if (!item) return false;
+        if (nextType === "gesture-practice") return item.contentType === "gesture";
+        if (item.contentType !== "pecs") return false;
+        return activityUsesImageOptions(nextType) ? Boolean(item.symbolImageUrl) : true;
+      }).slice(0, MAX_ACTIVITY_LEARNING_ITEMS)
+    );
+    setLearningItemError("");
+  }
+
   function closeCreateForm() {
     const shouldReturnToLibrary = Boolean(editingActivity) && editReturnTab === "library";
     setTitle("");
@@ -484,9 +505,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     const itemNames = selectedLearningItems.map((item) => item.label).join(", ");
     setTitle(`${activityTypeLabels[type]}: ${itemNames}`);
     setInstructions(getActivityDraftInstructions(type, selectedLearningItems));
-    setAiDraftNote(
-      `Drafted for ${activityTypeLabels[type].toLowerCase()}. You can still change the activity type, items, visibility, and instructions before saving.`
-    );
+    setAiDraftNote("Draft added. Review the name and directions before saving.");
     setLearningItemError("");
     notify({
       title: "Activity draft ready",
@@ -590,8 +609,8 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       {!isStudentMode ? (
         <PageHeader
           eyebrow="Activities"
-          title="Activity library and player"
-          description="Create, edit, and run PECS activities. Gesture practice stays in the Gestures tab."
+          title="Activities"
+          description="Create, choose, and run classroom activities."
         />
       ) : null}
 
@@ -612,9 +631,9 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
               {selectedActivity?.questions.length ?? 0} {selectedActivity?.questions.length === 1 ? "question" : "questions"}
             </span>
           </span>
-          <span className="mt-3 block text-sm font-bold">Play &amp; create</span>
+          <span className="mt-3 block text-sm font-bold">Workspace</span>
           <span className={`mt-1 block text-xs leading-5 ${tab === "workspace" ? "text-blue-50" : "text-slate-500"}`}>
-            Run the selected activity or create a new one
+            Run or create
           </span>
         </button>
 
@@ -634,9 +653,9 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
               {activities.length}
             </span>
           </span>
-          <span className="mt-3 block text-sm font-bold">Activity library</span>
+          <span className="mt-3 block text-sm font-bold">Library</span>
           <span className={`mt-1 block text-xs leading-5 ${tab === "library" ? "text-blue-50" : "text-slate-500"}`}>
-            Browse shared and private activities
+            Find saved activities
           </span>
         </button>
       </div> : null}
@@ -646,7 +665,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         {!isStudentMode ? <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold text-ink">Activity workspace</h2>
-            <p className="mt-1 text-sm text-slate-600">Run the selected activity, or open the creator when you need a new one.</p>
+            <p className="mt-1 text-sm text-slate-600">Run the selected activity or make a new one.</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             {createFormOpen ? (
@@ -682,11 +701,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
             <div className="flex items-start justify-between gap-3">
               <div>
                 <CardTitle id="activity-form-title">{editingActivity ? "Edit activity" : "Create activity"}</CardTitle>
-                <CardDescription>
-                  {editingActivity
-                    ? "Update the activity details, learning items, questions, and visibility."
-                    : "Teachers and admins can manually create shared or private activities."}
-                </CardDescription>
+                <CardDescription>Choose a type, pick items, then save.</CardDescription>
               </div>
               {editingActivity ? (
                 <Button type="button" variant="ghost" size="icon" aria-label="Close activity editor" onClick={closeCreateForm}>
@@ -694,49 +709,54 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                 </Button>
               ) : null}
             </div>
-            <form className="mt-4 space-y-4" onSubmit={createActivity}>
-              <div>
-                <Label htmlFor="activity-title">Activity title</Label>
-                <Input
-                  id="activity-title"
-                  value={title}
-                  onChange={(event) => {
-                    setTitle(event.target.value);
-                    if (error) setError("");
-                  }}
-                />
-                <FieldError message={error} />
-              </div>
-              <div>
-                <Label htmlFor="activity-type">Activity type</Label>
-                <Select
-                  id="activity-type"
-                  value={type}
-                  onChange={(event) => {
-                    const nextType = event.target.value as ActivityType;
-                    setType(nextType);
-                    setSelectedLearningItemIds((current) =>
-                      current.filter((id) => {
-                        const item = learningItems.find((candidate) => candidate.id === id);
-                        if (!item) return false;
-                        if (nextType === "gesture-practice") return item.contentType === "gesture";
-                        if (item.contentType !== "pecs") return false;
-                        return activityUsesImageOptions(nextType) ? Boolean(item.symbolImageUrl) : true;
-                      }).slice(0, MAX_ACTIVITY_LEARNING_ITEMS)
+            <form className="mt-5 space-y-5" onSubmit={createActivity}>
+              <section className="rounded-xl border border-blue-100 bg-white p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-600 text-sm font-bold text-white">1</span>
+                  <div>
+                    <h3 className="text-sm font-bold text-ink">Choose activity type</h3>
+                    <p className="text-xs text-slate-500">Pick one format.</p>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Activity type">
+                  {activityTypes.map((item) => {
+                    const selected = type === item;
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => changeActivityType(item)}
+                        className={`rounded-lg border p-3 text-left transition ${
+                          selected
+                            ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100"
+                            : "border-blue-100 bg-white hover:border-blue-300 hover:bg-skywash"
+                        }`}
+                      >
+                        <span className="block text-sm font-bold text-ink">{activityTypeLabels[item]}</span>
+                        <span className="mt-1 block text-xs text-slate-500">{activityTypeDescriptions[item]}</span>
+                      </button>
                     );
-                    setLearningItemError("");
-                  }}
-                >
-                  {activityTypes.map((item) => (
-                    <option key={item} value={item}>
-                      {activityTypeLabels[item]}
-                    </option>
-                  ))}
-                </Select>
-                <FieldHint>Choose any activity type first; the draft helper will keep that choice.</FieldHint>
-              </div>
-              <div>
-                <Label htmlFor="learning-item-search">Search learning items</Label>
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-blue-100 bg-white p-4">
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-600 text-sm font-bold text-white">2</span>
+                    <div>
+                      <h3 className="text-sm font-bold text-ink">Pick learning items</h3>
+                      <p className="text-xs text-slate-500">Use up to {MAX_ACTIVITY_LEARNING_ITEMS} items.</p>
+                    </div>
+                  </div>
+                  <Button type="button" variant="secondary" onClick={generateAiActivityDraft}>
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    Draft from items
+                  </Button>
+                </div>
+                <Label htmlFor="learning-item-search">{type === "gesture-practice" ? "Search gestures" : "Search items"}</Label>
                 <div className="relative mb-4 mt-1">
                   <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
                   <Input
@@ -744,24 +764,17 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                     type="search"
                     value={learningItemSearch}
                     onChange={(event) => setLearningItemSearch(event.target.value)}
-                    placeholder={type === "gesture-practice" ? "Search gestures" : "Search learning items"}
+                    placeholder={type === "gesture-practice" ? "Type a gesture name" : "Type an item name"}
                     className="pl-10"
                   />
                 </div>
                 <SelectionList
-                  label={type === "gesture-practice" ? "Gestures" : "Learning items"}
-                  helper={
-                    activityUsesImageOptions(type)
-                      ? `Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items to ask about. Only items with images are shown.`
-                      : type === "gesture-practice"
-                        ? `Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} gestures to include in the guided practice.`
-                        : `Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items this activity should use.`
-                  }
+                  label={type === "gesture-practice" ? "Gestures" : "Items"}
+                  helper={activityUsesImageOptions(type) ? "Only items with images are shown." : "Select the items to practice."}
                   options={selectableLearningItems.map((item) => ({
-                      value: item.id,
-                      label: item.label,
-                      description: item.description
-                    }))}
+                    value: item.id,
+                    label: item.label
+                  }))}
                   selectedValues={selectedLearningItemIds}
                   onChange={(values) => {
                     const nextValues = values.slice(0, MAX_ACTIVITY_LEARNING_ITEMS);
@@ -773,51 +786,62 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                     if (learningItemError) setLearningItemError("");
                   }}
                   maxSelected={MAX_ACTIVITY_LEARNING_ITEMS}
-                  maxSelectedMessage={`You can select up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items.`}
-                  emptyText={
-                    learningItemEmptyText
-                  }
+                  maxSelectedMessage={`Limit reached: ${MAX_ACTIVITY_LEARNING_ITEMS} items.`}
+                  emptyText={learningItemEmptyText}
                 />
                 <FieldError message={learningItemError} />
-                <div className="mt-3 rounded-lg border border-blue-100 bg-white p-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-start gap-3">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-blue-600 text-white">
-                        <Bot className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-bold text-ink">Activity draft</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">
-                          Drafts the selected activity type from your chosen items for teacher review.
-                        </p>
-                      </div>
-                    </div>
-                    <Button type="button" variant="secondary" onClick={generateAiActivityDraft}>
-                      <Sparkles className="h-4 w-4" aria-hidden="true" />
-                      Draft activity
-                    </Button>
+                {aiDraftNote ? <p className="mt-3 text-xs font-semibold text-blue-700">{aiDraftNote}</p> : null}
+              </section>
+
+              <section className="rounded-xl border border-blue-100 bg-white p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-600 text-sm font-bold text-white">3</span>
+                  <div>
+                    <h3 className="text-sm font-bold text-ink">Name and save</h3>
+                    <p className="text-xs text-slate-500">Keep directions short.</p>
                   </div>
-                  {aiDraftNote ? <p className="mt-3 text-xs font-semibold leading-5 text-blue-700">{aiDraftNote}</p> : null}
                 </div>
-              </div>
-              <label className="flex min-h-12 items-center gap-3 rounded-lg border border-blue-100 bg-skywash p-3 text-sm font-semibold">
-                <input
-                  type="checkbox"
-                  checked={privateActivity}
-                  onChange={(event) => setPrivateActivity(event.target.checked)}
-                  className="h-5 w-5"
-                />
-                Private to me
-              </label>
-              <div>
-                <Label htmlFor="activity-instructions">Activity instructions</Label>
-                <Textarea
-                  id="activity-instructions"
-                  value={instructions}
-                  onChange={(event) => setInstructions(event.target.value)}
-                  placeholder="Optional directions shown above the activity"
-                />
-              </div>
+                <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="activity-title">Activity name</Label>
+                      <Input
+                        id="activity-title"
+                        value={title}
+                        onChange={(event) => {
+                          setTitle(event.target.value);
+                          if (error) setError("");
+                        }}
+                        placeholder="Example: Match greetings"
+                      />
+                      <FieldError message={error} />
+                    </div>
+                    <div>
+                      <Label htmlFor="activity-instructions">Directions</Label>
+                      <Textarea
+                        id="activity-instructions"
+                        value={instructions}
+                        onChange={(event) => setInstructions(event.target.value)}
+                        placeholder="Optional directions for the activity"
+                        className="min-h-24"
+                      />
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-blue-100 bg-skywash p-3">
+                    <p className="text-sm font-bold text-ink">Visibility</p>
+                    <label className="mt-3 flex min-h-12 items-center gap-3 rounded-lg bg-white p-3 text-sm font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={privateActivity}
+                        onChange={(event) => setPrivateActivity(event.target.checked)}
+                        className="h-5 w-5"
+                      />
+                      Private to me
+                    </label>
+                    <FieldHint>{privateActivity ? "Only you can see it." : "Shared with teachers."}</FieldHint>
+                  </div>
+                </div>
+              </section>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button type="submit">
                   {editingActivity ? <Pencil className="h-4 w-4" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
@@ -849,23 +873,29 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
           />
         ) : (
         <Card>
-          <div>
-            <Badge>{activityTypeLabels[selectedActivity.type]}</Badge>
-            <CardTitle className="mt-3 text-2xl">{selectedActivity.title}</CardTitle>
-            <CardDescription>{selectedActivity.prompt}</CardDescription>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex flex-wrap gap-2">
+                <Badge>{activityTypeLabels[selectedActivity.type]}</Badge>
+                <Badge className="bg-white text-blue-700">{selectedActivity.visibility}</Badge>
+                <Badge className="bg-white text-blue-700">
+                  {selectedActivity.questions.length} {selectedActivity.questions.length === 1 ? "question" : "questions"}
+                </Badge>
+              </div>
+              <CardTitle className="mt-3 text-2xl">{selectedActivity.title}</CardTitle>
+              <CardDescription className="mt-1">{selectedActivity.prompt}</CardDescription>
+            </div>
           </div>
 
-          <div className="mt-5 rounded-lg bg-skywash p-4">
-            <p className="text-sm font-semibold text-slate-700">Related learning items</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {selectedItems.map((item) =>
-                item ? (
-                  <Badge key={item.id} className="bg-white text-blue-700">
-                    {item.label}
-                  </Badge>
-                ) : null
-              )}
-            </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-skywash p-3">
+            <span className="text-xs font-bold uppercase text-slate-500">Items</span>
+            {selectedItems.map((item) =>
+              item ? (
+                <Badge key={item.id} className="bg-white text-blue-700">
+                  {item.label}
+                </Badge>
+              ) : null
+            )}
           </div>
 
             <ActivityPlayer
@@ -921,8 +951,8 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
           <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h2 className="text-xl font-bold text-ink">Activity library</h2>
-                <p className="mt-1 text-sm text-slate-600">Select an activity to open it in the player.</p>
+                <h2 className="text-xl font-bold text-ink">Library</h2>
+                <p className="mt-1 text-sm text-slate-600">Search and open an activity.</p>
               </div>
               <div className="w-full lg:max-w-sm">
                 <Label htmlFor="activity-search">Search activities</Label>
@@ -946,7 +976,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
               {filteredActivities.map((activity) => (
                 <article
                   key={activity.id}
-                  className={`flex min-h-44 flex-col rounded-lg border bg-white p-4 shadow-sm ${
+                  className={`flex min-h-40 flex-col rounded-lg border bg-white p-4 shadow-sm ${
                     selectedActivity?.id === activity.id ? "border-blue-500 ring-2 ring-blue-100" : "border-blue-100"
                   }`}
                 >
@@ -954,8 +984,15 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                     <h3 className="font-semibold text-ink">{activity.title}</h3>
                     <Badge>{activity.visibility}</Badge>
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">{activityTypeLabels[activity.type]}</p>
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{activity.prompt}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge className="bg-blue-50 text-blue-700">{activityTypeLabels[activity.type]}</Badge>
+                    <Badge className="bg-white text-blue-700">
+                      {activity.questions.length} {activity.questions.length === 1 ? "question" : "questions"}
+                    </Badge>
+                    <Badge className="bg-white text-blue-700">
+                      {activity.learningItemIds.length} {activity.learningItemIds.length === 1 ? "item" : "items"}
+                    </Badge>
+                  </div>
                   <div className="mt-auto grid grid-cols-2 gap-2 pt-4">
                     <Button type="button" size="sm" className="col-span-2" onClick={() => openActivity(activity.id)}>
                       <Play className="h-4 w-4" aria-hidden="true" />
