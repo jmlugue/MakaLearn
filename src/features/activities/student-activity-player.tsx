@@ -33,6 +33,7 @@ type StudentActivityPlayerProps = {
   setDragged: (value: string) => void;
   chooseAnswer: (questionId: string, value: string) => void;
   onScore: (questionIds?: string[]) => void;
+  onClearResult: () => void;
   onReset: () => void;
 };
 
@@ -82,6 +83,74 @@ function getQuestionTitle(activity: Activity, question: ActivityQuestion, learni
   }
 
   return question.prompt;
+}
+
+function normalizeSpokenText(text: string) {
+  return text
+    .replace(/\bPECS\b/gi, "pecks")
+    .replace(/_{2,}/g, "blank")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function completeSentencePrompt(prompt: string, answer: string) {
+  const completed = prompt.includes("____")
+    ? prompt.replace(/____/g, answer.toLowerCase())
+    : `${prompt} ${answer}`;
+
+  return normalizeSpokenText(completed);
+}
+
+function getQuestionListenText(activity: Activity, question: ActivityQuestion, learningItems: LearningItem[]) {
+  if (activity.type === "match-word-symbol") {
+    return normalizeSpokenText(getQuestionTitle(activity, question, learningItems));
+  }
+
+  return normalizeSpokenText(question.prompt);
+}
+
+function getActivityQuestionListenItems(activity: Activity, learningItems: LearningItem[], answers: Record<string, string>) {
+  const visibleQuestions = activity.questions.slice(0, 5);
+  const unansweredQuestions = visibleQuestions.filter((question) => !answers[question.id]);
+  const questionsToRead = unansweredQuestions.length ? unansweredQuestions : visibleQuestions;
+
+  return questionsToRead
+    .map((question) => ({ id: question.id, text: getQuestionListenText(activity, question, learningItems) }))
+    .filter((item) => item.text);
+}
+
+function getAnsweredQuestionListenText(
+  activity: Activity,
+  question: ActivityQuestion,
+  answers: Record<string, string>,
+  learningItems: LearningItem[]
+) {
+  const answer = getDisplayLabel(answers[question.id] || question.answer, learningItems);
+
+  if (activity.type === "fill-blank") {
+    return completeSentencePrompt(question.prompt, answer);
+  }
+
+  if (activity.type === "match-word-symbol" || activity.type === "drag-drop-symbol") {
+    return normalizeSpokenText(getQuestionTitle(activity, question, learningItems));
+  }
+
+  return normalizeSpokenText(`${question.prompt} ${answer}`);
+}
+
+function getCorrectResultListenItems(
+  activity: Activity,
+  learningItems: LearningItem[],
+  answers: Record<string, string>,
+  questionIds: string[]
+) {
+  const completedQuestions = questionIds.length
+    ? activity.questions.filter((question) => questionIds.includes(question.id))
+    : activity.questions.slice(0, 5);
+
+  return completedQuestions
+    .map((question) => ({ id: question.id, text: getAnsweredQuestionListenText(activity, question, answers, learningItems) }))
+    .filter((item) => item.text);
 }
 
 function getSymbolOptionValue(item: LearningItem) {
@@ -145,22 +214,22 @@ function getChoiceGridClass(questionCount: number) {
 
 function getCompactSymbolGridClass(itemCount: number) {
   if (itemCount <= 1) {
-    return "max-w-[12rem] grid-cols-1";
+    return "max-w-[14rem] grid-cols-1";
   }
 
   if (itemCount === 2) {
-    return "max-w-[24rem] grid-cols-2";
+    return "max-w-[30rem] grid-cols-2";
   }
 
   if (itemCount === 3) {
-    return "max-w-[36rem] grid-cols-3";
+    return "max-w-[44rem] grid-cols-3";
   }
 
   if (itemCount === 4) {
-    return "max-w-[48rem] grid-cols-2 sm:grid-cols-4";
+    return "max-w-[56rem] grid-cols-2 sm:grid-cols-4";
   }
 
-  return "max-w-[60rem] grid-cols-3 sm:grid-cols-5";
+  return "max-w-[70rem] grid-cols-3 sm:grid-cols-5";
 }
 
 function getActivityBackground(activityId: string) {
@@ -218,6 +287,18 @@ function speakText(text: string) {
   });
 }
 
+async function speakTextSequence(
+  items: Array<{ id: string; text: string }>,
+  onActiveItemChange: (id: string) => void
+) {
+  for (const item of items) {
+    onActiveItemChange(item.id);
+    await speakText(item.text);
+  }
+
+  onActiveItemChange("");
+}
+
 export function StudentActivityPlayer({
   activity,
   learningItems,
@@ -227,6 +308,7 @@ export function StudentActivityPlayer({
   setDragged,
   chooseAnswer,
   onScore,
+  onClearResult,
   onReset
 }: StudentActivityPlayerProps) {
   const [hintedQuestionId, setHintedQuestionId] = useState("");
@@ -234,6 +316,8 @@ export function StudentActivityPlayer({
   const [matchQuestionIndex, setMatchQuestionIndex] = useState(0);
   const [matchFeedback, setMatchFeedback] = useState<"idle" | "correct" | "wrong">("idle");
   const [matchOptionRound, setMatchOptionRound] = useState(0);
+  const [resultQuestionIds, setResultQuestionIds] = useState<string[]>([]);
+  const [highlightedListenQuestionId, setHighlightedListenQuestionId] = useState("");
   const hintTimer = useRef<number | null>(null);
   const onScoreRef = useRef(onScore);
   const backgroundUrl = useMemo(() => getActivityBackground(activity.id), [activity.id]);
@@ -247,6 +331,8 @@ export function StudentActivityPlayer({
     setHintedQuestionId("");
     setMatchFeedback("idle");
     setMatchOptionRound((current) => current + 1);
+    setResultQuestionIds([]);
+    setHighlightedListenQuestionId("");
   }, [activity.id]);
 
   useEffect(() => {
@@ -271,12 +357,14 @@ export function StudentActivityPlayer({
   async function listenToActivity() {
     if (isListening) return;
 
+    const items = getActivityQuestionListenItems(activity, learningItems, answers);
+    if (!items.length) return;
+
     setIsListening(true);
     try {
-      // Uses browser text-to-speech for the student prompt. Future audio work can
-      // prefer teacher-recorded activity instructions when that field exists.
-      await speakText(`${activity.title}. ${activity.prompt}`);
+      await speakTextSequence(items, setHighlightedListenQuestionId);
     } finally {
+      setHighlightedListenQuestionId("");
       setIsListening(false);
     }
   }
@@ -286,27 +374,115 @@ export function StudentActivityPlayer({
 
     const totalSteps = Math.min(activity.questions.length, 5);
     const question = activity.questions[Math.min(matchQuestionIndex, Math.max(totalSteps - 1, 0))];
-    const word = question ? getQuestionTitle(activity, question, learningItems) : activity.title;
+    const text = question ? getQuestionListenText(activity, question, learningItems) : "";
+    if (!text) return;
 
     setIsListening(true);
     try {
-      await speakText(word);
+      await speakTextSequence([{ id: question.id, text }], setHighlightedListenQuestionId);
     } finally {
+      setHighlightedListenQuestionId("");
       setIsListening(false);
     }
   }
 
-  function chooseAnswerAndComplete(questionId: string, value: string) {
-    const nextAnswers = { ...answers, [questionId]: value };
+  function scoreQuestions(questionIds: string[]) {
+    setResultQuestionIds(questionIds);
+    window.setTimeout(() => onScoreRef.current(questionIds), 0);
+  }
+
+  function clearResultAndKeepAnswers() {
+    setResultQuestionIds([]);
+    onClearResult();
+  }
+
+  function retryResultQuestions() {
+    resultQuestionIds.forEach((questionId) => chooseAnswer(questionId, ""));
+    setResultQuestionIds([]);
+  }
+
+  function chooseAnswerAndScoreQuestion(questionId: string, value: string) {
     chooseAnswer(questionId, value);
+    scoreQuestions([questionId]);
+  }
 
-    const questionIds = activity.questions.map((question) => question.id);
-    const allAnswersCorrect = activity.questions.length > 0 && activity.questions.every(
-      (question) => nextAnswers[question.id] === question.answer
+  function chooseMatchAnswer(question: ActivityQuestion, option: string) {
+    const nextAnswers = { ...answers, [question.id]: option };
+    chooseAnswer(question.id, option);
+
+    if (option !== question.answer) {
+      setMatchFeedback("wrong");
+      scoreQuestions([question.id]);
+      return;
+    }
+
+    setMatchFeedback("correct");
+
+    const totalSteps = Math.min(activity.questions.length, 5);
+    const visibleQuestionIds = activity.questions.slice(0, totalSteps).map((visibleQuestion) => visibleQuestion.id);
+    const allVisibleAnswersCorrect = visibleQuestionIds.length > 0 && activity.questions
+      .slice(0, totalSteps)
+      .every((visibleQuestion) => nextAnswers[visibleQuestion.id] === visibleQuestion.answer);
+
+    if (allVisibleAnswersCorrect) {
+      scoreQuestions(visibleQuestionIds);
+      return;
+    }
+
+    window.setTimeout(() => {
+      if (matchQuestionIndex + 1 < totalSteps) {
+        setMatchQuestionIndex(matchQuestionIndex + 1);
+        setMatchFeedback("idle");
+      }
+    }, 280);
+  }
+
+  function getResultPrimaryAction() {
+    if (activity.type === "match-word-symbol") {
+      return {
+        label: result?.incorrect === 0 ? "Practice again" : "Try again",
+        action: result?.incorrect === 0 ? onReset : retryResultQuestions
+      };
+    }
+
+    if (activity.type === "drag-drop-symbol") {
+      return {
+        label: result?.incorrect === 0 ? "Practice again" : "Try again",
+        action: onReset
+      };
+    }
+
+    return {
+      label: result?.incorrect === 0 ? "Continue" : "Try again",
+      action: result?.incorrect === 0 ? clearResultAndKeepAnswers : retryResultQuestions
+    };
+  }
+
+  const resultPrimaryAction = getResultPrimaryAction();
+  const visibleResultQuestionIds = resultQuestionIds.length
+    ? resultQuestionIds
+    : activity.questions.slice(0, 5).map((question) => question.id);
+
+  function scoreDragDropQuestions(questionIds?: string[]) {
+    scoreQuestions(
+      questionIds?.length
+        ? questionIds
+        : activity.questions.slice(0, 5).map((question) => question.id)
     );
+  }
 
-    if (allAnswersCorrect) {
-      window.setTimeout(() => onScoreRef.current(questionIds), 0);
+  async function listenToCorrectResult() {
+    if (isListening || !result || result.incorrect > 0) return;
+
+    const items = getCorrectResultListenItems(activity, learningItems, answers, visibleResultQuestionIds);
+    if (!items.length) return;
+
+    setIsListening(true);
+    try {
+      await speakTextSequence(items, setHighlightedListenQuestionId);
+    } finally {
+      setHighlightedListenQuestionId("");
+      setIsListening(false);
     }
   }
 
@@ -321,7 +497,13 @@ export function StudentActivityPlayer({
         matchFeedback={matchFeedback}
         optionSetVersion={matchOptionRound}
         isListening={isListening}
+        highlightedListenQuestionId={highlightedListenQuestionId}
         result={result}
+        resultQuestionIds={visibleResultQuestionIds}
+        resultPrimaryActionLabel={resultPrimaryAction.label}
+        onResultPrimaryAction={resultPrimaryAction.action}
+        isResultListening={isListening}
+        onResultListen={listenToCorrectResult}
         onHint={() => {
           const totalSteps = Math.min(activity.questions.length, 5);
           const question = activity.questions[Math.min(matchQuestionIndex, Math.max(totalSteps - 1, 0))];
@@ -345,24 +527,7 @@ export function StudentActivityPlayer({
           setMatchFeedback("idle");
           setMatchQuestionIndex((current) => (current + 1 < totalSteps ? current + 1 : current));
         }}
-        onChooseAnswer={(question, option) => {
-          chooseAnswer(question.id, option);
-          if (option !== question.answer) {
-            setMatchFeedback("wrong");
-            return;
-          }
-
-          setMatchFeedback("correct");
-          const totalSteps = Math.min(activity.questions.length, 5);
-          window.setTimeout(() => {
-            if (matchQuestionIndex + 1 < totalSteps) {
-              setMatchQuestionIndex(matchQuestionIndex + 1);
-              setMatchFeedback("idle");
-              return;
-            }
-            onScoreRef.current();
-          }, 280);
-        }}
+        onChooseAnswer={chooseMatchAnswer}
       />
     );
   }
@@ -377,12 +542,14 @@ export function StudentActivityPlayer({
         dragged={dragged}
         hintedQuestionId={hintedQuestionId}
         isListening={isListening}
+        highlightedListenQuestionId={highlightedListenQuestionId}
         setDragged={setDragged}
         chooseAnswer={chooseAnswer}
         onHint={showHint}
         onListen={listenToActivity}
         onReset={onReset}
-        onScore={onScore}
+        onScore={scoreDragDropQuestions}
+        onResultListen={listenToCorrectResult}
       />
     );
   }
@@ -427,7 +594,7 @@ export function StudentActivityPlayer({
                   selectedAnswer={answers[question.id]}
                   scored={Boolean(result)}
                   hinted={hintedQuestionId === question.id}
-                  chooseAnswer={chooseAnswerAndComplete}
+                  chooseAnswer={chooseAnswerAndScoreQuestion}
                 />
               ))}
             </div>
@@ -435,15 +602,20 @@ export function StudentActivityPlayer({
         </div>
       </div>
 
-      <ActivityCornerActions onReset={onReset} onScore={onScore} />
+      <ActivityResetAction onReset={onReset} />
 
-      {result?.incorrect === 0 ? (
-        <ActivityCompletionModal
+      {result ? (
+        <ActivityResultModal
           activity={activity}
           learningItems={learningItems}
           answers={answers}
           result={result}
-          onReset={onReset}
+          questionIds={visibleResultQuestionIds}
+          primaryActionLabel={resultPrimaryAction.label}
+          onPrimaryAction={resultPrimaryAction.action}
+          isListening={isListening}
+          onListen={listenToCorrectResult}
+          highlightedQuestionId={highlightedListenQuestionId}
         />
       ) : null}
     </section>
@@ -458,12 +630,14 @@ function DragDropSymbolStudentLayout({
   dragged,
   hintedQuestionId,
   isListening,
+  highlightedListenQuestionId,
   setDragged,
   chooseAnswer,
   onHint,
   onListen,
   onReset,
-  onScore
+  onScore,
+  onResultListen
 }: {
   activity: Activity;
   learningItems: LearningItem[];
@@ -472,12 +646,14 @@ function DragDropSymbolStudentLayout({
   dragged: string;
   hintedQuestionId: string;
   isListening: boolean;
+  highlightedListenQuestionId: string;
   setDragged: (value: string) => void;
   chooseAnswer: (questionId: string, value: string) => void;
   onHint: () => void;
   onListen: () => void;
   onReset: () => void;
   onScore: (questionIds?: string[]) => void;
+  onResultListen: () => void;
 }) {
   const [cardShuffleSeed, setCardShuffleSeed] = useState(() => Math.random());
   const visibleQuestions = activity.questions.slice(0, 5);
@@ -488,6 +664,9 @@ function DragDropSymbolStudentLayout({
 
     return shuffleOptions(cards, cardShuffleSeed);
   }, [cardShuffleSeed, visibleQuestions]);
+  const availableDraggableCards = draggableCards.filter(
+    (card) => !visibleQuestions.some((question) => answers[question.id] === card)
+  );
   const placedCount = visibleQuestions.filter((question) => answers[question.id]).length;
   const checkedCorrect = result?.correct ?? 0;
   const scoreValue = result ? `${result.correct}/${result.correct + result.incorrect}` : `0/${visibleQuestions.length}`;
@@ -527,7 +706,7 @@ function DragDropSymbolStudentLayout({
         backgroundSize: "cover"
       }}
     >
-      <div className="grid h-full min-h-0 grid-rows-[3.75rem_minmax(0,1fr)_minmax(0,1fr)_4.25rem] gap-2 rounded-[2rem] border border-white/80 bg-white/28 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[4.25rem_minmax(0,1fr)_minmax(0,1fr)_4.5rem] sm:p-3">
+      <div className="grid h-full min-h-0 grid-rows-[3.75rem_minmax(0,1.12fr)_minmax(0,0.88fr)_4.25rem] gap-2 rounded-[2rem] border border-white/80 bg-white/28 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[4.25rem_minmax(0,1.16fr)_minmax(0,0.84fr)_4.5rem] sm:p-3">
         <header className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
           <div className="flex min-w-0 items-center gap-3 pl-16 sm:pl-20">
             <div className="min-w-0 rounded-2xl border border-blue-100 bg-white/90 px-3 py-1.5 shadow-sm sm:px-4 sm:py-2">
@@ -575,15 +754,12 @@ function DragDropSymbolStudentLayout({
           "relative mx-auto grid h-full min-h-0 w-full content-center place-items-center gap-1.5 overflow-hidden sm:gap-2",
           getCompactSymbolGridClass(visibleQuestions.length)
         )}>
-          {dragged ? (
-            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 rounded-full border border-blue-100 bg-white/92 px-4 py-2 text-sm font-black text-blue-700 shadow-sm md:block">
-              Drop on the matching word
-            </div>
-          ) : null}
           {visibleQuestions.map((question, index) => {
             const answer = answers[question.id];
             const isCorrect = answer === question.answer;
+            const scoredAnswer = Boolean(result && answer);
             const hinted = hintedQuestionId === question.id;
+            const activelyRead = highlightedListenQuestionId === question.id;
             return (
               <button
                 key={question.id}
@@ -605,20 +781,37 @@ function DragDropSymbolStudentLayout({
                   }
                 }}
                 className={cn(
-                  "mx-auto grid aspect-[3/4] h-auto max-h-full min-h-0 w-full max-w-[11.25rem] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[1.15rem] border-[3px] bg-white/90 p-2 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_20px_rgba(37,99,235,0.08)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100",
+                  "mx-auto grid aspect-[3/4] h-auto max-h-full min-h-0 w-full max-w-[13.5rem] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[1.25rem] border-[3px] bg-white/90 p-2 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_20px_rgba(37,99,235,0.08)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:p-2.5",
                   hinted ? "border-amber-400 ring-8 ring-amber-100" : "border-white",
-                  result && answer && (isCorrect ? "bg-emerald-50/95 ring-8 ring-emerald-100" : "bg-rose-50/95 ring-8 ring-rose-100")
+                  activelyRead ? "border-sky-500 ring-8 ring-sky-200 shadow-[0_0_0_6px_rgba(14,165,233,0.18),0_18px_36px_rgba(14,165,233,0.24)]" : "",
+                  scoredAnswer && (isCorrect
+                    ? "border-emerald-500 bg-emerald-50/95 ring-8 ring-emerald-100 shadow-[0_0_0_6px_rgba(16,185,129,0.16),0_18px_36px_rgba(16,185,129,0.22)]"
+                    : "border-rose-500 bg-rose-50/95 ring-8 ring-rose-100 shadow-[0_0_0_6px_rgba(244,63,94,0.16),0_18px_36px_rgba(244,63,94,0.2)]")
                 )}
                 aria-label={answer ? `Remove card from ${question.prompt}` : `Drop card on ${question.prompt}`}
               >
-                <span className="truncate rounded-lg border border-blue-100 bg-white px-2 py-1 text-xs font-black uppercase leading-none text-[#10285e] sm:text-sm lg:text-base">
+                <span
+                  className={cn(
+                    "truncate rounded-lg border px-2 py-1 text-xs font-black uppercase leading-none sm:text-sm lg:text-base",
+                    scoredAnswer
+                      ? isCorrect
+                        ? "border-emerald-200 bg-emerald-100 text-emerald-900"
+                        : "border-rose-200 bg-rose-100 text-rose-900"
+                      : "border-blue-100 bg-white text-[#10285e]"
+                  )}
+                >
                   {question.prompt || `Word ${index + 1}`}
                 </span>
                 <span className="grid min-h-0 place-items-center py-1">
                   {answer ? (
-                    <DroppedCardPreview value={answer} learningItems={learningItems} compact />
+                    <DroppedCardPreview
+                      value={answer}
+                      learningItems={learningItems}
+                      compact
+                      resultTone={result ? (isCorrect ? "correct" : "wrong") : "neutral"}
+                    />
                   ) : (
-                    <span className="grid h-full min-h-0 w-full place-items-center rounded-[1.1rem] border-[3px] border-dashed border-blue-100 bg-sky-50/70 text-xs font-black text-blue-400 sm:text-sm">
+                    <span className="grid h-full min-h-0 w-full place-items-center rounded-[1.15rem] border-[3px] border-dashed border-blue-100 bg-sky-50/70 px-2 text-xs font-black text-blue-400 sm:text-sm">
                       Drop card here
                     </span>
                   )}
@@ -630,22 +823,24 @@ function DragDropSymbolStudentLayout({
 
         <section className={cn(
           "mx-auto grid h-full min-h-0 w-full content-center place-items-center gap-1.5 overflow-hidden pb-1 sm:gap-2",
-          getCompactSymbolGridClass(draggableCards.length)
+          getCompactSymbolGridClass(Math.max(availableDraggableCards.length, 1))
         )}>
-          {draggableCards.map((card, index) => {
+          {availableDraggableCards.length ? availableDraggableCards.map((card, index) => {
             const selected = dragged === card;
-            const used = visibleQuestions.some((question) => answers[question.id] === card);
             return (
               <DragChoiceCard
                 key={`${card}-${index}`}
                 value={card}
                 learningItems={learningItems}
                 selected={selected}
-                used={used}
                 onSelect={() => setDragged(card)}
               />
             );
-          })}
+          }) : (
+            <div className="mx-auto grid min-h-16 place-items-center rounded-2xl border border-blue-100 bg-white/90 px-5 text-center text-sm font-black text-[#10285e] shadow-sm sm:text-base">
+              All cards are placed.
+            </div>
+          )}
         </section>
 
         <footer className="grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(0,34rem)_minmax(0,1fr)] items-center gap-2 sm:gap-3">
@@ -682,14 +877,18 @@ function DragDropSymbolStudentLayout({
         </footer>
       </div>
 
-      {result?.incorrect === 0 ? (
-        <ActivityCompletionModal
+      {result ? (
+        <ActivityResultModal
           activity={activity}
           learningItems={learningItems}
           answers={answers}
           result={result}
-          onReset={resetActivity}
           questionIds={visibleQuestions.map((question) => question.id)}
+          primaryActionLabel={result.incorrect === 0 ? "Practice again" : "Try again"}
+          onPrimaryAction={resetActivity}
+          isListening={isListening}
+          onListen={onResultListen}
+          highlightedQuestionId={highlightedListenQuestionId}
         />
       ) : null}
     </section>
@@ -705,7 +904,13 @@ function MatchWordSymbolStudentLayout({
   matchFeedback,
   optionSetVersion,
   isListening,
+  highlightedListenQuestionId,
   result,
+  resultQuestionIds,
+  resultPrimaryActionLabel,
+  onResultPrimaryAction,
+  isResultListening,
+  onResultListen,
   onHint,
   onListen,
   onReset,
@@ -720,7 +925,13 @@ function MatchWordSymbolStudentLayout({
   matchFeedback: "idle" | "correct" | "wrong";
   optionSetVersion: number;
   isListening: boolean;
+  highlightedListenQuestionId: string;
   result: ActivityScore | null;
+  resultQuestionIds: string[];
+  resultPrimaryActionLabel: string;
+  onResultPrimaryAction: () => void;
+  isResultListening: boolean;
+  onResultListen: () => void;
   onHint: () => void;
   onListen: () => void;
   onReset: () => void;
@@ -857,57 +1068,95 @@ function MatchWordSymbolStudentLayout({
       </div>
 
       {result ? (
-        <ActivityCompletionModal
+        <ActivityResultModal
           activity={activity}
           learningItems={learningItems}
           answers={answers}
           result={result}
-          onReset={onReset}
+          questionIds={resultQuestionIds}
+          primaryActionLabel={resultPrimaryActionLabel}
+          onPrimaryAction={onResultPrimaryAction}
+          isListening={isResultListening}
+          onListen={onResultListen}
+          highlightedQuestionId={highlightedListenQuestionId}
         />
       ) : null}
     </section>
   );
 }
 
-function ActivityCompletionModal({
+function ActivityResultModal({
   activity,
   learningItems,
   answers,
   result,
-  onReset,
-  questionIds
+  questionIds,
+  primaryActionLabel,
+  onPrimaryAction,
+  isListening = false,
+  onListen,
+  highlightedQuestionId = ""
 }: {
   activity: Activity;
   learningItems: LearningItem[];
   answers: Record<string, string>;
   result: ActivityScore;
-  onReset: () => void;
   questionIds?: string[];
+  primaryActionLabel: string;
+  onPrimaryAction: () => void;
+  isListening?: boolean;
+  onListen?: () => void;
+  highlightedQuestionId?: string;
 }) {
   const completedQuestions = questionIds?.length
     ? activity.questions.filter((question) => questionIds.includes(question.id))
     : activity.questions.slice(0, 5);
+  const isCorrect = result.incorrect === 0;
   const summaryText = activity.type === "match-word-symbol" || activity.type === "drag-drop-symbol"
-    ? `You matched ${result.correct} of ${result.correct + result.incorrect} cards.`
-    : `You got ${result.correct} of ${result.correct + result.incorrect} answers right.`;
+    ? isCorrect
+      ? `You matched ${result.correct} of ${result.correct + result.incorrect} cards.`
+      : `${result.incorrect} match needs another try.`
+    : isCorrect
+      ? "That answer is correct."
+      : "That answer needs another try.";
 
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-sky-900/20 px-3 py-6">
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="match-complete-title"
-        className="relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-[1.75rem] border border-emerald-200 bg-gradient-to-b from-white via-white to-sky-50 p-5 text-center shadow-[0_24px_80px_rgba(37,99,235,0.2)] sm:p-6"
+        aria-labelledby="activity-result-title"
+        className={cn(
+          "activity-result-panel relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-[1.75rem] border bg-gradient-to-b from-white via-white to-sky-50 p-5 text-center shadow-[0_24px_80px_rgba(37,99,235,0.2)] sm:p-6",
+          isCorrect ? "activity-result-panel-correct border-emerald-200" : "activity-result-panel-wrong border-rose-200"
+        )}
       >
-        <div className="relative max-h-[calc(90vh-2.5rem)] overflow-y-auto clean-scrollbar">
-          <div className="relative mx-auto h-20 w-20 rounded-full bg-gradient-to-b from-lime-300 to-green-300 shadow-[0_12px_24px_rgba(16,185,129,0.16),inset_0_-6px_0_rgba(15,23,42,0.08)]" aria-hidden="true">
-            <span className="absolute h-3 w-3 rounded-full bg-ink" style={{ left: "21px", top: "30px" }} />
-            <span className="absolute h-3 w-3 rounded-full bg-ink" style={{ right: "21px", top: "30px" }} />
-            <span className="absolute left-1/2 h-6 w-10 -translate-x-1/2 rounded-b-full border-b-[5px] border-green-800" style={{ top: "42px" }} />
+        {isCorrect ? (
+          <div className="activity-confetti" aria-hidden="true">
+            {Array.from({ length: 18 }, (_, index) => (
+              <span key={index} className="activity-confetti-piece" />
+            ))}
           </div>
-          <h2 id="match-complete-title" className="mt-4 flex items-center justify-center gap-3 text-4xl font-black tracking-wide text-emerald-600 sm:text-5xl">
+        ) : null}
+        <div className="relative max-h-[calc(90vh-2.5rem)] overflow-y-auto clean-scrollbar">
+          <div
+            className={cn(
+              "mx-auto grid h-20 w-20 place-items-center rounded-full shadow-[0_12px_24px_rgba(16,185,129,0.16),inset_0_-6px_0_rgba(15,23,42,0.08)]",
+              isCorrect ? "bg-gradient-to-b from-lime-300 to-green-300 text-green-900" : "activity-result-wrong-mark bg-gradient-to-b from-rose-100 to-pink-200 text-rose-700"
+            )}
+            aria-hidden="true"
+          >
+            {isCorrect ? <CheckCircle2 className="h-12 w-12" /> : <XCircle className="h-12 w-12" />}
+          </div>
+          <h2
+            id="activity-result-title"
+            className={cn(
+              "mt-4 flex items-center justify-center gap-3 text-4xl font-black tracking-wide sm:text-5xl",
+              isCorrect ? "text-emerald-600" : "text-rose-600"
+            )}
+          >
             <Star className="h-8 w-8 fill-yellow-300 text-yellow-400 sm:h-10 sm:w-10" aria-hidden="true" />
-            <span>GOOD JOB</span>
+            <span>{isCorrect ? "GOOD JOB" : "TRY AGAIN"}</span>
             <Star className="h-8 w-8 fill-yellow-300 text-yellow-400 sm:h-10 sm:w-10" aria-hidden="true" />
           </h2>
           <p className="mt-2 text-base font-semibold text-slate-700">
@@ -916,8 +1165,15 @@ function ActivityCompletionModal({
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             {completedQuestions.map((question, index) => {
               const value = answers[question.id] || question.answer;
+              const activelyRead = highlightedQuestionId === question.id;
               return (
-                <div key={`match-complete-${question.id}-${index}`} className="w-24 rounded-xl border border-blue-100 bg-white p-2 shadow-sm sm:w-28 md:w-32">
+                <div
+                  key={`match-complete-${question.id}-${index}`}
+                  className={cn(
+                    "w-24 rounded-xl border bg-white p-2 shadow-sm transition sm:w-28 md:w-32",
+                    activelyRead ? "border-sky-500 ring-8 ring-sky-100 shadow-[0_14px_34px_rgba(14,165,233,0.2)]" : "border-blue-100"
+                  )}
+                >
                   <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                     <span className="grid min-h-0 w-full place-items-center overflow-hidden p-1">
                       <SymbolOption value={value} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
@@ -927,10 +1183,18 @@ function ActivityCompletionModal({
               );
             })}
           </div>
-          <Button type="button" className="mt-6 min-h-12 px-6" onClick={onReset}>
-            <RotateCcw className="h-5 w-5" aria-hidden="true" />
-            Try again
-          </Button>
+          <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            {isCorrect && onListen ? (
+              <Button type="button" variant="secondary" className="min-h-12 px-6" onClick={onListen} disabled={isListening}>
+                <Volume2 className="h-5 w-5" aria-hidden="true" />
+                {isListening ? "Listening" : "Listen"}
+              </Button>
+            ) : null}
+            <Button type="button" className="min-h-12 px-6" onClick={onPrimaryAction}>
+              {isCorrect ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : <RotateCcw className="h-5 w-5" aria-hidden="true" />}
+              {primaryActionLabel}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -969,27 +1233,17 @@ function StepProgress({ currentStep, totalSteps }: { currentStep: number; totalS
   );
 }
 
-function ActivityCornerActions({ onReset, onScore }: { onReset: () => void; onScore: () => void }) {
+function ActivityResetAction({ onReset }: { onReset: () => void }) {
   return (
-    <>
-      <Button
-        type="button"
-        variant="secondary"
-        className="absolute bottom-4 left-4 z-20 min-h-16 rounded-[1.45rem] border-4 border-white bg-white/88 px-5 text-xl font-black text-blue-700 shadow-[0_10px_0_rgba(147,197,253,0.5)] sm:left-6 sm:min-w-44"
-        onClick={onReset}
-      >
-        <RotateCcw className="h-7 w-7" aria-hidden="true" />
-        Try again
-      </Button>
-      <Button
-        type="button"
-        className="absolute bottom-4 right-4 z-20 min-h-16 rounded-[1.45rem] border-4 border-white bg-[#50c819] px-5 text-xl font-black text-white shadow-[0_10px_0_rgba(42,137,19,0.42),0_18px_32px_rgba(67,167,22,0.28)] hover:bg-[#48b513] sm:right-6 sm:min-w-44"
-        onClick={onScore}
-      >
-        <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
-        Check
-      </Button>
-    </>
+    <Button
+      type="button"
+      variant="secondary"
+      className="absolute bottom-4 left-4 z-20 min-h-16 rounded-[1.45rem] border-4 border-white bg-white/88 px-5 text-xl font-black text-blue-700 shadow-[0_10px_0_rgba(147,197,253,0.5)] sm:left-6 sm:min-w-44"
+      onClick={onReset}
+    >
+      <RotateCcw className="h-7 w-7" aria-hidden="true" />
+      Try again
+    </Button>
   );
 }
 
@@ -1351,7 +1605,7 @@ function DragChoiceCard({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "relative mx-auto grid aspect-[3/4] h-auto max-h-full min-h-0 w-full max-w-[10.25rem] grid-rows-[minmax(0,1fr)] overflow-hidden rounded-[1.15rem] border-[3px] bg-white/92 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_18px_rgba(37,99,235,0.08)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100",
+        "relative mx-auto grid aspect-[3/4] h-auto max-h-full min-h-0 w-full max-w-[11.5rem] grid-rows-[minmax(0,1fr)] overflow-hidden rounded-[1.2rem] border-[3px] bg-white/92 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_18px_rgba(37,99,235,0.08)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100",
         selected ? "border-blue-500 ring-8 ring-blue-100" : "border-white hover:border-blue-200",
         used && !selected ? "opacity-75" : ""
       )}
@@ -1370,16 +1624,21 @@ function DragChoiceCard({
 function DroppedCardPreview({
   value,
   learningItems,
-  compact = false
+  compact = false,
+  resultTone = "neutral"
 }: {
   value: string;
   learningItems: LearningItem[];
   compact?: boolean;
+  resultTone?: "neutral" | "correct" | "wrong";
 }) {
   return (
     <span
       className={cn(
-        "grid h-full min-h-0 w-full max-w-full overflow-hidden rounded-[1rem] bg-white/88 shadow-[0_8px_18px_rgba(37,99,235,0.12)]",
+        "grid h-full min-h-0 w-full max-w-full overflow-hidden rounded-[1rem] border bg-white/88 shadow-[0_8px_18px_rgba(37,99,235,0.12)]",
+        resultTone === "correct" ? "border-emerald-300 ring-4 ring-emerald-100" : "",
+        resultTone === "wrong" ? "border-rose-300 ring-4 ring-rose-100" : "",
+        resultTone === "neutral" ? "border-transparent" : "",
         compact ? "grid-rows-[minmax(0,1fr)]" : "max-h-36 max-w-64 grid-rows-[minmax(0,1fr)_2.25rem]"
       )}
     >

@@ -844,6 +844,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
             setDragged={setDragged}
             chooseAnswer={chooseAnswer}
             onScore={scoreActivity}
+            onClearResult={() => setResult(null)}
             onReset={() => resetPlayer()}
           />
         ) : (
