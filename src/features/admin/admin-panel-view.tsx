@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Activity, BookOpen, ClipboardList, Shield, ToggleLeft, ToggleRight, Upload, UserCog, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { FieldHint, Input, Label, Select } from "@/components/ui/form";
 import { StatCard } from "@/components/common/stat-card";
 import { PageHeader } from "@/components/layout/page-header";
@@ -339,24 +339,6 @@ export function AdminPanelView() {
             ))}
           </div>
           <LogList logs={contentLogs} emptyText="No content logs match this filter." />
-        </Card>
-
-        <Card className="xl:col-span-2">
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-600" aria-hidden="true" />
-            <CardTitle>Data tools</CardTitle>
-          </div>
-          <CardDescription>
-            Review classroom data and media readiness.
-          </CardDescription>
-          <CardFooter className="mt-4 flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => notify({ title: "Content data", description: "Review PECS cards, gestures, activities, and teacher accounts before class use." })}>
-              Review content data
-            </Button>
-            <Button variant="outline" onClick={() => notify({ title: "Media library", description: "Review PECS images, gesture media, and audio cues." })}>
-              Check media library
-            </Button>
-          </CardFooter>
         </Card>
       </section>
     </>
