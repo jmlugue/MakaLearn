@@ -749,7 +749,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                   </div>
                   <Button type="button" variant="secondary" onClick={generateAiActivityDraft}>
                     <Sparkles className="h-4 w-4" aria-hidden="true" />
-                    Draft from items
+                    Draft with AI
                   </Button>
                 </div>
                 <Label htmlFor="learning-item-search">{type === "gesture-practice" ? "Search gestures" : "Search items"}</Label>
