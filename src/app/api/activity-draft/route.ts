@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import {
-  buildActivityDraftPrompt,
-  buildLocalActivityDraft,
-  parseActivityDraftText
+  buildPromptDraftRequest,
+  canDraftQuestionPrompts,
+  parsePromptDraftText
 } from "@/utils/activity-ai-draft";
 import type { ActivityDraftResult } from "@/utils/activity-ai-draft";
 import type { ActivityType, LearningItem } from "@/types";
@@ -18,6 +18,7 @@ const activityTypes: ActivityType[] = [
 type ActivityDraftRequest = {
   activityType?: ActivityType;
   learningItems?: LearningItem[];
+  missingLearningItemIds?: string[];
 };
 
 type HuggingFaceChatCompletion = {
@@ -72,22 +73,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Choose a valid activity type." }, { status: 400 });
   }
 
+  if (!canDraftQuestionPrompts(body.activityType)) {
+    return jsonDraft({
+      source: "local",
+      note: "This activity does not need AI-generated questions.",
+      suggestions: []
+    });
+  }
+
   const learningItems = Array.isArray(body.learningItems)
     ? body.learningItems.map(sanitizeLearningItem).filter((item): item is LearningItem => Boolean(item)).slice(0, 5)
     : [];
 
-  if (!learningItems.length) {
-    return NextResponse.json({ error: "Select at least one learning item before drafting." }, { status: 400 });
+  const missingIds = new Set(
+    Array.isArray(body.missingLearningItemIds)
+      ? body.missingLearningItemIds.filter((id): id is string => typeof id === "string")
+      : []
+  );
+  const missingLearningItems = learningItems.filter((item) => missingIds.has(item.id));
+
+  if (!missingLearningItems.length) {
+    return jsonDraft({
+      source: "local",
+      note: "Each selected item already has a question.",
+      suggestions: []
+    });
   }
 
-  const fallback = buildLocalActivityDraft(body.activityType, learningItems);
   const token = process.env.HUGGINGFACE_API_TOKEN || process.env.HF_TOKEN;
-  const model = process.env.HUGGINGFACE_ACTIVITY_MODEL || "google/gemma-2-2b-it:fastest";
+  const model = process.env.HUGGINGFACE_ACTIVITY_MODEL || "openai/gpt-oss-120b:fastest";
 
   if (!token) {
     return jsonDraft({
-      ...fallback,
-      note: "Local draft used because no Hugging Face token is configured."
+      source: "local",
+      note: "AI questions are not available right now. You can type the questions instead.",
+      suggestions: []
     });
   }
 
@@ -103,11 +123,11 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "system",
-            content: "You create concise, teacher-reviewed classroom activity drafts for early communication learning. Return JSON only."
+            content: "You create concise, reusable classroom question prompts for early communication learning. Return JSON only."
           },
           {
             role: "user",
-            content: buildActivityDraftPrompt(body.activityType, learningItems)
+            content: buildPromptDraftRequest(body.activityType, missingLearningItems)
           }
         ],
         temperature: 0.4,
@@ -121,12 +141,13 @@ export async function POST(request: Request) {
 
     const completion = (await response.json()) as HuggingFaceChatCompletion;
     const content = completion.choices?.[0]?.message?.content ?? "";
-    return jsonDraft(parseActivityDraftText(content, fallback));
+    return jsonDraft(parsePromptDraftText(content, body.activityType, missingLearningItems));
   } catch (error) {
     console.error("Hugging Face activity draft failed.", error);
     return jsonDraft({
-      ...fallback,
-      note: "Local draft used because the Hugging Face draft was unavailable."
+      source: "local",
+      note: "AI questions are not available right now. You can type the questions instead.",
+      suggestions: []
     });
   }
 }

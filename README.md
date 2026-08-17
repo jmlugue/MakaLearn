@@ -69,7 +69,7 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - PECS and gesture images/videos/audio can be previewed inside the website.
 - Activities can be created from PECS cards or gesture records. Gesture-practice activities use teacher-completed scoring options.
 - Activity question generation adapts to each PECS card label and description, so greetings and choices do not use request-only wording.
-- The draft button in Activity creation asks a server-side Hugging Face chat-completion model for a title and directions, then falls back to a local draft if no model token or valid model response is available. Teachers review and edit before saving.
+- The Draft with AI button in Activity creation checks existing reusable question prompts first. It only calls a server-side Hugging Face chat-completion model for missing PECS fill-in-the-blank or choose-correct-symbol prompts, then saves generated prompts locally for reuse.
 - Drag-and-drop answers remain visual cards after dropping, and scored incorrect answers use red feedback.
 - Saving a PECS lesson creates a related playable activity and the lesson shows an Open activity action. Gesture lessons show a Practice gesture action.
 - Activity scoring is session-only in this scope.
@@ -89,7 +89,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 ```
 
-For Hugging Face activity drafts, add `HUGGINGFACE_API_TOKEN` or `HF_TOKEN` with Inference Providers access. The default model is `google/gemma-2-2b-it:fastest`; set `HUGGINGFACE_ACTIVITY_MODEL` to try another Hugging Face chat-completion model.
+For Hugging Face activity drafts, add `HUGGINGFACE_API_TOKEN` or `HF_TOKEN` with Inference Providers access. The default model is `openai/gpt-oss-120b:fastest`; set `HUGGINGFACE_ACTIVITY_MODEL` to try another Hugging Face chat-completion model.
 
 
 ## Future Supabase plan
@@ -115,5 +115,5 @@ Planned updates before production:
 - PECS and gesture media are placeholders and must not be treated as official Makaton content.
 - `generateCorrectiveFeedbackPlaceholder` and `generateFeedbackPlaceholder` are marked for future model/AI replacement.
 - Gesture hand tracking is a presentation simulation. It accepts one or two visible hands and one person in the UI but does not perform real recognition.
-- The AI activity draft can use Hugging Face when configured, but saving still uses the teacher-reviewed title and directions entered in the form.
+- The AI activity draft can use Hugging Face when configured, but only for missing reusable PECS question prompts. Gesture-practice, match, and drag/drop activities do not call the model.
 - Playground validation is local rule-based logic, not NLP, grammar correction, or AI.

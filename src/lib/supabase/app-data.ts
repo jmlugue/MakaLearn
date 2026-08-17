@@ -523,7 +523,8 @@ export async function updateProfileDetails(userId: string, input: Pick<AppUser, 
 export function createActivityQuestions(
   type: Activity["type"],
   selectedItems: LearningItem[],
-  optionPool: LearningItem[] = selectedItems
+  optionPool: LearningItem[] = selectedItems,
+  promptOverrides: Record<string, string> = {}
 ): ActivityQuestion[] {
   const usesSymbolOptions =
     type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
@@ -540,7 +541,7 @@ export function createActivityQuestions(
     if (type === "gesture-practice") {
       return {
         id: `q-${Date.now()}-${item.id}`,
-        prompt: createAdaptivePrompt(type, item),
+        prompt: createAdaptivePrompt(type, item, promptOverrides),
         answer: "Completed with teacher",
         options: ["Completed with teacher", "Try again"],
         learningItemId: item.id
@@ -556,7 +557,7 @@ export function createActivityQuestions(
 
     return {
       id: `q-${Date.now()}-${item.id}`,
-      prompt: createAdaptivePrompt(type, item),
+      prompt: createAdaptivePrompt(type, item, promptOverrides),
       answer: usesSymbolOptions ? item.symbolImageUrl ?? item.label : item.label,
       options,
       learningItemId: item.id
@@ -564,7 +565,10 @@ export function createActivityQuestions(
   });
 }
 
-function createAdaptivePrompt(type: Activity["type"], item: LearningItem) {
+function createAdaptivePrompt(type: Activity["type"], item: LearningItem, promptOverrides: Record<string, string>) {
+  const savedPrompt = promptOverrides[`${type}:${item.id}`];
+  if (savedPrompt) return savedPrompt;
+
   if (type === "gesture-practice") {
     return `Practise "${item.label}" with teacher guidance.`;
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { insertAuditLog } from "@/lib/audit-logs";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
@@ -38,46 +38,98 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const hasCompletedInitialCheck = useRef(false);
+  const currentUser = useRef<AppUser | null>(null);
+
+  const setCurrentUser = useCallback((nextUser: AppUser | null) => {
+    currentUser.current = nextUser;
+    setUser(nextUser);
+  }, []);
+
+  const finishProfileRefresh = useCallback(() => {
+    hasCompletedInitialCheck.current = true;
+    setLoading(false);
+  }, []);
 
   const refreshProfile = useCallback(async () => {
     if (!isSupabaseConfigured()) {
-      setUser(null);
+      setCurrentUser(null);
       setError("Sign in is not available yet. Ask an administrator to finish account setup.");
-      setLoading(false);
+      finishProfileRefresh();
       return;
     }
 
     const supabase = getSupabaseBrowserClient();
-    if (!supabase) return;
+    if (!supabase) {
+      finishProfileRefresh();
+      return;
+    }
 
-    setLoading(true);
-    const sessionResult = await supabase.auth.getSession();
+    if (!hasCompletedInitialCheck.current) {
+      setLoading(true);
+    }
+
+    let sessionResult;
+    try {
+      sessionResult = await supabase.auth.getSession();
+    } catch {
+      if (currentUser.current) {
+        setError("");
+      } else {
+        setError("MakaLearn could not check your account session. Try again.");
+      }
+      finishProfileRefresh();
+      return;
+    }
+
     const sessionUser = sessionResult.data.session?.user;
 
     if (!sessionUser) {
-      setUser(null);
+      setCurrentUser(null);
       setError("");
-      setLoading(false);
+      finishProfileRefresh();
       return;
     }
 
-    const { data, error: profileError } = await supabase
-      .from("profiles")
-      .select("id,name,email,role,status")
-      .eq("id", sessionUser.id)
-      .single();
+    let profileResult;
+    try {
+      profileResult = await supabase
+        .from("profiles")
+        .select("id,name,email,role,status")
+        .eq("id", sessionUser.id)
+        .single();
+    } catch {
+      profileResult = null;
+    }
+
+    if (!profileResult) {
+      if (currentUser.current) {
+        setError("");
+      } else {
+        setCurrentUser(null);
+        setError("MakaLearn could not load your account profile. Try again.");
+      }
+      finishProfileRefresh();
+      return;
+    }
+
+    const { data, error: profileError } = profileResult;
 
     if (profileError || !data) {
-      setUser(null);
-      setError("Your account exists, but no MakaLearn profile was found for it.");
-      setLoading(false);
+      if (currentUser.current) {
+        setError("");
+      } else {
+        setCurrentUser(null);
+        setError("Your account exists, but no MakaLearn profile was found for it.");
+      }
+      finishProfileRefresh();
       return;
     }
 
-    setUser(mapProfile(data));
+    setCurrentUser(mapProfile(data));
     setError("");
-    setLoading(false);
-  }, []);
+    finishProfileRefresh();
+  }, [finishProfileRefresh, setCurrentUser]);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -110,9 +162,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
     }
     clearStudentModePreference();
-    setUser(null);
+    setCurrentUser(null);
     router.replace("/login");
-  }, [router, user]);
+  }, [router, setCurrentUser, user]);
 
   const value = useMemo(
     () => ({ user, loading, error, refreshProfile, signOut }),

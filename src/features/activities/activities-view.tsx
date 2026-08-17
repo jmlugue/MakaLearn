@@ -5,7 +5,7 @@ import { AlertTriangle, Library, Loader2, Pencil, Play, PlayCircle, Plus, Search
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
-import { FieldError, FieldHint, Input, Label, Textarea } from "@/components/ui/form";
+import { FieldError, FieldHint, Input, Label } from "@/components/ui/form";
 import { SelectionList } from "@/components/ui/selection-list";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/common/empty-state";
@@ -15,7 +15,12 @@ import { StudentActivityPlayer } from "@/features/activities/student-activity-pl
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { insertAuditLog } from "@/lib/audit-logs";
-import { buildLocalActivityDraft } from "@/utils/activity-ai-draft";
+import {
+  buildActivityTitle,
+  buildDefaultActivityPrompt,
+  canDraftQuestionPrompts
+} from "@/utils/activity-ai-draft";
+import type { ActivityDraftResult } from "@/utils/activity-ai-draft";
 import {
   createActivityQuestions,
   deleteActivity,
@@ -25,10 +30,15 @@ import {
 } from "@/lib/supabase/app-data";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { activityTypeLabels } from "@/utils/activity-labels";
-import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
+import {
+  getSavedFillBlankPromptForLabel,
+  isGenericFillBlankPrompt
+} from "@/utils/fill-blank-prompts";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import {
   getStarterLearningItemPromptDescription,
+  getSavedChooseCorrectSymbolPrompt,
+  isGenericChooseCorrectSymbolPrompt,
   upgradeStarterLearningItemPrompts
 } from "@/utils/starter-learning-item-prompts";
 import type { Activity, ActivityType, LearningItem } from "@/types";
@@ -51,11 +61,39 @@ type ActivityTab = "workspace" | "library";
 const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
 const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
 const SELECTED_ACTIVITY_SESSION_KEY = "makalearn-selected-activity";
+const ACTIVITY_PROMPTS_STORAGE_KEY = "makalearn-activity-prompts";
 const MAX_ACTIVITY_LEARNING_ITEMS = 5;
 
 type LocalContentLibraryState = {
   items?: LearningItem[];
 };
+
+type ActivityPromptStore = Record<string, string>;
+type ActivityPromptInputs = Record<string, string>;
+
+function getPromptStoreKey(type: ActivityType, learningItemId: string) {
+  return `${type}:${learningItemId}`;
+}
+
+function readLocalActivityPrompts(): ActivityPromptStore {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(ACTIVITY_PROMPTS_STORAGE_KEY) ?? "{}") as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === "string")
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalActivityPrompts(prompts: ActivityPromptStore) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ACTIVITY_PROMPTS_STORAGE_KEY, JSON.stringify(prompts));
+}
 
 function readLocalActivities(): Activity[] | null {
   if (typeof window === "undefined") return null;
@@ -82,7 +120,7 @@ function upgradeStarterActivityPrompts(records: Activity[]) {
       ...activity,
       questions: activity.questions.map((question) => {
         const prompt = activity.type === "fill-blank"
-          ? createFillBlankPromptForLabel(question.answer)
+          ? getSavedFillBlankPromptForLabel(question.answer)
           : getStarterLearningItemPromptDescription(question.learningItemId);
         return prompt ? { ...question, prompt } : question;
       })
@@ -135,6 +173,52 @@ function getInitialActivity(activities: Activity[], activityId?: string, activit
   }
 
   return getFirstActivityForType(activities, activityType) ?? activities[0];
+}
+
+function getSavedQuestionPrompt(type: ActivityType, item: LearningItem, promptStore: ActivityPromptStore) {
+  const localPrompt = promptStore[getPromptStoreKey(type, item.id)];
+  if (localPrompt) {
+    if (type === "fill-blank" && isGenericFillBlankPrompt(item.label, localPrompt)) return undefined;
+    if (type === "choose-correct-symbol" && isGenericChooseCorrectSymbolPrompt(item, localPrompt)) return undefined;
+    return localPrompt;
+  }
+
+  if (type === "fill-blank") return getSavedFillBlankPromptForLabel(item.label);
+  if (type === "choose-correct-symbol") return getSavedChooseCorrectSymbolPrompt(item);
+
+  return undefined;
+}
+
+function validatePromptForActivity(type: ActivityType, item: LearningItem, prompt: string) {
+  const trimmed = prompt.trim();
+  if (!trimmed) return "";
+
+  if (type === "fill-blank") {
+    if (!trimmed.includes("____")) return "Use ____ to show where the missing word goes.";
+    if (isGenericFillBlankPrompt(item.label, trimmed)) return "Write a classroom sentence for this item.";
+  }
+
+  if (type === "choose-correct-symbol" && isGenericChooseCorrectSymbolPrompt(item, trimmed)) {
+    return "Write a classroom question for this item.";
+  }
+
+  return "";
+}
+
+function getQuestionPromptInputKey(type: ActivityType, itemId: string) {
+  return getPromptStoreKey(type, itemId);
+}
+
+function getPromptInputValue(type: ActivityType, item: LearningItem, promptInputs: ActivityPromptInputs) {
+  return promptInputs[getQuestionPromptInputKey(type, item.id)]?.trim() ?? "";
+}
+
+function getActivityTypeDraftText(type: ActivityType) {
+  if (type === "gesture-practice") return "Draft with AI is not used for gesture practice.";
+  if (type === "match-word-symbol" || type === "drag-drop-symbol") {
+    return "This activity already uses the selected cards directly, so no AI call is needed.";
+  }
+  return "Draft missing reusable question prompts for selected PECS items.";
 }
 
 function readSelectedActivitySessionId() {
@@ -242,8 +326,9 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   const [title, setTitle] = useState("");
   const [type, setType] = useState<ActivityType>("fill-blank");
   const [selectedLearningItemIds, setSelectedLearningItemIds] = useState<string[]>([]);
-  const [instructions, setInstructions] = useState("");
   const [privateActivity, setPrivateActivity] = useState(false);
+  const [activityPromptStore, setActivityPromptStore] = useState<ActivityPromptStore>({});
+  const [activityPromptInputs, setActivityPromptInputs] = useState<ActivityPromptInputs>({});
   const [error, setError] = useState("");
   const [learningItemError, setLearningItemError] = useState("");
   const [aiDraftNote, setAiDraftNote] = useState("");
@@ -325,6 +410,10 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   }, [selectedActivityId]);
 
   useEffect(() => {
+    setActivityPromptStore(readLocalActivityPrompts());
+  }, []);
+
+  useEffect(() => {
     if (!isStudentMode) return;
     setTab("workspace");
     setCreateFormOpen(false);
@@ -357,6 +446,14 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       return supportsContentType && supportsType && matchesSearch;
     });
   }, [learningItemSearch, learningItems, type]);
+  const selectedLearningItemsForForm = useMemo(
+    () =>
+      selectedLearningItemIds
+        .map((id) => learningItems.find((item) => item.id === id))
+        .filter((item): item is LearningItem => Boolean(item)),
+    [learningItems, selectedLearningItemIds]
+  );
+  const promptEditableActivity = canDraftQuestionPrompts(type);
   const learningItemEmptyText = learningItemSearch
     ? "No learning items match this search."
     : type === "gesture-practice"
@@ -420,13 +517,16 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   }
 
   function openEditActivity(activity: Activity) {
+    const nextPromptInputs = Object.fromEntries(
+      activity.questions.map((question) => [getQuestionPromptInputKey(activity.type, question.learningItemId), question.prompt])
+    );
     setEditReturnTab(tab);
     setEditingActivity(activity);
     setTitle(activity.title);
     setType(activity.type);
     setSelectedLearningItemIds(activity.learningItemIds.slice(0, MAX_ACTIVITY_LEARNING_ITEMS));
+    setActivityPromptInputs(nextPromptInputs);
     setLearningItemSearch("");
-    setInstructions(activity.prompt);
     setPrivateActivity(activity.visibility === "private");
     setError("");
     setLearningItemError("");
@@ -437,6 +537,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
 
   function changeActivityType(nextType: ActivityType) {
     setType(nextType);
+    setActivityPromptInputs({});
     setSelectedLearningItemIds((current) =>
       current.filter((id) => {
         const item = learningItems.find((candidate) => candidate.id === id);
@@ -454,8 +555,8 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     setTitle("");
     setType("fill-blank");
     setSelectedLearningItemIds([]);
+    setActivityPromptInputs({});
     setLearningItemSearch("");
-    setInstructions("");
     setPrivateActivity(false);
     setError("");
     setLearningItemError("");
@@ -486,7 +587,44 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       return;
     }
 
-    const localDraft = buildLocalActivityDraft(type, selectedLearningItems);
+    const nextTitle = buildActivityTitle(type, selectedLearningItems);
+    setTitle(nextTitle);
+    if (error) setError("");
+
+    if (type === "gesture-practice") {
+      setAiDraftNote("Draft with AI is not used for gesture practice.");
+      notify({
+        title: "No AI draft needed",
+        description: "Gesture practice uses teacher-guided practice and live camera feedback.",
+        tone: "info"
+      });
+      return;
+    }
+
+    if (!canDraftQuestionPrompts(type)) {
+      setAiDraftNote("This activity already uses the selected PECS cards.");
+      notify({
+        title: "Activity title updated",
+        description: "This activity type does not need AI-generated questions.",
+        tone: "info"
+      });
+      return;
+    }
+
+    const missingLearningItemIds = selectedLearningItems
+      .filter((item) => !getPromptInputValue(type, item, activityPromptInputs))
+      .map((item) => item.id);
+
+    if (!missingLearningItemIds.length) {
+      setAiDraftNote("Each selected item already has a question.");
+      notify({
+        title: "Questions already ready",
+        description: "No AI call was needed.",
+        tone: "info"
+      });
+      return;
+    }
+
     setAiDraftInProgress(true);
     setLearningItemError("");
     setAiDraftNote("");
@@ -499,7 +637,8 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         },
         body: JSON.stringify({
           activityType: type,
-          learningItems: selectedLearningItems
+          learningItems: selectedLearningItems,
+          missingLearningItemIds
         })
       });
 
@@ -507,25 +646,34 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         throw new Error("Activity draft request failed.");
       }
 
-      const draft = (await response.json()) as typeof localDraft;
-      setTitle(draft.title || localDraft.title);
-      setInstructions(draft.instructions || localDraft.instructions);
-      setAiDraftNote(draft.note || "Draft added. Review the name and directions before saving.");
+      const draft = (await response.json()) as ActivityDraftResult;
+      if (draft.suggestions.length) {
+        const nextStore = {
+          ...activityPromptStore,
+          ...Object.fromEntries(draft.suggestions.map((suggestion) => [getPromptStoreKey(type, suggestion.learningItemId), suggestion.prompt]))
+        };
+        const nextInputs = {
+          ...activityPromptInputs,
+          ...Object.fromEntries(draft.suggestions.map((suggestion) => [getQuestionPromptInputKey(type, suggestion.learningItemId), suggestion.prompt]))
+        };
+        setActivityPromptStore(nextStore);
+        setActivityPromptInputs(nextInputs);
+        writeLocalActivityPrompts(nextStore);
+      }
+      setAiDraftNote(draft.note || "Draft with AI finished.");
       notify({
-        title: draft.source === "hugging-face" ? "AI draft ready" : "Activity draft ready",
+        title: draft.source === "hugging-face" ? "AI prompts ready" : "Activity prompts ready",
         description:
           draft.source === "hugging-face"
-            ? "Hugging Face generated directions are ready to review."
-            : "Local draft directions are ready to review.",
+            ? "Questions were added for the selected items."
+            : draft.note || "No Hugging Face call was needed.",
         tone: draft.source === "hugging-face" ? "success" : "info"
       });
     } catch {
-      setTitle(localDraft.title);
-      setInstructions(localDraft.instructions);
-      setAiDraftNote("Local draft used because the AI draft could not be reached.");
+      setAiDraftNote("Could not create questions with AI. You can type the questions below.");
       notify({
-        title: "Activity draft ready",
-        description: "Local draft directions are ready to review.",
+        title: "AI draft unavailable",
+        description: "Type the missing questions below, then save the activity.",
         tone: "info"
       });
     } finally {
@@ -535,10 +683,6 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
 
   async function createActivity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!title.trim()) {
-      setError("Activity title is required.");
-      return;
-    }
     if (!selectedLearningItemIds.length) {
       setLearningItemError("Select at least one learning item for this activity.");
       return;
@@ -554,12 +698,41 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       setLearningItemError("Image-based activities require a symbol image for every selected learning item.");
       return;
     }
-    const questions = createActivityQuestions(type, selectedLearningItems, learningItems);
+    if (canDraftQuestionPrompts(type)) {
+      const firstInvalidPrompt = selectedLearningItems.find((item) => {
+        const prompt = getPromptInputValue(type, item, activityPromptInputs);
+        return !prompt || Boolean(validatePromptForActivity(type, item, prompt));
+      });
+
+      if (firstInvalidPrompt) {
+        const prompt = getPromptInputValue(type, firstInvalidPrompt, activityPromptInputs);
+        const validationMessage = prompt ? validatePromptForActivity(type, firstInvalidPrompt, prompt) : "Add a question for this item or press Draft with AI.";
+        setLearningItemError(`${firstInvalidPrompt.label}: ${validationMessage}`);
+        return;
+      }
+    }
+    const activityTitle = title.trim() || buildActivityTitle(type, selectedLearningItems);
+    if (!activityTitle) {
+      setError("Activity title is required.");
+      return;
+    }
+    const promptOverrides = Object.fromEntries(
+      selectedLearningItems.flatMap((item) => {
+        const prompt = getPromptInputValue(type, item, activityPromptInputs) || getSavedQuestionPrompt(type, item, activityPromptStore);
+        return prompt ? [[getPromptStoreKey(type, item.id), prompt]] : [];
+      })
+    ) as Record<string, string>;
+    if (canDraftQuestionPrompts(type)) {
+      const nextStore = { ...activityPromptStore, ...promptOverrides };
+      setActivityPromptStore(nextStore);
+      writeLocalActivityPrompts(nextStore);
+    }
+    const questions = createActivityQuestions(type, selectedLearningItems, learningItems, promptOverrides);
     const nextActivity: Activity = {
       id: editingActivity?.id ?? `activity-${Date.now()}`,
-      title,
+      title: activityTitle,
       type,
-      prompt: instructions.trim() || "Complete each question with teacher guidance.",
+      prompt: buildDefaultActivityPrompt(type),
       learningItemIds: selectedLearningItems.map((item) => item.id),
       questions,
       visibility: privateActivity ? "private" : "shared",
@@ -770,11 +943,16 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                       <p className="text-xs text-slate-500">Use up to {MAX_ACTIVITY_LEARNING_ITEMS} items.</p>
                     </div>
                   </div>
-                  <Button type="button" variant="secondary" onClick={generateAiActivityDraft} disabled={aiDraftInProgress}>
-                    {aiDraftInProgress ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
-                    {aiDraftInProgress ? "Drafting..." : "Draft with AI"}
-                  </Button>
+                  {type !== "gesture-practice" ? (
+                    <Button type="button" variant="secondary" onClick={generateAiActivityDraft} disabled={aiDraftInProgress}>
+                      {aiDraftInProgress ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
+                      {aiDraftInProgress ? "Drafting..." : "Draft with AI"}
+                    </Button>
+                  ) : null}
                 </div>
+                {type !== "gesture-practice" ? (
+                  <p className="mb-3 text-xs font-semibold text-blue-700">{getActivityTypeDraftText(type)}</p>
+                ) : null}
                 <Label htmlFor="learning-item-search">{type === "gesture-practice" ? "Search gestures" : "Search items"}</Label>
                 <div className="relative mb-4 mt-1">
                   <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" />
@@ -798,6 +976,16 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                   onChange={(values) => {
                     const nextValues = values.slice(0, MAX_ACTIVITY_LEARNING_ITEMS);
                     setSelectedLearningItemIds(nextValues);
+                    setActivityPromptInputs((current) => {
+                      const nextInputs: ActivityPromptInputs = {};
+                      nextValues.forEach((id) => {
+                        const key = getQuestionPromptInputKey(type, id);
+                        const item = learningItems.find((candidate) => candidate.id === id);
+                        const savedPrompt = item ? getSavedQuestionPrompt(type, item, activityPromptStore) : undefined;
+                        nextInputs[key] = current[key] ?? savedPrompt ?? "";
+                      });
+                      return nextInputs;
+                    });
                     if (values.length > MAX_ACTIVITY_LEARNING_ITEMS) {
                       setLearningItemError(`Choose up to ${MAX_ACTIVITY_LEARNING_ITEMS} learning items only.`);
                       return;
@@ -810,6 +998,42 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                 />
                 <FieldError message={learningItemError} />
                 {aiDraftNote ? <p className="mt-3 text-xs font-semibold text-blue-700">{aiDraftNote}</p> : null}
+                {promptEditableActivity && selectedLearningItemsForForm.length ? (
+                  <div className="mt-4 space-y-3 rounded-lg border border-blue-100 bg-skywash p-3">
+                    <div>
+                      <p className="text-sm font-bold text-ink">
+                        {type === "fill-blank" ? "Fill-in-the-blank questions" : "Teacher questions"}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">
+                        {type === "fill-blank"
+                          ? "Type one sentence for each card. Use ____ for the missing word."
+                          : "Type one short question for each card."}
+                      </p>
+                    </div>
+                    {selectedLearningItemsForForm.map((item) => {
+                      const key = getQuestionPromptInputKey(type, item.id);
+                      const value = activityPromptInputs[key] ?? "";
+                      const validationMessage = validatePromptForActivity(type, item, value);
+
+                      return (
+                        <div key={key}>
+                          <Label htmlFor={`activity-prompt-${item.id}`}>{item.label}</Label>
+                          <Input
+                            id={`activity-prompt-${item.id}`}
+                            value={value}
+                            onChange={(event) => {
+                              setActivityPromptInputs((current) => ({ ...current, [key]: event.target.value }));
+                              if (learningItemError) setLearningItemError("");
+                              if (aiDraftNote) setAiDraftNote("");
+                            }}
+                            placeholder={type === "fill-blank" ? "Example: My ____ is here." : "Example: Which card shows family?"}
+                          />
+                          <FieldError message={validationMessage} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </section>
 
               <section className="rounded-xl border border-blue-100 bg-white p-4">
@@ -817,34 +1041,22 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-600 text-sm font-bold text-white">3</span>
                   <div>
                     <h3 className="text-sm font-bold text-ink">Name and save</h3>
-                    <p className="text-xs text-slate-500">Keep directions short.</p>
+                    <p className="text-xs text-slate-500">Name the activity and choose who can see it.</p>
                   </div>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="activity-title">Activity name</Label>
-                      <Input
-                        id="activity-title"
-                        value={title}
-                        onChange={(event) => {
-                          setTitle(event.target.value);
-                          if (error) setError("");
-                        }}
-                        placeholder="Example: Match greetings"
-                      />
-                      <FieldError message={error} />
-                    </div>
-                    <div>
-                      <Label htmlFor="activity-instructions">Directions</Label>
-                      <Textarea
-                        id="activity-instructions"
-                        value={instructions}
-                        onChange={(event) => setInstructions(event.target.value)}
-                        placeholder="Optional directions for the activity"
-                        className="min-h-24"
-                      />
-                    </div>
+                  <div>
+                    <Label htmlFor="activity-title">Activity name</Label>
+                    <Input
+                      id="activity-title"
+                      value={title}
+                      onChange={(event) => {
+                        setTitle(event.target.value);
+                        if (error) setError("");
+                      }}
+                      placeholder="Example: Match greetings"
+                    />
+                    <FieldError message={error} />
                   </div>
                   <div className="rounded-lg border border-blue-100 bg-skywash p-3">
                     <p className="text-sm font-bold text-ink">Visibility</p>

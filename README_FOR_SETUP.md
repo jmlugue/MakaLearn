@@ -65,7 +65,7 @@ The activity draft button can call Hugging Face from the server when a token is 
 ```env
 HUGGINGFACE_API_TOKEN=
 HF_TOKEN=
-HUGGINGFACE_ACTIVITY_MODEL=google/gemma-2-2b-it:fastest
+HUGGINGFACE_ACTIVITY_MODEL=openai/gpt-oss-120b:fastest
 ```
 
 Use either `HUGGINGFACE_API_TOKEN` or `HF_TOKEN`. If neither is set, the button still creates a local draft for review.

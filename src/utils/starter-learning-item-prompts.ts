@@ -130,6 +130,17 @@ export function createChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id" | 
   return `Which card means "${item.label}"?`;
 }
 
+export function getSavedChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id" | "label">) {
+  const labelPrompt = chooseCorrectSymbolPromptsByLabel[normalizePecsLabel(item.label)];
+  if (labelPrompt) return labelPrompt;
+
+  return chooseCorrectSymbolPromptsByLabel[normalizePecsLabel(labelFromLearningItemId(item.id))];
+}
+
+export function isGenericChooseCorrectSymbolPrompt(item: Pick<LearningItem, "label">, prompt: string) {
+  return normalizePecsLabel(prompt) === normalizePecsLabel(`Which card means "${item.label}"?`);
+}
+
 export function upgradeStarterLearningItemPrompts(items: LearningItem[]) {
   return items.map((item) => {
     const starterPrompt = starterLearningItemPromptDescriptions[item.id];

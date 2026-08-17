@@ -55,5 +55,23 @@ const fillBlankPromptByLabel: Record<string, string> = {
 
 export function createFillBlankPromptForLabel(label: string) {
   const normalized = normalizePecsLabel(label);
-  return fillBlankPromptByLabel[normalized] ?? `Choose ____ for ${label}.`;
+  return fillBlankPromptByLabel[normalized] ?? `Use ____ to talk about ${label}.`;
+}
+
+export function getSavedFillBlankPromptForLabel(label: string) {
+  return fillBlankPromptByLabel[normalizePecsLabel(label)];
+}
+
+export function isGenericFillBlankPrompt(label: string, prompt: string) {
+  const normalizedPrompt = normalizePecsLabel(prompt).replace(/\s+/g, " ");
+  const normalizedLabel = normalizePecsLabel(label);
+
+  return (
+    /^choose\s+_+\s+for\s+.+\.?$/i.test(prompt.trim()) ||
+    /^use\s+_+\s+to\s+talk\s+about\s+.+\.?$/i.test(prompt.trim()) ||
+    normalizedPrompt === normalizePecsLabel(`Choose ____ for ${label}.`) ||
+    normalizedPrompt === normalizePecsLabel(`Use ____ to talk about ${label}.`) ||
+    normalizedPrompt === `choose ____ for ${normalizedLabel}` ||
+    normalizedPrompt === `use ____ to talk about ${normalizedLabel}`
+  );
 }

@@ -1786,8 +1786,9 @@ export function ContentLibraryView() {
         />
       ) : null}
 
-      {itemPendingDelete ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+      {itemPendingDelete
+        ? createPortal(
+            <div className="fixed inset-0 z-[140] grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
           <div
             role="dialog"
             aria-modal="true"
@@ -1854,11 +1855,14 @@ export function ContentLibraryView() {
               </Button>
             </div>
           </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body
+          )
+        : null}
 
-      {lessonPendingDelete ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
+      {lessonPendingDelete
+        ? createPortal(
+            <div className="fixed inset-0 z-[140] grid place-items-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
           <div
             role="dialog"
             aria-modal="true"
@@ -1910,8 +1914,10 @@ export function ContentLibraryView() {
               </Button>
             </div>
           </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

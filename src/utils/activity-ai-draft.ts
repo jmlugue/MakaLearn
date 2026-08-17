@@ -1,57 +1,69 @@
 import { activityTypeLabels } from "@/utils/activity-labels";
 import type { ActivityType, LearningItem } from "@/types";
 
-export type ActivityDraftSource = "hugging-face" | "local";
+export type ActivityPromptDraftSource = "hugging-face" | "local";
+export type DraftablePromptActivityType = Extract<ActivityType, "choose-correct-symbol" | "fill-blank">;
+
+export type ActivityPromptSuggestion = {
+  learningItemId: string;
+  label: string;
+  prompt: string;
+};
 
 export type ActivityDraftResult = {
-  title: string;
-  instructions: string;
-  source: ActivityDraftSource;
+  source: ActivityPromptDraftSource;
   note: string;
+  suggestions: ActivityPromptSuggestion[];
 };
 
 function getItemSummary(item: LearningItem) {
   const description = item.description.trim();
   const instruction = item.instruction.trim();
   const tags = item.tags.length ? ` Tags: ${item.tags.join(", ")}.` : "";
-  const role = item.sentenceRole ? ` Sentence role: ${item.sentenceRole}.` : "";
 
-  return `- ${item.label} (${item.contentType}). ${description || "No description provided."} ${instruction || ""}${role}${tags}`.trim();
+  return `- id: ${item.id}; label: ${item.label}; description: ${description || "No description provided."}; instruction: ${instruction || "None."}${tags}`;
 }
 
-export function buildLocalActivityDraft(type: ActivityType, items: LearningItem[]): ActivityDraftResult {
-  const count = items.length;
-  const noun = count === 1 ? "item" : "items";
+export function buildActivityTitle(type: ActivityType, items: Pick<LearningItem, "label">[]) {
   const itemNames = items.map((item) => item.label).join(", ");
-
-  const instructions: Record<ActivityType, string> = {
-    "match-word-symbol": `Show the ${count} selected ${noun}. Ask the learner to match each word to its picture, then revisit any missed matches.`,
-    "choose-correct-symbol": `Read each prompt aloud and ask the learner to choose the correct picture. Give one repeat if needed before moving on.`,
-    "fill-blank": `Read each sentence with a pause at the blank. Let the learner choose the missing word, then read the completed sentence together.`,
-    "drag-drop-symbol": `Ask the learner to drag each picture to its matching word. On touch screens, tap a picture first and then choose its word.`,
-    "gesture-practice": `Model each selected gesture once, then ask the learner to copy it. Mark the attempt after the learner has had enough time to respond.`
-  };
-
-  return {
-    title: `${activityTypeLabels[type]}: ${itemNames}`,
-    instructions: instructions[type],
-    source: "local",
-    note: "Local draft added. Review the name and directions before saving."
-  };
+  return `${activityTypeLabels[type]}: ${itemNames}`.slice(0, 90).trim();
 }
 
-export function buildActivityDraftPrompt(type: ActivityType, items: LearningItem[]) {
+export function buildDefaultActivityPrompt(type: ActivityType) {
+  const prompts: Record<ActivityType, string> = {
+    "match-word-symbol": "Match each word to its PECS card.",
+    "choose-correct-symbol": "Choose the PECS card that answers each prompt.",
+    "fill-blank": "Complete each sentence with the missing PECS word.",
+    "drag-drop-symbol": "Drag each PECS card to its matching word.",
+    "gesture-practice": "Practise each gesture with teacher guidance."
+  };
+
+  return prompts[type];
+}
+
+export function canDraftQuestionPrompts(type: ActivityType): type is DraftablePromptActivityType {
+  return type === "choose-correct-symbol" || type === "fill-blank";
+}
+
+export function buildPromptDraftRequest(
+  type: DraftablePromptActivityType,
+  items: LearningItem[]
+) {
+  const promptInstruction =
+    type === "fill-blank"
+      ? "Create one simple fill-in-the-blank sentence for each item. Each prompt must contain exactly one ____ blank and the answer must be the item label."
+      : "Create one short teacher question for each item. The learner should answer by choosing the matching PECS card.";
+
   return [
-    "Create one classroom activity draft for a teacher using the selected MakaLearn learning items.",
-    "The learner may use PECS/AAC cards or teacher-guided Makaton-style gesture practice.",
-    "Use plain, practical teacher directions. Do not claim the content is official Makaton.",
-    "Keep the activity short, supportive, and suitable for early communication practice.",
-    "Return only valid JSON with exactly these keys: title, instructions.",
-    "The title must be 8 words or fewer.",
-    "The instructions must be 1 or 2 concise sentences.",
+    "Create reusable classroom question prompts for MakaLearn PECS/AAC learning items.",
+    "Use plain English for SPED classroom support. Do not claim the content is official Makaton.",
+    "Keep each prompt short, concrete, and suitable for early communication practice.",
+    promptInstruction,
+    "Return only valid JSON with exactly this shape:",
+    '{"prompts":[{"learningItemId":"item id","prompt":"question text"}]}',
     "",
     `Activity type: ${activityTypeLabels[type]}`,
-    "Selected learning items:",
+    "Learning items needing prompts:",
     items.map(getItemSummary).join("\n")
   ].join("\n");
 }
@@ -70,57 +82,61 @@ function extractJsonObject(text: string) {
   return "";
 }
 
-function cleanSingleLine(value: unknown, maxLength: number) {
+function cleanPrompt(value: unknown, type: DraftablePromptActivityType) {
   if (typeof value !== "string") return "";
 
-  return value
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maxLength)
-    .trim();
+  const prompt = value.replace(/\s+/g, " ").trim().slice(0, 180).trim();
+  if (!prompt) return "";
+  if (type === "fill-blank" && !prompt.includes("____")) return "";
+
+  return prompt;
 }
 
-function cleanInstructions(value: unknown) {
-  if (typeof value !== "string") return "";
-
-  return value
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 420)
-    .trim();
-}
-
-export function parseActivityDraftText(text: string, fallback: ActivityDraftResult): ActivityDraftResult {
+export function parsePromptDraftText(
+  text: string,
+  type: DraftablePromptActivityType,
+  requestedItems: LearningItem[]
+): ActivityDraftResult {
   const jsonText = extractJsonObject(text);
   if (!jsonText) {
     return {
-      ...fallback,
-      note: "Local draft used because the model response was not valid JSON."
+      source: "local",
+      note: "AI questions are not available right now. You can type the questions instead.",
+      suggestions: []
     };
   }
 
   try {
-    const parsed = JSON.parse(jsonText) as { title?: unknown; instructions?: unknown };
-    const title = cleanSingleLine(parsed.title, 80);
-    const instructions = cleanInstructions(parsed.instructions);
+    const parsed = JSON.parse(jsonText) as { prompts?: Array<{ learningItemId?: unknown; prompt?: unknown }> };
+    const requestedById = new Map(requestedItems.map((item) => [item.id, item]));
+    const suggestions = Array.isArray(parsed.prompts)
+      ? parsed.prompts.flatMap((entry) => {
+          if (typeof entry.learningItemId !== "string") return [];
+          const item = requestedById.get(entry.learningItemId);
+          if (!item) return [];
+          const prompt = cleanPrompt(entry.prompt, type);
+          return prompt ? [{ learningItemId: item.id, label: item.label, prompt }] : [];
+        })
+      : [];
 
-    if (!title || !instructions) {
+    if (!suggestions.length) {
       return {
-        ...fallback,
-        note: "Local draft used because the model response was incomplete."
+        source: "local",
+        note: "AI questions are not available right now. You can type the questions instead.",
+        suggestions: []
       };
     }
 
     return {
-      title,
-      instructions,
       source: "hugging-face",
-      note: "AI draft added. Review the name and directions before saving."
+      note: `${suggestions.length} reusable ${suggestions.length === 1 ? "prompt was" : "prompts were"} drafted and saved for this browser.`,
+      suggestions
     };
   } catch {
     return {
-      ...fallback,
-      note: "Local draft used because the model response could not be parsed."
+      source: "local",
+      note: "AI questions are not available right now. You can type the questions instead.",
+      suggestions: []
     };
   }
 }
