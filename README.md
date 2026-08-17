@@ -46,7 +46,7 @@ src/
 - `/login` Supabase Auth sign-in
 - `/content` PECS and gesture content library with in-app media previews
 - `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, hand visibility checks, and placeholder teacher feedback
-- `/activities` PECS activity library, player, manual creator, adaptive question generation, and draft helper
+- `/activities` PECS and gesture-practice activity library, player, manual creator, adaptive question generation, and draft helper
 - `/playground` PECS/AAC sentence builder with category filters, drag/drop or tap card selection, rule-based sentence checking, and speech/audio playback
 - `/settings` profile, accessibility, and display settings
 - `/help` teacher/admin guide
@@ -67,9 +67,9 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - See `GESTURE_SAMPLE_POSES.md` for the complete demo pose-to-prediction mapping.
 - Gesture records support reference image, gesture image/video, and audio uploads.
 - PECS and gesture images/videos/audio can be previewed inside the website.
-- Activities can be created from PECS cards. Gesture lessons link to Gesture Practice instead of creating Activity Library records.
+- Activities can be created from PECS cards or gesture records. Gesture-practice activities use teacher-completed scoring options.
 - Activity question generation adapts to each PECS card label and description, so greetings and choices do not use request-only wording.
-- The draft button in Activity creation creates an editable local draft from selected learning items. Teachers review and edit before saving.
+- The draft button in Activity creation asks a server-side Hugging Face chat-completion model for a title and directions, then falls back to a local draft if no model token or valid model response is available. Teachers review and edit before saving.
 - Drag-and-drop answers remain visual cards after dropping, and scored incorrect answers use red feedback.
 - Saving a PECS lesson creates a related playable activity and the lesson shows an Open activity action. Gesture lessons show a Practice gesture action.
 - Activity scoring is session-only in this scope.
@@ -89,6 +89,9 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 ```
 
+For Hugging Face activity drafts, add `HUGGINGFACE_API_TOKEN` or `HF_TOKEN` with Inference Providers access. The default model is `google/gemma-2-2b-it:fastest`; set `HUGGINGFACE_ACTIVITY_MODEL` to try another Hugging Face chat-completion model.
+
+
 ## Future Supabase plan
 
 Current integration points:
@@ -104,7 +107,7 @@ Planned updates before production:
 - Wire real admin teacher creation/deactivation through Supabase Auth and profiles.
 - Review schema, RLS, and seed data against the new PECS/gesture scope.
 - Keep MediaPipe for live hand landmarks and replace the placeholder practice result/feedback logic with the approved recognition model when it is available.
-- Replace local adaptive activity generation with a connected LLM only after model, privacy, and API key handling are approved.
+- Review Hugging Face activity drafting for privacy, model quality, age appropriateness, and API key handling before production use.
 - Decide whether learner profile management returns in a later phase.
 
 ## Placeholder logic notes
@@ -112,5 +115,5 @@ Planned updates before production:
 - PECS and gesture media are placeholders and must not be treated as official Makaton content.
 - `generateCorrectiveFeedbackPlaceholder` and `generateFeedbackPlaceholder` are marked for future model/AI replacement.
 - Gesture hand tracking is a presentation simulation. It accepts one or two visible hands and one person in the UI but does not perform real recognition.
-- The AI activity draft is local adaptive logic, not a connected LLM.
+- The AI activity draft can use Hugging Face when configured, but saving still uses the teacher-reviewed title and directions entered in the form.
 - Playground validation is local rule-based logic, not NLP, grammar correction, or AI.

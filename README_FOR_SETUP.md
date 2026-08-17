@@ -52,13 +52,23 @@ macOS/Linux:
 cp .env.example .env.local
 ```
 
-Leave the values empty for local/demo mode:
+Leave the Supabase values empty for local/demo mode:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
+
+The activity draft button can call Hugging Face from the server when a token is configured:
+
+```env
+HUGGINGFACE_API_TOKEN=
+HF_TOKEN=
+HUGGINGFACE_ACTIVITY_MODEL=google/gemma-2-2b-it:fastest
+```
+
+Use either `HUGGINGFACE_API_TOKEN` or `HF_TOKEN`. If neither is set, the button still creates a local draft for review.
 
 Do not commit `.env.local`. It is intentionally ignored by Git. If Supabase access is needed later, obtain the project URL and publishable/anon key from the project owner; never place a service-role key in this file.
 

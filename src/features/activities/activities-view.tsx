@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Library, Pencil, Play, PlayCircle, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, Library, Loader2, Pencil, Play, PlayCircle, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { StudentActivityPlayer } from "@/features/activities/student-activity-pl
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { insertAuditLog } from "@/lib/audit-logs";
+import { buildLocalActivityDraft } from "@/utils/activity-ai-draft";
 import {
   createActivityQuestions,
   deleteActivity,
@@ -36,7 +37,8 @@ const activityTypes: ActivityType[] = [
   "match-word-symbol",
   "choose-correct-symbol",
   "fill-blank",
-  "drag-drop-symbol"
+  "drag-drop-symbol",
+  "gesture-practice"
 ];
 const activityTypeDescriptions: Record<ActivityType, string> = {
   "match-word-symbol": "Match words to pictures.",
@@ -175,21 +177,6 @@ function activityUsesImageOptions(type: ActivityType) {
   return type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
 }
 
-function getActivityDraftInstructions(type: ActivityType, items: LearningItem[]) {
-  const count = items.length;
-  const noun = count === 1 ? "item" : "items";
-
-  const instructions: Record<ActivityType, string> = {
-    "match-word-symbol": `Show the ${count} selected ${noun}. Ask the learner to match each word to its picture, then revisit any missed matches.`,
-    "choose-correct-symbol": `Read each prompt aloud and ask the learner to choose the correct picture. Give one repeat if needed before moving on.`,
-    "fill-blank": `Read each sentence with a pause at the blank. Let the learner choose the missing word, then read the completed sentence together.`,
-    "drag-drop-symbol": `Ask the learner to drag each picture to its matching word. On touch screens, tap a picture first and then choose its word.`,
-    "gesture-practice": `Model each selected gesture once, then ask the learner to copy it. Mark the attempt after the learner has had enough time to respond.`
-  };
-
-  return instructions[type];
-}
-
 function getActivityItems(items: LearningItem[]) {
   const normalized = items.map((item) => ({
     ...item,
@@ -260,6 +247,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   const [error, setError] = useState("");
   const [learningItemError, setLearningItemError] = useState("");
   const [aiDraftNote, setAiDraftNote] = useState("");
+  const [aiDraftInProgress, setAiDraftInProgress] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -479,7 +467,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     }
   }
 
-  function generateAiActivityDraft() {
+  async function generateAiActivityDraft() {
     const selectedLearningItems = selectedLearningItemIds
       .map((id) => learningItems.find((item) => item.id === id))
       .filter((item): item is LearningItem => Boolean(item));
@@ -498,16 +486,51 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       return;
     }
 
-    const itemNames = selectedLearningItems.map((item) => item.label).join(", ");
-    setTitle(`${activityTypeLabels[type]}: ${itemNames}`);
-    setInstructions(getActivityDraftInstructions(type, selectedLearningItems));
-    setAiDraftNote("Draft added. Review the name and directions before saving.");
+    const localDraft = buildLocalActivityDraft(type, selectedLearningItems);
+    setAiDraftInProgress(true);
     setLearningItemError("");
-    notify({
-      title: "Activity draft ready",
-      description: `${activityTypeLabels[type]} instructions are ready to review.`,
-      tone: "success"
-    });
+    setAiDraftNote("");
+
+    try {
+      const response = await fetch("/api/activity-draft", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          activityType: type,
+          learningItems: selectedLearningItems
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Activity draft request failed.");
+      }
+
+      const draft = (await response.json()) as typeof localDraft;
+      setTitle(draft.title || localDraft.title);
+      setInstructions(draft.instructions || localDraft.instructions);
+      setAiDraftNote(draft.note || "Draft added. Review the name and directions before saving.");
+      notify({
+        title: draft.source === "hugging-face" ? "AI draft ready" : "Activity draft ready",
+        description:
+          draft.source === "hugging-face"
+            ? "Hugging Face generated directions are ready to review."
+            : "Local draft directions are ready to review.",
+        tone: draft.source === "hugging-face" ? "success" : "info"
+      });
+    } catch {
+      setTitle(localDraft.title);
+      setInstructions(localDraft.instructions);
+      setAiDraftNote("Local draft used because the AI draft could not be reached.");
+      notify({
+        title: "Activity draft ready",
+        description: "Local draft directions are ready to review.",
+        tone: "info"
+      });
+    } finally {
+      setAiDraftInProgress(false);
+    }
   }
 
   async function createActivity(event: FormEvent<HTMLFormElement>) {
@@ -747,9 +770,9 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                       <p className="text-xs text-slate-500">Use up to {MAX_ACTIVITY_LEARNING_ITEMS} items.</p>
                     </div>
                   </div>
-                  <Button type="button" variant="secondary" onClick={generateAiActivityDraft}>
-                    <Sparkles className="h-4 w-4" aria-hidden="true" />
-                    Draft with AI
+                  <Button type="button" variant="secondary" onClick={generateAiActivityDraft} disabled={aiDraftInProgress}>
+                    {aiDraftInProgress ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
+                    {aiDraftInProgress ? "Drafting..." : "Draft with AI"}
                   </Button>
                 </div>
                 <Label htmlFor="learning-item-search">{type === "gesture-practice" ? "Search gestures" : "Search items"}</Label>

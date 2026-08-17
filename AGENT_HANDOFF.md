@@ -12,7 +12,7 @@ The app now prioritizes:
 
 - PECS content management
 - Gesture reference management, with fixed gestures separated from stored custom gestures
-- PECS-only activity creation and scoring
+- PECS and gesture-practice activity creation and scoring
 - A gesture practice tab with live MediaPipe hand-landmark tracking and placeholder practice feedback
 - Admin teacher account/content monitoring
 
@@ -29,7 +29,7 @@ Legacy route `/learners` redirects to `/content`.
 - `/login` - Supabase email/password sign-in
 - `/content` - PECS and gesture content library with in-app media previews
 - `/gesture-practice` - gesture recognition presentation tab
-- `/activities` - PECS-only activity library, player, creator, adaptive question generation, and AI draft helper
+- `/activities` - PECS and gesture-practice activity library, player, creator, adaptive question generation, and AI draft helper
 - `/settings` - profile, accessibility, and display settings
 - `/help` - teacher/admin guide
 - `/admin` - admin-only teacher account and content monitoring panel
@@ -52,12 +52,12 @@ Legacy route `/learners` redirects to `/content`.
   - Sit down
 - Gesture cards support reference image, gesture image/video, and audio.
 - Content Library and Media Library preview media inside the app instead of linking out.
-- Activities use PECS cards only. The gesture-practice activity type is not offered in the UI.
+- Activities can use PECS cards or gesture records. Gesture-practice activities use teacher-completed scoring options.
 - Activity generation adapts prompts to PECS labels/descriptions. Fill-in-the-blank no longer always uses `I want to ____`.
 - Drag-and-drop dropped answers stay rendered as card images/placeholders, not URL text.
 - Scored wrong answers use red feedback styling.
 - Activity scoring is local/session-only.
-- Activity creation includes a `Draft with AI` button that generates editable local draft fields from selected PECS cards.
+- Activity creation includes a `Draft with AI` button that requests a Hugging Face chat-completion draft from `/api/activity-draft`, then falls back to local adaptive draft text when no token/model response is available.
 - Gesture practice starts the webcam, draws a live landmark outline over up to two moving hands, checks visibility, and shows placeholder teacher feedback. The MediaPipe runtime, WASM files, and hand-landmarker model are stored locally in the project.
 - Lesson cards no longer include an Open Activity action, avoiding confusion after activities are deleted.
 - Admin Panel lets admins create local teacher account previews, change roles, activate/deactivate teachers locally, monitor teacher-managed content, review uploads, and inspect generated logs.
@@ -72,9 +72,11 @@ Legacy route `/learners` redirects to `/content`.
 - `src/features/auth/login-panel.tsx` - sign-in redirects: admin to `/admin`, teacher to `/content`.
 - `src/components/layout/brand-logo.tsx` - shared logo rendering from `public/makalearn_logo.png`.
 - `src/features/content/content-library-view.tsx` - PECS/gesture separation, upload rules, stored custom gestures, media previews, PECS lesson drafts.
-- `src/features/activities/activities-view.tsx` - PECS-only activity creation/player, AI draft helper, adaptive question rendering, local scoring.
+- `src/features/activities/activities-view.tsx` - PECS and gesture-practice activity creation/player, AI draft helper, adaptive question rendering, local scoring.
 - `src/features/gesture/gesture-practice-view.tsx` - webcam preview, live MediaPipe landmark overlay, visibility status, and placeholder teacher feedback.
 - `src/features/admin/admin-panel-view.tsx` - revised admin account/content/log monitoring.
+- `src/app/api/activity-draft/route.ts` - server-side Hugging Face Inference Providers chat-completion integration for activity drafts.
+- `src/utils/activity-ai-draft.ts` - shared draft prompt, local fallback, and response parsing utilities.
 - `src/utils/gesture-feedback.ts` - placeholder feedback functions for future recognition/AI replacement.
 - `src/lib/supabase/app-data.ts` - Supabase data helpers. `contentType` is currently inferred from tags until the database gets a real field.
 
@@ -113,8 +115,10 @@ Both commands still show the existing Next.js warning that `src/features/content
 - `.env.example` supports both `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and the older `NEXT_PUBLIC_SUPABASE_ANON_KEY` fallback.
 - Local Content Library and Activities state can persist in `localStorage`. Old local records are normalized enough to avoid crashes, but clearing localStorage may be useful when reviewing the new seeded PECS/gesture split.
 - The fake hand tracking demo is timer-driven for presentation purposes. It is not real hand/person detection.
-- AI activity generation is local adaptive logic, not a connected LLM.
+- AI activity generation can call Hugging Face through the server route, but falls back to local adaptive logic when no token or valid model response is available.
 - `makalearn_logo.png` remains at the repo root and is also copied into `public/` for serving.
+- Hugging Face activity drafting needs a server-side `HUGGINGFACE_API_TOKEN` or `HF_TOKEN` with Inference Providers access. Without it, the button still creates a local draft.
+- The default draft model is `google/gemma-2-2b-it:fastest`, overrideable with `HUGGINGFACE_ACTIVITY_MODEL`.
 
 ## Suggested next work
 
@@ -122,3 +126,5 @@ Both commands still show the existing Next.js warning that `src/features/content
 - Decide whether to delete or restore the unused legacy learner feature files in a later phase.
 - Update Supabase schema and seed files to match the new PECS/gesture/admin scope.
 - Replace the Content Library preview `<img>` warning if image optimization becomes important.
+- Test Hugging Face model quality with real PECS/Makaton teacher examples and add stricter safety/appropriateness checks before production use.
+- Consider saving AI draft metadata to audit logs once the app uses real backend persistence.
