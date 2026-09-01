@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Activity, BookOpen, ClipboardList, Shield, ToggleLeft, ToggleRight, Upload, UserCog, UserPlus } from "lucide-react";
+import { Activity, BookOpen, ClipboardList, KeyRound, Shield, ToggleLeft, ToggleRight, Upload, UserCog, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,7 @@ export function AdminPanelView() {
   const [uploadRecords, setUploadRecords] = useState<MediaAsset[]>(mediaAssets);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [contentLogFilter, setContentLogFilter] = useState<ContentLogFilter>("all");
+  const [resettingPasswordUserId, setResettingPasswordUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -73,9 +74,9 @@ export function AdminPanelView() {
     };
   }, []);
 
-  const teachers = users.filter((candidate) => candidate.role === "teacher");
+  const teacherCount = users.filter((candidate) => candidate.role === "teacher").length;
+  const adminCount = users.filter((candidate) => candidate.role === "admin").length;
   const pecsCount = itemRecords.filter((item) => item.contentType === "pecs").length;
-  const gestureCount = itemRecords.filter((item) => item.contentType === "gesture").length;
   const previewLogs = useMemo<AuditLog[]>(
     () => [
       ...users.slice(0, 4).map((candidate) => ({
@@ -144,14 +145,55 @@ export function AdminPanelView() {
     }
   }
 
-  function toggleTeacherStatus(candidate: AppUser) {
+  function toggleAccountStatus(candidate: AppUser) {
     const nextStatus = candidate.status === "deactivated" ? "active" : "deactivated";
     setUsers((current) => current.map((item) => (item.id === candidate.id ? { ...item, status: nextStatus } : item)));
     notify({
-      title: nextStatus === "active" ? "Teacher activated" : "Teacher deactivated",
+      title: nextStatus === "active" ? "Account activated" : "Account deactivated",
       description: `${candidate.name} was updated.`,
       tone: "success"
     });
+  }
+
+  async function resetTeacherPassword(candidate: AppUser) {
+    if (candidate.role !== "teacher") {
+      notify({ title: "Teacher account required", description: "Only teacher passwords can be reset from this panel." });
+      return;
+    }
+
+    const confirmed = window.confirm(`Set a temporary password for ${candidate.name}?`);
+    if (!confirmed) return;
+
+    setResettingPasswordUserId(candidate.id);
+
+    try {
+      const response = await fetch("/api/admin/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ userId: candidate.id })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Password reset could not be completed.");
+      }
+
+      notify({
+        title: "Temporary password set",
+        description: `${candidate.name} can sign in with the configured temporary password.`,
+        tone: "success"
+      });
+    } catch (error) {
+      notify({
+        title: "Password reset failed",
+        description: error instanceof Error ? error.message : "Password reset could not be completed.",
+        tone: "error"
+      });
+    } finally {
+      setResettingPasswordUserId(null);
+    }
   }
 
   function createTeacher(event: FormEvent<HTMLFormElement>) {
@@ -199,14 +241,14 @@ export function AdminPanelView() {
       <PageHeader
         eyebrow="Admin Panel"
         title="Administration workspace"
-        description="Create and deactivate teacher accounts, monitor teacher-managed content, and review system logs."
+        description="Create accounts, manage roles, monitor teacher-managed content, and review system logs."
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={UserCog} label="Teachers" value={teachers.length} />
+        <StatCard icon={UserCog} label="Teachers" value={teacherCount} />
+        <StatCard icon={Shield} label="Admins" value={adminCount} />
         <StatCard icon={BookOpen} label="PECS cards" value={pecsCount} />
         <StatCard icon={Activity} label="Activities" value={activityRecords.length} />
-        <StatCard icon={Shield} label="Fixed gestures" value={gestureCount} />
       </section>
 
       <section className="mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
@@ -238,45 +280,76 @@ export function AdminPanelView() {
         </Card>
 
         <Card className="flex h-full flex-col">
-          <CardTitle>Teacher account management</CardTitle>
-          <CardDescription>Deactivate accounts when teachers should no longer manage content.</CardDescription>
+          <CardTitle>Account management</CardTitle>
+          <CardDescription>View every admin and teacher account so role changes can be reversed later.</CardDescription>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {teachers.map((teacher) => (
-              <div key={teacher.id} className="rounded-lg border border-blue-100 bg-skywash p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{teacher.name}</p>
-                    <p className="text-sm text-slate-600">{teacher.email}</p>
+            {users.map((account) => {
+              const isCurrentUser = account.id === user.id;
+
+              return (
+                <div key={account.id} className="rounded-lg border border-blue-100 bg-skywash p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-semibold">{account.name}</p>
+                      <p className="text-sm text-slate-600">{account.email}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className="bg-white text-blue-700">{account.role}</Badge>
+                      <Badge className={account.status === "deactivated" ? "bg-coral text-orange-700" : "bg-mint text-green-700"}>
+                        {account.status}
+                      </Badge>
+                    </div>
                   </div>
-                  <Badge className={teacher.status === "deactivated" ? "bg-coral text-orange-700" : "bg-mint text-green-700"}>
-                    {teacher.status}
-                  </Badge>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                  <div>
-                    <Label htmlFor={`role-${teacher.id}`} className="sr-only">
-                      Role for {teacher.name}
-                    </Label>
-                    <Select
-                      id={`role-${teacher.id}`}
-                      value={teacher.role}
-                      onChange={(event) => changeRole(teacher, event.target.value as UserRole)}
-                    >
-                      <option value="teacher">Teacher</option>
-                      <option value="admin">Admin</option>
-                    </Select>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <div>
+                      <Label htmlFor={`role-${account.id}`} className="sr-only">
+                        Role for {account.name}
+                      </Label>
+                      <Select
+                        id={`role-${account.id}`}
+                        value={account.role}
+                        onChange={(event) => changeRole(account, event.target.value as UserRole)}
+                        disabled={isCurrentUser}
+                      >
+                        <option value="teacher">Teacher</option>
+                        <option value="admin">Admin</option>
+                      </Select>
+                      {isCurrentUser ? (
+                        <FieldHint>Sign in with another admin to change your own role.</FieldHint>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                      {account.role === "teacher" ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => resetTeacherPassword(account)}
+                          disabled={isCurrentUser || resettingPasswordUserId === account.id}
+                        >
+                          <KeyRound className="h-4 w-4" aria-hidden="true" />
+                          {resettingPasswordUserId === account.id ? "Setting..." : "Temp password"}
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => toggleAccountStatus(account)}
+                        disabled={isCurrentUser}
+                      >
+                        {account.status === "deactivated" ? (
+                          <ToggleRight className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          <ToggleLeft className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        {account.status === "deactivated" ? "Activate" : "Deactivate"}
+                      </Button>
+                    </div>
                   </div>
-                  <Button type="button" variant="secondary" size="sm" onClick={() => toggleTeacherStatus(teacher)}>
-                    {teacher.status === "deactivated" ? (
-                      <ToggleRight className="h-4 w-4" aria-hidden="true" />
-                    ) : (
-                      <ToggleLeft className="h-4 w-4" aria-hidden="true" />
-                    )}
-                    {teacher.status === "deactivated" ? "Activate" : "Deactivate"}
-                  </Button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
 

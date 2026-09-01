@@ -1,21 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Accessibility, Info, Lock, Palette, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import { FieldHint, Input, Label, Select } from "@/components/ui/form";
+import { FieldError, FieldHint, Input, Label, Select } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { updateProfileDetails } from "@/lib/supabase/app-data";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+
+type PasswordErrors = {
+  currentPassword?: string;
+  newPassword?: string;
+  confirmPassword?: string;
+};
 
 export function SettingsView() {
   const { user } = useAuthUser();
   const { notify } = useToast();
   const [profileName, setProfileName] = useState(user.name);
   const [profileEmail, setProfileEmail] = useState(user.email);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({});
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [largeText, setLargeText] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -53,6 +64,56 @@ export function SettingsView() {
     }
 
     notify({ title: "Profile saved", description: "Profile details were saved.", tone: "success" });
+  }
+
+  async function updatePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const nextErrors: PasswordErrors = {
+      currentPassword: currentPassword ? undefined : "Enter your current password.",
+      newPassword: newPassword.length >= 6 ? undefined : "New password must be at least 6 characters.",
+      confirmPassword: confirmPassword === newPassword ? undefined : "Passwords must match."
+    };
+
+    setPasswordErrors(nextErrors);
+    if (nextErrors.currentPassword || nextErrors.newPassword || nextErrors.confirmPassword) return;
+
+    const supabase = getSupabaseBrowserClient();
+    if (!isSupabaseConfigured() || !supabase) {
+      notify({ title: "Password update unavailable", description: "Ask an administrator to finish Supabase setup." });
+      return;
+    }
+
+    setPasswordLoading(true);
+
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword
+      });
+
+      if (signInError) {
+        setPasswordErrors({ currentPassword: "Current password does not match this account." });
+        notify({ title: "Password not updated", description: "Check your current password and try again.", tone: "error" });
+        return;
+      }
+
+      // Supabase Auth: update the password for the currently signed-in user.
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+      if (error) {
+        notify({ title: "Password update failed", description: error.message, tone: "error" });
+        return;
+      }
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordErrors({});
+      notify({ title: "Password updated", description: "Use your new password the next time you sign in.", tone: "success" });
+    } finally {
+      setPasswordLoading(false);
+    }
   }
 
   return (
@@ -99,16 +160,61 @@ export function SettingsView() {
         <Card className="bg-[#fbfdff]">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-blue-600" aria-hidden="true" />
-            <CardTitle>Account and password</CardTitle>
+            <CardTitle>Manage password</CardTitle>
           </div>
-          <CardDescription>Manage password updates and account access.</CardDescription>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Input type="password" placeholder="New password" />
-            <Input type="password" placeholder="Confirm password" />
-          </div>
-          <Button className="mt-4" variant="secondary" onClick={() => notify({ title: "Password changes", description: "Password changes are not enabled yet." })}>
-            Update password
-          </Button>
+          <CardDescription>Change the password for your signed-in MakaLearn account.</CardDescription>
+          <form className="mt-4 space-y-4" onSubmit={updatePassword}>
+            <div>
+              <Label htmlFor="current-password">Current password</Label>
+              <Input
+                id="current-password"
+                type="password"
+                value={currentPassword}
+                onChange={(event) => {
+                  setCurrentPassword(event.target.value);
+                  setPasswordErrors((current) => ({ ...current, currentPassword: undefined }));
+                }}
+                aria-invalid={Boolean(passwordErrors.currentPassword)}
+                aria-describedby={passwordErrors.currentPassword ? "current-password-error" : undefined}
+              />
+              <FieldError id="current-password-error" message={passwordErrors.currentPassword} />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="new-password">New password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => {
+                    setNewPassword(event.target.value);
+                    setPasswordErrors((current) => ({ ...current, newPassword: undefined }));
+                  }}
+                  aria-invalid={Boolean(passwordErrors.newPassword)}
+                  aria-describedby={passwordErrors.newPassword ? "new-password-error" : undefined}
+                />
+                <FieldError id="new-password-error" message={passwordErrors.newPassword} />
+              </div>
+              <div>
+                <Label htmlFor="confirm-password">Confirm new password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => {
+                    setConfirmPassword(event.target.value);
+                    setPasswordErrors((current) => ({ ...current, confirmPassword: undefined }));
+                  }}
+                  aria-invalid={Boolean(passwordErrors.confirmPassword)}
+                  aria-describedby={passwordErrors.confirmPassword ? "confirm-password-error" : undefined}
+                />
+                <FieldError id="confirm-password-error" message={passwordErrors.confirmPassword} />
+              </div>
+            </div>
+            <Button type="submit" variant="secondary" disabled={passwordLoading}>
+              {passwordLoading ? "Updating..." : "Update password"}
+            </Button>
+          </form>
         </Card>
 
         <Card className="bg-[#fbfdff]">

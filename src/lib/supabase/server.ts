@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/supabase/client";
 import type { Database } from "@/types/database";
@@ -22,6 +23,21 @@ export function createSupabaseServerClient() {
           // Server Components cannot always set cookies. Middleware refreshes sessions for protected routes.
         }
       }
+    }
+  });
+}
+
+export function createSupabaseServiceRoleClient() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Supabase service role is not configured. Add SUPABASE_SERVICE_ROLE_KEY to .env.local.");
+  }
+
+  return createClient<Database>(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
     }
   });
 }
