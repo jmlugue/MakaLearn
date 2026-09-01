@@ -226,6 +226,36 @@ export async function insertCategory(category: Category) {
   return mapCategory(row);
 }
 
+export async function updateCategoryDetails(category: Category) {
+  const supabase = getClientOrThrow();
+  const row = (await expectData(
+    supabase
+      .from("categories")
+      .update({
+        name: category.name,
+        description: category.description,
+        color: category.color,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", category.id)
+      .select()
+      .single()
+  )) as CategoryRow;
+
+  return mapCategory(row);
+}
+
+export async function deleteCategory(categoryId: string) {
+  const supabase = getClientOrThrow();
+  const deletedRows = (await expectData(
+    supabase.from("categories").delete().eq("id", categoryId).select("id")
+  )) as Array<{ id: string }>;
+
+  if (!deletedRows.some((row) => row.id === categoryId)) {
+    throw new Error("Supabase did not delete this category. Check the categories delete policy and try again.");
+  }
+}
+
 export async function insertLearningItem(item: LearningItem) {
   const supabase = getClientOrThrow();
   const row = (await expectData(

@@ -42,6 +42,7 @@ import {
   mediaAssets
 } from "@/data/mock-data";
 import {
+  deleteCategory,
   deleteLearningItem,
   deleteLesson,
   fetchMakaLearnData,
@@ -50,6 +51,7 @@ import {
   insertLearningItem,
   insertLesson,
   createActivityQuestions,
+  updateCategoryDetails,
   updateLearningItemDetails,
   updateLearningItemMedia
 } from "@/lib/supabase/app-data";
@@ -328,6 +330,13 @@ export function ContentLibraryView() {
   const [editItemCategoryId, setEditItemCategoryId] = useState("");
   const [editItemDescription, setEditItemDescription] = useState("");
   const [editItemTags, setEditItemTags] = useState("");
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState("");
+  const [editCategoryDescription, setEditCategoryDescription] = useState("");
+  const [editCategoryColor, setEditCategoryColor] = useState("#dbeafe");
+  const [editCategoryError, setEditCategoryError] = useState("");
+  const [categorySaving, setCategorySaving] = useState(false);
+  const [categoryDeleting, setCategoryDeleting] = useState(false);
   const [newItemFiles, setNewItemFiles] = useState<NewItemFiles>({});
   const [contentReady, setContentReady] = useState(false);
   const [itemPendingDelete, setItemPendingDelete] = useState<LearningItem | null>(null);
@@ -1082,6 +1091,126 @@ export function ContentLibraryView() {
     });
   }
 
+  function openEditCategory(category: Category) {
+    setEditingCategory(category);
+    setEditCategoryName(category.name);
+    setEditCategoryDescription(category.description);
+    setEditCategoryColor(category.color);
+    setEditCategoryError("");
+  }
+
+  function closeEditCategory() {
+    if (categorySaving || categoryDeleting) return;
+
+    setEditingCategory(null);
+    setEditCategoryName("");
+    setEditCategoryDescription("");
+    setEditCategoryColor("#dbeafe");
+    setEditCategoryError("");
+  }
+
+  async function saveCategoryEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingCategory) return;
+
+    const name = editCategoryName.trim();
+    const description = editCategoryDescription.trim() || "Shared category";
+    const color = editCategoryColor.trim();
+
+    if (!name) {
+      setEditCategoryError("Add a category name.");
+      return;
+    }
+
+    if (!isHexColor(color)) {
+      setEditCategoryError("Choose a valid category color.");
+      return;
+    }
+
+    const nextCategory: Category = {
+      ...editingCategory,
+      name,
+      description,
+      color
+    };
+
+    let savedCategory = nextCategory;
+    setCategorySaving(true);
+
+    if (isSupabaseConfigured()) {
+      try {
+        savedCategory = await updateCategoryDetails(nextCategory);
+      } catch (error) {
+        notify({
+          title: "Category saved",
+          description: "Your changes are ready in this workspace."
+        });
+      }
+    }
+
+    setCategories((current) =>
+      current.map((category) => (category.id === editingCategory.id ? savedCategory : category))
+    );
+    logContentAction("edit", "category", savedCategory.name, "Updated category details.", savedCategory.id);
+    setCategorySaving(false);
+    setEditingCategory(null);
+    setEditCategoryName("");
+    setEditCategoryDescription("");
+    setEditCategoryColor("#dbeafe");
+    setEditCategoryError("");
+    notify({
+      title: "Category updated",
+      description: "Category details were saved.",
+      tone: "success"
+    });
+  }
+
+  async function deleteEditedCategory() {
+    if (!editingCategory) return;
+
+    const assignedItemCount = items.filter((item) => item.categoryId === editingCategory.id).length;
+    if (assignedItemCount > 0) {
+      notify({
+        title: "Category still in use",
+        description: "Move its learning items to another category before deleting it."
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ${editingCategory.name}?`);
+    if (!confirmed) return;
+
+    setCategoryDeleting(true);
+
+    if (isSupabaseConfigured()) {
+      try {
+        await deleteCategory(editingCategory.id);
+      } catch (error) {
+        notify({
+          title: "Category deleted locally",
+          description: "Supabase could not delete it, but it was removed from this workspace."
+        });
+      }
+    }
+
+    setCategories((current) => current.filter((category) => category.id !== editingCategory.id));
+    if (contentCategoryId === editingCategory.id) {
+      setContentCategoryId(allContentCategoriesLabel);
+    }
+    logContentAction("delete", "category", editingCategory.name, "Deleted a shared content category.", editingCategory.id);
+    setCategoryDeleting(false);
+    setEditingCategory(null);
+    setEditCategoryName("");
+    setEditCategoryDescription("");
+    setEditCategoryColor("#dbeafe");
+    setEditCategoryError("");
+    notify({
+      title: "Category deleted",
+      description: "The category was removed.",
+      tone: "success"
+    });
+  }
+
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-lg border border-blue-100 bg-white shadow-soft">
@@ -1659,13 +1788,9 @@ export function ContentLibraryView() {
                     Created by {userNameById.get(category.createdBy) ?? "MakaLearn user"}
                   </p>
                   <CardFooter className="mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => notify({ title: "Category editor", description: "Inline category editing is not enabled yet." })}
-                  >
-                    Edit category
-                  </Button>
+                    <Button variant="outline" size="sm" onClick={() => openEditCategory(category)}>
+                      Edit category
+                    </Button>
                   </CardFooter>
                 </div>
               </Card>
@@ -1742,6 +1867,34 @@ export function ContentLibraryView() {
             />
           )}
         </section>
+      ) : null}
+
+      {editingCategory ? (
+        <CategoryEditModal
+          category={editingCategory}
+          name={editCategoryName}
+          description={editCategoryDescription}
+          color={editCategoryColor}
+          error={editCategoryError}
+          saving={categorySaving}
+          deleting={categoryDeleting}
+          assignedItemCount={items.filter((item) => item.categoryId === editingCategory.id).length}
+          onNameChange={(value) => {
+            setEditCategoryName(value);
+            setEditCategoryError("");
+          }}
+          onDescriptionChange={(value) => {
+            setEditCategoryDescription(value);
+            setEditCategoryError("");
+          }}
+          onColorChange={(value) => {
+            setEditCategoryColor(value);
+            setEditCategoryError("");
+          }}
+          onClose={closeEditCategory}
+          onSave={saveCategoryEdit}
+          onDelete={deleteEditedCategory}
+        />
       ) : null}
 
       {selectedItem ? (
@@ -1921,6 +2074,131 @@ export function ContentLibraryView() {
     </div>
   );
 }
+
+function CategoryEditModal({
+  category,
+  name,
+  description,
+  color,
+  error,
+  saving,
+  deleting,
+  assignedItemCount,
+  onNameChange,
+  onDescriptionChange,
+  onColorChange,
+  onClose,
+  onSave,
+  onDelete
+}: {
+  category: Category;
+  name: string;
+  description: string;
+  color: string;
+  error: string;
+  saving: boolean;
+  deleting: boolean;
+  assignedItemCount: number;
+  onNameChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onColorChange: (value: string) => void;
+  onClose: () => void;
+  onSave: (event: FormEvent<HTMLFormElement>) => void;
+  onDelete: () => void;
+}) {
+  const busy = saving || deleting;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[120] grid place-items-center bg-slate-950/40 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6">
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-category-title"
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-blue-100 bg-[#fbfdff] shadow-soft sm:max-h-[calc(100vh-3rem)]"
+        onSubmit={onSave}
+      >
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-blue-100 bg-white/75 p-4 sm:p-5">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Content category</p>
+            <h2 id="edit-category-title" className="mt-1 text-xl font-black text-ink">
+              Edit {category.name}
+            </h2>
+          </div>
+          <Button type="button" variant="ghost" size="icon" aria-label="Close category editor" disabled={busy} onClick={onClose}>
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 clean-scrollbar sm:p-5">
+          <div className="rounded-lg border border-blue-100 bg-white p-3 shadow-sm">
+            <Label htmlFor={`category-edit-name-${category.id}`}>Name</Label>
+            <Input
+              id={`category-edit-name-${category.id}`}
+              value={name}
+              onChange={(event) => onNameChange(event.target.value)}
+              required
+            />
+          </div>
+          <div className="rounded-lg border border-blue-100 bg-white p-3 shadow-sm">
+            <Label htmlFor={`category-edit-description-${category.id}`}>Description</Label>
+            <Textarea
+              id={`category-edit-description-${category.id}`}
+              value={description}
+              onChange={(event) => onDescriptionChange(event.target.value)}
+              className="min-h-24"
+            />
+          </div>
+          <div className="rounded-lg border border-blue-100 bg-white p-3 shadow-sm">
+            <Label htmlFor={`category-edit-color-${category.id}`}>Color</Label>
+            <div className="mt-1 grid gap-3 sm:grid-cols-[5rem_1fr]">
+              <Input
+                id={`category-edit-color-${category.id}`}
+                type="color"
+                value={isHexColor(color) ? color : "#dbeafe"}
+                onChange={(event) => onColorChange(event.target.value)}
+                className="h-12 min-h-12 cursor-pointer p-1"
+              />
+              <Input
+                value={color}
+                onChange={(event) => onColorChange(event.target.value)}
+                placeholder="#dbeafe"
+                aria-label="Category color hex value"
+              />
+            </div>
+            <FieldHint>Use a hex color like #dbeafe.</FieldHint>
+          </div>
+          {assignedItemCount > 0 ? (
+            <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-medium leading-5 text-amber-800">
+              This category is assigned to {assignedItemCount} learning item{assignedItemCount === 1 ? "" : "s"}. Move them before deleting it.
+            </p>
+          ) : null}
+          <FieldError message={error} />
+        </div>
+
+        <div className="grid shrink-0 gap-3 border-t border-blue-100 bg-white/80 p-4 sm:grid-cols-[auto_1fr] sm:p-5">
+          <Button type="button" variant="danger" disabled={busy || assignedItemCount > 0} onClick={onDelete}>
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            {deleting ? "Deleting..." : "Delete category"}
+          </Button>
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={busy}>
+              {saving ? "Saving..." : "Save category"}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </div>,
+    document.body
+  );
+}
+
+function isHexColor(value: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
 function getSymbolPlaceholder(label: string) {
   return label
     .replace(/[^a-z]/gi, "")
