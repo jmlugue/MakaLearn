@@ -80,7 +80,6 @@ export function LearningScene() {
                         className="h-full w-full object-contain"
                       />
                     </div>
-                    <p className="mt-2 text-center text-lg font-black uppercase text-ink sm:text-xl">{card.label}</p>
                   </div>
                 </article>
               </motion.div>

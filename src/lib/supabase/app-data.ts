@@ -401,6 +401,90 @@ export async function insertLesson(lesson: Lesson) {
   return { ...mapLesson(row, []), learningItemIds: lesson.learningItemIds };
 }
 
+export async function updateLesson(lesson: Lesson, previousLesson: Lesson) {
+  const supabase = getClientOrThrow();
+  const nextLessonItems = lesson.learningItemIds.map((learningItemId, index) => ({
+    lesson_id: lesson.id,
+    learning_item_id: learningItemId,
+    position: index
+  }));
+  const previousLessonItems = previousLesson.learningItemIds.map((learningItemId, index) => ({
+    lesson_id: previousLesson.id,
+    learning_item_id: learningItemId,
+    position: index
+  }));
+  const nextLearningItemIds = new Set(lesson.learningItemIds);
+  const previousLearningItemIds = new Set(previousLesson.learningItemIds);
+
+  try {
+    const row = (await expectData(
+      supabase
+        .from("lessons")
+        .update({
+          title: lesson.title,
+          objective: lesson.objective,
+          instructions: lesson.instructions,
+          activity_type: lesson.activityType,
+          estimated_duration: lesson.estimatedDuration,
+          notes: lesson.notes,
+          source: lesson.source,
+          visibility: lesson.visibility,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", lesson.id)
+        .select()
+        .single()
+    )) as LessonRow;
+
+    if (nextLessonItems.length) {
+      await expectData(supabase.from("lesson_items").upsert(nextLessonItems));
+    }
+
+    const staleLearningItemIds = previousLesson.learningItemIds.filter((id) => !nextLearningItemIds.has(id));
+    if (staleLearningItemIds.length) {
+      const deletedRows = (await expectData(
+        supabase
+          .from("lesson_items")
+          .delete()
+          .eq("lesson_id", lesson.id)
+          .in("learning_item_id", staleLearningItemIds)
+          .select("learning_item_id")
+      )) as Array<{ learning_item_id: string }>;
+      if (deletedRows.length !== staleLearningItemIds.length) {
+        throw new Error("Supabase did not replace every previous lesson item.");
+      }
+    }
+
+    return { ...mapLesson(row, []), learningItemIds: lesson.learningItemIds };
+  } catch (error) {
+    const insertedLearningItemIds = lesson.learningItemIds.filter((id) => !previousLearningItemIds.has(id));
+    if (insertedLearningItemIds.length) {
+      await supabase
+        .from("lesson_items")
+        .delete()
+        .eq("lesson_id", lesson.id)
+        .in("learning_item_id", insertedLearningItemIds);
+    }
+    await supabase
+      .from("lessons")
+      .update({
+        title: previousLesson.title,
+        objective: previousLesson.objective,
+        instructions: previousLesson.instructions,
+        activity_type: previousLesson.activityType,
+        estimated_duration: previousLesson.estimatedDuration,
+        notes: previousLesson.notes,
+        source: previousLesson.source,
+        visibility: previousLesson.visibility
+      })
+      .eq("id", previousLesson.id);
+    if (previousLessonItems.length) {
+      await supabase.from("lesson_items").upsert(previousLessonItems);
+    }
+    throw error;
+  }
+}
+
 export async function deleteLesson(lessonId: string) {
   const supabase = getClientOrThrow();
 

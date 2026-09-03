@@ -14,6 +14,7 @@ import {
   FolderOpen,
   Image as ImageIcon,
   Layers,
+  Pencil,
   PlayCircle,
   Plus,
   Search,
@@ -45,6 +46,7 @@ import {
   insertLesson,
   createActivityQuestions,
   updateCategoryDetails,
+  updateLesson,
   updateLearningItemDetails,
   updateLearningItemMedia
 } from "@/lib/supabase/app-data";
@@ -164,6 +166,7 @@ export function ContentLibraryView() {
   const [lessonItemSearch, setLessonItemSearch] = useState("");
   const [lessonError, setLessonError] = useState("");
   const [lessonFormOpen, setLessonFormOpen] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [showItemForm, setShowItemForm] = useState(false);
   const [itemError, setItemError] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
@@ -353,6 +356,7 @@ export function ContentLibraryView() {
 
   function generateDraft(item: LearningItem) {
     const nextDraft = createLessonDraftFromItem(item);
+    setEditingLesson(null);
     setDraft(nextDraft);
     setLessonTitle(nextDraft.title);
     setLessonObjective(nextDraft.objective);
@@ -372,6 +376,7 @@ export function ContentLibraryView() {
 
   function resetLessonForm() {
     setDraft(null);
+    setEditingLesson(null);
     setLessonTitle("");
     setLessonObjective("Practice selected learning items with teacher guidance.");
     setLessonInstructions(
@@ -453,6 +458,20 @@ export function ContentLibraryView() {
     setLessonFormOpen(true);
   }
 
+  function openEditLesson(lesson: Lesson) {
+    setDraft(null);
+    setEditingLesson(lesson);
+    setLessonTitle(lesson.title);
+    setLessonObjective(lesson.objective);
+    setLessonInstructions(lesson.instructions);
+    setLessonActivityType(lesson.activityType === "gesture-practice" ? "choose-correct-symbol" : lesson.activityType);
+    setLessonItemIds(lesson.learningItemIds);
+    setLessonItemSearch("");
+    setLessonError("");
+    setTab("lessons");
+    setLessonFormOpen(true);
+  }
+
   function closeLessonForm() {
     resetLessonForm();
     setLessonFormOpen(false);
@@ -474,9 +493,10 @@ export function ContentLibraryView() {
     const selectedPecsItems = selectedLessonItems.filter((item) => item.contentType === "pecs");
     const createsActivity = selectedPecsItems.length > 0;
     const resolvedActivityType: ActivityType = createsActivity ? lessonActivityType : "gesture-practice";
+    const isEditingLesson = Boolean(editingLesson);
     const activityLearningItems = selectedPecsItems;
     const activityId = `activity-lesson-${Date.now()}`;
-    const base = draft ?? {
+    const base = editingLesson ?? draft ?? {
       title: lessonTitle,
       objective: lessonObjective,
       learningItemIds: lessonItemIds,
@@ -494,13 +514,13 @@ export function ContentLibraryView() {
       instructions: lessonInstructions,
       learningItemIds: lessonItemIds,
       activityType: resolvedActivityType,
-      estimatedDuration: 10,
-      notes: "",
-      relatedActivityId: createsActivity ? activityId : undefined,
-      id: `lesson-${Date.now()}`,
-      createdBy: user.id
+      estimatedDuration: base.estimatedDuration,
+      notes: base.notes,
+      relatedActivityId: isEditingLesson ? editingLesson?.relatedActivityId : createsActivity ? activityId : undefined,
+      id: editingLesson?.id ?? `lesson-${Date.now()}`,
+      createdBy: editingLesson?.createdBy ?? user.id
     };
-    const nextActivity: Activity | null = createsActivity
+    const nextActivity: Activity | null = createsActivity && !isEditingLesson
       ? {
           id: activityId,
           title: `${lessonTitle.trim()} activity`,
@@ -515,27 +535,34 @@ export function ContentLibraryView() {
 
     let savedLesson = nextLesson;
     try {
-      savedLesson = await insertLesson(nextLesson);
+      savedLesson = editingLesson ? await updateLesson(nextLesson, editingLesson) : await insertLesson(nextLesson);
       if (nextActivity) {
         await insertActivity(nextActivity);
       }
     } catch (error) {
       notify({
-        title: "Lesson not saved",
-        description: error instanceof Error ? error.message : "The lesson could not be saved.",
+        title: editingLesson ? "Lesson not updated" : "Lesson not saved",
+        description: error instanceof Error ? error.message : editingLesson ? "The lesson could not be updated." : "The lesson could not be saved.",
         tone: "error"
       });
       return;
     }
 
-    const savedLessonWithLocalLink = { ...savedLesson, relatedActivityId: createsActivity ? activityId : undefined };
-    const nextLessons = [savedLessonWithLocalLink, ...lessons.filter((lesson) => lesson.id !== savedLessonWithLocalLink.id)];
+    const savedLessonWithLocalLink = {
+      ...savedLesson,
+      relatedActivityId: isEditingLesson ? editingLesson?.relatedActivityId : createsActivity ? activityId : undefined
+    };
+    const nextLessons = isEditingLesson
+      ? lessons.map((lesson) => (lesson.id === savedLessonWithLocalLink.id ? savedLessonWithLocalLink : lesson))
+      : [savedLessonWithLocalLink, ...lessons.filter((lesson) => lesson.id !== savedLessonWithLocalLink.id)];
     setLessons(nextLessons);
     logContentAction(
-      "create",
+      isEditingLesson ? "edit" : "create",
       "lesson",
       savedLesson.title,
-      createsActivity
+      isEditingLesson
+        ? "Updated lesson plan details and selected learning items."
+        : createsActivity
         ? `${savedLesson.source === "auto-generated" ? "Saved generated" : "Created manual"} lesson with a related activity.`
         : `${savedLesson.source === "auto-generated" ? "Saved generated" : "Created manual"} gesture lesson.`,
       savedLesson.id
@@ -543,8 +570,12 @@ export function ContentLibraryView() {
     resetLessonForm();
     setLessonFormOpen(false);
     notify({
-      title: "Lesson saved",
-      description: createsActivity ? "The lesson and related activity were added." : "The gesture lesson was added.",
+      title: isEditingLesson ? "Lesson updated" : "Lesson saved",
+      description: isEditingLesson
+        ? "Lesson details and selected learning items were saved."
+        : createsActivity
+          ? "The lesson and related activity were added."
+          : "The gesture lesson was added.",
       tone: "success"
     });
   }
@@ -1320,8 +1351,14 @@ export function ContentLibraryView() {
                 <BookPlus className="h-5 w-5" aria-hidden="true" />
               </span>
               <div>
-                <CardTitle>{draft ? "Review generated lesson plan" : "Create lesson plan"}</CardTitle>
-                <CardDescription>Set the objective, teaching sequence, and learning items.</CardDescription>
+                <CardTitle>
+                  {editingLesson ? "Edit lesson plan" : draft ? "Review generated lesson plan" : "Create lesson plan"}
+                </CardTitle>
+                <CardDescription>
+                  {editingLesson
+                    ? "Update the objective, teaching sequence, and learning item selection."
+                    : "Set the objective, teaching sequence, and learning items."}
+                </CardDescription>
               </div>
             </div>
             <form className="mt-5 space-y-4" onSubmit={saveDraft}>
@@ -1391,11 +1428,15 @@ export function ContentLibraryView() {
                       </option>
                     ))}
                   </Select>
-                  <FieldHint>Saving creates this activity for the selected PECS items. Gesture items stay in Gesture Practice.</FieldHint>
+                  <FieldHint>
+                    {editingLesson
+                      ? "Updates the lesson practice format for PECS items. Gesture items stay in Gesture Practice."
+                      : "Saving creates this activity for the selected PECS items. Gesture items stay in Gesture Practice."}
+                  </FieldHint>
                 </div>
               ) : null}
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Button type="submit">Save lesson</Button>
+                <Button type="submit">{editingLesson ? "Update lesson" : "Save lesson"}</Button>
                 <Button type="button" variant="outline" onClick={closeLessonForm}>
                   Cancel
                 </Button>
@@ -1445,6 +1486,10 @@ export function ContentLibraryView() {
                             </Button>
                           </Link>
                         )}
+                        <Button size="sm" variant="outline" className="w-full" onClick={() => openEditLesson(lesson)}>
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                          Edit lesson
+                        </Button>
                       </div>
                     </div>
                     <div className="mt-5">
@@ -1460,6 +1505,10 @@ export function ContentLibraryView() {
                         {lesson.learningItemIds.length} learning item{lesson.learningItemIds.length === 1 ? "" : "s"} selected
                       </p>
                       <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button size="sm" variant="outline" onClick={() => openEditLesson(lesson)}>
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                          Edit
+                        </Button>
                         <Button size="sm" variant="danger" onClick={() => setLessonPendingDelete(lesson)}>
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                           Delete
