@@ -16,7 +16,6 @@ import { CardFooter } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
-import { learningItems as mockLearningItems } from "@/data/mock-data";
 import {
   normalizePecsLabel,
   pecsCardCategories,
@@ -25,7 +24,6 @@ import {
   type PecsManifestCard
 } from "@/data/pecs-card-manifest";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { validatePecsSentence, type PecsSentenceValidationResult } from "@/utils/pecs-sentence-validation";
 import type { LearningItem } from "@/types";
 
@@ -36,54 +34,45 @@ type PlaygroundCard = PecsManifestCard & {
   imageUrl: string;
 };
 
-const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
 const allCategoriesLabel = "All cards";
 const filterCategories: Array<PecsCardCategory | typeof allCategoriesLabel> = [
   allCategoriesLabel,
   ...pecsCardCategories
 ];
 
-type LocalContentLibraryState = {
-  items: LearningItem[];
-};
-
-function readLocalContentLibrary(): LocalContentLibraryState | null {
-  if (typeof window === "undefined" || isSupabaseConfigured()) return null;
-
-  try {
-    const value = window.localStorage.getItem(CONTENT_LIBRARY_STORAGE_KEY);
-    return value ? (JSON.parse(value) as LocalContentLibraryState) : null;
-  } catch {
-    return null;
-  }
-}
-
 function getPecsItems(items: LearningItem[]) {
   return items.filter((item) => item.contentType === "pecs");
 }
 
 function buildPlaygroundCards(items: LearningItem[]): PlaygroundCard[] {
-  const itemByLabel = new Map(getPecsItems(items).map((item) => [normalizePecsLabel(item.label), item]));
+  const manifestByLabel = new Map(pecsCardManifest.map((card) => [normalizePecsLabel(card.label), card]));
 
-  return pecsCardManifest.map((card) => {
-    const matchingItem = itemByLabel.get(normalizePecsLabel(card.label));
-    const itemAudioUrl = matchingItem?.audioUrl;
+  return getPecsItems(items)
+    .flatMap((item) => {
+      if (!item.symbolImageUrl || !isEmbeddableMediaUrl(item.symbolImageUrl)) return [];
 
-    return {
-      ...card,
-      id: matchingItem?.id ?? `manifest-${card.filename.replace(/\.png$/i, "")}`,
-      learningItemId: matchingItem?.id,
-      sentenceRole: matchingItem?.sentenceRole ?? card.sentenceRole,
-      audioUrl: itemAudioUrl && isEmbeddableMediaUrl(itemAudioUrl) ? itemAudioUrl : card.audioPath,
-      imageUrl: matchingItem?.symbolImageUrl && isEmbeddableMediaUrl(matchingItem.symbolImageUrl)
-        ? matchingItem.symbolImageUrl
-        : card.imagePath
-    };
-  });
+      const manifestCard = manifestByLabel.get(normalizePecsLabel(item.label));
+
+      return [{
+        filename: manifestCard?.filename ?? `${item.id}.png`,
+        label: item.label,
+        category: manifestCard?.category ?? "Daily Needs",
+        sentenceRole: item.sentenceRole ?? manifestCard?.sentenceRole ?? "object",
+        id: item.id,
+        learningItemId: item.id,
+        audioUrl: item.audioUrl && isEmbeddableMediaUrl(item.audioUrl) ? item.audioUrl : undefined,
+        imageUrl: item.symbolImageUrl
+      }];
+    })
+    .sort((left, right) => {
+      const leftIndex = pecsCardManifest.findIndex((card) => normalizePecsLabel(card.label) === normalizePecsLabel(left.label));
+      const rightIndex = pecsCardManifest.findIndex((card) => normalizePecsLabel(card.label) === normalizePecsLabel(right.label));
+      return (leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex) - (rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex);
+    });
 }
 
 function isEmbeddableMediaUrl(value: string) {
-  return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/") || value.startsWith("blob:");
+  return value.startsWith("http://") || value.startsWith("https://");
 }
 
 function canUseAudioUrl(value?: string) {
@@ -120,8 +109,8 @@ function shuffleValues<T>(values: T[]) {
 export function PlaygroundView() {
   const { notify } = useToast();
   const { isStudentMode } = useStudentMode();
-  const [learningItems, setLearningItems] = useState<LearningItem[]>(mockLearningItems);
-  const [ready, setReady] = useState(!isSupabaseConfigured());
+  const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
+  const [ready, setReady] = useState(false);
   const [activeCategory, setActiveCategory] = useState<PecsCardCategory | typeof allCategoriesLabel>(allCategoriesLabel);
   const [cardOrderIds, setCardOrderIds] = useState<string[]>([]);
   const [sentenceCards, setSentenceCards] = useState<PlaygroundCard[]>([]);
@@ -136,25 +125,19 @@ export function PlaygroundView() {
     let active = true;
 
     async function loadCards() {
-      if (!isSupabaseConfigured()) {
-        const localContent = readLocalContentLibrary();
-        if (!active) return;
-        setLearningItems(localContent?.items?.length ? localContent.items : mockLearningItems);
-        setReady(true);
-        return;
-      }
-
       try {
         const data = await fetchMakaLearnData();
-        if (!active || !data) return;
-        setLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems);
+        if (!active) return;
+        setLearningItems(data.learningItems);
         setReady(true);
       } catch (error) {
         if (!active) return;
+        setLearningItems([]);
         setReady(true);
         notify({
-          title: "PECS cards ready",
-          description: "Saved PECS cards are available in this workspace."
+          title: "PECS cards unavailable",
+          description: "Supabase learning items could not be loaded.",
+          tone: "error"
         });
       }
     }

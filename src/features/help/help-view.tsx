@@ -72,8 +72,8 @@ const faqs = [
     answer: "Student Mode hides teacher editing tools and keeps the learner in Playground, Gesture Practice, and Activities."
   },
   {
-    question: "Why is Supabase still mentioned if local data works?",
-    answer: "The app is local-first for the MVP. Supabase integration points are prepared for auth, storage, and database records later."
+    question: "Why does MakaLearn use Supabase?",
+    answer: "Supabase is the persistence layer for auth, storage, and database records. Demo records are seed data for setup and testing."
   }
 ];
 

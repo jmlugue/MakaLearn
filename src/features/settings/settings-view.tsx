@@ -8,8 +8,9 @@ import { FieldError, FieldHint, Input, Label, Select } from "@/components/ui/for
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
-import { updateProfileDetails } from "@/lib/supabase/app-data";
-import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { fetchUserSettings, updateProfileDetails, upsertUserSettings } from "@/lib/supabase/app-data";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { UserSettings } from "@/types";
 
 type PasswordErrors = {
   currentPassword?: string;
@@ -31,6 +32,7 @@ export function SettingsView() {
   const [highContrast, setHighContrast] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [audioGuidance, setAudioGuidance] = useState(true);
+  const [theme, setTheme] = useState<UserSettings["theme"]>("soft-blue");
 
   useEffect(() => {
     document.documentElement.classList.toggle("large-text", largeText);
@@ -43,27 +45,71 @@ export function SettingsView() {
     setProfileEmail(user.email);
   }, [user]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadSettings() {
+      try {
+        const settings = await fetchUserSettings(user.id);
+        if (!active || !settings) return;
+        setLargeText(settings.largeText);
+        setHighContrast(settings.highContrast);
+        setReduceMotion(settings.reduceMotion);
+        setAudioGuidance(settings.audioGuidance);
+        setTheme(settings.theme);
+      } catch {
+        notify({
+          title: "Settings unavailable",
+          description: "Supabase settings could not be loaded.",
+          tone: "error"
+        });
+      }
+    }
+
+    loadSettings();
+
+    return () => {
+      active = false;
+    };
+  }, [notify, user.id]);
+
+  async function saveSettings(nextSettings: Omit<UserSettings, "userId" | "updatedAt">) {
+    await upsertUserSettings({
+      userId: user.id,
+      ...nextSettings
+    });
+  }
+
+  async function updateSettings(nextSettings: Omit<UserSettings, "userId" | "updatedAt">) {
+    try {
+      const saved = await saveSettings(nextSettings);
+      return saved;
+    } catch (error) {
+      notify({
+        title: "Setting not saved",
+        description: error instanceof Error ? error.message : "The setting could not be saved.",
+        tone: "error"
+      });
+      throw error;
+    }
+  }
+
   async function saveProfile() {
     if (!profileName.trim() || !profileEmail.includes("@")) {
       notify({ title: "Check profile details", description: "Name and a valid email are required." });
       return;
     }
 
-    if (isSupabaseConfigured()) {
-      try {
-        await updateProfileDetails(user.id, { name: profileName, email: profileEmail });
-        notify({ title: "Profile saved", description: "Profile details were saved.", tone: "success" });
-        return;
-      } catch {
-        notify({
-          title: "Profile saved",
-          description: "Profile update could not be completed."
-        });
-        return;
-      }
+    try {
+      await updateProfileDetails(user.id, { name: profileName, email: profileEmail });
+      notify({ title: "Profile saved", description: "Profile details were saved.", tone: "success" });
+    } catch (error) {
+      notify({
+        title: "Profile not saved",
+        description: error instanceof Error ? error.message : "Profile update could not be completed.",
+        tone: "error"
+      });
     }
-
-    notify({ title: "Profile saved", description: "Profile details were saved.", tone: "success" });
   }
 
   async function updatePassword(event: FormEvent<HTMLFormElement>) {
@@ -79,7 +125,7 @@ export function SettingsView() {
     if (nextErrors.currentPassword || nextErrors.newPassword || nextErrors.confirmPassword) return;
 
     const supabase = getSupabaseBrowserClient();
-    if (!isSupabaseConfigured() || !supabase) {
+    if (!supabase) {
       notify({ title: "Password update unavailable", description: "Ask an administrator to finish Supabase setup." });
       return;
     }
@@ -150,10 +196,54 @@ export function SettingsView() {
             <CardTitle>Accessibility settings</CardTitle>
           </div>
           <div className="mt-4 grid gap-3">
-            <Toggle label="Large text mode" checked={largeText} onChange={setLargeText} />
-            <Toggle label="High contrast mode" checked={highContrast} onChange={setHighContrast} />
-            <Toggle label="Reduce motion" checked={reduceMotion} onChange={setReduceMotion} />
-            <Toggle label="Audio guidance" checked={audioGuidance} onChange={setAudioGuidance} />
+            <Toggle
+              label="Large text mode"
+              checked={largeText}
+              onChange={async (value) => {
+                setLargeText(value);
+                try {
+                  await updateSettings({ largeText: value, highContrast, reduceMotion, audioGuidance, theme });
+                } catch {
+                  setLargeText(!value);
+                }
+              }}
+            />
+            <Toggle
+              label="High contrast mode"
+              checked={highContrast}
+              onChange={async (value) => {
+                setHighContrast(value);
+                try {
+                  await updateSettings({ largeText, highContrast: value, reduceMotion, audioGuidance, theme });
+                } catch {
+                  setHighContrast(!value);
+                }
+              }}
+            />
+            <Toggle
+              label="Reduce motion"
+              checked={reduceMotion}
+              onChange={async (value) => {
+                setReduceMotion(value);
+                try {
+                  await updateSettings({ largeText, highContrast, reduceMotion: value, audioGuidance, theme });
+                } catch {
+                  setReduceMotion(!value);
+                }
+              }}
+            />
+            <Toggle
+              label="Audio guidance"
+              checked={audioGuidance}
+              onChange={async (value) => {
+                setAudioGuidance(value);
+                try {
+                  await updateSettings({ largeText, highContrast, reduceMotion, audioGuidance: value, theme });
+                } catch {
+                  setAudioGuidance(!value);
+                }
+              }}
+            />
           </div>
         </Card>
 
@@ -224,11 +314,24 @@ export function SettingsView() {
           </div>
           <div className="mt-4">
             <Label htmlFor="theme">Theme</Label>
-            <Select id="theme">
+            <Select
+              id="theme"
+              value={theme}
+              onChange={async (event) => {
+                const nextTheme = event.target.value as UserSettings["theme"];
+                const previousTheme = theme;
+                setTheme(nextTheme);
+                try {
+                  await updateSettings({ largeText, highContrast, reduceMotion, audioGuidance, theme: nextTheme });
+                } catch {
+                  setTheme(previousTheme);
+                }
+              }}
+            >
               <option value="soft-blue">Soft blue</option>
               <option value="high-contrast">High contrast</option>
             </Select>
-            <FieldHint>Display preferences apply to this browser.</FieldHint>
+            <FieldHint>Display preferences are saved to your account.</FieldHint>
           </div>
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-blue-100 bg-skywash p-3">
             <Info className="mt-0.5 h-5 w-5 text-blue-600" aria-hidden="true" />

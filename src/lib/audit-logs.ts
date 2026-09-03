@@ -1,10 +1,8 @@
-import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { AppUser, AuditLog, AuditLogAction, AuditLogCategory } from "@/types";
 import type { Database } from "@/types/database";
 
 type AuditLogRow = Database["public"]["Tables"]["audit_logs"]["Row"];
-
-const LOCAL_AUDIT_LOGS_KEY = "makalearn-audit-logs";
 
 export type AuditLogInput = {
   category: AuditLogCategory;
@@ -34,15 +32,9 @@ export function mapAuditLogRow(row: AuditLogRow): AuditLog {
 export async function insertAuditLog(input: AuditLogInput) {
   const log = createAuditLog(input);
 
-  if (!isSupabaseConfigured()) {
-    storeLocalAuditLog(log);
-    return log;
-  }
-
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    storeLocalAuditLog(log);
-    return log;
+    throw new Error("Supabase is not configured. Audit logs require Supabase.");
   }
 
   const { data, error } = await supabase
@@ -63,21 +55,16 @@ export async function insertAuditLog(input: AuditLogInput) {
     .single();
 
   if (error) {
-    storeLocalAuditLog(log);
-    return log;
+    throw new Error(error.message);
   }
 
   return mapAuditLogRow(data);
 }
 
 export async function fetchAuditLogs() {
-  if (!isSupabaseConfigured()) {
-    return getLocalAuditLogs();
-  }
-
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    return getLocalAuditLogs();
+    throw new Error("Supabase is not configured. Audit logs require Supabase.");
   }
 
   const { data, error } = await supabase
@@ -87,7 +74,7 @@ export async function fetchAuditLogs() {
     .limit(80);
 
   if (error) {
-    return getLocalAuditLogs();
+    throw new Error(error.message);
   }
 
   return data.map(mapAuditLogRow);
@@ -106,22 +93,4 @@ function createAuditLog(input: AuditLogInput): AuditLog {
     detail: input.detail ?? "",
     createdAt: new Date().toISOString()
   };
-}
-
-function getLocalAuditLogs() {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const value = window.localStorage.getItem(LOCAL_AUDIT_LOGS_KEY);
-    return value ? (JSON.parse(value) as AuditLog[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function storeLocalAuditLog(log: AuditLog) {
-  if (typeof window === "undefined") return;
-
-  const logs = [log, ...getLocalAuditLogs()].slice(0, 80);
-  window.localStorage.setItem(LOCAL_AUDIT_LOGS_KEY, JSON.stringify(logs));
 }

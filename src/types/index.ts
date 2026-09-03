@@ -1,6 +1,6 @@
 export type UserRole = "admin" | "teacher";
 
-export type AuditLogCategory = "auth" | "content";
+export type AuditLogCategory = "auth" | "content" | "activity" | "gesture" | "settings" | "admin";
 
 export type AuditLogAction = "login" | "logout" | "upload" | "create" | "edit" | "delete";
 
@@ -74,8 +74,8 @@ export type LearningItem = {
   symbolImageUrl?: string;
   gestureMediaUrl?: string;
   audioUrl?: string;
-  // Future Supabase: add sentence_role to learning_items. Playground uses the
-  // supplied manifest as the fallback mapping until the database field exists.
+  // Supabase stores sentence_role on learning_items; the manifest can still
+  // help classify imported PECS/AAC seed material.
   sentenceRole?: SentenceRole;
   tags: string[];
   createdBy: string;
@@ -102,7 +102,8 @@ export type ActivityType =
   | "choose-correct-symbol"
   | "fill-blank"
   | "drag-drop-symbol"
-  | "gesture-practice";
+  | "gesture-practice"
+  | "simple-quiz";
 
 export type Activity = {
   id: string;
@@ -134,4 +135,48 @@ export type AuditLog = {
   targetTitle: string;
   detail: string;
   createdAt: string;
+};
+
+export type PracticeAttemptStatus = "correct" | "good-attempt" | "needs-practice" | "no-hand-detected";
+
+export type PracticeAttempt = {
+  id: string;
+  learnerId?: string;
+  learningItemId: string;
+  teacherId: string;
+  status: PracticeAttemptStatus;
+  feedback: string;
+  createdAt: string;
+};
+
+export type ActivityResult = {
+  id: string;
+  activityId: string;
+  learnerId?: string;
+  teacherId: string;
+  score: number;
+  correctCount: number;
+  incorrectCount: number;
+  answers: Record<string, string>;
+  createdAt: string;
+};
+
+export type ActivityPromptTemplate = {
+  id: string;
+  activityType: Extract<ActivityType, "choose-correct-symbol" | "fill-blank">;
+  learningItemId: string;
+  prompt: string;
+  source: "hugging-face" | "local-fallback" | "manual";
+  createdBy: string;
+  updatedAt: string;
+};
+
+export type UserSettings = {
+  userId: string;
+  largeText: boolean;
+  highContrast: boolean;
+  reduceMotion: boolean;
+  audioGuidance: boolean;
+  theme: "soft-blue" | "high-contrast";
+  updatedAt: string;
 };

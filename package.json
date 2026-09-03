@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "lint": "next lint"
+    "lint": "next lint",
+    "supabase:migrate-learning-media": "node scripts/upload-learning-media.mjs",
+    "supabase:migrate-learning-media:dry-run": "node scripts/upload-learning-media.mjs --dry-run"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.35",
@@ -30,5 +32,8 @@
     "tailwindcss": "^3.4.4",
     "three": "^0.170.0",
     "typescript": "^5.5.3"
+  },
+  "devDependencies": {
+    "supabase": "^2.116.0"
   }
 }

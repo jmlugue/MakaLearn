@@ -15,8 +15,6 @@ export type PecsManifestCard = {
   label: string;
   category: PecsCardCategory;
   sentenceRole: SentenceRole;
-  imagePath: string;
-  audioPath: string;
 };
 
 type ManifestRow = {
@@ -36,15 +34,13 @@ export const pecsCardCategories: PecsCardCategory[] = [
   "Safety Words"
 ];
 
-// The provided manifest is the frontend source of truth for PECS/AAC category
-// and sentence-role metadata until learning_items.sentence_role exists.
+// The manifest keeps category and sentence-role metadata aligned with the
+// learning media migration. Runtime media URLs come from Supabase rows.
 export const pecsCardManifest: PecsManifestCard[] = (manifestRows as ManifestRow[]).map((row) => ({
   filename: row.filename,
   label: row.label,
   category: row.category,
-  sentenceRole: row.sentence_role,
-  imagePath: `/pecs/generated_cards/${row.filename}`,
-  audioPath: `/audio/pecs/${row.filename.replace(/\.png$/i, ".wav")}`
+  sentenceRole: row.sentence_role
 }));
 
 export function normalizePecsLabel(label: string) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useContext, useMemo, useState } from "react";
 
 type StudentModeContextValue = {
   isStudentMode: boolean;
@@ -9,23 +9,15 @@ type StudentModeContextValue = {
 };
 
 const StudentModeContext = createContext<StudentModeContextValue | null>(null);
-const STUDENT_MODE_STORAGE_KEY = "makalearn-student-mode";
-
 export function clearStudentModePreference() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STUDENT_MODE_STORAGE_KEY);
+  // Student Mode is intentionally session-only during the Supabase-only migration.
 }
 
 export function StudentModeProvider({ children }: { children: ReactNode }) {
   const [isStudentMode, setIsStudentMode] = useState(false);
 
-  useEffect(() => {
-    setIsStudentMode(window.localStorage.getItem(STUDENT_MODE_STORAGE_KEY) === "true");
-  }, []);
-
   function enterStudentMode() {
     setIsStudentMode(true);
-    window.localStorage.setItem(STUDENT_MODE_STORAGE_KEY, "true");
   }
 
   function exitStudentMode() {

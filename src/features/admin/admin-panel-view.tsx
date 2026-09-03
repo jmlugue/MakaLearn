@@ -12,9 +12,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { fetchAuditLogs } from "@/lib/audit-logs";
-import { activities, demoUsers, learningItems, mediaAssets } from "@/data/mock-data";
 import { fetchMakaLearnData, updateProfileRole } from "@/lib/supabase/app-data";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/utils";
 import type { Activity as ActivityRecord, AppUser, AuditLog, LearningItem, MediaAsset, UserRole } from "@/types";
 
@@ -23,10 +21,10 @@ type ContentLogFilter = "all" | "upload" | "create" | "edit" | "delete";
 export function AdminPanelView() {
   const { user } = useAuthUser();
   const { notify } = useToast();
-  const [users, setUsers] = useState<AppUser[]>(demoUsers);
-  const [itemRecords, setItemRecords] = useState<LearningItem[]>(learningItems);
-  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>(activities);
-  const [uploadRecords, setUploadRecords] = useState<MediaAsset[]>(mediaAssets);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [itemRecords, setItemRecords] = useState<LearningItem[]>([]);
+  const [activityRecords, setActivityRecords] = useState<ActivityRecord[]>([]);
+  const [uploadRecords, setUploadRecords] = useState<MediaAsset[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [contentLogFilter, setContentLogFilter] = useState<ContentLogFilter>("all");
   const [resettingPasswordUserId, setResettingPasswordUserId] = useState<string | null>(null);
@@ -37,15 +35,16 @@ export function AdminPanelView() {
     async function loadSupabaseData() {
       try {
         const data = await fetchMakaLearnData();
-        if (!active || !data) return;
-        setUsers(data.users.length ? data.users : demoUsers);
-        setItemRecords(data.learningItems.length ? data.learningItems : learningItems);
-        setActivityRecords(data.activities.length ? data.activities : activities);
-        setUploadRecords(data.mediaAssets.length ? data.mediaAssets : mediaAssets);
+        if (!active) return;
+        setUsers(data.users);
+        setItemRecords(data.learningItems);
+        setActivityRecords(data.activities);
+        setUploadRecords(data.mediaAssets);
       } catch (error) {
         notify({
-          title: "Admin data ready",
-          description: "Saved admin data is available in this workspace."
+          title: "Admin data unavailable",
+          description: "Supabase admin data could not be loaded.",
+          tone: "error"
         });
       }
     }
@@ -61,9 +60,13 @@ export function AdminPanelView() {
     let active = true;
 
     async function loadAuditLogs() {
-      const logs = await fetchAuditLogs();
-      if (active) {
-        setAuditLogs(logs);
+      try {
+        const logs = await fetchAuditLogs();
+        if (active) {
+          setAuditLogs(logs);
+        }
+      } catch {
+        if (active) setAuditLogs([]);
       }
     }
 
@@ -77,61 +80,13 @@ export function AdminPanelView() {
   const teacherCount = users.filter((candidate) => candidate.role === "teacher").length;
   const adminCount = users.filter((candidate) => candidate.role === "admin").length;
   const pecsCount = itemRecords.filter((item) => item.contentType === "pecs").length;
-  const previewLogs = useMemo<AuditLog[]>(
-    () => [
-      ...users.slice(0, 4).map((candidate) => ({
-        id: `preview-auth-${candidate.id}`,
-        category: "auth" as const,
-        action: candidate.status === "deactivated" ? ("logout" as const) : ("login" as const),
-        actorId: candidate.id,
-        actorName: candidate.name,
-        targetType: "session",
-        targetTitle: candidate.status === "deactivated" ? "Signed out" : "Signed in",
-        detail: `${candidate.name} is ${candidate.status}.`,
-        createdAt: new Date().toISOString()
-      })),
-      ...uploadRecords.slice(0, 3).map((asset) => ({
-        id: `preview-upload-${asset.id}`,
-        category: "content" as const,
-        action: "upload" as const,
-        actorId: asset.uploadedBy,
-        actorName: users.find((candidate) => candidate.id === asset.uploadedBy)?.name ?? "MakaLearn user",
-        targetType: "media",
-        targetId: asset.id,
-        targetTitle: asset.title,
-        detail: `${asset.title} in ${asset.bucket}.`,
-        createdAt: asset.uploadedAt
-      })),
-      ...activityRecords.slice(0, 3).map((activity) => ({
-        id: `preview-activity-${activity.id}`,
-        category: "content" as const,
-        action: "edit" as const,
-        actorId: activity.createdBy,
-        actorName: users.find((candidate) => candidate.id === activity.createdBy)?.name ?? "MakaLearn user",
-        targetType: "activity",
-        targetId: activity.id,
-        targetTitle: activity.title,
-        detail: `${activity.title} uses ${activity.learningItemIds.length} PECS card(s).`,
-        createdAt: new Date().toISOString()
-      }))
-    ],
-    [activityRecords, uploadRecords, users]
-  );
-  const visibleLogs = auditLogs.length ? auditLogs : previewLogs;
+  const visibleLogs = auditLogs;
   const accountLogs = visibleLogs.filter((log) => log.category === "auth");
   const contentLogs = visibleLogs.filter(
     (log) => log.category === "content" && (contentLogFilter === "all" || log.action === contentLogFilter)
   );
 
   async function changeRole(candidate: AppUser, role: UserRole) {
-    const updated = { ...candidate, role };
-    setUsers((current) => current.map((item) => (item.id === candidate.id ? updated : item)));
-
-    if (!isSupabaseConfigured()) {
-      notify({ title: "Role updated", description: `${candidate.name} is now ${role}.`, tone: "success" });
-      return;
-    }
-
     try {
       const saved = await updateProfileRole(candidate.id, role);
       setUsers((current) => current.map((item) => (item.id === candidate.id ? saved : item)));
@@ -145,14 +100,31 @@ export function AdminPanelView() {
     }
   }
 
-  function toggleAccountStatus(candidate: AppUser) {
+  async function toggleAccountStatus(candidate: AppUser) {
     const nextStatus = candidate.status === "deactivated" ? "active" : "deactivated";
-    setUsers((current) => current.map((item) => (item.id === candidate.id ? { ...item, status: nextStatus } : item)));
-    notify({
-      title: nextStatus === "active" ? "Account activated" : "Account deactivated",
-      description: `${candidate.name} was updated.`,
-      tone: "success"
-    });
+    try {
+      const response = await fetch("/api/admin/account-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: candidate.id, status: nextStatus })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { user?: AppUser; error?: string };
+      if (!response.ok || !payload.user) {
+        throw new Error(payload.error ?? "Account status could not be updated.");
+      }
+      setUsers((current) => current.map((item) => (item.id === candidate.id ? payload.user as AppUser : item)));
+      notify({
+        title: nextStatus === "active" ? "Account activated" : "Account deactivated",
+        description: `${candidate.name} was updated.`,
+        tone: "success"
+      });
+    } catch (error) {
+      notify({
+        title: "Account update failed",
+        description: error instanceof Error ? error.message : "Account status could not be updated.",
+        tone: "error"
+      });
+    }
   }
 
   async function resetTeacherPassword(candidate: AppUser) {
@@ -196,7 +168,7 @@ export function AdminPanelView() {
     }
   }
 
-  function createTeacher(event: FormEvent<HTMLFormElement>) {
+  async function createTeacher(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const name = String(form.get("teacherName") ?? "").trim();
@@ -207,21 +179,31 @@ export function AdminPanelView() {
       return;
     }
 
-    const nextTeacher: AppUser = {
-      id: `user-teacher-${Date.now()}`,
-      name,
-      email,
-      role: "teacher",
-      status: "active"
-    };
+    try {
+      const response = await fetch("/api/admin/create-teacher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email })
+      });
+      const payload = (await response.json().catch(() => ({}))) as { user?: AppUser; error?: string };
+      if (!response.ok || !payload.user) {
+        throw new Error(payload.error ?? "Teacher account could not be created.");
+      }
 
-    setUsers((current) => [nextTeacher, ...current]);
-    event.currentTarget.reset();
-    notify({
-      title: "Teacher account created",
-      description: "Teacher account was added.",
-      tone: "success"
-    });
+      setUsers((current) => [payload.user as AppUser, ...current.filter((candidate) => candidate.id !== payload.user?.id)]);
+      event.currentTarget.reset();
+      notify({
+        title: "Teacher account created",
+        description: "Teacher account was added.",
+        tone: "success"
+      });
+    } catch (error) {
+      notify({
+        title: "Teacher account not created",
+        description: error instanceof Error ? error.message : "Teacher account could not be created.",
+        tone: "error"
+      });
+    }
   }
 
   if (user.role !== "admin") {

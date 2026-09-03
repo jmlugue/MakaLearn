@@ -1,16 +1,20 @@
-import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { mapMediaAssetRow } from "@/lib/supabase/media";
 import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
 import { createChooseCorrectSymbolPrompt } from "@/utils/starter-learning-item-prompts";
 import type {
   Activity,
+  ActivityPromptTemplate,
   ActivityQuestion,
+  ActivityResult,
   AppUser,
   Category,
   Learner,
   LearningItem,
   Lesson,
-  MediaAsset
+  MediaAsset,
+  PracticeAttempt,
+  UserSettings
 } from "@/types";
 import type { Database } from "@/types/database";
 
@@ -23,6 +27,10 @@ type LessonRow = Tables["lessons"]["Row"];
 type LessonItemRow = Tables["lesson_items"]["Row"];
 type ActivityRow = Tables["activities"]["Row"];
 type ActivityItemRow = Tables["activity_items"]["Row"];
+type ActivityPromptTemplateRow = Tables["activity_prompt_templates"]["Row"];
+type ActivityResultRow = Tables["activity_results"]["Row"];
+type PracticeAttemptRow = Tables["practice_attempts"]["Row"];
+type UserSettingsRow = Tables["user_settings"]["Row"];
 
 export type MakaLearnData = {
   users: AppUser[];
@@ -32,6 +40,7 @@ export type MakaLearnData = {
   mediaAssets: MediaAsset[];
   lessons: Lesson[];
   activities: Activity[];
+  promptTemplates: ActivityPromptTemplate[];
 };
 
 function getClientOrThrow() {
@@ -79,9 +88,7 @@ function mapLearner(row: LearnerRow): Learner {
 function mapLearningItem(row: LearningItemRow): LearningItem {
   return {
     id: row.id,
-    // Future Supabase: add a content_type column so PECS and gesture records
-    // are separated in the database instead of inferred locally.
-    contentType: getLearningItemContentType(row),
+    contentType: row.content_type,
     label: row.label,
     categoryId: row.category_id,
     description: row.description,
@@ -89,8 +96,59 @@ function mapLearningItem(row: LearningItemRow): LearningItem {
     symbolImageUrl: row.symbol_image_url ?? undefined,
     gestureMediaUrl: row.gesture_media_url ?? undefined,
     audioUrl: row.audio_url ?? undefined,
+    sentenceRole: row.sentence_role ?? undefined,
     tags: row.tags,
     createdBy: row.created_by,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapActivityPromptTemplate(row: ActivityPromptTemplateRow): ActivityPromptTemplate {
+  return {
+    id: row.id,
+    activityType: row.activity_type,
+    learningItemId: row.learning_item_id,
+    prompt: row.prompt,
+    source: row.source,
+    createdBy: row.created_by,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapActivityResult(row: ActivityResultRow): ActivityResult {
+  return {
+    id: row.id,
+    activityId: row.activity_id,
+    learnerId: row.learner_id ?? undefined,
+    teacherId: row.teacher_id,
+    score: row.score,
+    correctCount: row.correct_count,
+    incorrectCount: row.incorrect_count,
+    answers: typeof row.answers === "object" && row.answers ? (row.answers as Record<string, string>) : {},
+    createdAt: row.created_at
+  };
+}
+
+function mapPracticeAttempt(row: PracticeAttemptRow): PracticeAttempt {
+  return {
+    id: row.id,
+    learnerId: row.learner_id ?? undefined,
+    learningItemId: row.learning_item_id,
+    teacherId: row.teacher_id,
+    status: row.status,
+    feedback: row.feedback,
+    createdAt: row.created_at
+  };
+}
+
+function mapUserSettings(row: UserSettingsRow): UserSettings {
+  return {
+    userId: row.user_id,
+    largeText: row.large_text,
+    highContrast: row.high_contrast,
+    reduceMotion: row.reduce_motion,
+    audioGuidance: row.audio_guidance,
+    theme: row.theme,
     updatedAt: row.updated_at
   };
 }
@@ -146,9 +204,7 @@ async function expectData<T>(
   return data as NonNullable<T>;
 }
 
-export async function fetchMakaLearnData(): Promise<MakaLearnData | null> {
-  if (!isSupabaseConfigured()) return null;
-
+export async function fetchMakaLearnData(): Promise<MakaLearnData> {
   const supabase = getClientOrThrow();
   const [
     profiles,
@@ -159,7 +215,8 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData | null> {
     lessons,
     lessonItems,
     activities,
-    activityItems
+    activityItems,
+    promptTemplates
   ] = await Promise.all([
     expectData(supabase.from("profiles").select("*").order("name")),
     expectData(supabase.from("categories").select("*").order("name")),
@@ -169,7 +226,8 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData | null> {
     expectData(supabase.from("lessons").select("*").order("created_at", { ascending: false })),
     expectData(supabase.from("lesson_items").select("*").order("position")),
     expectData(supabase.from("activities").select("*").order("created_at", { ascending: false })),
-    expectData(supabase.from("activity_items").select("*").order("position"))
+    expectData(supabase.from("activity_items").select("*").order("position")),
+    expectData(supabase.from("activity_prompt_templates").select("*").order("updated_at", { ascending: false }))
   ]);
 
   return {
@@ -179,7 +237,8 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData | null> {
     learningItems: learningItems.map(mapLearningItem),
     mediaAssets: mediaAssets.map(mapMediaAssetRow),
     lessons: lessons.map((lesson) => mapLesson(lesson, lessonItems)),
-    activities: activities.map((activity) => mapActivity(activity, activityItems))
+    activities: activities.map((activity) => mapActivity(activity, activityItems)),
+    promptTemplates: promptTemplates.map(mapActivityPromptTemplate)
   };
 }
 
@@ -263,6 +322,7 @@ export async function insertLearningItem(item: LearningItem) {
       .from("learning_items")
       .insert({
         id: item.id,
+        content_type: item.contentType,
         label: item.label,
         category_id: item.categoryId,
         description: item.description,
@@ -270,6 +330,7 @@ export async function insertLearningItem(item: LearningItem) {
         symbol_image_url: item.symbolImageUrl ?? null,
         gesture_media_url: item.gestureMediaUrl ?? null,
         audio_url: item.audioUrl ?? null,
+        sentence_role: item.sentenceRole ?? null,
         tags: item.tags,
         created_by: item.createdBy,
         updated_at: item.updatedAt
@@ -288,9 +349,11 @@ export async function updateLearningItemDetails(item: LearningItem) {
       .from("learning_items")
       .update({
         label: item.label,
+        content_type: item.contentType,
         category_id: item.categoryId,
         description: item.description,
         instruction: item.instruction,
+        sentence_role: item.sentenceRole ?? null,
         tags: item.tags,
         updated_at: item.updatedAt
       })
@@ -427,12 +490,11 @@ export async function updateActivity(activity: Activity, previousActivity: Activ
     learning_item_id: question.learningItemId,
     position: index
   }));
+  const newQuestionIds = new Set(newQuestionRows.map((question) => question.id));
+  const previousQuestionIds = previousQuestionRows.map((question) => question.id);
+  const previousQuestionIdSet = new Set(previousQuestionIds);
 
   try {
-    if (newQuestionRows.length) {
-      await expectData(supabase.from("activity_items").insert(newQuestionRows));
-    }
-
     const row = (await expectData(
       supabase
         .from("activities")
@@ -449,21 +511,27 @@ export async function updateActivity(activity: Activity, previousActivity: Activ
         .single()
     )) as ActivityRow;
 
-    const previousQuestionIds = previousActivity.questions.map((question) => question.id);
-    if (previousQuestionIds.length) {
+    if (newQuestionRows.length) {
+      await expectData(supabase.from("activity_items").upsert(newQuestionRows));
+    }
+
+    const staleQuestionIds = previousQuestionIds.filter((id) => !newQuestionIds.has(id));
+    if (staleQuestionIds.length) {
       const deletedRows = (await expectData(
-        supabase.from("activity_items").delete().in("id", previousQuestionIds).select("id")
+        supabase.from("activity_items").delete().in("id", staleQuestionIds).select("id")
       )) as Array<{ id: string }>;
-      if (deletedRows.length !== previousQuestionIds.length) {
+      if (deletedRows.length !== staleQuestionIds.length) {
         throw new Error("Supabase did not replace every previous activity question.");
       }
     }
 
     return { ...mapActivity(row, []), questions: activity.questions };
   } catch (error) {
-    const newQuestionIds = activity.questions.map((question) => question.id);
-    if (newQuestionIds.length) {
-      await supabase.from("activity_items").delete().in("id", newQuestionIds);
+    const insertedQuestionIds = newQuestionRows
+      .map((question) => question.id)
+      .filter((id) => !previousQuestionIdSet.has(id));
+    if (insertedQuestionIds.length) {
+      await supabase.from("activity_items").delete().in("id", insertedQuestionIds);
     }
     await supabase
       .from("activities")
@@ -550,6 +618,136 @@ export async function updateProfileDetails(userId: string, input: Pick<AppUser, 
   return mapProfile(row);
 }
 
+export async function updateProfileStatus(userId: string, status: AppUser["status"]) {
+  const supabase = getClientOrThrow();
+  const row = (await expectData(
+    supabase
+      .from("profiles")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", userId)
+      .select()
+      .single()
+  )) as ProfileRow;
+
+  return mapProfile(row);
+}
+
+export async function fetchActivityPromptTemplates(
+  activityType?: ActivityPromptTemplate["activityType"]
+) {
+  const supabase = getClientOrThrow();
+  const query = supabase.from("activity_prompt_templates").select("*").order("updated_at", { ascending: false });
+  const rows = (await expectData(
+    activityType ? query.eq("activity_type", activityType) : query
+  )) as ActivityPromptTemplateRow[];
+
+  return rows.map(mapActivityPromptTemplate);
+}
+
+export async function upsertActivityPromptTemplates(
+  prompts: Array<Pick<ActivityPromptTemplate, "activityType" | "learningItemId" | "prompt" | "createdBy"> & Partial<Pick<ActivityPromptTemplate, "source">>>
+) {
+  if (!prompts.length) return [];
+
+  const supabase = getClientOrThrow();
+  const now = new Date().toISOString();
+  const rows = (await expectData(
+    supabase
+      .from("activity_prompt_templates")
+      .upsert(
+        prompts.map((prompt) => ({
+          id: `${prompt.activityType}:${prompt.learningItemId}`,
+          activity_type: prompt.activityType,
+          learning_item_id: prompt.learningItemId,
+          prompt: prompt.prompt,
+          source: prompt.source ?? "manual",
+          created_by: prompt.createdBy,
+          updated_at: now
+        })),
+        { onConflict: "activity_type,learning_item_id" }
+      )
+      .select()
+  )) as ActivityPromptTemplateRow[];
+
+  return rows.map(mapActivityPromptTemplate);
+}
+
+export async function insertActivityResult(
+  result: Omit<ActivityResult, "id" | "createdAt">
+) {
+  const supabase = getClientOrThrow();
+  const row = (await expectData(
+    supabase
+      .from("activity_results")
+      .insert({
+        activity_id: result.activityId,
+        learner_id: result.learnerId ?? null,
+        teacher_id: result.teacherId,
+        score: result.score,
+        correct_count: result.correctCount,
+        incorrect_count: result.incorrectCount,
+        answers: result.answers
+      })
+      .select()
+      .single()
+  )) as ActivityResultRow;
+
+  return mapActivityResult(row);
+}
+
+export async function insertPracticeAttempt(
+  attempt: Omit<PracticeAttempt, "id" | "createdAt">
+) {
+  const supabase = getClientOrThrow();
+  const row = (await expectData(
+    supabase
+      .from("practice_attempts")
+      .insert({
+        learner_id: attempt.learnerId ?? null,
+        learning_item_id: attempt.learningItemId,
+        teacher_id: attempt.teacherId,
+        status: attempt.status,
+        feedback: attempt.feedback
+      })
+      .select()
+      .single()
+  )) as PracticeAttemptRow;
+
+  return mapPracticeAttempt(row);
+}
+
+export async function fetchUserSettings(userId: string): Promise<UserSettings | null> {
+  const supabase = getClientOrThrow();
+  const { data, error } = await supabase.from("user_settings").select("*").eq("user_id", userId).maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? mapUserSettings(data) : null;
+}
+
+export async function upsertUserSettings(settings: Omit<UserSettings, "updatedAt">) {
+  const supabase = getClientOrThrow();
+  const row = (await expectData(
+    supabase
+      .from("user_settings")
+      .upsert({
+        user_id: settings.userId,
+        large_text: settings.largeText,
+        high_contrast: settings.highContrast,
+        reduce_motion: settings.reduceMotion,
+        audio_guidance: settings.audioGuidance,
+        theme: settings.theme,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+  )) as UserSettingsRow;
+
+  return mapUserSettings(row);
+}
+
 export function createActivityQuestions(
   type: Activity["type"],
   selectedItems: LearningItem[],
@@ -622,6 +820,3 @@ function createFillBlankPrompt(item: LearningItem) {
   return createFillBlankPromptForLabel(item.label);
 }
 
-function getLearningItemContentType(row: LearningItemRow): LearningItem["contentType"] {
-  return row.tags.includes("gesture") ? "gesture" : "pecs";
-}

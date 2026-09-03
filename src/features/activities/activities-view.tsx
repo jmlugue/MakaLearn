@@ -10,7 +10,6 @@ import { SelectionList } from "@/components/ui/selection-list";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
-import { activities as mockActivities, learningItems as mockLearningItems } from "@/data/mock-data";
 import { StudentActivityPlayer } from "@/features/activities/student-activity-player";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
@@ -26,9 +25,10 @@ import {
   deleteActivity,
   fetchMakaLearnData,
   insertActivity,
-  updateActivity
+  insertActivityResult,
+  updateActivity,
+  upsertActivityPromptTemplates
 } from "@/lib/supabase/app-data";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { activityTypeLabels } from "@/utils/activity-labels";
 import {
   getSavedFillBlankPromptForLabel,
@@ -48,66 +48,25 @@ const activityTypes: ActivityType[] = [
   "choose-correct-symbol",
   "fill-blank",
   "drag-drop-symbol",
-  "gesture-practice"
+  "gesture-practice",
+  "simple-quiz"
 ];
 const activityTypeDescriptions: Record<ActivityType, string> = {
   "match-word-symbol": "Match words to pictures.",
   "choose-correct-symbol": "Pick the right picture.",
   "fill-blank": "Choose the missing word.",
   "drag-drop-symbol": "Drag pictures to words.",
-  "gesture-practice": "Practice gestures."
+  "gesture-practice": "Practice gestures.",
+  "simple-quiz": "Answer guided questions."
 };
 type ActivityTab = "workspace" | "library";
-const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
-const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
-const SELECTED_ACTIVITY_SESSION_KEY = "makalearn-selected-activity";
-const ACTIVITY_PROMPTS_STORAGE_KEY = "makalearn-activity-prompts";
 const MAX_ACTIVITY_LEARNING_ITEMS = 5;
-
-type LocalContentLibraryState = {
-  items?: LearningItem[];
-};
 
 type ActivityPromptStore = Record<string, string>;
 type ActivityPromptInputs = Record<string, string>;
 
 function getPromptStoreKey(type: ActivityType, learningItemId: string) {
   return `${type}:${learningItemId}`;
-}
-
-function readLocalActivityPrompts(): ActivityPromptStore {
-  if (typeof window === "undefined") return {};
-
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(ACTIVITY_PROMPTS_STORAGE_KEY) ?? "{}") as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === "string")
-    );
-  } catch {
-    return {};
-  }
-}
-
-function writeLocalActivityPrompts(prompts: ActivityPromptStore) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(ACTIVITY_PROMPTS_STORAGE_KEY, JSON.stringify(prompts));
-}
-
-function readLocalActivities(): Activity[] | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const value = window.localStorage.getItem(LOCAL_ACTIVITIES_STORAGE_KEY);
-    if (value === null) return null;
-    const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed)
-      ? upgradeStarterActivityPrompts((parsed as Activity[]).filter((activity) => activityTypes.includes(activity.type)))
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 function upgradeStarterActivityPrompts(records: Activity[]) {
@@ -126,35 +85,6 @@ function upgradeStarterActivityPrompts(records: Activity[]) {
       })
     };
   });
-}
-
-function mergeActivities(primary: Activity[], fallback: Activity[]) {
-  const seen = new Set<string>();
-  return [...primary, ...fallback].filter((activity) => {
-    if (seen.has(activity.id) || !activityTypes.includes(activity.type)) return false;
-    seen.add(activity.id);
-    return true;
-  });
-}
-
-function mergeLearningItems(primary: LearningItem[], fallback: LearningItem[]) {
-  const fallbackById = new Map(fallback.map((item) => [item.id, item]));
-  const merged = primary.map((item) => ({ ...(fallbackById.get(item.id) ?? {}), ...item }) as LearningItem);
-  const seen = new Set(merged.map((item) => item.id));
-  return [...merged, ...fallback.filter((item) => !seen.has(item.id))];
-}
-
-function readLocalContentLibraryItems(): LearningItem[] | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const value = window.localStorage.getItem(CONTENT_LIBRARY_STORAGE_KEY);
-    if (!value) return null;
-    const parsed = JSON.parse(value) as LocalContentLibraryState;
-    return Array.isArray(parsed.items) ? parsed.items : null;
-  } catch {
-    return null;
-  }
 }
 
 function getValidActivityType(value?: string): ActivityType | undefined {
@@ -176,12 +106,8 @@ function getInitialActivity(activities: Activity[], activityId?: string, activit
 }
 
 function getSavedQuestionPrompt(type: ActivityType, item: LearningItem, promptStore: ActivityPromptStore) {
-  const localPrompt = promptStore[getPromptStoreKey(type, item.id)];
-  if (localPrompt) {
-    if (type === "fill-blank" && isGenericFillBlankPrompt(item.label, localPrompt)) return undefined;
-    if (type === "choose-correct-symbol" && isGenericChooseCorrectSymbolPrompt(item, localPrompt)) return undefined;
-    return localPrompt;
-  }
+  const savedPrompt = promptStore[getPromptStoreKey(type, item.id)];
+  if (savedPrompt) return savedPrompt;
 
   if (type === "fill-blank") return getSavedFillBlankPromptForLabel(item.label);
   if (type === "choose-correct-symbol") return getSavedChooseCorrectSymbolPrompt(item);
@@ -221,37 +147,10 @@ function getActivityTypeDraftText(type: ActivityType) {
   return "Draft missing reusable question prompts for selected PECS items.";
 }
 
-function readSelectedActivitySessionId() {
-  if (typeof window === "undefined") return "";
-
-  try {
-    return window.sessionStorage.getItem(SELECTED_ACTIVITY_SESSION_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function writeSelectedActivitySessionId(activityId: string) {
-  if (typeof window === "undefined" || !activityId) return;
-
-  try {
-    window.sessionStorage.setItem(SELECTED_ACTIVITY_SESSION_KEY, activityId);
-  } catch {
-    // Session storage can be unavailable in restricted browsers. The player still
-    // works with in-memory state for the current render.
-  }
-}
-
 function getInitialSelectedActivity(activities: Activity[], activityId?: string, activityType?: ActivityType) {
   if (activityId) {
     const requested = activities.find((activity) => activity.id === activityId);
     if (requested) return requested;
-  }
-
-  const storedActivityId = readSelectedActivitySessionId();
-  if (storedActivityId) {
-    const storedActivity = activities.find((activity) => activity.id === storedActivityId);
-    if (storedActivity) return storedActivity;
   }
 
   return getInitialActivity(activities, activityId, activityType);
@@ -304,7 +203,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   const { isStudentMode } = useStudentMode();
   const { notify } = useToast();
   const requestedActivityType = getValidActivityType(initialActivityType);
-  const [activities, setActivities] = useState<Activity[]>(isSupabaseConfigured() ? [] : mockActivities);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [activitiesReady, setActivitiesReady] = useState(false);
   const [tab, setTab] = useState<ActivityTab>("workspace");
   const [createFormOpen, setCreateFormOpen] = useState(false);
@@ -314,12 +213,8 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   const [learningItemSearch, setLearningItemSearch] = useState("");
   const [activityPendingDelete, setActivityPendingDelete] = useState<Activity | null>(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
-  const [learningItems, setLearningItems] = useState<LearningItem[]>(getActivityItems(mockLearningItems));
-  const [selectedActivityId, setSelectedActivityId] = useState(
-    isSupabaseConfigured()
-      ? ""
-      : getInitialSelectedActivity(mockActivities, initialActivityId, requestedActivityType)?.id ?? mockActivities[0].id
-  );
+  const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
+  const [selectedActivityId, setSelectedActivityId] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [dragged, setDragged] = useState("");
   const [result, setResult] = useState<{ score: number; correct: number; incorrect: number } | null>(null);
@@ -338,34 +233,14 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     let active = true;
 
     async function loadSupabaseData() {
-      if (!isSupabaseConfigured()) {
-        const localActivities = readLocalActivities();
-        const nextActivities = upgradeStarterActivityPrompts(localActivities ? mergeActivities(localActivities, mockActivities) : mockActivities);
-        const nextLearningItems = getActivityItems(upgradeStarterLearningItemPrompts(readLocalContentLibraryItems() ?? mockLearningItems));
-        if (!active) return;
-        setActivities(nextActivities);
-        setLearningItems(nextLearningItems);
-        setSelectedActivityId((current) => {
-          if (initialActivityId) return getInitialActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "";
-          if (nextActivities.some((activity) => activity.id === current)) return current;
-          return getInitialSelectedActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "";
-        });
-        setActivitiesReady(true);
-        return;
-      }
-
       try {
         const data = await fetchMakaLearnData();
-        if (!active || !data) return;
-        // An empty table is valid after deletions; never replace it with mock activities.
-        const nextActivities = upgradeStarterActivityPrompts(mergeActivities(data.activities, readLocalActivities() ?? []));
+        if (!active) return;
+        const nextActivities = upgradeStarterActivityPrompts(data.activities);
         setActivities(nextActivities);
-        setLearningItems(
-          getActivityItems(
-            upgradeStarterLearningItemPrompts(
-              mergeLearningItems(data.learningItems.length ? data.learningItems : mockLearningItems, readLocalContentLibraryItems() ?? [])
-            )
-          )
+        setLearningItems(getActivityItems(upgradeStarterLearningItemPrompts(data.learningItems)));
+        setActivityPromptStore(
+          Object.fromEntries(data.promptTemplates.map((template) => [getPromptStoreKey(template.activityType, template.learningItemId), template.prompt]))
         );
         setSelectedActivityId((current) => {
           const requestedActivity = initialActivityId ? getInitialActivity(nextActivities, initialActivityId, requestedActivityType) : undefined;
@@ -376,19 +251,16 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         setActivitiesReady(true);
       } catch (error) {
         if (!active) return;
-        const nextActivities = upgradeStarterActivityPrompts(mergeActivities(readLocalActivities() ?? [], mockActivities));
-        const nextLearningItems = getActivityItems(upgradeStarterLearningItemPrompts(readLocalContentLibraryItems() ?? mockLearningItems));
+        const nextActivities: Activity[] = [];
+        const nextLearningItems: LearningItem[] = [];
         setActivities(nextActivities);
         setLearningItems(nextLearningItems);
-        setSelectedActivityId((current) => {
-          if (initialActivityId) return getInitialActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "";
-          if (nextActivities.some((activity) => activity.id === current)) return current;
-          return getInitialSelectedActivity(nextActivities, initialActivityId, requestedActivityType)?.id ?? "";
-        });
+        setSelectedActivityId("");
         setActivitiesReady(true);
         notify({
-          title: "Activities ready",
-          description: "Saved activity materials are available."
+          title: "Activities unavailable",
+          description: "Supabase activity records could not be loaded.",
+          tone: "error"
         });
       }
     }
@@ -399,19 +271,6 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       active = false;
     };
   }, [initialActivityId, notify, requestedActivityType]);
-
-  useEffect(() => {
-    if (!activitiesReady || typeof window === "undefined") return;
-    window.localStorage.setItem(LOCAL_ACTIVITIES_STORAGE_KEY, JSON.stringify(activities));
-  }, [activities, activitiesReady]);
-
-  useEffect(() => {
-    writeSelectedActivitySessionId(selectedActivityId);
-  }, [selectedActivityId]);
-
-  useEffect(() => {
-    setActivityPromptStore(readLocalActivityPrompts());
-  }, []);
 
   useEffect(() => {
     if (!isStudentMode) return;
@@ -479,7 +338,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     setResult(null);
   }
 
-  function scoreActivity(questionIds?: string[]) {
+  async function scoreActivity(questionIds?: string[]) {
     if (!selectedActivity) {
       notify({ title: "No activity selected", description: "Choose or create an activity before scoring." });
       return;
@@ -494,6 +353,22 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     const incorrect = questionsToScore.length - correct;
     const score = questionsToScore.length ? Math.round((correct / questionsToScore.length) * 100) : 0;
     setResult({ score, correct, incorrect });
+    try {
+      await insertActivityResult({
+        activityId: selectedActivity.id,
+        teacherId: user.id,
+        score,
+        correctCount: correct,
+        incorrectCount: incorrect,
+        answers
+      });
+    } catch (error) {
+      notify({
+        title: "Result not saved",
+        description: error instanceof Error ? error.message : "The activity result could not be saved.",
+        tone: "error"
+      });
+    }
     if (isStudentMode) return;
 
     const presentation = getResultPresentation(score);
@@ -568,7 +443,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
     }
   }
 
-  async function generateAiActivityDraft() {
+  async function generateAiActivityDraft(regenerate = false) {
     const selectedLearningItems = selectedLearningItemIds
       .map((id) => learningItems.find((item) => item.id === id))
       .filter((item): item is LearningItem => Boolean(item));
@@ -611,9 +486,11 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       return;
     }
 
-    const missingLearningItemIds = selectedLearningItems
-      .filter((item) => !getPromptInputValue(type, item, activityPromptInputs))
-      .map((item) => item.id);
+    const missingLearningItemIds = regenerate
+      ? selectedLearningItems.map((item) => item.id)
+      : selectedLearningItems
+          .filter((item) => !getPromptInputValue(type, item, activityPromptInputs))
+          .map((item) => item.id);
 
     if (!missingLearningItemIds.length) {
       setAiDraftNote("Each selected item already has a question.");
@@ -638,7 +515,8 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
         body: JSON.stringify({
           activityType: type,
           learningItems: selectedLearningItems,
-          missingLearningItemIds
+          missingLearningItemIds,
+          regenerate
         })
       });
 
@@ -648,26 +526,28 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
 
       const draft = (await response.json()) as ActivityDraftResult;
       if (draft.suggestions.length) {
-        const nextStore = {
-          ...activityPromptStore,
-          ...Object.fromEntries(draft.suggestions.map((suggestion) => [getPromptStoreKey(type, suggestion.learningItemId), suggestion.prompt]))
-        };
         const nextInputs = {
           ...activityPromptInputs,
           ...Object.fromEntries(draft.suggestions.map((suggestion) => [getQuestionPromptInputKey(type, suggestion.learningItemId), suggestion.prompt]))
         };
-        setActivityPromptStore(nextStore);
+        setActivityPromptStore((current) => ({
+          ...current,
+          ...Object.fromEntries(draft.suggestions.map((suggestion) => [getPromptStoreKey(type, suggestion.learningItemId), suggestion.prompt]))
+        }));
         setActivityPromptInputs(nextInputs);
-        writeLocalActivityPrompts(nextStore);
       }
       setAiDraftNote(draft.note || "Draft with AI finished.");
       notify({
-        title: draft.source === "hugging-face" ? "AI prompts ready" : "Activity prompts ready",
-        description:
+        title:
           draft.source === "hugging-face"
-            ? "Questions were added for the selected items."
-            : draft.note || "No Hugging Face call was needed.",
-        tone: draft.source === "hugging-face" ? "success" : "info"
+            ? "AI prompts ready"
+            : draft.source === "cache"
+              ? "Saved AI draft used"
+              : draft.source === "rate-limited"
+                ? "AI limit reached"
+                : "Starter prompts added",
+        description: draft.note || "Questions were added for the selected items.",
+        tone: draft.source === "hugging-face" || draft.source === "cache" ? "success" : "info"
       });
     } catch {
       setAiDraftNote("Could not create questions with AI. You can type the questions below.");
@@ -723,9 +603,30 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       })
     ) as Record<string, string>;
     if (canDraftQuestionPrompts(type)) {
-      const nextStore = { ...activityPromptStore, ...promptOverrides };
-      setActivityPromptStore(nextStore);
-      writeLocalActivityPrompts(nextStore);
+      try {
+        await upsertActivityPromptTemplates(
+          selectedLearningItems.flatMap((item) => {
+            const prompt = promptOverrides[getPromptStoreKey(type, item.id)];
+            return prompt
+              ? [{
+                  activityType: type,
+                  learningItemId: item.id,
+                  prompt,
+                  source: "manual" as const,
+                  createdBy: user.id
+                }]
+              : [];
+          })
+        );
+        setActivityPromptStore((current) => ({ ...current, ...promptOverrides }));
+      } catch (error) {
+        notify({
+          title: "Question prompts not saved",
+          description: error instanceof Error ? error.message : "Reusable prompts could not be saved.",
+          tone: "error"
+        });
+        return;
+      }
     }
     const questions = createActivityQuestions(type, selectedLearningItems, learningItems, promptOverrides);
     const nextActivity: Activity = {
@@ -739,14 +640,17 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       createdBy: editingActivity?.createdBy ?? user.id
     };
     let savedActivity = nextActivity;
-    if (isSupabaseConfigured()) {
-      try {
-        savedActivity = editingActivity
-          ? await updateActivity(nextActivity, editingActivity)
-          : await insertActivity(nextActivity);
-      } catch (error) {
-        console.error("Supabase activity save failed. Keeping the activity in local state for this session.", error);
-      }
+    try {
+      savedActivity = editingActivity
+        ? await updateActivity(nextActivity, editingActivity)
+        : await insertActivity(nextActivity);
+    } catch (error) {
+      notify({
+        title: "Activity not saved",
+        description: error instanceof Error ? error.message : "The activity could not be saved.",
+        tone: "error"
+      });
+      return;
     }
     setActivities((current) =>
       editingActivity
@@ -770,12 +674,16 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   async function confirmDeleteActivity(activity: Activity) {
     setDeleteInProgress(true);
 
-    if (isSupabaseConfigured()) {
-      try {
-        await deleteActivity(activity.id);
-      } catch (error) {
-        console.error("Supabase activity delete failed. Removing the activity from local workspace data.", error);
-      }
+    try {
+      await deleteActivity(activity.id);
+    } catch (error) {
+      notify({
+        title: "Activity not deleted",
+        description: error instanceof Error ? error.message : "The activity could not be deleted.",
+        tone: "error"
+      });
+      setDeleteInProgress(false);
+      return;
     }
 
     const remainingActivities = activities.filter((candidate) => candidate.id !== activity.id);
@@ -944,10 +852,18 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                     </div>
                   </div>
                   {type !== "gesture-practice" ? (
-                    <Button type="button" variant="secondary" onClick={generateAiActivityDraft} disabled={aiDraftInProgress}>
-                      {aiDraftInProgress ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
-                      {aiDraftInProgress ? "Drafting..." : "Draft with AI"}
-                    </Button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button type="button" variant="secondary" onClick={() => generateAiActivityDraft(false)} disabled={aiDraftInProgress}>
+                        {aiDraftInProgress ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
+                        {aiDraftInProgress ? "Drafting..." : "Draft with AI"}
+                      </Button>
+                      {canDraftQuestionPrompts(type) && selectedLearningItemIds.length ? (
+                        <Button type="button" variant="outline" onClick={() => generateAiActivityDraft(true)} disabled={aiDraftInProgress}>
+                          <Sparkles className="h-4 w-4" aria-hidden="true" />
+                          Generate new version
+                        </Button>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
                 {type !== "gesture-practice" ? (

@@ -10,21 +10,21 @@ MakaLearn is intended to support:
 - Learners who need communication support
 - Classroom-based guided practice
 
-This MVP is **not a mockup-only project**. It should become a semi-working web app with a real app structure, local placeholder data first, and a clean path toward Supabase authentication, database, storage, and role-based access.
+This MVP is **not a mockup-only project**. It should become a semi-working web app with a real app structure, Supabase-backed persistence, and role-based access.
 
 ## Final MVP direction
 
-Build the planned app interface and local flows first, then prepare the codebase so Supabase can be connected afterward.
+Build the planned app interface around Supabase Auth, database records, storage uploads, and server-side integration points.
 
-For the first build:
+For the current build:
 - Build the UI and local interactions.
-- Use placeholder data.
-- Create database-ready TypeScript types.
-- Prepare auth screens and backend integration points.
+- Use Supabase for real app persistence.
+- Keep placeholder data as seed/demo material.
+- Create and maintain database-ready TypeScript types.
+- Use auth screens and backend integration points.
 - Prepare upload UI and file handling structure.
-- Do not fully connect Supabase yet unless explicitly asked.
 
-Later, Supabase will handle:
+Supabase handles or is being connected for:
 - Auth
 - Profiles and roles
 - Learners
@@ -44,7 +44,7 @@ Use:
 - shadcn/ui
 - lucide-react
 
-Prepare for later:
+Use for app persistence:
 - Supabase Auth
 - Supabase Database
 - Supabase Storage
@@ -109,15 +109,15 @@ After login:
 - Teacher should go to Content Library.
 - Admin should go to Admin Panel.
 
-For the local-first build, simulate the role using local state, demo login buttons, or a simple local user object. Later this will be replaced by Supabase Auth and a `profiles` table.
+Use Supabase Auth and a `profiles` table for roles. Demo login buttons may remain only as development conveniences when they sign in through Supabase demo accounts.
 
 ## MVP data behavior
 
-Use placeholder data first.
+Use Supabase data for runtime app records.
 
-Use clear comments where data will later come from Supabase.
+Keep placeholder data as development seed/demo material.
 
-For local data, create mock records for:
+For seed data, maintain records for:
 - Admin user
 - Teacher user
 - Learners
@@ -126,6 +126,8 @@ For local data, create mock records for:
 - Lessons
 - Activities
 - Uploaded media records
+
+Do not use browser `localStorage` as real persistence for users, learners, content, activities, AI prompt cache, or quota tracking.
 
 ## Content policy for learning content
 

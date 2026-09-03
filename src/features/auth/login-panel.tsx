@@ -72,6 +72,13 @@ export function LoginPanel() {
 
     try {
       const profile = await getSignedInProfile(data.user.id);
+      if (profile.status !== "active") {
+        await supabase.auth.signOut();
+        const message = "This MakaLearn account is not active. Ask an administrator to reactivate it.";
+        setFormError(message);
+        notify({ title: "Account inactive", description: message, tone: "error" });
+        return;
+      }
       await insertAuditLog({
         category: "auth",
         action: "login",

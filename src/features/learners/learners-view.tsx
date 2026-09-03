@@ -11,9 +11,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
-import { demoUsers, learners as mockLearners } from "@/data/mock-data";
 import { fetchMakaLearnData, upsertLearner } from "@/lib/supabase/app-data";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import type { AppUser, Learner, PreferredLearningMode } from "@/types";
 
@@ -22,8 +20,8 @@ const modes: PreferredLearningMode[] = ["Visual", "Audio", "Gesture", "Mixed", "
 export function LearnersView() {
   const { user } = useAuthUser();
   const { notify } = useToast();
-  const [learners, setLearners] = useState<Learner[]>(mockLearners);
-  const [users, setUsers] = useState<AppUser[]>(demoUsers);
+  const [learners, setLearners] = useState<Learner[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("active");
   const [formOpen, setFormOpen] = useState(false);
@@ -32,7 +30,7 @@ export function LearnersView() {
   const [age, setAge] = useState("");
   const [mode, setMode] = useState<PreferredLearningMode>("Visual");
   const [notes, setNotes] = useState("");
-  const [assignedTeacherId, setAssignedTeacherId] = useState("user-teacher");
+  const [assignedTeacherId, setAssignedTeacherId] = useState(user.role === "teacher" ? user.id : "");
   const [profilePhotoUrl, setProfilePhotoUrl] = useState("/placeholder-new");
   const [error, setError] = useState("");
 
@@ -42,13 +40,14 @@ export function LearnersView() {
     async function loadSupabaseData() {
       try {
         const data = await fetchMakaLearnData();
-        if (!active || !data) return;
-        setLearners(data.learners.length ? data.learners : mockLearners);
-        setUsers(data.users.length ? data.users : demoUsers);
+        if (!active) return;
+        setLearners(data.learners);
+        setUsers(data.users);
       } catch (error) {
         notify({
-          title: "Learner data ready",
-          description: "Saved learner profiles are available in this workspace."
+          title: "Learners unavailable",
+          description: "Supabase learner profiles could not be loaded.",
+          tone: "error"
         });
       }
     }
@@ -75,7 +74,7 @@ export function LearnersView() {
     setAge(learner?.age ? String(learner.age) : "");
     setMode(learner?.preferredLearningMode ?? "Visual");
     setNotes(learner?.communicationNeeds ?? "");
-    setAssignedTeacherId(learner?.assignedTeacherId ?? (user.role === "teacher" ? user.id : "user-teacher"));
+    setAssignedTeacherId(learner?.assignedTeacherId ?? (user.role === "teacher" ? user.id : ""));
     setProfilePhotoUrl(learner?.profilePhotoUrl ?? "/placeholder-new");
     setError("");
     setFormOpen(true);
@@ -87,7 +86,7 @@ export function LearnersView() {
     setAge("");
     setMode("Visual");
     setNotes("");
-    setAssignedTeacherId(user.role === "teacher" ? user.id : "user-teacher");
+    setAssignedTeacherId(user.role === "teacher" ? user.id : "");
     setProfilePhotoUrl("/placeholder-new");
     setError("");
     setFormOpen(false);
@@ -97,6 +96,10 @@ export function LearnersView() {
     event.preventDefault();
     if (!name.trim()) {
       setError("Learner name is required.");
+      return;
+    }
+    if (user.role === "admin" && !assignedTeacherId) {
+      setError("Choose an assigned teacher.");
       return;
     }
 
@@ -113,15 +116,15 @@ export function LearnersView() {
     };
 
     let savedLearner = nextLearner;
-    if (isSupabaseConfigured()) {
-      try {
-        savedLearner = await upsertLearner(nextLearner);
-      } catch {
-        notify({
-          title: "Learner saved",
-          description: "The learner profile could not be saved."
-        });
-      }
+    try {
+      savedLearner = await upsertLearner(nextLearner);
+    } catch (error) {
+      notify({
+        title: "Learner not saved",
+        description: error instanceof Error ? error.message : "The learner profile could not be saved.",
+        tone: "error"
+      });
+      return;
     }
 
     if (editing) {
@@ -148,15 +151,15 @@ export function LearnersView() {
     const learner = learners.find((candidate) => candidate.id === learnerId);
     if (!learner) return;
     const archived = { ...learner, status: "inactive" as const };
-    if (isSupabaseConfigured()) {
-      try {
-        await upsertLearner(archived);
-      } catch {
-        notify({
-          title: "Learner archived",
-          description: "The learner profile could not be archived."
-        });
-      }
+    try {
+      await upsertLearner(archived);
+    } catch (error) {
+      notify({
+        title: "Learner not archived",
+        description: error instanceof Error ? error.message : "The learner profile could not be archived.",
+        tone: "error"
+      });
+      return;
     }
     setLearners((current) =>
       current.map((candidate) => (candidate.id === learnerId ? archived : candidate))

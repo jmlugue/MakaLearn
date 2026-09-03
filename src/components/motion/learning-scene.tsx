@@ -1,15 +1,15 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
+import Image from "next/image";
 import { motion, useReducedMotion, type PanInfo } from "framer-motion";
 
 const pecsCards = [
-  { label: "Hello", src: "/pecs/generated_cards/hello.png" },
-  { label: "Please", src: "/pecs/generated_cards/please.png" },
-  { label: "Help", src: "/pecs/generated_cards/help.png" },
-  { label: "More", src: "/pecs/generated_cards/more.png" },
-  { label: "Drink", src: "/pecs/generated_cards/drink.png" }
+  { label: "Hello", image: "/pecs/generated_cards/hello.png" },
+  { label: "Please", image: "/pecs/generated_cards/please.png" },
+  { label: "Help", image: "/pecs/generated_cards/help.png" },
+  { label: "More", image: "/pecs/generated_cards/more.png" },
+  { label: "Drink", image: "/pecs/generated_cards/drink.png" }
 ];
 
 function getCardOffset(index: number, activeIndex: number) {
@@ -55,7 +55,7 @@ export function LearningScene() {
 
             return (
               <motion.div
-                key={card.src}
+                key={card.label}
                 className="absolute inset-0 grid place-items-center"
                 animate={{
                   x: offset * 124,
@@ -71,8 +71,14 @@ export function LearningScene() {
               >
                 <article className="h-56 w-40 rounded-2xl border border-blue-100 bg-white p-3 shadow-[0_22px_55px_rgba(37,99,235,0.18)] sm:h-72 sm:w-52">
                   <div className="flex h-full flex-col rounded-xl border border-slate-900/20 bg-white p-2">
-                    <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg bg-slate-50">
-                      <Image src={card.src} alt={`${card.label} PECS card`} fill sizes="220px" className="object-contain p-2" />
+                    <div className="grid min-h-0 flex-1 place-items-center rounded-lg border border-blue-100 bg-slate-50">
+                      <Image
+                        src={card.image}
+                        alt={`${card.label} placeholder learning card`}
+                        width={320}
+                        height={320}
+                        className="h-full w-full object-contain"
+                      />
                     </div>
                     <p className="mt-2 text-center text-lg font-black uppercase text-ink sm:text-xl">{card.label}</p>
                   </div>

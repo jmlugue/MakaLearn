@@ -28,9 +28,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { FieldHint, Label, Select } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
+import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
-import { categories as mockCategories, learningItems as mockLearningItems } from "@/data/mock-data";
-import { fetchMakaLearnData } from "@/lib/supabase/app-data";
+import { fetchMakaLearnData, insertPracticeAttempt } from "@/lib/supabase/app-data";
 import { cn } from "@/lib/utils";
 import { generateCorrectiveFeedbackPlaceholder } from "@/utils/gesture-feedback";
 import {
@@ -96,6 +96,7 @@ const trackingMeta: Record<
 
 export function GesturePracticeView() {
   const { notify } = useToast();
+  const { user } = useAuthUser();
   const { isStudentMode } = useStudentMode();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -111,10 +112,8 @@ export function GesturePracticeView() {
   const lastAutoAudioKeyRef = useRef<string | null>(null);
   const noHandsFrameCountRef = useRef(0);
   const showHandLandmarksRef = useRef(true);
-  const [learningItems, setLearningItems] = useState<LearningItem[]>(
-    getFixedGestureItems(mockLearningItems)
-  );
-  const [categories, setCategories] = useState<Category[]>(mockCategories);
+  const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [cameraStarted, setCameraStarted] = useState(false);
   const [trackerStatus, setTrackerStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [detectedHandCount, setDetectedHandCount] = useState(0);
@@ -150,14 +149,15 @@ export function GesturePracticeView() {
     async function loadSupabaseData() {
       try {
         const data = await fetchMakaLearnData();
-        if (!active || !data) return;
+        if (!active) return;
         const gestureItems = ensureFixedGestureItems(data.learningItems);
-        setLearningItems(gestureItems.length ? gestureItems : ensureFixedGestureItems(mockLearningItems));
-        setCategories(data.categories.length ? data.categories : mockCategories);
+        setLearningItems(gestureItems);
+        setCategories(data.categories);
       } catch (error) {
         notify({
-          title: "Gesture data ready",
-          description: "Saved gesture references are available in this workspace."
+          title: "Gesture data unavailable",
+          description: "Supabase gesture references could not be loaded.",
+          tone: "error"
         });
       }
     }
@@ -361,13 +361,34 @@ export function GesturePracticeView() {
 
     currentPredictionLabelRef.current = nextLabel;
     setPrediction(nextPrediction);
-    setFeedback(
-      nextPrediction
-        ? generateCorrectiveFeedbackPlaceholder()
-        : isStudentMode
-          ? ""
-          : "No supported pose matched yet. Check the examples and hold one pose steadily."
-    );
+    const nextFeedback = nextPrediction
+      ? generateCorrectiveFeedbackPlaceholder()
+      : isStudentMode
+        ? ""
+        : "No supported pose matched yet. Check the examples and hold one pose steadily.";
+    setFeedback(nextFeedback);
+    if (nextPrediction && selectedGesture) {
+      void savePracticeAttempt(nextPrediction, nextFeedback);
+    }
+  }
+
+  async function savePracticeAttempt(nextPrediction: DemoGesturePrediction, nextFeedback: string) {
+    if (!selectedGesture) return;
+
+    try {
+      await insertPracticeAttempt({
+        learningItemId: selectedGesture.id,
+        teacherId: user.id,
+        status: nextPrediction.label === selectedGesture.label ? "correct" : "good-attempt",
+        feedback: nextFeedback
+      });
+    } catch {
+      notify({
+        title: "Practice attempt not saved",
+        description: "Supabase could not save this gesture attempt.",
+        tone: "error"
+      });
+    }
   }
 
   function handleGestureChange(nextGestureId: string) {
@@ -721,38 +742,7 @@ function getFixedGestureItems(items: LearningItem[]) {
 }
 
 function ensureFixedGestureItems(items: LearningItem[]) {
-  const fixedItems = getFixedGestureItems(items);
-  const requiredItems = getFixedGestureItems(mockLearningItems);
-  const requiredByLabel = new Map(requiredItems.map((item) => [item.label, item]));
-  const upgradedItems = fixedItems.map((item) => {
-    const required = requiredByLabel.get(item.label);
-    if (!required) return item;
-
-    return {
-      ...item,
-      // Keep teacher-uploaded media, but replace old local placeholder codes
-      // and demo filenames with the bundled gesture reference images.
-      symbolImageUrl: shouldUseBundledGestureReference(item.symbolImageUrl) ? required.symbolImageUrl : item.symbolImageUrl,
-      gestureMediaUrl: shouldUseBundledGestureReference(item.gestureMediaUrl) ? required.gestureMediaUrl : item.gestureMediaUrl,
-      audioUrl: shouldUseGeneratedGestureAudio(item.audioUrl) ? required.audioUrl : item.audioUrl
-    };
-  });
-  const existingLabels = new Set(upgradedItems.map((item) => item.label));
-
-  return [
-    ...upgradedItems,
-    ...requiredItems.filter((item) => !existingLabels.has(item.label))
-  ];
-}
-
-function shouldUseGeneratedGestureAudio(value?: string) {
-  return !value || (/demo\.mp3$/i.test(value) && !value.startsWith("/audio/"));
-}
-
-function shouldUseBundledGestureReference(value?: string) {
-  const mediaValue = value?.trim();
-  if (!mediaValue) return true;
-  return !(canEmbedMedia(mediaValue) && (isImageUrl(mediaValue) || isVideoUrl(mediaValue)));
+  return getFixedGestureItems(items);
 }
 
 function LearnerReferenceFlipCard({

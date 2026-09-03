@@ -126,6 +126,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (data.status !== "active") {
+      await supabase.auth.signOut();
+      setCurrentUser(null);
+      setError("This MakaLearn account is not active. Ask an administrator to reactivate it.");
+      finishProfileRefresh();
+      return;
+    }
+
     setCurrentUser(mapProfile(data));
     setError("");
     finishProfileRefresh();

@@ -35,13 +35,6 @@ import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { insertAuditLog } from "@/lib/audit-logs";
 import {
-  categories as mockCategories,
-  demoUsers,
-  learningItems,
-  lessons as mockLessons,
-  mediaAssets
-} from "@/data/mock-data";
-import {
   deleteCategory,
   deleteLearningItem,
   deleteLesson,
@@ -55,34 +48,24 @@ import {
   updateLearningItemDetails,
   updateLearningItemMedia
 } from "@/lib/supabase/app-data";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import { createLessonDraftFromItem } from "@/utils/lesson-template";
 import {
   ensurePecsManifestCategories,
   ensurePecsManifestItems,
-  ensurePecsManifestMediaRecords,
   getSpeechFallbackLabel,
   isSpeechFallbackAudio
 } from "@/utils/pecs-content-library";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
 import { formatDate } from "@/lib/utils";
 import { getActivityTypeLabel } from "@/utils/activity-labels";
-import type { Activity, ActivityType, Category, LearningItem, Lesson, MediaAsset } from "@/types";
+import type { Activity, ActivityType, AppUser, Category, LearningItem, Lesson, MediaAsset } from "@/types";
 
 type Tab = "items" | "lessons" | "categories" | "media";
 type ContentKind = "pecs" | "gesture";
 type NewItemMediaKey = "symbol" | "gesture" | "audio";
 type NewItemFiles = Partial<Record<NewItemMediaKey, File>>;
-type ContentLibraryLocalState = {
-  items: LearningItem[];
-  lessons: Lesson[];
-  categories: Category[];
-  mediaRecords: MediaAsset[];
-};
 
-const CONTENT_LIBRARY_STORAGE_KEY = "makalearn-content-library";
-const LOCAL_ACTIVITIES_STORAGE_KEY = "makalearn-activities";
 const CONTENT_ITEMS_PER_PAGE = 25;
 const allContentCategoriesLabel = "All categories";
 
@@ -126,89 +109,6 @@ const fixedGestureLabels = new Set([
   "Sit down"
 ]);
 
-function readLocalContentLibrary(): ContentLibraryLocalState | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const value = window.localStorage.getItem(CONTENT_LIBRARY_STORAGE_KEY);
-    return value ? (JSON.parse(value) as ContentLibraryLocalState) : null;
-  } catch {
-    return null;
-  }
-}
-
-function readLocalActivities(): Activity[] {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const value = window.localStorage.getItem(LOCAL_ACTIVITIES_STORAGE_KEY);
-    const parsed = value ? (JSON.parse(value) as unknown) : [];
-    return Array.isArray(parsed) ? (parsed as Activity[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalContentLibrary(state: ContentLibraryLocalState) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(CONTENT_LIBRARY_STORAGE_KEY, JSON.stringify(state));
-}
-
-function writeLocalActivity(activity: Activity) {
-  if (typeof window === "undefined") return;
-
-  const activities = readLocalActivities();
-  window.localStorage.setItem(
-    LOCAL_ACTIVITIES_STORAGE_KEY,
-    JSON.stringify([activity, ...activities.filter((candidate) => candidate.id !== activity.id)])
-  );
-}
-
-function mergeById<T extends { id: string }>(primary: T[], fallback: T[]) {
-  const fallbackById = new Map(fallback.map((item) => [item.id, item]));
-  const merged = primary.map((item) => ({ ...(fallbackById.get(item.id) ?? {}), ...item }) as T);
-  const seen = new Set(merged.map((item) => item.id));
-  return [...merged, ...fallback.filter((item) => !seen.has(item.id))];
-}
-
-function mergeLessons(primary: Lesson[], fallback: Lesson[]) {
-  const fallbackById = new Map(fallback.map((lesson) => [lesson.id, lesson]));
-  const merged = primary.map((lesson) => {
-    const local = fallbackById.get(lesson.id);
-    if (!local) return lesson;
-
-    return {
-      ...local,
-      ...lesson,
-      learningItemIds: lesson.learningItemIds.length ? lesson.learningItemIds : local.learningItemIds,
-      relatedActivityId: lesson.relatedActivityId ?? local.relatedActivityId
-    };
-  });
-  const seen = new Set(merged.map((lesson) => lesson.id));
-  return [...merged, ...fallback.filter((lesson) => !seen.has(lesson.id))];
-}
-
-function hydrateLessonsFromLocalActivities(records: Lesson[]) {
-  const activities = readLocalActivities();
-  if (!activities.length) return records;
-
-  return records.map((lesson) => {
-    if (lesson.learningItemIds.length) return lesson;
-    const relatedActivity =
-      activities.find((activity) => activity.id === lesson.relatedActivityId) ??
-      activities.find((activity) => activity.title === `${lesson.title} activity`);
-
-    if (!relatedActivity?.learningItemIds.length) return lesson;
-
-    return {
-      ...lesson,
-      learningItemIds: relatedActivity.learningItemIds,
-      relatedActivityId: lesson.relatedActivityId ?? relatedActivity.id,
-      activityType: relatedActivity.type
-    };
-  });
-}
-
 function createLearningItemInstruction(contentType: ContentKind, label: string, description: string) {
   if (contentType === "gesture") {
     return `Use the ${label} reference during guided gesture practice. ${description}`;
@@ -227,66 +127,11 @@ function normalizeLearningItems(records: LearningItem[]) {
 }
 
 function ensureFixedGestureItems(records: LearningItem[]) {
-  const normalized = ensurePecsManifestItems(normalizeLearningItems(records));
-  const requiredGestures = learningItems.filter(isFixedGesture);
-  const requiredByLabel = new Map(requiredGestures.map((item) => [item.label, item]));
-  const upgraded = normalized.map((item) => {
-    const required = requiredByLabel.get(item.label);
-    if (!required || !isFixedGesture(item)) return item;
-
-    return {
-      ...item,
-      categoryId: item.categoryId || required.categoryId,
-      description: isGenericGestureDescription(item.description) ? required.description : item.description,
-      symbolImageUrl: item.symbolImageUrl || required.symbolImageUrl,
-      gestureMediaUrl: item.gestureMediaUrl || required.gestureMediaUrl,
-      audioUrl: shouldUseGeneratedGestureAudio(item.audioUrl) ? required.audioUrl : item.audioUrl,
-      tags: item.tags.includes("demo")
-        ? [...new Set(item.tags.filter((tag) => tag !== "demo").concat("classroom"))]
-        : item.tags
-    };
-  });
-  const existingLabels = new Set(upgraded.map((item) => item.label));
-
-  return [
-    ...upgraded,
-    ...requiredGestures.filter((item) => !existingLabels.has(item.label))
-  ];
-}
-
-function shouldUseGeneratedGestureAudio(value?: string) {
-  return !value || (/demo\.mp3$/i.test(value) && !value.startsWith("/audio/"));
-}
-
-function isGenericGestureDescription(description: string) {
-  return /demo gesture/i.test(description) || /^Fixed gesture/i.test(description);
+  return ensurePecsManifestItems(normalizeLearningItems(records));
 }
 
 function ensureGestureCategory(records: Category[]) {
-  const withPecsCategories = ensurePecsManifestCategories(records);
-  const gestureCategory = mockCategories.find((category) => category.id === "cat-gestures") ?? mockCategories[0];
-  const categoriesWithGesture = withPecsCategories.some((category) => category.id === "cat-gestures")
-    ? withPecsCategories
-    : [...withPecsCategories, gestureCategory];
-
-  return categoriesWithGesture.map((category) => {
-    if (
-      category.id === "cat-gestures" &&
-      (/demo/i.test(category.description) || /presentation gestures/i.test(category.description))
-    ) {
-      return { ...category, description: gestureCategory.description };
-    }
-
-    if (category.id === "cat-pecs-needs" && /demo/i.test(category.description)) {
-      return { ...category, description: "Picture exchange cards for everyday classroom requests." };
-    }
-
-    if (category.id === "cat-pecs-choices" && /demo/i.test(category.description)) {
-      return { ...category, description: "Picture exchange cards for quick answer choices." };
-    }
-
-    return category;
-  });
+  return ensurePecsManifestCategories(records);
 }
 
 function isFixedGesture(item: LearningItem) {
@@ -297,11 +142,11 @@ export function ContentLibraryView() {
   const { notify } = useToast();
   const { user } = useAuthUser();
   const [tab, setTab] = useState<Tab>("items");
-  const [items, setItems] = useState<LearningItem[]>(ensureFixedGestureItems(learningItems));
-  const [lessons, setLessons] = useState<Lesson[]>(mockLessons);
-  const [categories, setCategories] = useState<Category[]>(ensureGestureCategory(mockCategories));
-  const [mediaRecords, setMediaRecords] = useState<MediaAsset[]>(mediaAssets);
-  const [users, setUsers] = useState(demoUsers);
+  const [items, setItems] = useState<LearningItem[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [mediaRecords, setMediaRecords] = useState<MediaAsset[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [contentKind, setContentKind] = useState<ContentKind>("pecs");
   const [search, setSearch] = useState("");
   const [contentCategoryId, setContentCategoryId] = useState<typeof allContentCategoriesLabel | string>(allContentCategoriesLabel);
@@ -315,9 +160,7 @@ export function ContentLibraryView() {
     "Introduce the learning items, model each one, practise together, then review the learner's response."
   );
   const [lessonActivityType, setLessonActivityType] = useState<ActivityType>("choose-correct-symbol");
-  const [lessonItemIds, setLessonItemIds] = useState<string[]>(
-    learningItems.filter((item) => item.contentType === "pecs").slice(0, 2).map((item) => item.id)
-  );
+  const [lessonItemIds, setLessonItemIds] = useState<string[]>([]);
   const [lessonItemSearch, setLessonItemSearch] = useState("");
   const [lessonError, setLessonError] = useState("");
   const [lessonFormOpen, setLessonFormOpen] = useState(false);
@@ -348,49 +191,32 @@ export function ContentLibraryView() {
     let active = true;
 
     async function loadSupabaseData() {
-      if (!isSupabaseConfigured()) {
-        const localContent = readLocalContentLibrary();
-        if (active && localContent) {
-          setItems(ensureFixedGestureItems(upgradeStarterLearningItemPrompts(localContent.items)));
-          setLessons(hydrateLessonsFromLocalActivities(localContent.lessons));
-          setCategories(ensureGestureCategory(localContent.categories));
-          setMediaRecords(localContent.mediaRecords);
-        }
-        if (active) {
-          setContentReady(true);
-        }
-        return;
-      }
-
       try {
         const data = await fetchMakaLearnData();
-        if (!active || !data) return;
-        const localContent = readLocalContentLibrary();
-        setUsers(data.users.length ? data.users : demoUsers);
+        if (!active) return;
+        setUsers(data.users);
         setItems(
           ensureFixedGestureItems(
             upgradeStarterLearningItemPrompts(
-              mergeById(data.learningItems.length ? data.learningItems : learningItems, localContent?.items ?? [])
+              data.learningItems
             )
           )
         );
-        // An empty lessons table is valid after the final lesson is deleted.
-        // Falling back to mock lessons here would make deleted records reappear.
-        setLessons(hydrateLessonsFromLocalActivities(mergeLessons(data.lessons, localContent?.lessons ?? [])));
-        setCategories(ensureGestureCategory(mergeById(data.categories.length ? data.categories : mockCategories, localContent?.categories ?? [])));
-        setMediaRecords(mergeById(data.mediaAssets.length ? data.mediaAssets : mediaAssets, localContent?.mediaRecords ?? []));
+        setLessons(data.lessons);
+        setCategories(ensureGestureCategory(data.categories));
+        setMediaRecords(data.mediaAssets);
         setContentReady(true);
       } catch (error) {
-        const localContent = readLocalContentLibrary();
-        if (active && localContent) {
-          setItems(ensureFixedGestureItems(upgradeStarterLearningItemPrompts(localContent.items)));
-          setLessons(hydrateLessonsFromLocalActivities(localContent.lessons));
-          setCategories(ensureGestureCategory(localContent.categories));
-          setMediaRecords(localContent.mediaRecords);
-        }
+        if (!active) return;
+        setUsers([]);
+        setItems([]);
+        setLessons([]);
+        setCategories([]);
+        setMediaRecords([]);
         notify({
-          title: "Content ready",
-          description: "Saved content is available in this workspace."
+          title: "Content unavailable",
+          description: "Supabase content records could not be loaded.",
+          tone: "error"
         });
         setContentReady(true);
       }
@@ -402,18 +228,6 @@ export function ContentLibraryView() {
       active = false;
     };
   }, [notify]);
-
-  useEffect(() => {
-    if (!contentReady || typeof window === "undefined") return;
-
-    const value: ContentLibraryLocalState = {
-      items,
-      lessons,
-      categories,
-      mediaRecords
-    };
-    writeLocalContentLibrary(value);
-  }, [categories, contentReady, items, lessons, mediaRecords]);
 
   const userNameById = useMemo(() => new Map(users.map((candidate) => [candidate.id, candidate.name])), [users]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
@@ -464,10 +278,7 @@ export function ContentLibraryView() {
   useEffect(() => {
     setContentPage((current) => Math.min(current, contentTotalPages));
   }, [contentTotalPages]);
-  const displayMediaRecords = useMemo(
-    () => ensurePecsManifestMediaRecords(items, mediaRecords),
-    [items, mediaRecords]
-  );
+  const displayMediaRecords = mediaRecords;
   const filteredLessons = useMemo(() => {
     const query = lessonSearch.trim().toLowerCase();
     if (!query) return lessons;
@@ -615,15 +426,15 @@ export function ContentLibraryView() {
     };
 
     let savedItem = nextItem;
-    if (isSupabaseConfigured()) {
-      try {
-        savedItem = await updateLearningItemDetails(nextItem);
-      } catch (error) {
-        notify({
-          title: "Item saved",
-          description: "Your changes are ready in this workspace."
-        });
-      }
+    try {
+      savedItem = await updateLearningItemDetails(nextItem);
+    } catch (error) {
+      notify({
+        title: "Learning item not saved",
+        description: error instanceof Error ? error.message : "The learning item could not be updated.",
+        tone: "error"
+      });
+      return;
     }
 
     setItems((current) => current.map((candidate) => (candidate.id === item.id ? savedItem : candidate)));
@@ -703,34 +514,23 @@ export function ContentLibraryView() {
       : null;
 
     let savedLesson = nextLesson;
-    let activitySavedToSupabase = false;
-    if (isSupabaseConfigured()) {
-      try {
-        savedLesson = await insertLesson(nextLesson);
-        if (nextActivity) {
-          await insertActivity(nextActivity);
-          activitySavedToSupabase = true;
-        }
-      } catch (error) {
-        notify({
-          title: "Lesson saved",
-          description: "The lesson is ready in this workspace."
-        });
+    try {
+      savedLesson = await insertLesson(nextLesson);
+      if (nextActivity) {
+        await insertActivity(nextActivity);
       }
-    }
-    if (nextActivity && !activitySavedToSupabase) {
-      writeLocalActivity(nextActivity);
+    } catch (error) {
+      notify({
+        title: "Lesson not saved",
+        description: error instanceof Error ? error.message : "The lesson could not be saved.",
+        tone: "error"
+      });
+      return;
     }
 
     const savedLessonWithLocalLink = { ...savedLesson, relatedActivityId: createsActivity ? activityId : undefined };
     const nextLessons = [savedLessonWithLocalLink, ...lessons.filter((lesson) => lesson.id !== savedLessonWithLocalLink.id)];
     setLessons(nextLessons);
-    writeLocalContentLibrary({
-      items,
-      lessons: nextLessons,
-      categories,
-      mediaRecords
-    });
     logContentAction(
       "create",
       "lesson",
@@ -756,17 +556,16 @@ export function ContentLibraryView() {
 
   async function deleteItem(item: LearningItem, deleteMedia: boolean) {
     setDeleteInProgress(true);
-    if (isSupabaseConfigured()) {
-      try {
-        await deleteLearningItem(item.id, deleteMedia);
-      } catch (error) {
-        notify({
-          title: "Delete failed",
-          description: "The learning item could not be deleted. Try again."
-        });
-        setDeleteInProgress(false);
-        return;
-      }
+    try {
+      await deleteLearningItem(item.id, deleteMedia);
+    } catch (error) {
+      notify({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "The learning item could not be deleted.",
+        tone: "error"
+      });
+      setDeleteInProgress(false);
+      return;
     }
 
     setItems((current) => current.filter((candidate) => candidate.id !== item.id));
@@ -792,17 +591,16 @@ export function ContentLibraryView() {
   async function deleteLessonRecord(lesson: Lesson) {
     setDeleteInProgress(true);
 
-    if (isSupabaseConfigured()) {
-      try {
-        await deleteLesson(lesson.id);
-      } catch (error) {
-        notify({
-          title: "Delete failed",
-          description: "The lesson could not be deleted. Try again."
-        });
-        setDeleteInProgress(false);
-        return;
-      }
+    try {
+      await deleteLesson(lesson.id);
+    } catch (error) {
+      notify({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "The lesson could not be deleted.",
+        tone: "error"
+      });
+      setDeleteInProgress(false);
+      return;
     }
 
     setLessons((current) => current.filter((candidate) => candidate.id !== lesson.id));
@@ -836,7 +634,7 @@ export function ContentLibraryView() {
       categoryId,
       description,
       instruction: createLearningItemInstruction(contentKind, label, description),
-      symbolImageUrl: getSymbolPlaceholder(label),
+      symbolImageUrl: undefined,
       gestureMediaUrl: undefined,
       audioUrl: undefined,
       tags: [contentKind],
@@ -845,28 +643,16 @@ export function ContentLibraryView() {
     };
 
     let savedItem = nextItem;
-    let savedRemotely = false;
-    if (isSupabaseConfigured()) {
-      try {
-        savedItem = await insertLearningItem(nextItem);
-        savedRemotely = true;
-      } catch (error) {
-        notify({
-          title: "Learning item saved",
-          description: "The item is ready in this workspace."
-        });
-      }
-    }
-
-    if (savedRemotely) {
-      try {
-        savedItem = await uploadNewItemMedia(savedItem, newItemFiles);
-      } catch {
-        savedRemotely = false;
-      }
-    } else {
-      savedItem = applyLocalMediaToItem(savedItem, newItemFiles);
-      addLocalMediaRecords(savedItem, newItemFiles);
+    try {
+      savedItem = await insertLearningItem(nextItem);
+      savedItem = await uploadNewItemMedia(savedItem, newItemFiles);
+    } catch (error) {
+      notify({
+        title: "Learning item not saved",
+        description: error instanceof Error ? error.message : "The learning item could not be saved.",
+        tone: "error"
+      });
+      return;
     }
 
     setItems((current) => [savedItem, ...current]);
@@ -884,9 +670,7 @@ export function ContentLibraryView() {
     formElement.reset();
     notify({
       title: contentKind === "pecs" ? "PECS card added" : "Gesture stored",
-      description: savedRemotely
-        ? `${savedItem.label} was added to the content library.`
-        : `${savedItem.label} was added to the content library.`,
+      description: `${savedItem.label} was added to the content library.`,
       tone: "success"
     });
   }
@@ -905,13 +689,6 @@ export function ContentLibraryView() {
     });
   }
 
-  function addLocalMediaRecords(item: LearningItem, files: NewItemFiles) {
-    const records = createLocalMediaRecords(item, files, user.id);
-    if (records.length) {
-      setMediaRecords((current) => [...records, ...current]);
-    }
-  }
-
   async function uploadNewItemMedia(item: LearningItem, files: NewItemFiles) {
     const uploadConfigs: Array<{
       key: NewItemMediaKey;
@@ -924,37 +701,25 @@ export function ContentLibraryView() {
     ];
 
     let updatedItem = item;
-    let remainingLocalFiles: NewItemFiles = { ...files };
     for (const config of uploadConfigs) {
       const file = files[config.key];
       if (!file) continue;
 
-      try {
-        const uploaded = await uploadMediaAssetToSupabase({
-          file,
-          bucket: config.bucket,
-          type: config.type,
-          title: `${item.label} ${config.type.replace("-", " ")}`,
-          uploadedBy: user.id,
-          relatedItemId: item.id
-        });
+      const uploaded = await uploadMediaAssetToSupabase({
+        file,
+        bucket: config.bucket,
+        type: config.type,
+        title: `${item.label} ${config.type.replace("-", " ")}`,
+        uploadedBy: user.id,
+        relatedItemId: item.id
+      });
 
-        if (uploaded.publicUrl) {
-          await updateLearningItemMedia(item.id, uploaded);
-          updatedItem = applyMediaUrlToItem(updatedItem, uploaded.type, uploaded.publicUrl, uploaded.uploadedAt);
-        }
-
-        remainingLocalFiles = removeFileKey(remainingLocalFiles, config.key);
-        setMediaRecords((current) => [uploaded, ...current]);
-      } catch (error) {
-        notify({
-          title: "Media attached",
-          description: "Attached files are ready in this workspace."
-        });
-        const localItem = applyLocalMediaToItem(updatedItem, remainingLocalFiles);
-        addLocalMediaRecords(localItem, remainingLocalFiles);
-        return localItem;
+      if (uploaded.publicUrl) {
+        await updateLearningItemMedia(item.id, uploaded);
+        updatedItem = applyMediaUrlToItem(updatedItem, uploaded.type, uploaded.publicUrl, uploaded.uploadedAt);
       }
+
+      setMediaRecords((current) => [uploaded, ...current]);
     }
 
     return updatedItem;
@@ -965,45 +730,6 @@ export function ContentLibraryView() {
     file: File,
     config: Pick<MediaAsset, "bucket" | "type">
   ) {
-    if (!isSupabaseConfigured()) {
-      const uploadedAt = new Date().toISOString();
-      const publicUrl = URL.createObjectURL(file);
-      const localRecord: MediaAsset = {
-        id: `media-${Date.now()}-${config.type}`,
-        title: `${item.label} ${config.type.replace("-", " ")}`,
-        type: config.type,
-        fileName: file.name,
-        bucket: config.bucket,
-        publicUrl,
-        uploadedBy: user.id,
-        uploadedAt,
-        relatedItemId: item.id
-      };
-
-      setMediaRecords((current) => [
-        localRecord,
-        ...current.filter((asset) => !(asset.relatedItemId === item.id && asset.type === config.type))
-      ]);
-      setItems((current) =>
-        current.map((candidate) =>
-          candidate.id === item.id ? applyMediaUrlToItem(candidate, config.type, publicUrl, uploadedAt) : candidate
-        )
-      );
-      notify({
-        title: "Media attached",
-        description: `${file.name} was attached to ${item.label}.`,
-        tone: "success"
-      });
-      logContentAction(
-        "upload",
-        "media",
-        file.name,
-        `Attached ${getMediaTypeLabel(config.type).toLowerCase()} to ${item.label}.`,
-        localRecord.id
-      );
-      return;
-    }
-
     try {
       const uploaded = await uploadMediaAssetToSupabase({
         file,
@@ -1071,15 +797,15 @@ export function ContentLibraryView() {
       createdBy: user.id
     };
     let savedCategory = nextCategory;
-    if (isSupabaseConfigured()) {
-      try {
-        savedCategory = await insertCategory(nextCategory);
-      } catch (error) {
-        notify({
-          title: "Category saved",
-          description: "The category is ready in this workspace."
-        });
-      }
+    try {
+      savedCategory = await insertCategory(nextCategory);
+    } catch (error) {
+      notify({
+        title: "Category not saved",
+        description: error instanceof Error ? error.message : "The category could not be saved.",
+        tone: "error"
+      });
+      return;
     }
     setCategories((current) => [savedCategory, ...current]);
     logContentAction("create", "category", savedCategory.name, "Created a shared content category.", savedCategory.id);
@@ -1137,15 +863,16 @@ export function ContentLibraryView() {
     let savedCategory = nextCategory;
     setCategorySaving(true);
 
-    if (isSupabaseConfigured()) {
-      try {
-        savedCategory = await updateCategoryDetails(nextCategory);
-      } catch (error) {
-        notify({
-          title: "Category saved",
-          description: "Your changes are ready in this workspace."
-        });
-      }
+    try {
+      savedCategory = await updateCategoryDetails(nextCategory);
+    } catch (error) {
+      notify({
+        title: "Category not saved",
+        description: error instanceof Error ? error.message : "The category could not be updated.",
+        tone: "error"
+      });
+      setCategorySaving(false);
+      return;
     }
 
     setCategories((current) =>
@@ -1182,15 +909,16 @@ export function ContentLibraryView() {
 
     setCategoryDeleting(true);
 
-    if (isSupabaseConfigured()) {
-      try {
-        await deleteCategory(editingCategory.id);
-      } catch (error) {
-        notify({
-          title: "Category deleted locally",
-          description: "Supabase could not delete it, but it was removed from this workspace."
-        });
-      }
+    try {
+      await deleteCategory(editingCategory.id);
+    } catch (error) {
+      notify({
+        title: "Category not deleted",
+        description: error instanceof Error ? error.message : "The category could not be deleted.",
+        tone: "error"
+      });
+      setCategoryDeleting(false);
+      return;
     }
 
     setCategories((current) => current.filter((category) => category.id !== editingCategory.id));
@@ -2199,13 +1927,6 @@ function isHexColor(value: string) {
   return /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
-function getSymbolPlaceholder(label: string) {
-  return label
-    .replace(/[^a-z]/gi, "")
-    .slice(0, 3)
-    .toUpperCase();
-}
-
 function applyMediaUrlToItem(item: LearningItem, type: MediaAsset["type"], publicUrl: string, updatedAt: string) {
   if (type === "symbol-image") {
     return { ...item, symbolImageUrl: publicUrl, updatedAt };
@@ -2235,73 +1956,6 @@ function getMediaFileName(value: string | undefined, fallback: string) {
   }
 
   return undefined;
-}
-
-function applyLocalMediaToItem(item: LearningItem, files: NewItemFiles) {
-  const updatedAt = new Date().toISOString();
-
-  return {
-    ...item,
-    symbolImageUrl: files.symbol ? URL.createObjectURL(files.symbol) : item.symbolImageUrl,
-    gestureMediaUrl: files.gesture ? URL.createObjectURL(files.gesture) : item.gestureMediaUrl,
-    audioUrl: files.audio ? URL.createObjectURL(files.audio) : item.audioUrl,
-    updatedAt
-  };
-}
-
-function removeFileKey(files: NewItemFiles, key: NewItemMediaKey) {
-  const next = { ...files };
-  delete next[key];
-  return next;
-}
-
-function createLocalMediaRecords(item: LearningItem, files: NewItemFiles, uploadedBy: string) {
-  const uploadedAt = new Date().toISOString();
-  const records: MediaAsset[] = [];
-
-  if (files.symbol) {
-    records.push({
-      id: `media-${Date.now()}-symbol`,
-      title: `${item.label} symbol image`,
-      type: "symbol-image",
-      fileName: files.symbol.name,
-      bucket: "symbol-images",
-      publicUrl: item.symbolImageUrl,
-      uploadedBy,
-      uploadedAt,
-      relatedItemId: item.id
-    });
-  }
-
-  if (files.gesture) {
-    records.push({
-      id: `media-${Date.now()}-gesture`,
-      title: `${item.label} gesture media`,
-      type: "gesture-media",
-      fileName: files.gesture.name,
-      bucket: "gesture-media",
-      publicUrl: item.gestureMediaUrl,
-      uploadedBy,
-      uploadedAt,
-      relatedItemId: item.id
-    });
-  }
-
-  if (files.audio) {
-    records.push({
-      id: `media-${Date.now()}-audio`,
-      title: `${item.label} audio`,
-      type: "audio-file",
-      fileName: files.audio.name,
-      bucket: "audio-files",
-      publicUrl: item.audioUrl,
-      uploadedBy,
-      uploadedAt,
-      relatedItemId: item.id
-    });
-  }
-
-  return records;
 }
 
 function LearningItemLibraryCard({
