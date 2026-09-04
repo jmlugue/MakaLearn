@@ -63,7 +63,10 @@ type GestureWeightTensors = {
 };
 
 const MODEL_WEIGHTS_URL = "/models/makalearn-gesture/cnn-weights.json";
-const FIXED_SEQUENCE_LENGTH = 64;
+export const FIXED_GESTURE_SEQUENCE_LENGTH = 64;
+export const MIN_LIVE_GESTURE_FRAMES = 12;
+
+const FIXED_SEQUENCE_LENGTH = FIXED_GESTURE_SEQUENCE_LENGTH;
 const FEATURE_DIM = 126;
 const MAX_HANDS = 2;
 const POINTS_PER_HAND = 21;
@@ -94,8 +97,8 @@ let loadedModelPromise: Promise<MakaLearnGestureModel> | null = null;
 export function appendLiveGestureFrame(buffer: Float32Array[], hands: HandLandmarkPoint[][]) {
   if (!hands.length) return;
   buffer.push(normalizeHandsForModel(hands));
-  if (buffer.length > FIXED_SEQUENCE_LENGTH) {
-    buffer.splice(0, buffer.length - FIXED_SEQUENCE_LENGTH);
+  if (buffer.length > FIXED_SEQUENCE_LENGTH * 3) {
+    buffer.splice(0, buffer.length - FIXED_SEQUENCE_LENGTH * 3);
   }
 }
 
@@ -104,9 +107,9 @@ export function resetLiveGestureBuffer(buffer: Float32Array[]) {
 }
 
 export async function predictMakaLearnGesture(buffer: Float32Array[]) {
-  if (buffer.length < FIXED_SEQUENCE_LENGTH) return null;
+  if (buffer.length < MIN_LIVE_GESTURE_FRAMES) return null;
   const model = await loadMakaLearnGestureModel();
-  return model.predict(buffer.slice(-FIXED_SEQUENCE_LENGTH));
+  return model.predict(resizeSequence(buffer, FIXED_SEQUENCE_LENGTH));
 }
 
 export function disposeMakaLearnGestureModel() {
@@ -213,6 +216,31 @@ class MakaLearnGestureModel {
   dispose() {
     Object.values(this.tensors).forEach((tensor) => tensor.dispose());
   }
+}
+
+function resizeSequence(sequence: Float32Array[], targetLength: number) {
+  if (sequence.length === targetLength) return sequence.map((frame) => new Float32Array(frame));
+  if (sequence.length === 1) return Array.from({ length: targetLength }, () => new Float32Array(sequence[0]));
+
+  const resized: Float32Array[] = [];
+  const sourceLastIndex = sequence.length - 1;
+
+  for (let targetIndex = 0; targetIndex < targetLength; targetIndex += 1) {
+    const sourcePosition = (targetIndex * sourceLastIndex) / Math.max(targetLength - 1, 1);
+    const leftIndex = Math.floor(sourcePosition);
+    const rightIndex = Math.min(sourceLastIndex, leftIndex + 1);
+    const mix = sourcePosition - leftIndex;
+    const frame = new Float32Array(FEATURE_DIM);
+
+    for (let featureIndex = 0; featureIndex < FEATURE_DIM; featureIndex += 1) {
+      const leftValue = sequence[leftIndex][featureIndex] ?? 0;
+      const rightValue = sequence[rightIndex][featureIndex] ?? leftValue;
+      frame[featureIndex] = leftValue + (rightValue - leftValue) * mix;
+    }
+    resized.push(frame);
+  }
+
+  return resized;
 }
 
 function normalizeHandsForModel(hands: HandLandmarkPoint[][]) {
