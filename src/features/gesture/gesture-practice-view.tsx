@@ -34,10 +34,16 @@ import { fetchMakaLearnData, insertPracticeAttempt } from "@/lib/supabase/app-da
 import { cn } from "@/lib/utils";
 import { generateCorrectiveFeedbackPlaceholder } from "@/utils/gesture-feedback";
 import {
-  predictGesturePlaceholder,
   supportedGesturePredictions,
   type DemoGesturePrediction
 } from "@/utils/gesture-prediction";
+import {
+  appendLiveGestureFrame,
+  disposeMakaLearnGestureModel,
+  predictMakaLearnGesture,
+  resetLiveGestureBuffer,
+  type GestureModelStatus
+} from "@/utils/gesture-model";
 import type { Category, LearningItem } from "@/types";
 
 type TrackingState = "idle" | "hands-visible" | "no-hands" | "too-many-hands" | "multiple-people";
@@ -66,7 +72,7 @@ const trackingMeta: Record<
   },
   "hands-visible": {
     label: "Hands ready",
-    detail: "One or two hands are visible. Hold a supported pose briefly for a sample prediction.",
+    detail: "One or two hands are visible. Hold the gesture for a live model prediction.",
     handCount: 1,
     peopleCount: 1,
     tone: "ready"
@@ -80,7 +86,7 @@ const trackingMeta: Record<
   },
   "too-many-hands": {
     label: "Too many hands",
-    detail: "The sample predictor reads a maximum of two hands at a time.",
+    detail: "The live model reads a maximum of two hands at a time.",
     handCount: 2,
     peopleCount: 1,
     tone: "warning"
@@ -109,6 +115,10 @@ export function GesturePracticeView() {
   const lastHandCountRef = useRef(-1);
   const predictionCandidateRef = useRef<{ label: string | null; frames: number }>({ label: null, frames: 0 });
   const currentPredictionLabelRef = useRef<string | null>(null);
+  const liveGestureFramesRef = useRef<Float32Array[]>([]);
+  const pendingModelPredictionRef = useRef(false);
+  const lastModelPredictionAtRef = useRef(0);
+  const modelFailureNotifiedRef = useRef(false);
   const lastAutoAudioKeyRef = useRef<string | null>(null);
   const noHandsFrameCountRef = useRef(0);
   const showHandLandmarksRef = useRef(true);
@@ -118,6 +128,7 @@ export function GesturePracticeView() {
   const [trackerStatus, setTrackerStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [detectedHandCount, setDetectedHandCount] = useState(0);
   const [trackingState, setTrackingState] = useState<TrackingState>("idle");
+  const [modelStatus, setModelStatus] = useState<GestureModelStatus>("idle");
   const [prediction, setPrediction] = useState<DemoGesturePrediction | null>(null);
   const [feedback, setFeedback] = useState("");
   const [selectedGestureId, setSelectedGestureId] = useState("");
@@ -169,6 +180,7 @@ export function GesturePracticeView() {
       if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       handLandmarkerRef.current?.close();
+      disposeMakaLearnGestureModel();
     };
   }, [notify]);
 
@@ -278,8 +290,7 @@ export function GesturePracticeView() {
         setTrackingState(handCount === 0 ? "no-hands" : handCount <= 2 ? "hands-visible" : "too-many-hands");
       }
 
-      const nextPrediction = predictGesturePlaceholder(result.landmarks);
-      updateStablePrediction(nextPrediction);
+      updateLiveModelPrediction(result.landmarks);
     }
 
     animationFrameRef.current = window.requestAnimationFrame(runHandTracking);
@@ -293,7 +304,12 @@ export function GesturePracticeView() {
     setDetectedHandCount(0);
     noHandsFrameCountRef.current = 0;
     lastAutoAudioKeyRef.current = null;
+    pendingModelPredictionRef.current = false;
+    lastModelPredictionAtRef.current = 0;
+    modelFailureNotifiedRef.current = false;
     clearPrediction();
+    resetLiveGestureBuffer(liveGestureFramesRef.current);
+    setModelStatus("idle");
     setFeedback("");
 
     try {
@@ -338,7 +354,12 @@ export function GesturePracticeView() {
     lastVideoTimeRef.current = -1;
     noHandsFrameCountRef.current = 0;
     lastAutoAudioKeyRef.current = null;
+    pendingModelPredictionRef.current = false;
+    lastModelPredictionAtRef.current = 0;
+    modelFailureNotifiedRef.current = false;
     clearPrediction();
+    resetLiveGestureBuffer(liveGestureFramesRef.current);
+    setModelStatus("idle");
     setFeedback("");
   }
 
@@ -346,6 +367,49 @@ export function GesturePracticeView() {
     predictionCandidateRef.current = { label: null, frames: 0 };
     currentPredictionLabelRef.current = null;
     setPrediction(null);
+  }
+
+  function updateLiveModelPrediction(hands: Parameters<typeof appendLiveGestureFrame>[1]) {
+    if (!hands.length) {
+      resetLiveGestureBuffer(liveGestureFramesRef.current);
+      updateStablePrediction(null);
+      return;
+    }
+
+    appendLiveGestureFrame(liveGestureFramesRef.current, hands);
+    const now = performance.now();
+    if (
+      liveGestureFramesRef.current.length < 64 ||
+      pendingModelPredictionRef.current ||
+      now - lastModelPredictionAtRef.current < 250
+    ) {
+      return;
+    }
+
+    pendingModelPredictionRef.current = true;
+    lastModelPredictionAtRef.current = now;
+    setModelStatus((current) => (current === "ready" ? current : "loading"));
+
+    void predictMakaLearnGesture(liveGestureFramesRef.current)
+      .then((nextPrediction) => {
+        setModelStatus("ready");
+        updateStablePrediction(nextPrediction);
+      })
+      .catch(() => {
+        setModelStatus("error");
+        updateStablePrediction(null);
+        if (!modelFailureNotifiedRef.current) {
+          modelFailureNotifiedRef.current = true;
+          notify({
+            title: "Live recognition unavailable",
+            description: "The camera still works, but the trained gesture model could not be loaded.",
+            tone: "error"
+          });
+        }
+      })
+      .finally(() => {
+        pendingModelPredictionRef.current = false;
+      });
   }
 
   function updateStablePrediction(nextPrediction: DemoGesturePrediction | null) {
@@ -573,7 +637,7 @@ export function GesturePracticeView() {
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <TrackingMetric icon={Hand} label="Hands" value={`${detectedHandCount}/2`} valid={hasValidHands} />
           <TrackingMetric icon={UserRound} label="Camera" value={cameraStarted ? "Live" : "Off"} valid={cameraStarted} />
-          <TrackingMetric icon={Eye} label="Outline" value={hasValidHands ? "Following" : "Waiting"} valid={hasValidHands} />
+          <TrackingMetric icon={Eye} label="Model" value={getModelStatusLabel(modelStatus, hasValidHands)} valid={modelStatus === "ready"} />
         </div>
 
         <div className="mt-3 grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
@@ -636,7 +700,7 @@ export function GesturePracticeView() {
                 items={learningItems}
                 selectedGestureId={selectedGesture.id}
                 onChange={handleGestureChange}
-                helperText="The detector still listens for every supported sample pose."
+                helperText="The live model listens for every trained gesture."
               />
             </div>
 
@@ -676,17 +740,15 @@ export function GesturePracticeView() {
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Sample prediction</p>
-                <p className="mt-1 text-base font-black text-ink">{prediction?.label ?? "Waiting for a supported pose"}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Live prediction</p>
+                <p className="mt-1 text-base font-black text-ink">{prediction?.label ?? getPredictionWaitingLabel(modelStatus, hasValidHands)}</p>
               </div>
               <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Rule match</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Model confidence</p>
                 <p className="mt-1 text-sm font-semibold text-ink">
                   {prediction
-                    ? `${prediction.matchPercent}% sample match`
-                    : hasValidHands
-                      ? "Checking finger pose..."
-                      : "Move hands into frame"}
+                    ? `${prediction.matchPercent}% confidence`
+                    : getConfidenceWaitingLabel(modelStatus, hasValidHands)}
                 </p>
               </div>
             </div>
@@ -732,7 +794,26 @@ function RecognizedGestureMessage({
 
 function getGesturePerformanceInstruction(item?: LearningItem, pose?: string) {
   if (!item) return "Choose a reference gesture to view the classroom cue.";
-  return pose ?? item.description ?? "Copy the reference slowly and keep both hands visible in the camera frame.";
+  return item.description ?? pose ?? "Copy the reference slowly and keep both hands visible in the camera frame.";
+}
+
+function getModelStatusLabel(status: GestureModelStatus, hasValidHands: boolean) {
+  if (status === "ready") return "Ready";
+  if (status === "loading") return "Loading";
+  if (status === "error") return "Check";
+  return hasValidHands ? "Collecting" : "Waiting";
+}
+
+function getPredictionWaitingLabel(status: GestureModelStatus, hasValidHands: boolean) {
+  if (status === "loading") return "Preparing recognition";
+  if (status === "error") return "Recognition unavailable";
+  return hasValidHands ? "Hold the gesture steady" : "Waiting for hands";
+}
+
+function getConfidenceWaitingLabel(status: GestureModelStatus, hasValidHands: boolean) {
+  if (status === "loading") return "Loading model...";
+  if (status === "error") return "Model file not loaded";
+  return hasValidHands ? "Collecting 64 frames..." : "Move hands into frame";
 }
 
 function getFixedGestureItems(items: LearningItem[]) {
@@ -1255,3 +1336,5 @@ function speakAudioCuePlaceholder(text: string, onError: () => void) {
   utterance.onerror = onError;
   window.speechSynthesis.speak(utterance);
 }
+
+
