@@ -8,7 +8,9 @@ const pecsCards = [
   { label: "Hello", image: "/pecs/generated_cards/hello.png" },
   { label: "Please", image: "/pecs/generated_cards/please.png" },
   { label: "Help", image: "/pecs/generated_cards/help.png" },
-  { label: "More", image: "/pecs/generated_cards/more.png" },
+  // "more" was dropped: its symbol is a cluster of red squares that reads as noise
+  // next to the clean figure symbols on the other cards.
+  { label: "Thank you", image: "/pecs/generated_cards/thank_you.png" },
   { label: "Drink", image: "/pecs/generated_cards/drink.png" }
 ];
 

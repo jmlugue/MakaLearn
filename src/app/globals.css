@@ -12,6 +12,13 @@
   --focus: rgba(37, 99, 235, 0.18);
   --glass-border: rgba(255, 255, 255, 0.76);
   --glass-shadow: 0 22px 58px rgba(30, 64, 175, 0.11);
+  /* Accent family. Blue stays primary; these add warmth without taking over. */
+  --accent-teal: #0f766e;
+  --accent-teal-soft: #ccfbf1;
+  --accent-amber: #b45309;
+  --accent-amber-soft: #fef3c7;
+  --accent-coral: #be123c;
+  --accent-coral-soft: #ffe4e6;
 }
 
 * {
@@ -239,12 +246,6 @@ textarea {
     animation: card-rise 680ms ease both;
   }
 
-  .reveal-on-scroll {
-    animation: reveal-in 760ms ease both;
-    animation-timeline: view();
-    animation-range: entry 0% cover 26%;
-  }
-
   .landing-page {
     background:
       linear-gradient(180deg, rgba(247, 251, 255, 0.94), rgba(238, 247, 255, 0.92) 62%, #ffffff),
@@ -325,7 +326,7 @@ textarea {
     position: absolute;
     bottom: -1.5rem;
     left: 7%;
-    z-index: -1;
+    z-index: 0;
     height: 5rem;
     width: 18rem;
     border-radius: 999px;
@@ -425,17 +426,6 @@ textarea {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes reveal-in {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
