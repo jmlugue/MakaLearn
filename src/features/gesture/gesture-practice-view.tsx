@@ -35,8 +35,10 @@ import { cn } from "@/lib/utils";
 import { generateCorrectiveFeedbackPlaceholder } from "@/utils/gesture-feedback";
 import {
   supportedGesturePredictions,
-  type DemoGesturePrediction
+  type DemoGesturePrediction,
+  type HandLandmarkPoint
 } from "@/utils/gesture-prediction";
+import { applyEatToiletFingerSafety } from "@/utils/gesture-shape-safety";
 import {
   appendLiveGestureFrame,
   disposeMakaLearnGestureModel,
@@ -119,6 +121,7 @@ export function GesturePracticeView() {
   const predictionCandidateRef = useRef<{ label: string | null; frames: number }>({ label: null, frames: 0 });
   const currentPredictionLabelRef = useRef<string | null>(null);
   const liveGestureFramesRef = useRef<Float32Array[]>([]);
+  const liveGestureHandFramesRef = useRef<HandLandmarkPoint[][][]>([]);
   const pendingModelPredictionRef = useRef(false);
   const gestureCaptureActiveRef = useRef(false);
   const lastHandsSeenAtRef = useRef(0);
@@ -314,6 +317,7 @@ export function GesturePracticeView() {
     modelFailureNotifiedRef.current = false;
     clearPrediction();
     resetLiveGestureBuffer(liveGestureFramesRef.current);
+    liveGestureHandFramesRef.current = [];
     setModelStatus("idle");
     setFeedback("");
 
@@ -365,6 +369,7 @@ export function GesturePracticeView() {
     modelFailureNotifiedRef.current = false;
     clearPrediction();
     resetLiveGestureBuffer(liveGestureFramesRef.current);
+    liveGestureHandFramesRef.current = [];
     setModelStatus("idle");
     setFeedback("");
   }
@@ -382,10 +387,15 @@ export function GesturePracticeView() {
       if (!gestureCaptureActiveRef.current) {
         clearPrediction();
         resetLiveGestureBuffer(liveGestureFramesRef.current);
+        liveGestureHandFramesRef.current = [];
         gestureCaptureActiveRef.current = true;
       }
 
       appendLiveGestureFrame(liveGestureFramesRef.current, hands);
+      liveGestureHandFramesRef.current.push(copyHandFrame(hands));
+      if (liveGestureHandFramesRef.current.length > 192) {
+        liveGestureHandFramesRef.current.splice(0, liveGestureHandFramesRef.current.length - 192);
+      }
       lastHandsSeenAtRef.current = now;
       setModelStatus((current) => (current === "ready" ? current : "idle"));
       return;
@@ -397,8 +407,10 @@ export function GesturePracticeView() {
     if (noHandsDuration < NO_HANDS_AUTO_PREDICT_DELAY_MS) return;
 
     const capturedFrames = liveGestureFramesRef.current.slice();
+    const capturedHandFrames = liveGestureHandFramesRef.current.slice();
     gestureCaptureActiveRef.current = false;
     resetLiveGestureBuffer(liveGestureFramesRef.current);
+    liveGestureHandFramesRef.current = [];
 
     if (capturedFrames.length < MIN_LIVE_GESTURE_FRAMES) {
       updateStablePrediction(null);
@@ -413,7 +425,8 @@ export function GesturePracticeView() {
     void predictMakaLearnGesture(capturedFrames)
       .then((nextPrediction) => {
         setModelStatus("ready");
-        updateCompletedGesturePrediction(nextPrediction);
+        const safetyResult = applyEatToiletFingerSafety(nextPrediction, capturedHandFrames);
+        updateCompletedGesturePrediction(safetyResult.prediction, safetyResult.feedback);
       })
       .catch(() => {
         setModelStatus("error");
@@ -432,22 +445,28 @@ export function GesturePracticeView() {
       });
   }
 
-  function updateCompletedGesturePrediction(nextPrediction: DemoGesturePrediction | null) {
+  function updateCompletedGesturePrediction(nextPrediction: DemoGesturePrediction | null, feedbackOverride?: string) {
     const nextLabel = nextPrediction?.label ?? null;
     predictionCandidateRef.current = { label: nextLabel, frames: nextPrediction ? 1 : 0 };
     currentPredictionLabelRef.current = nextLabel;
     setPrediction(nextPrediction);
 
-    const nextFeedback = nextPrediction
-      ? generateCorrectiveFeedbackPlaceholder()
-      : isStudentMode
-        ? ""
-        : "I could not recognize that gesture yet. Try it again with your hands clearly inside the camera view.";
+    const nextFeedback = feedbackOverride ?? (
+      nextPrediction
+        ? generateCorrectiveFeedbackPlaceholder()
+        : isStudentMode
+          ? ""
+          : "I could not recognize that gesture yet. Try it again with your hands clearly inside the camera view."
+    );
 
     setFeedback(nextFeedback);
     if (nextPrediction && selectedGesture) {
       void savePracticeAttempt(nextPrediction, nextFeedback);
     }
+  }
+
+  function copyHandFrame(hands: HandLandmarkPoint[][]) {
+    return hands.map((hand) => hand.map((point) => ({ x: point.x, y: point.y, z: point.z })));
   }
 
   function updateStablePrediction(nextPrediction: DemoGesturePrediction | null) {
