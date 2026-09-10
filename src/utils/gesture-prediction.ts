@@ -18,7 +18,7 @@ export type SupportedGesturePrediction = {
 // Replace this rule table with predictions from a trained and approved gesture model.
 export const supportedGesturePredictions: SupportedGesturePrediction[] = [
   { label: "I want to eat food", handCount: 1, fingers: ["Pinky"], pose: "Raise only your pinky" },
-  { label: "I want to go to toilet", handCount: 1, fingers: ["Index"], pose: "Raise only your index finger" },
+  { label: "I want to go to toilet", handCount: 1, fingers: ["Middle"], pose: "Raise only your middle finger" },
   {
     label: "I want to drink water",
     handCount: 2,
