@@ -7,9 +7,8 @@ import { usePathname } from "next/navigation";
 import { GraduationCap, X } from "lucide-react";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
-import { ToastProvider } from "@/components/common/toast-provider";
-import { AuthProvider, useAuthState } from "@/features/auth/use-auth-user";
-import { StudentModeProvider, useStudentMode } from "@/features/student-mode/student-mode-context";
+import { useAuthState } from "@/features/auth/use-auth-user";
+import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { studentNavItems, studentRouteHrefs } from "@/components/layout/nav-items";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,15 +18,7 @@ import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/layout/brand-logo";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  return (
-    <ToastProvider>
-      <AuthProvider>
-        <StudentModeProvider>
-          <AuthenticatedShell>{children}</AuthenticatedShell>
-        </StudentModeProvider>
-      </AuthProvider>
-    </ToastProvider>
-  );
+  return <AuthenticatedShell>{children}</AuthenticatedShell>;
 }
 
 function AuthenticatedShell({ children }: { children: ReactNode }) {
