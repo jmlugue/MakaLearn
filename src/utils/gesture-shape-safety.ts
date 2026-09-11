@@ -5,8 +5,28 @@ type EatToiletSafetyResult = {
   feedback?: string;
 };
 
+export type CapturedGestureFrame = {
+  hands: HandLandmarkPoint[][];
+  handedness: Array<"Left" | "Right" | "Unknown">;
+};
+
 const EAT_LABEL = "I want to eat food";
 const TOILET_LABEL = "I want to go to toilet";
+const DRINK_LABEL = "I want to drink water";
+const HELP_LABEL = "Help";
+const NO_LABEL = "No";
+const SIT_LABEL = "Sit down";
+const YES_LABEL = "Yes";
+
+const expectedHandCounts: Record<string, 1 | 2> = {
+  [DRINK_LABEL]: 1,
+  [EAT_LABEL]: 1,
+  [HELP_LABEL]: 2,
+  [NO_LABEL]: 1,
+  [SIT_LABEL]: 1,
+  [TOILET_LABEL]: 1,
+  [YES_LABEL]: 1
+};
 
 const fingerJoints: Record<DemoFinger, { base: number; middle: number; tip: number; ratio: number }> = {
   Thumb: { base: 2, middle: 3, tip: 4, ratio: 1.08 },
@@ -18,15 +38,31 @@ const fingerJoints: Record<DemoFinger, { base: number; middle: number; tip: numb
 
 const fingerOrder: DemoFinger[] = ["Thumb", "Index", "Middle", "Ring", "Pinky"];
 
+export function applyBasicGesturePredictionGuards(
+  prediction: DemoGesturePrediction | null,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult {
+  if (!prediction) return { prediction };
+
+  const handCountResult = validateExpectedHandCount(prediction, capturedFrames);
+  if (!handCountResult.prediction) return handCountResult;
+
+  if (prediction.label === YES_LABEL) return validateYesClosedFist(prediction, capturedFrames);
+  if (prediction.label === NO_LABEL) return validateNoPalmFacing(prediction, capturedFrames);
+  if (prediction.label === HELP_LABEL) return validateHelpTwoHandShape(prediction, capturedFrames);
+
+  return { prediction };
+}
+
 export function applyEatToiletFingerSafety(
   prediction: DemoGesturePrediction | null,
-  capturedHandFrames: HandLandmarkPoint[][][]
+  capturedFrames: CapturedGestureFrame[]
 ): EatToiletSafetyResult {
   if (!prediction || (prediction.label !== EAT_LABEL && prediction.label !== TOILET_LABEL)) {
     return { prediction };
   }
 
-  const shape = summarizeEatToiletShape(capturedHandFrames);
+  const shape = summarizeEatToiletShape(capturedFrames);
   if (shape.usableFrames < 6) return { prediction };
 
   if (prediction.label === EAT_LABEL && shape.toiletRatio >= 0.45 && shape.eatRatio < 0.45) {
@@ -66,12 +102,252 @@ export function applyEatToiletFingerSafety(
   return { prediction };
 }
 
-function summarizeEatToiletShape(capturedHandFrames: HandLandmarkPoint[][][]) {
+function validateExpectedHandCount(
+  prediction: DemoGesturePrediction,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult {
+  const expectedHandCount = expectedHandCounts[prediction.label];
+  if (!expectedHandCount) return { prediction };
+
+  const summary = summarizeHandCounts(capturedFrames);
+  if (summary.usableFrames < 6) return { prediction };
+
+  const expectedRatio = expectedHandCount === 1 ? summary.oneHandRatio : summary.twoHandRatio;
+  if (expectedRatio >= 0.65) return { prediction };
+
+  return {
+    prediction: null,
+    feedback:
+      expectedHandCount === 1
+        ? "That gesture uses one hand. Try again with only one hand visible."
+        : "That gesture uses both hands. Try again with both hands visible."
+  };
+}
+
+function validateYesClosedFist(
+  prediction: DemoGesturePrediction,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult {
+  const shape = summarizePrimaryHandShape(capturedFrames);
+  if (shape.usableFrames < 6) return { prediction };
+
+  if (shape.indexOnlyRatio >= 0.3) {
+    return {
+      prediction: null,
+      feedback: "That looked like one finger was raised. For yes, try the closed-fist gesture again."
+    };
+  }
+
+  if (shape.closedFistRatio < 0.4 || shape.openHandRatio >= 0.45) {
+    return {
+      prediction: null,
+      feedback: "For yes, keep the hand in a closed fist and try the motion again."
+    };
+  }
+
+  return { prediction };
+}
+
+function validateNoPalmFacing(
+  prediction: DemoGesturePrediction,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult {
+  const shape = summarizePrimaryHandShape(capturedFrames);
+  if (shape.usableFrames >= 6 && shape.openHandRatio < 0.45) {
+    return {
+      prediction: null,
+      feedback: "For no, show an open palm and try the side motion again."
+    };
+  }
+
+  const orientation = summarizePalmOrientation(capturedFrames);
+  if (orientation.usableFrames < 6) return { prediction };
+
+  if (orientation.palmFacingRatio < 0.55) {
+    return {
+      prediction: null,
+      feedback: "For no, face your palm toward the camera and try again."
+    };
+  }
+
+  return { prediction };
+}
+
+function validateHelpTwoHandShape(
+  prediction: DemoGesturePrediction,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult {
+  const shape = summarizeHelpShape(capturedFrames);
+  if (shape.usableFrames < 6) return { prediction };
+
+  if (shape.supportAndFistRatio < 0.35) {
+    return {
+      prediction: null,
+      feedback: "For help, use one flat support hand and one closed hand."
+    };
+  }
+
+  if (shape.stackedHelpRatio < 0.3) {
+    return {
+      prediction: null,
+      feedback: "For help, place the closed hand near and above the support hand."
+    };
+  }
+
+  return { prediction };
+}
+
+function summarizeHandCounts(capturedFrames: CapturedGestureFrame[]) {
+  let usableFrames = 0;
+  let oneHandFrames = 0;
+  let twoHandFrames = 0;
+
+  capturedFrames.forEach(({ hands }) => {
+    const handCount = Math.min(hands.filter((hand) => hand.length >= 21).length, 2);
+    if (handCount < 1) return;
+
+    usableFrames += 1;
+    if (handCount === 1) oneHandFrames += 1;
+    if (handCount === 2) twoHandFrames += 1;
+  });
+
+  return {
+    usableFrames,
+    oneHandRatio: usableFrames ? oneHandFrames / usableFrames : 0,
+    twoHandRatio: usableFrames ? twoHandFrames / usableFrames : 0
+  };
+}
+
+function summarizeHelpShape(capturedFrames: CapturedGestureFrame[]) {
+  let usableFrames = 0;
+  let supportAndFistFrames = 0;
+  let stackedHelpFrames = 0;
+
+  capturedFrames.forEach(({ hands }) => {
+    const validHands = hands.filter((hand) => hand.length >= 21).slice(0, 2);
+    if (validHands.length !== 2) return;
+
+    usableFrames += 1;
+
+    const first = summarizeHandShape(validHands[0]);
+    const second = summarizeHandShape(validHands[1]);
+    const candidates = [
+      { active: first, support: second },
+      { active: second, support: first }
+    ];
+    const helpCandidate = candidates.find(({ active, support }) => active.isClosed && support.isOpen);
+
+    if (!helpCandidate) return;
+    supportAndFistFrames += 1;
+
+    const verticalGap = helpCandidate.support.center.y - helpCandidate.active.center.y;
+    const horizontalGap = Math.abs(helpCandidate.support.center.x - helpCandidate.active.center.x);
+    const supportLooksFlat = helpCandidate.support.bounds.width >= helpCandidate.support.bounds.height * 0.7;
+
+    if (verticalGap > 0.015 && verticalGap < 0.38 && horizontalGap < 0.28 && supportLooksFlat) {
+      stackedHelpFrames += 1;
+    }
+  });
+
+  return {
+    usableFrames,
+    supportAndFistRatio: usableFrames ? supportAndFistFrames / usableFrames : 0,
+    stackedHelpRatio: usableFrames ? stackedHelpFrames / usableFrames : 0
+  };
+}
+
+function summarizeHandShape(landmarks: HandLandmarkPoint[]) {
+  const nonThumbFingers = getExtendedFingers(landmarks).filter((finger) => finger !== "Thumb");
+  const bounds = getBounds(landmarks);
+
+  return {
+    isClosed: nonThumbFingers.length === 0,
+    isOpen: nonThumbFingers.length >= 3,
+    center: getCenter(landmarks),
+    bounds
+  };
+}
+
+function summarizePrimaryHandShape(capturedFrames: CapturedGestureFrame[]) {
+  let usableFrames = 0;
+  let closedFistFrames = 0;
+  let indexOnlyFrames = 0;
+  let openHandFrames = 0;
+
+  capturedFrames.forEach(({ hands }) => {
+    const primaryHand = hands.find((hand) => hand.length >= 21);
+    if (!primaryHand) return;
+
+    usableFrames += 1;
+    const nonThumbFingers = getExtendedFingers(primaryHand).filter((finger) => finger !== "Thumb");
+
+    if (nonThumbFingers.length === 0) closedFistFrames += 1;
+    if (nonThumbFingers.length === 1 && nonThumbFingers[0] === "Index") indexOnlyFrames += 1;
+    if (nonThumbFingers.length >= 3) openHandFrames += 1;
+  });
+
+  return {
+    usableFrames,
+    closedFistRatio: usableFrames ? closedFistFrames / usableFrames : 0,
+    indexOnlyRatio: usableFrames ? indexOnlyFrames / usableFrames : 0,
+    openHandRatio: usableFrames ? openHandFrames / usableFrames : 0
+  };
+}
+
+function getCenter(landmarks: HandLandmarkPoint[]) {
+  const total = landmarks.reduce(
+    (sum, point) => ({
+      x: sum.x + point.x,
+      y: sum.y + point.y
+    }),
+    { x: 0, y: 0 }
+  );
+
+  return {
+    x: total.x / Math.max(landmarks.length, 1),
+    y: total.y / Math.max(landmarks.length, 1)
+  };
+}
+
+function getBounds(landmarks: HandLandmarkPoint[]) {
+  const xs = landmarks.map((point) => point.x);
+  const ys = landmarks.map((point) => point.y);
+
+  return {
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys)
+  };
+}
+
+function summarizePalmOrientation(capturedFrames: CapturedGestureFrame[]) {
+  let usableFrames = 0;
+  let palmFacingFrames = 0;
+
+  capturedFrames.forEach(({ handedness, hands }) => {
+    const handIndex = hands.findIndex((hand) => hand.length >= 21);
+    const primaryHand = handIndex >= 0 ? hands[handIndex] : undefined;
+    const handLabel = handedness[handIndex];
+    if (!primaryHand || !handLabel || handLabel === "Unknown") return;
+
+    const palmFacing = isPalmFacingCamera(primaryHand, handLabel);
+    if (palmFacing === null) return;
+
+    usableFrames += 1;
+    if (palmFacing) palmFacingFrames += 1;
+  });
+
+  return {
+    usableFrames,
+    palmFacingRatio: usableFrames ? palmFacingFrames / usableFrames : 0
+  };
+}
+
+function summarizeEatToiletShape(capturedFrames: CapturedGestureFrame[]) {
   let usableFrames = 0;
   let toiletLikeFrames = 0;
   let eatLikeFrames = 0;
 
-  capturedHandFrames.forEach((hands) => {
+  capturedFrames.forEach(({ hands }) => {
     const primaryHand = hands.find((hand) => hand.length >= 21);
     if (!primaryHand) return;
 
@@ -92,6 +368,20 @@ function summarizeEatToiletShape(capturedHandFrames: HandLandmarkPoint[][][]) {
     toiletRatio: usableFrames ? toiletLikeFrames / usableFrames : 0,
     eatRatio: usableFrames ? eatLikeFrames / usableFrames : 0
   };
+}
+
+function isPalmFacingCamera(landmarks: HandLandmarkPoint[], handedness: "Left" | "Right" | "Unknown") {
+  const wrist = landmarks[0];
+  const indexBase = landmarks[5];
+  const pinkyBase = landmarks[17];
+  if (!wrist || !indexBase || !pinkyBase || handedness === "Unknown") return null;
+
+  const indexVector = { x: indexBase.x - wrist.x, y: indexBase.y - wrist.y };
+  const pinkyVector = { x: pinkyBase.x - wrist.x, y: pinkyBase.y - wrist.y };
+  const palmCross = indexVector.x * pinkyVector.y - indexVector.y * pinkyVector.x;
+
+  if (Math.abs(palmCross) < 0.001) return null;
+  return handedness === "Right" ? palmCross < 0 : palmCross > 0;
 }
 
 function getExtendedFingers(landmarks: HandLandmarkPoint[]) {

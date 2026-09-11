@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
+import type { Category as MediaPipeCategory, DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
 import {
   ArrowLeft,
   ArrowRight,
@@ -32,12 +32,12 @@ import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { cn } from "@/lib/utils";
 import { generateCorrectiveFeedbackPlaceholder } from "@/utils/gesture-feedback";
+import { type DemoGesturePrediction, type HandLandmarkPoint } from "@/utils/gesture-prediction";
 import {
-  supportedGesturePredictions,
-  type DemoGesturePrediction,
-  type HandLandmarkPoint
-} from "@/utils/gesture-prediction";
-import { applyEatToiletFingerSafety } from "@/utils/gesture-shape-safety";
+  applyBasicGesturePredictionGuards,
+  applyEatToiletFingerSafety,
+  type CapturedGestureFrame
+} from "@/utils/gesture-shape-safety";
 import {
   appendLiveGestureFrame,
   disposeMakaLearnGestureModel,
@@ -120,7 +120,7 @@ export function GesturePracticeView() {
   const predictionCandidateRef = useRef<{ label: string | null; frames: number }>({ label: null, frames: 0 });
   const currentPredictionLabelRef = useRef<string | null>(null);
   const liveGestureFramesRef = useRef<Float32Array[]>([]);
-  const liveGestureHandFramesRef = useRef<HandLandmarkPoint[][][]>([]);
+  const liveGestureHandFramesRef = useRef<CapturedGestureFrame[]>([]);
   const pendingModelPredictionRef = useRef(false);
   const gestureCaptureActiveRef = useRef(false);
   const lastHandsSeenAtRef = useRef(0);
@@ -147,12 +147,11 @@ export function GesturePracticeView() {
     0,
     learningItems.findIndex((item) => item.id === selectedGesture?.id)
   );
-  const selectedPredictionGuide = supportedGesturePredictions.find((gesture) => gesture.label === selectedGesture?.label);
   const selectedCategory = categories.find((category) => category.id === selectedGesture?.categoryId);
   const detectedGesture = prediction
     ? learningItems.find((item) => item.label === prediction.label)
     : undefined;
-  const referenceInstruction = getGesturePerformanceInstruction(selectedGesture, selectedPredictionGuide?.pose);
+  const referenceInstruction = getGesturePerformanceInstruction(selectedGesture);
   const meta = trackingMeta[trackingState];
   const hasValidHands = trackingState === "hands-visible";
 
@@ -296,7 +295,7 @@ export function GesturePracticeView() {
         setTrackingState(handCount === 0 ? "no-hands" : handCount <= 2 ? "hands-visible" : "too-many-hands");
       }
 
-      updateLiveModelCapture(result.landmarks);
+      updateLiveModelCapture(result.landmarks, result.handedness);
     }
 
     animationFrameRef.current = window.requestAnimationFrame(runHandTracking);
@@ -379,7 +378,10 @@ export function GesturePracticeView() {
     setPrediction(null);
   }
 
-  function updateLiveModelCapture(hands: Parameters<typeof appendLiveGestureFrame>[1]) {
+  function updateLiveModelCapture(
+    hands: Parameters<typeof appendLiveGestureFrame>[1],
+    handedness: MediaPipeCategory[][]
+  ) {
     const now = performance.now();
 
     if (hands.length) {
@@ -391,7 +393,7 @@ export function GesturePracticeView() {
       }
 
       appendLiveGestureFrame(liveGestureFramesRef.current, hands);
-      liveGestureHandFramesRef.current.push(copyHandFrame(hands));
+      liveGestureHandFramesRef.current.push(copyGestureFrame(hands, handedness));
       if (liveGestureHandFramesRef.current.length > 192) {
         liveGestureHandFramesRef.current.splice(0, liveGestureHandFramesRef.current.length - 192);
       }
@@ -424,11 +426,12 @@ export function GesturePracticeView() {
     void predictMakaLearnGesture(capturedFrames)
       .then((nextPrediction) => {
         setModelStatus("ready");
-        const safetyResult = applyEatToiletFingerSafety(nextPrediction, capturedHandFrames);
+        const guardResult = applyBasicGesturePredictionGuards(nextPrediction, capturedHandFrames);
+        const safetyResult = applyEatToiletFingerSafety(guardResult.prediction, capturedHandFrames);
         const confidenceResult = applyConfidenceThreshold(safetyResult.prediction);
         updateCompletedGesturePrediction(
           confidenceResult.prediction,
-          confidenceResult.feedback ?? safetyResult.feedback
+          confidenceResult.feedback ?? safetyResult.feedback ?? guardResult.feedback
         );
       })
       .catch(() => {
@@ -476,8 +479,15 @@ export function GesturePracticeView() {
     };
   }
 
-  function copyHandFrame(hands: HandLandmarkPoint[][]) {
-    return hands.map((hand) => hand.map((point) => ({ x: point.x, y: point.y, z: point.z })));
+  function copyGestureFrame(hands: HandLandmarkPoint[][], handedness: MediaPipeCategory[][]): CapturedGestureFrame {
+    return {
+      hands: hands.map((hand) => hand.map((point) => ({ x: point.x, y: point.y, z: point.z }))),
+      handedness: hands.map((_, index) => toKnownHandedness(handedness[index]?.[0]?.categoryName))
+    };
+  }
+
+  function toKnownHandedness(value?: string): CapturedGestureFrame["handedness"][number] {
+    return value === "Left" || value === "Right" ? value : "Unknown";
   }
 
   function updateStablePrediction(nextPrediction: DemoGesturePrediction | null) {
@@ -735,7 +745,6 @@ export function GesturePracticeView() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge>{selectedCategory?.name ?? "Sample gesture"}</Badge>
-                  {selectedPredictionGuide ? <Badge className="bg-mint text-green-700">{selectedPredictionGuide.pose}</Badge> : null}
                 </div>
                 <CardTitle className="mt-2 text-2xl">{selectedGesture.label}</CardTitle>
                 <CardDescription>Reference cue for teacher-guided practice.</CardDescription>
@@ -838,9 +847,9 @@ function RecognizedGestureMessage({
   );
 }
 
-function getGesturePerformanceInstruction(item?: LearningItem, pose?: string) {
+function getGesturePerformanceInstruction(item?: LearningItem) {
   if (!item) return "Choose a reference gesture to view the classroom cue.";
-  return item.description ?? pose ?? "Copy the reference slowly and keep both hands visible in the camera frame.";
+  return item.description ?? "Copy the reference slowly and keep both hands visible in the camera frame.";
 }
 
 function getModelStatusLabel(status: GestureModelStatus, hasValidHands: boolean) {
