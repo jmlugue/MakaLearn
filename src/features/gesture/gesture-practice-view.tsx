@@ -28,9 +28,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { FieldHint, Label, Select } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
-import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
-import { fetchMakaLearnData, insertPracticeAttempt } from "@/lib/supabase/app-data";
+import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { cn } from "@/lib/utils";
 import { generateCorrectiveFeedbackPlaceholder } from "@/utils/gesture-feedback";
 import {
@@ -52,7 +51,8 @@ import type { Category, LearningItem } from "@/types";
 type TrackingState = "idle" | "hands-visible" | "no-hands" | "too-many-hands" | "multiple-people";
 type HandConnection = { start: number; end: number };
 
-const NO_HANDS_AUTO_PREDICT_DELAY_MS = 2000;
+const NO_HANDS_AUTO_PREDICT_DELAY_MS = 1000;
+const MIN_CONFIDENT_PREDICTION_PERCENT = 70;
 
 const fixedGestureLabels = new Set([
   "I want to go to toilet",
@@ -107,7 +107,6 @@ const trackingMeta: Record<
 
 export function GesturePracticeView() {
   const { notify } = useToast();
-  const { user } = useAuthUser();
   const { isStudentMode } = useStudentMode();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -426,7 +425,11 @@ export function GesturePracticeView() {
       .then((nextPrediction) => {
         setModelStatus("ready");
         const safetyResult = applyEatToiletFingerSafety(nextPrediction, capturedHandFrames);
-        updateCompletedGesturePrediction(safetyResult.prediction, safetyResult.feedback);
+        const confidenceResult = applyConfidenceThreshold(safetyResult.prediction);
+        updateCompletedGesturePrediction(
+          confidenceResult.prediction,
+          confidenceResult.feedback ?? safetyResult.feedback
+        );
       })
       .catch(() => {
         setModelStatus("error");
@@ -460,9 +463,17 @@ export function GesturePracticeView() {
     );
 
     setFeedback(nextFeedback);
-    if (nextPrediction && selectedGesture) {
-      void savePracticeAttempt(nextPrediction, nextFeedback);
+  }
+
+  function applyConfidenceThreshold(nextPrediction: DemoGesturePrediction | null) {
+    if (!nextPrediction || nextPrediction.matchPercent >= MIN_CONFIDENT_PREDICTION_PERCENT) {
+      return { prediction: nextPrediction };
     }
+
+    return {
+      prediction: null,
+      feedback: "Try again with the gesture a little clearer in the camera view."
+    };
   }
 
   function copyHandFrame(hands: HandLandmarkPoint[][]) {
@@ -488,28 +499,6 @@ export function GesturePracticeView() {
         ? ""
         : "No supported pose matched yet. Check the examples and hold one pose steadily.";
     setFeedback(nextFeedback);
-    if (nextPrediction && selectedGesture) {
-      void savePracticeAttempt(nextPrediction, nextFeedback);
-    }
-  }
-
-  async function savePracticeAttempt(nextPrediction: DemoGesturePrediction, nextFeedback: string) {
-    if (!selectedGesture) return;
-
-    try {
-      await insertPracticeAttempt({
-        learningItemId: selectedGesture.id,
-        teacherId: user.id,
-        status: nextPrediction.label === selectedGesture.label ? "correct" : "good-attempt",
-        feedback: nextFeedback
-      });
-    } catch {
-      notify({
-        title: "Practice attempt not saved",
-        description: "Supabase could not save this gesture attempt.",
-        tone: "error"
-      });
-    }
   }
 
   function handleGestureChange(nextGestureId: string) {
