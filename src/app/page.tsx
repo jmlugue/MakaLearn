@@ -31,19 +31,7 @@ export default function LandingPage() {
       <div className="landing-dot-field" aria-hidden="true" />
       <div className="landing-ribbon" aria-hidden="true" />
 
-      <nav className="relative z-10 mx-auto flex max-w-7xl items-center justify-between border-b border-blue-100/80 py-3">
-        <Link href="/" className="inline-flex items-center" aria-label="MakaLearn home">
-          <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-white p-0.5 shadow-[0_8px_24px_rgba(37,99,235,0.14)]">
-            <Image
-              src="/makalearn_logo_current.png"
-              alt=""
-              width={128}
-              height={128}
-              className="h-full w-full scale-125 object-contain object-center"
-              priority
-            />
-          </span>
-        </Link>
+      <nav className="relative z-10 mx-auto flex min-h-[4.75rem] max-w-7xl items-center justify-end border-b border-blue-100/80 py-3">
         <Link
           href="/login"
           className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition hover:bg-blue-700"
@@ -58,8 +46,9 @@ export default function LandingPage() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="flex items-center gap-4">
-            <span className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-[1.75rem] bg-white p-1 shadow-[0_18px_55px_rgba(37,99,235,0.16)] sm:h-32 sm:w-32">
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Logo shrinks on small phones so the wordmark beside it is not clipped. */}
+            <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-[1.5rem] bg-white p-1 shadow-[0_18px_55px_rgba(37,99,235,0.16)] sm:h-32 sm:w-32 sm:rounded-[1.75rem]">
               <Image
                 src="/makalearn_logo_current.png"
                 alt="MakaLearn logo"
@@ -69,14 +58,14 @@ export default function LandingPage() {
                 priority
               />
             </span>
-            <h1 className="text-5xl font-black tracking-[-0.055em] text-ink sm:text-6xl lg:text-7xl">MakaLearn</h1>
+            <h1 className="text-[2.5rem] font-black tracking-[-0.055em] text-ink sm:text-6xl lg:text-7xl">MakaLearn</h1>
           </div>
 
           <p className="mt-8 max-w-xl text-3xl font-black leading-[1.15] tracking-[-0.035em] text-ink sm:text-4xl">
             Give every learner a way to{" "}
-            <span className="relative inline-block whitespace-nowrap text-accent-teal">
+            <span className="relative inline-block whitespace-nowrap text-blue-700">
               be understood
-              <UnderlineDoodle className="absolute -bottom-2 left-0 h-3 w-full text-accent-amber/70" />
+              <UnderlineDoodle className="absolute -bottom-2 left-0 h-3 w-full text-blue-400/70" />
             </span>
           </p>
 
