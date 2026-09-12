@@ -272,7 +272,25 @@ textarea {
     top: -9rem;
     height: 30rem;
     width: 30rem;
-    border: 5rem solid rgba(45, 212, 191, 0.07);
+    border: 5rem solid rgba(45, 212, 191, 0.09);
+  }
+
+  /* Warm accents so the background is not only blue. Kept faint enough that the
+     glass panels above them stay readable. */
+  .landing-orb-three {
+    bottom: -6rem;
+    right: 12%;
+    height: 26rem;
+    width: 26rem;
+    background: radial-gradient(circle at 45% 50%, rgba(251, 191, 36, 0.16), rgba(254, 243, 199, 0.05) 58%, transparent 72%);
+  }
+
+  .landing-orb-four {
+    bottom: 14%;
+    left: -7rem;
+    height: 22rem;
+    width: 22rem;
+    background: radial-gradient(circle at 55% 45%, rgba(251, 113, 133, 0.13), rgba(255, 228, 230, 0.04) 60%, transparent 74%);
   }
 
   .landing-dot-field,
