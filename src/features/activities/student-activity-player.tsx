@@ -18,6 +18,12 @@ import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { cn } from "@/lib/utils";
 import { activityTypeLabels } from "@/utils/activity-labels";
+import {
+  activityUsesSymbolOptions,
+  findLearningItemForActivityValue,
+  getActivityDisplayLabel,
+  isEmbeddableActivityMediaUrl
+} from "@/utils/activity-symbol-options";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 type ActivityScore = {
@@ -50,24 +56,11 @@ const activityBackgrounds = [
 ];
 
 function activityUsesImageOptions(type: Activity["type"]) {
-  return type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
-}
-
-function isEmbeddableMediaUrl(value?: string) {
-  return Boolean(
-    value &&
-      (value.startsWith("http://") ||
-        value.startsWith("https://") ||
-        value.startsWith("/") ||
-        value.startsWith("blob:") ||
-        value.startsWith("data:"))
-  );
+  return activityUsesSymbolOptions(type);
 }
 
 function getLearningItemForValue(value: string, learningItems: LearningItem[]) {
-  return learningItems.find(
-    (item) => item.symbolImageUrl === value || item.gestureMediaUrl === value || item.label === value
-  );
+  return findLearningItemForActivityValue(value, learningItems);
 }
 
 function getRelatedItem(question: ActivityQuestion, learningItems: LearningItem[]) {
@@ -75,8 +68,7 @@ function getRelatedItem(question: ActivityQuestion, learningItems: LearningItem[
 }
 
 function getDisplayLabel(value: string, learningItems: LearningItem[]) {
-  const item = getLearningItemForValue(value, learningItems);
-  return item?.label ?? value;
+  return getActivityDisplayLabel(value, learningItems);
 }
 
 function getQuestionTitle(activity: Activity, question: ActivityQuestion, learningItems: LearningItem[]) {
@@ -2056,7 +2048,7 @@ function SymbolOption({
   const item = getLearningItemForValue(value, learningItems);
   const imageValue = item?.symbolImageUrl ?? value;
 
-  if (isEmbeddableMediaUrl(imageValue)) {
+  if (isEmbeddableActivityMediaUrl(imageValue)) {
     return (
       <span
         className={cn(

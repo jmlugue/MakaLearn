@@ -17,6 +17,8 @@ import { PageTransition } from "@/components/motion/page-transition";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/layout/brand-logo";
 
+const studentOnlyRouteHrefs = ["/playground", "/gesture-practice"];
+
 export function AppShell({ children }: { children: ReactNode }) {
   return <AuthenticatedShell>{children}</AuthenticatedShell>;
 }
@@ -41,8 +43,22 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   }, [isStudentMode, loading, pathname, router, user]);
 
   useEffect(() => {
-    setStudentNavOpen(false);
-  }, [pathname]);
+    if (!loading && user && !isStudentMode && studentOnlyRouteHrefs.includes(pathname)) {
+      router.replace(user.role === "admin" ? "/admin" : "/content");
+    }
+  }, [isStudentMode, loading, pathname, router, user]);
+
+  useEffect(() => {
+    setStudentNavOpen(isStudentMode);
+  }, [isStudentMode]);
+
+  function handleExitStudentMode() {
+    exitStudentMode();
+
+    if (studentOnlyRouteHrefs.includes(pathname)) {
+      router.replace(user?.role === "admin" ? "/admin" : "/content");
+    }
+  }
 
   if (loading) {
     return (
@@ -84,21 +100,20 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => setStudentNavOpen(true)}
-            className="fixed left-4 top-3 z-[70] rounded-2xl shadow-[0_12px_30px_rgba(37,99,235,0.18)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100"
+            className="fixed left-4 top-3 z-[90] rounded-2xl shadow-[0_12px_30px_rgba(37,99,235,0.18)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100"
             aria-label="Open student navigation"
             aria-expanded={studentNavOpen}
           >
             <BrandLogo markClassName="h-12 w-12 rounded-2xl" />
           </button>
           {studentNavOpen ? (
-            <div className="fixed inset-0 z-[80] bg-slate-950/35 backdrop-blur-sm" role="presentation" onClick={() => setStudentNavOpen(false)}>
+            <div className="fixed inset-0 z-[100] bg-slate-950/35 backdrop-blur-sm" role="presentation" onClick={() => setStudentNavOpen(false)}>
               <aside
                 className="glass-panel-strong absolute bottom-3 left-3 top-3 flex w-72 max-w-[calc(100vw-1.5rem)] flex-col rounded-[1.75rem] border p-4 shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
                 aria-label="Student navigation"
                 onClick={(event) => event.stopPropagation()}
               >
-                <div className="mb-6 flex items-center justify-between gap-3">
-                  <BrandLogo markClassName="h-14 w-14 rounded-2xl" />
+                <div className="mb-3 flex justify-end">
                   <button
                     type="button"
                     onClick={() => setStudentNavOpen(false)}
@@ -108,30 +123,11 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
                     <X className="h-5 w-5" aria-hidden="true" />
                   </button>
                 </div>
-                <nav className="grid gap-2">
-                  {studentNavItems.map((item) => {
-                    const active = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "flex min-h-16 items-center gap-3 rounded-2xl px-4 text-lg font-black transition",
-                          active
-                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]"
-                            : "bg-white/70 text-slate-700 hover:bg-white hover:text-blue-700"
-                        )}
-                      >
-                        <item.icon className="h-7 w-7" aria-hidden="true" />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </nav>
-                <Button type="button" variant="secondary" className="mt-auto min-h-14 justify-start rounded-2xl text-base" onClick={exitStudentMode}>
-                  <GraduationCap className="h-5 w-5" aria-hidden="true" />
-                  Exit student mode
-                </Button>
+                <StudentNavigationContent
+                  pathname={pathname}
+                  onExit={handleExitStudentMode}
+                  onNavigate={() => setStudentNavOpen(false)}
+                />
               </aside>
             </div>
           ) : null}
@@ -141,7 +137,10 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
         className={cn(
           "app-canvas min-h-screen",
           isStudentMode
-            ? cn("px-2 pb-2 sm:px-3 sm:pb-3 lg:px-4", pathname === "/gesture-practice" ? "pt-2 sm:pt-3" : "pt-20")
+            ? cn(
+                "px-2 pb-2 sm:px-3 sm:pb-3 lg:px-4",
+                pathname === "/gesture-practice" ? "pt-2 sm:pt-3 lg:pt-4" : "pt-20 lg:pt-4"
+              )
             : "px-4 pb-24 pt-5 md:px-6 lg:ml-72 lg:px-8 lg:pb-10 lg:pt-7"
         )}
       >
@@ -150,6 +149,49 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
         </div>
       </main>
       {isStudentMode ? null : <MobileNav />}
+    </>
+  );
+}
+
+function StudentNavigationContent({
+  pathname,
+  onExit,
+  onNavigate
+}: {
+  pathname: string;
+  onExit: () => void;
+  onNavigate?: () => void;
+}) {
+  return (
+    <>
+      <Link href="/playground" className="mb-8 flex items-center gap-3" onClick={onNavigate}>
+        <BrandLogo markClassName="h-14 w-14 rounded-2xl" />
+      </Link>
+      <nav className="grid gap-2">
+        {studentNavItems.map((item) => {
+          const active = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                "flex min-h-16 items-center gap-3 rounded-2xl px-4 text-lg font-black transition",
+                active
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]"
+                  : "bg-white/70 text-slate-700 hover:bg-white hover:text-blue-700"
+              )}
+            >
+              <item.icon className="h-7 w-7" aria-hidden="true" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+      <Button type="button" variant="secondary" className="mt-auto min-h-14 justify-start rounded-2xl text-base" onClick={onExit}>
+        <GraduationCap className="h-5 w-5" aria-hidden="true" />
+        Exit student mode
+      </Button>
     </>
   );
 }

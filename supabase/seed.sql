@@ -112,8 +112,8 @@ on conflict (id) do nothing;
 insert into public.activity_items (id, activity_id, prompt, answer, options, learning_item_id, position)
 values
   ('q-match-hello', 'activity-match', 'Hello', 'Hello', array['Hello', 'Eat', 'Drink'], 'pecs-hello', 0),
-  ('q-match-eat', 'activity-match', 'Eat', 'EAT', array['HEL', 'EAT', 'DRK'], 'item-eat', 1),
-  ('q-choice-drink', 'activity-choice', 'Choose Drink', 'DRK', array['HEL', 'EAT', 'DRK'], 'item-drink', 0)
+  ('q-match-eat', 'activity-match', 'Eat', 'Eat', array['Hello', 'Eat', 'Drink'], 'item-eat', 1),
+  ('q-choice-drink', 'activity-choice', 'Choose Drink', 'Drink', array['Hello', 'Eat', 'Drink'], 'item-drink', 0)
 on conflict (id) do nothing;
 
 insert into public.audit_logs (

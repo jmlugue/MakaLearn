@@ -31,6 +31,11 @@ import {
 } from "@/lib/supabase/app-data";
 import { activityTypeLabels } from "@/utils/activity-labels";
 import {
+  findLearningItemForActivityValue,
+  isEmbeddableActivityMediaUrl,
+  normalizeActivitySymbolQuestions
+} from "@/utils/activity-symbol-options";
+import {
   getSavedFillBlankPromptForLabel,
   isGenericFillBlankPrompt
 } from "@/utils/fill-blank-prompts";
@@ -236,9 +241,11 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       try {
         const data = await fetchMakaLearnData();
         if (!active) return;
-        const nextActivities = upgradeStarterActivityPrompts(data.activities);
+        const nextLearningItems = getActivityItems(upgradeStarterLearningItemPrompts(data.learningItems));
+        const nextActivities = upgradeStarterActivityPrompts(data.activities)
+          .map((activity) => normalizeActivitySymbolQuestions(activity, nextLearningItems));
         setActivities(nextActivities);
-        setLearningItems(getActivityItems(upgradeStarterLearningItemPrompts(data.learningItems)));
+        setLearningItems(nextLearningItems);
         setActivityPromptStore(
           Object.fromEntries(data.promptTemplates.map((template) => [getPromptStoreKey(template.activityType, template.learningItemId), template.prompt]))
         );
@@ -1346,13 +1353,9 @@ function ActivityPlayer({
 }
 
 function SymbolOption({ value, learningItems }: { value: string; learningItems: LearningItem[] }) {
-  const item = learningItems.find((candidate) => candidate.symbolImageUrl === value || candidate.label === value);
+  const item = findLearningItemForActivityValue(value, learningItems);
   const imageValue = item?.symbolImageUrl ?? value;
-  const isImageUrl =
-    imageValue.startsWith("http") ||
-    imageValue.startsWith("/") ||
-    imageValue.startsWith("blob:") ||
-    imageValue.startsWith("data:");
+  const isImageUrl = isEmbeddableActivityMediaUrl(imageValue);
 
   if (isImageUrl) {
     return (
