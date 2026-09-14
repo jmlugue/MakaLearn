@@ -145,6 +145,9 @@ export function LoginPanel() {
 
   const emailHasError = Boolean(errors.email || formError);
   const passwordHasError = Boolean(errors.password || formError);
+  // Visible soft blue-grey outline: the shared Input's white border disappears on this white card.
+  const fieldClass =
+    "min-h-14 border-slate-200 bg-slate-50/80 pl-11 text-base shadow-none hover:border-blue-300 focus:border-blue-400 focus:bg-white";
   const errorInputClass =
     "border-red-300 bg-red-50/50 text-red-950 focus:border-red-500 focus:ring-red-100";
   const emailDescription = [errors.email ? "email-error" : "", formError ? "login-error" : ""]
@@ -156,14 +159,14 @@ export function LoginPanel() {
 
   return (
     <div className="w-full">
-      <div className="mb-9">
+      <div className="mb-7">
         <p className="text-base font-bold text-blue-600">Welcome back</p>
         <h1 className="mt-3 text-4xl font-black tracking-[-0.035em] text-ink">Sign in to your account</h1>
         <p className="mt-3 text-base leading-7 text-slate-600">
           Enter your school email and password to continue.
         </p>
       </div>
-      <form className="space-y-5" onSubmit={handleSubmit}>
+      <form className="space-y-4" onSubmit={handleSubmit}>
         {formError ? (
           <div
             id="login-error"
@@ -195,7 +198,7 @@ export function LoginPanel() {
               value={email}
               onChange={(event) => handleEmailChange(event.target.value)}
               placeholder="teacher@makalearn.local"
-              className={cn("min-h-14 bg-white/95 pl-11 pr-10 text-base shadow-[0_12px_30px_rgba(37,99,235,0.08)]", emailHasError && errorInputClass)}
+              className={cn(fieldClass, "pr-10", emailHasError && errorInputClass)}
               aria-invalid={emailHasError}
               aria-describedby={emailDescription || undefined}
             />
@@ -224,7 +227,7 @@ export function LoginPanel() {
               onChange={(event) => handlePasswordChange(event.target.value)}
               placeholder="Enter your password"
               className={cn(
-                "min-h-14 bg-white/95 pl-11 text-base shadow-[0_12px_30px_rgba(37,99,235,0.08)]",
+                fieldClass,
                 passwordHasError ? "pr-20" : "pr-12",
                 passwordHasError && errorInputClass
               )}

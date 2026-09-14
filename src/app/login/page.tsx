@@ -12,7 +12,7 @@ const accountUses = [
 
 export default function LoginPage() {
   return (
-    <main className="login-page relative grid min-h-screen place-items-center overflow-hidden px-4 py-8 sm:px-6">
+    <main className="login-page relative grid min-h-screen place-items-center overflow-hidden px-4 py-8 sm:px-6 lg:h-dvh lg:min-h-0 lg:py-4">
       <div className="login-glow login-glow-one" aria-hidden="true" />
       <div className="login-glow login-glow-two" aria-hidden="true" />
       <Link href="/" className="absolute left-5 top-5 z-20 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/80 px-4 text-sm font-bold text-slate-700 shadow-sm backdrop-blur hover:bg-white sm:left-8 sm:top-8">
@@ -31,7 +31,7 @@ export default function LoginPage() {
               </span>
             </div>
             <p className="mt-8 max-w-md text-lg font-semibold leading-8 text-blue-50">
-              Your classroom materials and guided practice tools, ready for the next session.
+              Your Makaton lessons, activities, and sign practice, all in one place.
             </p>
             <div className="mt-9 space-y-3">
               {accountUses.map((item) => (
@@ -43,8 +43,8 @@ export default function LoginPage() {
             </div>
           </div>
         </section>
-        <section className="relative grid place-items-center bg-white/40 px-5 py-10 backdrop-blur-2xl sm:px-10 lg:px-12">
-          <div className="glass-panel-strong w-full max-w-lg rounded-[1.75rem] border px-12 py-8 sm:px-16 sm:py-10">
+        <section className="relative grid place-items-center bg-white/40 px-5 py-10 backdrop-blur-2xl sm:px-10 lg:px-12 lg:py-6">
+          <div className="glass-panel-strong w-full max-w-lg rounded-[1.75rem] border px-12 py-8 sm:px-16 lg:py-7">
             <LoginPanel />
           </div>
         </section>
