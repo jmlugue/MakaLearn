@@ -6,11 +6,12 @@ import { cn } from "@/lib/utils";
 type KidPose = "hello" | "help" | "yes" | "eat";
 type KidTone = "blue" | "teal" | "amber" | "coral";
 
-const tones: Record<KidTone, { fill: string; stroke: string; chip: string }> = {
-  blue: { fill: "#dbeafe", stroke: "#1d4ed8", chip: "bg-blue-50 text-blue-700" },
-  teal: { fill: "#ccfbf1", stroke: "#0f766e", chip: "bg-teal-50 text-accent-teal" },
-  amber: { fill: "#fef3c7", stroke: "#b45309", chip: "bg-amber-50 text-accent-amber" },
-  coral: { fill: "#ffe4e6", stroke: "#be123c", chip: "bg-rose-50 text-accent-coral" }
+// `badge` is a faint wash painted on the circle behind each kid, not on the figure.
+const tones: Record<KidTone, { fill: string; stroke: string; chip: string; badge: string }> = {
+  blue: { fill: "#dbeafe", stroke: "#1d4ed8", chip: "bg-blue-50 text-blue-700", badge: "rgba(59,130,246,0.14)" },
+  teal: { fill: "#ccfbf1", stroke: "#0f766e", chip: "bg-teal-50 text-accent-teal", badge: "rgba(20,184,166,0.14)" },
+  amber: { fill: "#fef3c7", stroke: "#b45309", chip: "bg-amber-50 text-accent-amber", badge: "rgba(245,158,11,0.14)" },
+  coral: { fill: "#ffe4e6", stroke: "#be123c", chip: "bg-rose-50 text-accent-coral", badge: "rgba(244,63,94,0.12)" }
 };
 
 /**
@@ -161,6 +162,7 @@ export function SigningKids({ className }: { className?: string }) {
               "grid place-items-center rounded-full border border-white/85 bg-white/80 p-3.5 shadow-[0_16px_40px_rgba(30,64,175,0.16)] backdrop-blur-xl",
               kid.size
             )}
+            style={{ backgroundImage: `radial-gradient(circle at 50% 100%, ${tones[kid.tone].badge}, transparent 70%)` }}
           >
             <SigningKid pose={kid.pose} tone={kid.tone} />
           </div>

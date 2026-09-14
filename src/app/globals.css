@@ -252,6 +252,12 @@ textarea {
       #f8fbff;
   }
 
+  /* The page is dimmed behind the How it works overlay, so skip its blur work
+     while the carousel and shapes keep animating underneath. */
+  .landing-page[data-overlay-open] * {
+    backdrop-filter: none !important;
+  }
+
   .landing-orb {
     position: absolute;
     border-radius: 999px;
@@ -272,7 +278,7 @@ textarea {
     top: -9rem;
     height: 30rem;
     width: 30rem;
-    border: 5rem solid rgba(45, 212, 191, 0.09);
+    border: 5rem solid rgba(45, 212, 191, 0.05);
   }
 
   /* Warm accents so the background is not only blue. Kept faint enough that the
@@ -282,7 +288,7 @@ textarea {
     right: 12%;
     height: 26rem;
     width: 26rem;
-    background: radial-gradient(circle at 45% 50%, rgba(251, 191, 36, 0.16), rgba(254, 243, 199, 0.05) 58%, transparent 72%);
+    background: radial-gradient(circle at 45% 50%, rgba(251, 191, 36, 0.05), rgba(254, 243, 199, 0.02) 58%, transparent 72%);
   }
 
   .landing-orb-four {
@@ -290,7 +296,7 @@ textarea {
     left: -7rem;
     height: 22rem;
     width: 22rem;
-    background: radial-gradient(circle at 55% 45%, rgba(251, 113, 133, 0.13), rgba(255, 228, 230, 0.04) 60%, transparent 74%);
+    background: radial-gradient(circle at 55% 45%, rgba(251, 113, 133, 0.06), rgba(255, 228, 230, 0.02) 60%, transparent 74%);
   }
 
   .landing-dot-field,
