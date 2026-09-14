@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion, type PanInfo } from "framer-motion";
 
-const AUTOPLAY_MS = 5000;
+const AUTOPLAY_MS = 3000;
 
 const pecsCards = [
   { label: "Hello", image: "/pecs/generated_cards/hello.png" },

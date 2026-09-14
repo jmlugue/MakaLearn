@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Lock, Mail, UserRound } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Lock, Mail, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FieldError, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
@@ -17,6 +17,7 @@ export function LoginPanel() {
   const { notify } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,7 +44,7 @@ export function LoginPanel() {
     setFormError("");
     const nextErrors = {
       email: email.includes("@") ? undefined : "Enter a valid email address.",
-      password: password.length >= 6 ? undefined : "Password must be at least 6 characters."
+      password: password ? undefined : "Enter your password."
     };
     setErrors(nextErrors);
     if (nextErrors.email || nextErrors.password) return;
@@ -181,22 +182,20 @@ export function LoginPanel() {
             Email
           </Label>
           <div className="relative mt-1">
-            <span
+            <Mail
               className={cn(
-                "pointer-events-none absolute left-4 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl bg-blue-600 text-white shadow-[0_8px_18px_rgba(37,99,235,0.25)] ring-1 ring-blue-300",
-                emailHasError && "bg-red-500"
+                "pointer-events-none absolute left-4 top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 text-blue-400",
+                emailHasError && "text-red-400"
               )}
               aria-hidden="true"
-            >
-              <Mail className="h-5 w-5" />
-            </span>
+            />
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(event) => handleEmailChange(event.target.value)}
               placeholder="teacher@makalearn.local"
-              className={cn("min-h-14 bg-white/95 pl-16 pr-10 text-base shadow-[0_12px_30px_rgba(37,99,235,0.08)]", emailHasError && errorInputClass)}
+              className={cn("min-h-14 bg-white/95 pl-11 pr-10 text-base shadow-[0_12px_30px_rgba(37,99,235,0.08)]", emailHasError && errorInputClass)}
               aria-invalid={emailHasError}
               aria-describedby={emailDescription || undefined}
             />
@@ -211,38 +210,63 @@ export function LoginPanel() {
             Password
           </Label>
           <div className="relative mt-1">
-            <span
+            <Lock
               className={cn(
-                "pointer-events-none absolute left-4 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl bg-blue-600 text-white shadow-[0_8px_18px_rgba(37,99,235,0.25)] ring-1 ring-blue-300",
-                passwordHasError && "bg-red-500"
+                "pointer-events-none absolute left-4 top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 text-blue-400",
+                passwordHasError && "text-red-400"
               )}
               aria-hidden="true"
-            >
-              <Lock className="h-5 w-5" />
-            </span>
+            />
             <Input
               id="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(event) => handlePasswordChange(event.target.value)}
-              placeholder="At least 6 characters"
-              className={cn("min-h-14 bg-white/95 pl-16 pr-10 text-base shadow-[0_12px_30px_rgba(37,99,235,0.08)]", passwordHasError && errorInputClass)}
+              placeholder="Enter your password"
+              className={cn(
+                "min-h-14 bg-white/95 pl-11 text-base shadow-[0_12px_30px_rgba(37,99,235,0.08)]",
+                passwordHasError ? "pr-20" : "pr-12",
+                passwordHasError && errorInputClass
+              )}
               aria-invalid={passwordHasError}
               aria-describedby={passwordDescription || undefined}
             />
             {passwordHasError ? (
-              <AlertCircle className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-red-500" aria-hidden="true" />
+              <AlertCircle
+                className="pointer-events-none absolute right-12 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500"
+                aria-hidden="true"
+              />
             ) : null}
+            <button
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              className="absolute right-2 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            >
+              {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
+            </button>
           </div>
           <FieldError id="password-error" message={errors.password} />
         </div>
-        <button type="button" onClick={resetPassword} className="block text-base font-semibold text-blue-700">
-          Forgot password?
-        </button>
-        <Button className="w-full text-base" type="submit" disabled={loading}>
-          <UserRound className="h-4 w-4" aria-hidden="true" />
-          {loading ? "Signing in..." : "Sign in"}
-        </Button>
+        <div>
+          <Button className="w-full text-base" type="submit" disabled={loading}>
+            <UserRound className="h-4 w-4" aria-hidden="true" />
+            {loading ? "Signing in..." : "Sign in"}
+          </Button>
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={resetPassword}
+              className="rounded text-sm font-semibold text-blue-700 hover:text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            >
+              Forgot password?
+            </button>
+          </div>
+        </div>
+        <p className="border-t border-slate-200/80 pt-5 text-center text-sm text-slate-500">
+          No account yet? Contact your school administrator.
+        </p>
       </form>
     </div>
   );
