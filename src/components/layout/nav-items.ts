@@ -8,12 +8,16 @@ import {
   Shield
 } from "lucide-react";
 
-export const baseNavItems = [
+// Work pages sit at the top of the sidebar (followed by the Student mode button). Help sits at the bottom
+// above the profile menu, and Settings lives inside the profile menu.
+export const mainNavItems = [
   { href: "/content", label: "Content", icon: BookOpen },
-  { href: "/activities", label: "Activities", icon: Activity },
-  { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/help", label: "Help", icon: HelpCircle }
+  { href: "/activities", label: "Activities", icon: Activity }
 ];
+
+export const helpNavItem = { href: "/help", label: "Help", icon: HelpCircle };
+
+export const settingsNavItem = { href: "/settings", label: "Settings", icon: Settings };
 
 export const studentNavItems = [
   { href: "/playground", label: "Playground", icon: Puzzle },

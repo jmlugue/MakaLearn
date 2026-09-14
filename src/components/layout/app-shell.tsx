@@ -29,7 +29,6 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   const { user, loading, error } = useAuthState();
   const { isStudentMode, exitStudentMode } = useStudentMode();
   const [studentNavOpen, setStudentNavOpen] = useState(false);
-
   useEffect(() => {
     if (!loading && !user && !error) {
       router.replace("/login");
@@ -141,7 +140,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
                 "px-2 pb-2 sm:px-3 sm:pb-3 lg:px-4",
                 pathname === "/gesture-practice" ? "pt-2 sm:pt-3 lg:pt-4" : "pt-20 lg:pt-4"
               )
-            : "px-4 pb-24 pt-5 md:px-6 lg:ml-72 lg:px-8 lg:pb-10 lg:pt-7"
+            : "px-4 pb-24 pt-5 md:px-6 lg:ml-28 lg:px-8 lg:pb-10 lg:pt-7"
         )}
       >
         <div className={cn("mx-auto", isStudentMode ? "w-full max-w-none" : "max-w-7xl")}>
