@@ -1,8 +1,11 @@
 import type { DemoFinger, DemoGesturePrediction, HandLandmarkPoint } from "@/utils/gesture-prediction";
+import type { GestureFeedbackIssueCategory } from "@/utils/gesture-feedback";
 
 type EatToiletSafetyResult = {
   prediction: DemoGesturePrediction | null;
+  feedbackPrediction?: DemoGesturePrediction;
   feedback?: string;
+  issueCategory?: GestureFeedbackIssueCategory;
 };
 
 export type CapturedGestureFrame = {
@@ -50,6 +53,13 @@ export function applyBasicGesturePredictionGuards(
   if (prediction.label === YES_LABEL) return validateYesClosedFist(prediction, capturedFrames);
   if (prediction.label === NO_LABEL) return validateNoPalmFacing(prediction, capturedFrames);
   if (prediction.label === HELP_LABEL) return validateHelpTwoHandShape(prediction, capturedFrames);
+  if (prediction.label === EAT_LABEL) return validateEatPalmNotFacing(prediction, capturedFrames);
+  if (prediction.label === DRINK_LABEL) {
+    return (
+      resolveEatToiletShapePredictedAsDrink(prediction, capturedFrames) ??
+      validateDrinkMotionDirection(prediction, capturedFrames)
+    );
+  }
 
   return { prediction };
 }
@@ -73,7 +83,8 @@ export function applyEatToiletFingerSafety(
         pose: "Middle-finger toilet shape",
         matchPercent: Math.max(55, prediction.matchPercent - 5)
       },
-      feedback: "The motion looked similar to eating, but the middle-finger shape matched toilet."
+      feedback: "The motion looked similar to eating, but the middle-finger shape matched toilet.",
+      issueCategory: "hand-shape-mismatch"
     };
   }
 
@@ -85,7 +96,8 @@ export function applyEatToiletFingerSafety(
         pose: "Grouped eating hand shape",
         matchPercent: Math.max(55, prediction.matchPercent - 5)
       },
-      feedback: "The motion looked similar to toilet, but the grouped hand shape matched eating."
+      feedback: "The motion looked similar to toilet, but the grouped hand shape matched eating.",
+      issueCategory: "hand-shape-mismatch"
     };
   }
 
@@ -95,7 +107,8 @@ export function applyEatToiletFingerSafety(
   ) {
     return {
       prediction: null,
-      feedback: "That looked close to both eat and toilet. Try again with the finger shape clearer."
+      feedback: "That looked close to both eat and toilet. Try again with the finger shape clearer.",
+      issueCategory: "hand-shape-mismatch"
     };
   }
 
@@ -120,7 +133,8 @@ function validateExpectedHandCount(
     feedback:
       expectedHandCount === 1
         ? "That gesture uses one hand. Try again with only one hand visible."
-        : "That gesture uses both hands. Try again with both hands visible."
+        : "That gesture uses both hands. Try again with both hands visible.",
+    issueCategory: "hand-count-mismatch"
   };
 }
 
@@ -134,14 +148,16 @@ function validateYesClosedFist(
   if (shape.indexOnlyRatio >= 0.3) {
     return {
       prediction: null,
-      feedback: "That looked like one finger was raised. For yes, try the closed-fist gesture again."
+      feedback: "That looked like one finger was raised. For yes, try the closed-fist gesture again.",
+      issueCategory: "hand-shape-mismatch"
     };
   }
 
   if (shape.closedFistRatio < 0.4 || shape.openHandRatio >= 0.45) {
     return {
       prediction: null,
-      feedback: "For yes, keep the hand in a closed fist and try the motion again."
+      feedback: "For yes, keep the hand in a closed fist and try the motion again.",
+      issueCategory: "hand-shape-mismatch"
     };
   }
 
@@ -156,7 +172,8 @@ function validateNoPalmFacing(
   if (shape.usableFrames >= 6 && shape.openHandRatio < 0.45) {
     return {
       prediction: null,
-      feedback: "For no, show an open palm and try the side motion again."
+      feedback: "For no, show an open palm and try the side motion again.",
+      issueCategory: "hand-shape-mismatch"
     };
   }
 
@@ -166,7 +183,8 @@ function validateNoPalmFacing(
   if (orientation.palmFacingRatio < 0.55) {
     return {
       prediction: null,
-      feedback: "For no, face your palm toward the camera and try again."
+      feedback: "For no, face your palm toward the camera and try again.",
+      issueCategory: "palm-orientation-mismatch"
     };
   }
 
@@ -183,18 +201,100 @@ function validateHelpTwoHandShape(
   if (shape.supportAndFistRatio < 0.35) {
     return {
       prediction: null,
-      feedback: "For help, use one flat support hand and one closed hand."
+      feedback: "For help, use one flat support hand and one closed hand.",
+      issueCategory: "hand-shape-mismatch"
     };
   }
 
   if (shape.stackedHelpRatio < 0.3) {
     return {
       prediction: null,
-      feedback: "For help, place the closed hand near and above the support hand."
+      feedback: "For help, place the closed hand near and above the support hand.",
+      issueCategory: "hand-shape-mismatch"
     };
   }
 
   return { prediction };
+}
+
+function validateEatPalmNotFacing(
+  prediction: DemoGesturePrediction,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult {
+  const orientation = summarizePalmOrientation(capturedFrames);
+  if (orientation.usableFrames < 6) return { prediction };
+
+  if (orientation.palmFacingRatio >= 0.55) {
+    return {
+      prediction: null,
+      feedback: "For eat, turn your palm sideways instead of facing it toward the camera.",
+      issueCategory: "palm-orientation-mismatch"
+    };
+  }
+
+  return { prediction };
+}
+
+function validateDrinkMotionDirection(
+  prediction: DemoGesturePrediction,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult {
+  const motion = summarizePrimaryHandMotion(capturedFrames);
+  if (motion.usableFrames < 8 || motion.pathDistance < 0.08) return { prediction };
+
+  // Placeholder direction guard: replace with approved per-gesture motion metadata
+  // when the trained recognition model exposes validated start/end landmarks.
+  if (motion.verticalDelta > 0.055 && motion.downwardStepRatio >= 0.58) {
+    return {
+      prediction: null,
+      feedback: "For drink, start lower and move the gesture up toward your mouth like the example.",
+      issueCategory: "motion-direction-mismatch"
+    };
+  }
+
+  return { prediction };
+}
+
+function resolveEatToiletShapePredictedAsDrink(
+  prediction: DemoGesturePrediction,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult | null {
+  const shape = summarizeEatToiletShape(capturedFrames);
+  if (shape.usableFrames < 6) return null;
+
+  const eatShapeIsClear = shape.eatRatio >= 0.55 && shape.toiletRatio < 0.35;
+  const toiletShapeIsClear = shape.toiletRatio >= 0.45 && shape.eatRatio < 0.35;
+  if (!eatShapeIsClear && !toiletShapeIsClear) {
+    if (shape.eatRatio >= 0.35 && shape.toiletRatio >= 0.35) {
+      return {
+        prediction: null,
+        feedback: "That looked close to both eat and toilet. Try again with the finger shape clearer.",
+        issueCategory: "hand-shape-mismatch"
+      };
+    }
+
+    return null;
+  }
+
+  const correctedLabel = eatShapeIsClear ? EAT_LABEL : TOILET_LABEL;
+
+  const orientation = summarizePalmOrientation(capturedFrames);
+  if (orientation.usableFrames >= 6 && orientation.palmFacingRatio >= 0.55) {
+    const correctedPrediction = createCorrectedEatToiletPrediction(prediction, correctedLabel);
+    return {
+      prediction: null,
+      feedbackPrediction: correctedPrediction,
+      feedback:
+        correctedLabel === EAT_LABEL
+          ? "This looked like eat with the palm facing the camera. Turn your palm sideways and try again."
+          : "This looked like toilet with the palm facing the camera. Flip the hand around and try again.",
+      issueCategory: "palm-orientation-mismatch"
+    };
+  }
+
+  return {
+    prediction: createCorrectedEatToiletPrediction(prediction, correctedLabel)
+  };
 }
 
 function summarizeHandCounts(capturedFrames: CapturedGestureFrame[]) {
@@ -342,6 +442,50 @@ function summarizePalmOrientation(capturedFrames: CapturedGestureFrame[]) {
   };
 }
 
+function summarizePrimaryHandMotion(capturedFrames: CapturedGestureFrame[]) {
+  const centers: Array<{ x: number; y: number }> = [];
+
+  capturedFrames.forEach(({ hands }) => {
+    const primaryHand = hands.find((hand) => hand.length >= 21);
+    if (!primaryHand) return;
+    centers.push(getCenter(primaryHand));
+  });
+
+  if (centers.length < 2) {
+    return {
+      usableFrames: centers.length,
+      verticalDelta: 0,
+      pathDistance: 0,
+      downwardStepRatio: 0
+    };
+  }
+
+  const sampleSize = Math.max(2, Math.floor(centers.length * 0.25));
+  const start = averagePoints(centers.slice(0, sampleSize));
+  const end = averagePoints(centers.slice(-sampleSize));
+  let pathDistance = 0;
+  let movingSteps = 0;
+  let downwardSteps = 0;
+
+  for (let index = 1; index < centers.length; index += 1) {
+    const previous = centers[index - 1];
+    const current = centers[index];
+    const stepDistance = Math.hypot(current.x - previous.x, current.y - previous.y);
+    pathDistance += stepDistance;
+
+    if (stepDistance < 0.003) continue;
+    movingSteps += 1;
+    if (current.y > previous.y) downwardSteps += 1;
+  }
+
+  return {
+    usableFrames: centers.length,
+    verticalDelta: end.y - start.y,
+    pathDistance,
+    downwardStepRatio: movingSteps ? downwardSteps / movingSteps : 0
+  };
+}
+
 function summarizeEatToiletShape(capturedFrames: CapturedGestureFrame[]) {
   let usableFrames = 0;
   let toiletLikeFrames = 0;
@@ -382,6 +526,34 @@ function isPalmFacingCamera(landmarks: HandLandmarkPoint[], handedness: "Left" |
 
   if (Math.abs(palmCross) < 0.001) return null;
   return handedness === "Right" ? palmCross < 0 : palmCross > 0;
+}
+
+function createCorrectedEatToiletPrediction(
+  prediction: DemoGesturePrediction,
+  label: typeof EAT_LABEL | typeof TOILET_LABEL,
+  posePrefix = "Detected"
+) {
+  return {
+    ...prediction,
+    label,
+    pose: label === EAT_LABEL ? `${posePrefix} eating hand shape` : `${posePrefix} toilet hand shape`,
+    matchPercent: Math.max(55, prediction.matchPercent - 8)
+  };
+}
+
+function averagePoints(points: Array<{ x: number; y: number }>) {
+  const total = points.reduce(
+    (sum, point) => ({
+      x: sum.x + point.x,
+      y: sum.y + point.y
+    }),
+    { x: 0, y: 0 }
+  );
+
+  return {
+    x: total.x / Math.max(points.length, 1),
+    y: total.y / Math.max(points.length, 1)
+  };
 }
 
 function getExtendedFingers(landmarks: HandLandmarkPoint[]) {

@@ -2,7 +2,7 @@
 
 MakaLearn is an MVP for teacher-guided Makaton learning support. The current scope focuses on PECS content, a learner-facing PECS sentence Playground, PECS-based activities, a gesture recognition presentation tab, settings/help, and an admin panel for teacher account and content oversight.
 
-Current learning content is placeholder-only. The app does not include official Makaton symbols, gestures, audio, videos, or a real gesture recognition model.
+Current learning content is placeholder-only. The app includes a local trained seven-label gesture recognizer for the thesis prototype, but it does not include official Makaton symbols, official gesture videos, official audio, or clinically validated assessment logic.
 
 ## Tech stack
 
@@ -45,7 +45,7 @@ src/
 - `/` landing page
 - `/login` Supabase Auth sign-in
 - `/content` PECS and gesture content library with in-app media previews
-- `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, hand visibility checks, and placeholder teacher feedback
+- `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, trained local recognition, and Gemini-first corrective feedback with template fallback
 - `/activities` PECS and gesture-practice activity library, player, manual creator, adaptive question generation, and draft helper
 - `/playground` PECS/AAC sentence builder with category filters, drag/drop or tap card selection, rule-based sentence checking, and speech/audio playback
 - `/settings` profile, accessibility, and display settings
@@ -63,7 +63,8 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - Playground is available in teacher UI and Student Mode. Other teacher-only pages remain restricted while Student Mode is active.
 - Playground sentence checks use `validatePecsSentence`, a rule-based PECS arrangement validator with supported patterns such as `I want water`, `I am happy`, `Please sit`, greetings, responses, and safety expressions.
 - Teachers can store additional gesture records in Content Library.
-- Gesture Recognition uses MediaPipe hand landmarks and a rule-based sample predictor for seven fixed labels: I want to go to toilet, I want to eat food, I want to drink water, Help, Yes, No, and Sit down. These temporary finger-pose mappings are not official Makaton gestures and will be replaced by an approved trained model.
+- Gesture Recognition uses MediaPipe hand landmarks and the bundled trained MakaLearn gesture model for seven fixed labels: I want to go to toilet, I want to eat food, I want to drink water, Help, Yes, No, and Sit down. These prototype labels/media are not official Makaton content.
+- Gesture Practice is free practice: the side card is a reference aid, while corrective feedback is based on the gesture actually recognized by the model.
 - See `GESTURE_SAMPLE_POSES.md` for the complete demo pose-to-prediction mapping.
 - Gesture records support reference image, gesture image/video, and audio uploads.
 - PECS and gesture images/videos/audio can be previewed inside the website.
@@ -91,6 +92,8 @@ SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 For Hugging Face activity drafts, add `HUGGINGFACE_API_TOKEN` or `HF_TOKEN` with Inference Providers access. The default model is `openai/gpt-oss-120b:fastest`; set `HUGGINGFACE_ACTIVITY_MODEL` to try another Hugging Face chat-completion model.
+
+For gesture corrective feedback, add `GEMINI_API_KEY`. `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`. The server sends only structured recognition data, not camera frames, images, learner identity, or classroom notes; local templates are used when Gemini is missing, slow, malformed, too long, or unsafe.
 
 AI activity drafting requires Supabase for authenticated cache and quota checks before model calls. If Supabase or Hugging Face is unavailable, the server returns editable rule-based starter prompts so the teacher can continue without spending model usage.
 
@@ -129,7 +132,7 @@ The media migration uploads PECS card PNGs, PECS audio, fixed gesture reference 
 Planned updates before production:
 
 - Review schema, RLS, and seed data against real teacher/admin rollout needs.
-- Keep MediaPipe for live hand landmarks and replace the placeholder practice result/feedback logic with the approved recognition model when it is available.
+- Review the trained gesture model, Gemini corrective feedback wording, privacy controls, and teacher-supervision language before production use.
 - Review Hugging Face activity drafting for privacy, model quality, age appropriateness, quota limits, and API key handling before production use.
 - Decide whether learner profile management returns in a later phase.
 

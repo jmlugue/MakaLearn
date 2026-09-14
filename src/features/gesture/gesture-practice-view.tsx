@@ -31,7 +31,13 @@ import { useToast } from "@/components/common/toast-provider";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { cn } from "@/lib/utils";
-import { generateCorrectiveFeedbackPlaceholder } from "@/utils/gesture-feedback";
+import {
+  buildGestureFeedbackRequest,
+  createTemplateGestureFeedback,
+  type GestureFeedbackIssueCategory,
+  type GestureFeedbackResponse,
+  type GestureFeedbackTrackingState
+} from "@/utils/gesture-feedback";
 import { type DemoGesturePrediction, type HandLandmarkPoint } from "@/utils/gesture-prediction";
 import {
   applyBasicGesturePredictionGuards,
@@ -125,6 +131,7 @@ export function GesturePracticeView() {
   const gestureCaptureActiveRef = useRef(false);
   const lastHandsSeenAtRef = useRef(0);
   const modelFailureNotifiedRef = useRef(false);
+  const feedbackRequestIdRef = useRef(0);
   const lastAutoAudioKeyRef = useRef<string | null>(null);
   const noHandsFrameCountRef = useRef(0);
   const showHandLandmarksRef = useRef(true);
@@ -136,7 +143,9 @@ export function GesturePracticeView() {
   const [trackingState, setTrackingState] = useState<TrackingState>("idle");
   const [modelStatus, setModelStatus] = useState<GestureModelStatus>("idle");
   const [prediction, setPrediction] = useState<DemoGesturePrediction | null>(null);
-  const [feedback, setFeedback] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [correctiveFeedback, setCorrectiveFeedback] = useState<GestureFeedbackResponse | null>(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [selectedGestureId, setSelectedGestureId] = useState("");
   const [referenceFlipped, setReferenceFlipped] = useState(false);
   const [carouselDirection, setCarouselDirection] = useState(1);
@@ -154,6 +163,7 @@ export function GesturePracticeView() {
   const referenceInstruction = getGesturePerformanceInstruction(selectedGesture);
   const meta = trackingMeta[trackingState];
   const hasValidHands = trackingState === "hands-visible";
+  const recognizedGesture = Boolean(prediction);
 
   useEffect(() => {
     showHandLandmarksRef.current = showHandLandmarks;
@@ -317,7 +327,7 @@ export function GesturePracticeView() {
     resetLiveGestureBuffer(liveGestureFramesRef.current);
     liveGestureHandFramesRef.current = [];
     setModelStatus("idle");
-    setFeedback("");
+    setStatusMessage("");
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -369,13 +379,16 @@ export function GesturePracticeView() {
     resetLiveGestureBuffer(liveGestureFramesRef.current);
     liveGestureHandFramesRef.current = [];
     setModelStatus("idle");
-    setFeedback("");
+    setStatusMessage("");
   }
 
   function clearPrediction() {
+    feedbackRequestIdRef.current += 1;
     predictionCandidateRef.current = { label: null, frames: 0 };
     currentPredictionLabelRef.current = null;
     setPrediction(null);
+    setCorrectiveFeedback(null);
+    setFeedbackLoading(false);
   }
 
   function updateLiveModelCapture(
@@ -414,9 +427,13 @@ export function GesturePracticeView() {
     liveGestureHandFramesRef.current = [];
 
     if (capturedFrames.length < MIN_LIVE_GESTURE_FRAMES) {
-      updateStablePrediction(null);
+      updateCompletedGesturePrediction(
+        null,
+        "Try the gesture again with your hands visible for a little longer.",
+        null,
+        summarizeCapturedHandCount(capturedHandFrames)
+      );
       setModelStatus("idle");
-      setFeedback("Try the gesture again with your hands visible for a little longer.");
       return;
     }
 
@@ -427,16 +444,27 @@ export function GesturePracticeView() {
       .then((nextPrediction) => {
         setModelStatus("ready");
         const guardResult = applyBasicGesturePredictionGuards(nextPrediction, capturedHandFrames);
-        const safetyResult = applyEatToiletFingerSafety(guardResult.prediction, capturedHandFrames);
+        const safetyResult = guardResult.prediction
+          ? applyEatToiletFingerSafety(guardResult.prediction, capturedHandFrames)
+          : guardResult;
         const confidenceResult = applyConfidenceThreshold(safetyResult.prediction);
+        const feedbackResult = confidenceResult.feedback
+          ? confidenceResult
+          : safetyResult.feedback
+            ? safetyResult
+            : guardResult;
         updateCompletedGesturePrediction(
           confidenceResult.prediction,
-          confidenceResult.feedback ?? safetyResult.feedback ?? guardResult.feedback
+          feedbackResult.feedback,
+          feedbackResult.feedbackPrediction ?? safetyResult.prediction ?? guardResult.prediction ?? nextPrediction,
+          summarizeCapturedHandCount(capturedHandFrames),
+          feedbackResult.issueCategory
         );
       })
       .catch(() => {
         setModelStatus("error");
-        updateStablePrediction(null);
+        clearPrediction();
+        setStatusMessage("Recognition is unavailable right now. Check the model file, then try again.");
         if (!modelFailureNotifiedRef.current) {
           modelFailureNotifiedRef.current = true;
           notify({
@@ -451,24 +479,87 @@ export function GesturePracticeView() {
       });
   }
 
-  function updateCompletedGesturePrediction(nextPrediction: DemoGesturePrediction | null, feedbackOverride?: string) {
+  function updateCompletedGesturePrediction(
+    nextPrediction: DemoGesturePrediction | null,
+    feedbackOverride?: string,
+    feedbackPrediction: DemoGesturePrediction | null = nextPrediction,
+    capturedHandCount = detectedHandCount,
+    feedbackIssueCategory?: GestureFeedbackIssueCategory
+  ) {
     const nextLabel = nextPrediction?.label ?? null;
     predictionCandidateRef.current = { label: nextLabel, frames: nextPrediction ? 1 : 0 };
     currentPredictionLabelRef.current = nextLabel;
     setPrediction(nextPrediction);
-
-    const nextFeedback = feedbackOverride ?? (
-      nextPrediction
-        ? generateCorrectiveFeedbackPlaceholder()
-        : isStudentMode
-          ? ""
-          : "I could not recognize that gesture yet. Try it again with your hands clearly inside the camera view."
-    );
-
-    setFeedback(nextFeedback);
+    setStatusMessage("");
+    void requestCorrectiveFeedback(feedbackPrediction, capturedHandCount, "hands-visible", feedbackOverride, feedbackIssueCategory);
   }
 
-  function applyConfidenceThreshold(nextPrediction: DemoGesturePrediction | null) {
+  async function requestCorrectiveFeedback(
+    feedbackPrediction: DemoGesturePrediction | null,
+    handCount: number,
+    feedbackTrackingState: GestureFeedbackTrackingState,
+    localFeedbackHint?: string,
+    localIssueCategory?: GestureFeedbackIssueCategory
+  ) {
+    if (!selectedGesture) return;
+
+    const requestId = feedbackRequestIdRef.current + 1;
+    feedbackRequestIdRef.current = requestId;
+    const feedbackTargetLabel = feedbackPrediction?.label ?? selectedGesture.label;
+    const feedbackRequest = buildGestureFeedbackRequest({
+      selectedGestureLabel: selectedGesture.label,
+      feedbackTargetLabel,
+      prediction: feedbackPrediction,
+      detectedHandCount: handCount,
+      expectedHandCount: getExpectedGestureHandCount(feedbackTargetLabel),
+      trackingState: feedbackTrackingState,
+      localFeedbackHint,
+      localIssueCategory
+    });
+    const fallbackFeedback = createTemplateGestureFeedback(feedbackRequest);
+    setCorrectiveFeedback(null);
+    setFeedbackLoading(true);
+
+    try {
+      const response = await fetch("/api/gesture-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(feedbackRequest)
+      });
+      if (!response.ok) throw new Error("Feedback request failed");
+      const nextFeedback = (await response.json()) as GestureFeedbackResponse;
+      if (feedbackRequestIdRef.current !== requestId) return;
+      setCorrectiveFeedback(nextFeedback?.learnerMessage && nextFeedback?.teacherNote ? nextFeedback : fallbackFeedback);
+    } catch {
+      if (feedbackRequestIdRef.current === requestId) {
+        setCorrectiveFeedback(fallbackFeedback);
+      }
+    } finally {
+      if (feedbackRequestIdRef.current === requestId) {
+        setFeedbackLoading(false);
+      }
+    }
+  }
+
+  function summarizeCapturedHandCount(frames: CapturedGestureFrame[]) {
+    if (!frames.length) return 0;
+    const counts = new Map<number, number>();
+    frames.forEach((frame) => counts.set(frame.hands.length, (counts.get(frame.hands.length) ?? 0) + 1));
+    return Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] ?? 0;
+  }
+
+  function getExpectedGestureHandCount(label: string): 1 | 2 | null {
+    if (/help/i.test(label)) return 2;
+    if (/toilet|eat food|drink water|yes|no|sit/i.test(label)) return 1;
+    return null;
+  }
+
+  function applyConfidenceThreshold(nextPrediction: DemoGesturePrediction | null): {
+    prediction: DemoGesturePrediction | null;
+    feedbackPrediction?: DemoGesturePrediction;
+    feedback?: string;
+    issueCategory?: GestureFeedbackIssueCategory;
+  } {
     if (!nextPrediction || nextPrediction.matchPercent >= MIN_CONFIDENT_PREDICTION_PERCENT) {
       return { prediction: nextPrediction };
     }
@@ -490,32 +581,11 @@ export function GesturePracticeView() {
     return value === "Left" || value === "Right" ? value : "Unknown";
   }
 
-  function updateStablePrediction(nextPrediction: DemoGesturePrediction | null) {
-    const nextLabel = nextPrediction?.label ?? null;
-    const candidate = predictionCandidateRef.current;
-    predictionCandidateRef.current =
-      candidate.label === nextLabel
-        ? { label: nextLabel, frames: candidate.frames + 1 }
-        : { label: nextLabel, frames: 1 };
-
-    // Require several matching frames to reduce flicker from landmark noise.
-    if (predictionCandidateRef.current.frames < 6 || currentPredictionLabelRef.current === nextLabel) return;
-
-    currentPredictionLabelRef.current = nextLabel;
-    setPrediction(nextPrediction);
-    const nextFeedback = nextPrediction
-      ? generateCorrectiveFeedbackPlaceholder()
-      : isStudentMode
-        ? ""
-        : "No supported pose matched yet. Check the examples and hold one pose steadily.";
-    setFeedback(nextFeedback);
-  }
-
   function handleGestureChange(nextGestureId: string) {
     setSelectedGestureId(nextGestureId);
     setReferenceFlipped(false);
     clearPrediction();
-    setFeedback(cameraStarted ? "Reference changed. Hold a supported gesture in frame when ready." : "");
+    setStatusMessage(cameraStarted ? "Reference changed. Hold a supported gesture in frame when ready." : "");
   }
 
   function moveGesture(direction: -1 | 1) {
@@ -604,16 +674,18 @@ export function GesturePracticeView() {
             />
 
             <LearnerFeedbackBar
-              stateLabel={prediction ? "Good Job" : "Ready"}
+              stateLabel={recognizedGesture ? "Good Job" : "Ready"}
               detail={
                 prediction
-                  ? formatRecognizedGestureDetail(prediction.label)
+                  ? `Recognized: ${formatRecognizedGestureDetail(prediction.label)}`
                   : cameraStarted
                     ? "Keep your hands inside the box."
                     : ""
               }
-              feedback={prediction ? "" : feedback}
-              success={Boolean(prediction)}
+              statusMessage={prediction ? "" : statusMessage}
+              correctiveFeedback={correctiveFeedback}
+              feedbackLoading={feedbackLoading}
+              success={recognizedGesture}
               compact={cameraFocusMode}
             />
           </div>
@@ -732,8 +804,9 @@ export function GesturePracticeView() {
                 </motion.span>
               </AnimatePresence>
             </div>
-            <p className="mt-1 text-sm leading-5 text-slate-600">{feedback}</p>
+            {statusMessage ? <p className="mt-1 text-sm leading-5 text-slate-600">{statusMessage}</p> : null}
             <RecognizedGestureMessage prediction={prediction} compact />
+            <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} compact />
           </div>
         </div>
       </Card>
@@ -1020,13 +1093,17 @@ function GestureVideoPreview({ value, label }: { value?: string; label: string }
 function LearnerFeedbackBar({
   stateLabel,
   detail,
-  feedback,
+  statusMessage,
+  correctiveFeedback,
+  feedbackLoading,
   success,
   compact = false
 }: {
   stateLabel: string;
   detail: string;
-  feedback: string;
+  statusMessage: string;
+  correctiveFeedback: GestureFeedbackResponse | null;
+  feedbackLoading: boolean;
   success: boolean;
   compact?: boolean;
 }) {
@@ -1052,9 +1129,72 @@ function LearnerFeedbackBar({
       <div className="min-w-0">
         <p className={cn("font-black", compact ? "text-2xl" : "text-3xl", success ? "text-green-700" : "text-ink")}>{stateLabel}</p>
         {detail ? <p className={cn("mt-1 font-bold text-slate-700", compact ? "text-sm" : "text-base")}>{detail}</p> : null}
-        {feedback ? <p className={cn("mt-1 line-clamp-2 text-sm text-slate-600", compact ? "leading-5" : "leading-6")}>{feedback}</p> : null}
+        {statusMessage ? <p className={cn("mt-1 line-clamp-2 text-sm text-slate-600", compact ? "leading-5" : "leading-6")}>{statusMessage}</p> : null}
+        <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} compact={compact} />
       </div>
     </div>
+  );
+}
+
+function CorrectiveFeedbackPanel({
+  feedback,
+  loading,
+  compact = false
+}: {
+  feedback: GestureFeedbackResponse | null;
+  loading: boolean;
+  compact?: boolean;
+}) {
+  if (!feedback && !loading) return null;
+
+  if (loading && !feedback) {
+    return (
+      <div
+        className={cn(
+          "mt-3 grid place-items-center rounded-xl border border-blue-100 bg-white/85 shadow-sm",
+          compact ? "min-h-16 p-3" : "min-h-20 p-4"
+        )}
+        role="status"
+        aria-live="polite"
+        aria-label="Preparing feedback"
+      >
+        <FeedbackWaveDots />
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("mt-3 overflow-hidden rounded-xl border border-blue-100 bg-white/85 text-left shadow-sm", compact ? "text-sm" : "text-base")}>
+      <div className="grid divide-y divide-blue-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <div className={compact ? "p-3" : "p-4"}>
+          <p className="text-[0.7rem] font-black uppercase tracking-wide text-blue-700">For learner</p>
+          <p className="mt-1 font-semibold leading-6 text-ink">
+            {feedback?.learnerMessage ?? "Preparing feedback..."}
+          </p>
+        </div>
+        <div className={compact ? "p-3" : "p-4"}>
+          <p className="text-[0.7rem] font-black uppercase tracking-wide text-slate-500">Teacher guide</p>
+          <p className="mt-1 text-sm font-medium leading-6 text-slate-600">
+            {feedback?.teacherNote ?? "Checking the attempt details."}
+          </p>
+        </div>
+      </div>
+      {loading ? <div className="h-1 animate-pulse bg-blue-300" aria-hidden="true" /> : null}
+    </div>
+  );
+}
+
+function FeedbackWaveDots() {
+  return (
+    <span className="flex h-6 items-end gap-1.5" aria-hidden="true">
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          className="h-2.5 w-2.5 animate-bounce rounded-full bg-blue-500 shadow-sm"
+          style={{ animationDelay: `${index * 120}ms`, animationDuration: "760ms" }}
+        />
+      ))}
+    </span>
   );
 }
 
