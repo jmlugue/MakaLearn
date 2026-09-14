@@ -191,11 +191,7 @@ export function LearnersView() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Learners"
-        title="Learner profiles"
-        description="Manage learner profiles for teacher-guided classroom sessions. Learners do not sign in."
-      />
+      <PageHeader title="Learners" icon={UserRound} />
 
       <section className="space-y-4">
         <div className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">

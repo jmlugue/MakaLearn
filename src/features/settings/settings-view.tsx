@@ -1,190 +1,185 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Accessibility, Palette } from "lucide-react";
-import { Card, CardTitle } from "@/components/ui/card";
-import { FieldHint, Label, Select } from "@/components/ui/form";
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { Check, Contrast, Loader2, Settings as SettingsIcon, Type, Volume2, Wind } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { PageHeader } from "@/components/layout/page-header";
-import { useToast } from "@/components/common/toast-provider";
-import { useAuthUser } from "@/features/auth/use-auth-user";
-import { fetchUserSettings, upsertUserSettings } from "@/lib/supabase/app-data";
-import type { UserSettings } from "@/types";
+import { cn } from "@/lib/utils";
+import { type Preferences, type TextSize, useUserSettings } from "@/features/settings/user-settings-context";
+
+type SaveState = "idle" | "saving" | "saved";
+
+const textSizes: { value: TextSize; label: string }[] = [
+  { value: "default", label: "Default" },
+  { value: "large", label: "Large" },
+  { value: "extra-large", label: "Extra large" }
+];
 
 // Profile details and password live on the Profile page (opened from the sidebar profile menu).
 export function SettingsView() {
-  const { user } = useAuthUser();
-  const { notify } = useToast();
-  const [largeText, setLargeText] = useState(false);
-  const [highContrast, setHighContrast] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
-  const [audioGuidance, setAudioGuidance] = useState(true);
-  const [theme, setTheme] = useState<UserSettings["theme"]>("soft-blue");
+  const { preferences, loaded, updatePreferences } = useUserSettings();
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const savedTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("large-text", largeText);
-    document.documentElement.classList.toggle("high-contrast", highContrast);
-    document.documentElement.classList.toggle("reduce-motion", reduceMotion);
-  }, [largeText, highContrast, reduceMotion]);
+  useEffect(() => () => {
+    if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
+  }, []);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadSettings() {
-      try {
-        const settings = await fetchUserSettings(user.id);
-        if (!active || !settings) return;
-        setLargeText(settings.largeText);
-        setHighContrast(settings.highContrast);
-        setReduceMotion(settings.reduceMotion);
-        setAudioGuidance(settings.audioGuidance);
-        setTheme(settings.theme);
-      } catch {
-        notify({
-          title: "Settings unavailable",
-          description: "Supabase settings could not be loaded.",
-          tone: "error"
-        });
-      }
+  async function save(next: Partial<Preferences>) {
+    if (savedTimerRef.current !== null) window.clearTimeout(savedTimerRef.current);
+    setSaveState("saving");
+    const ok = await updatePreferences(next);
+    if (!ok) {
+      setSaveState("idle");
+      return;
     }
-
-    loadSettings();
-
-    return () => {
-      active = false;
-    };
-  }, [notify, user.id]);
-
-  async function updateSettings(nextSettings: Omit<UserSettings, "userId" | "updatedAt">) {
-    try {
-      await upsertUserSettings({ userId: user.id, ...nextSettings });
-    } catch (error) {
-      notify({
-        title: "Setting not saved",
-        description: error instanceof Error ? error.message : "The setting could not be saved.",
-        tone: "error"
-      });
-      throw error;
-    }
+    setSaveState("saved");
+    savedTimerRef.current = window.setTimeout(() => setSaveState("idle"), 2000);
   }
 
   return (
     <>
-      <PageHeader eyebrow="Settings" title="App preferences" description="Accessibility and display options." />
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card className="bg-[#fbfdff]">
-          <div className="flex items-center gap-2">
-            <Accessibility className="h-5 w-5 text-blue-600" aria-hidden="true" />
-            <CardTitle>Accessibility settings</CardTitle>
-          </div>
-          <div className="mt-4 grid gap-3">
-            <Toggle
-              label="Large text mode"
-              checked={largeText}
-              onChange={async (value) => {
-                setLargeText(value);
-                try {
-                  await updateSettings({ largeText: value, highContrast, reduceMotion, audioGuidance, theme });
-                } catch {
-                  setLargeText(!value);
-                }
-              }}
-            />
-            <Toggle
-              label="High contrast mode"
-              checked={highContrast}
-              onChange={async (value) => {
-                setHighContrast(value);
-                try {
-                  await updateSettings({ largeText, highContrast: value, reduceMotion, audioGuidance, theme });
-                } catch {
-                  setHighContrast(!value);
-                }
-              }}
-            />
-            <Toggle
-              label="Reduce motion"
-              checked={reduceMotion}
-              onChange={async (value) => {
-                setReduceMotion(value);
-                try {
-                  await updateSettings({ largeText, highContrast, reduceMotion: value, audioGuidance, theme });
-                } catch {
-                  setReduceMotion(!value);
-                }
-              }}
-            />
-            <Toggle
-              label="Audio guidance"
-              checked={audioGuidance}
-              onChange={async (value) => {
-                setAudioGuidance(value);
-                try {
-                  await updateSettings({ largeText, highContrast, reduceMotion, audioGuidance: value, theme });
-                } catch {
-                  setAudioGuidance(!value);
-                }
-              }}
-            />
-          </div>
-        </Card>
+      <PageHeader
+        title="Settings"
+        icon={SettingsIcon}
+        actions={
+          <span aria-live="polite">
+            <SaveIndicator state={saveState} />
+          </span>
+        }
+      />
 
-        <Card className="bg-[#fbfdff]">
-          <div className="flex items-center gap-2">
-            <Palette className="h-5 w-5 text-blue-600" aria-hidden="true" />
-            <CardTitle>Theme and display</CardTitle>
-          </div>
-          <div className="mt-4">
-            <Label htmlFor="theme">Theme</Label>
-            <Select
-              id="theme"
-              value={theme}
-              onChange={async (event) => {
-                const nextTheme = event.target.value as UserSettings["theme"];
-                const previousTheme = theme;
-                setTheme(nextTheme);
-                try {
-                  await updateSettings({ largeText, highContrast, reduceMotion, audioGuidance, theme: nextTheme });
-                } catch {
-                  setTheme(previousTheme);
-                }
-              }}
-            >
-              <option value="soft-blue">Soft blue</option>
-              <option value="high-contrast">High contrast</option>
-            </Select>
-            <FieldHint>Display preferences are saved to your account.</FieldHint>
-          </div>
-        </Card>
-      </section>
+      {/* Two groups side by side on desktop so the page uses the full width. */}
+      <div className="grid items-start gap-4 xl:grid-cols-2">
+        <SettingsGroup title="Display">
+          <SettingsRow icon={Type} label="Text size" hint="Makes text bigger across the app.">
+            <SegmentedControl
+              label="Text size"
+              options={textSizes}
+              value={preferences.textSize}
+              disabled={!loaded}
+              onChange={(value) => save({ textSize: value })}
+            />
+          </SettingsRow>
+          <SettingsRow icon={Contrast} label="High contrast" hint="Stronger borders and plain backgrounds.">
+            <Switch
+              label="High contrast"
+              checked={preferences.highContrast}
+              disabled={!loaded}
+              onChange={(value) => save({ highContrast: value })}
+            />
+          </SettingsRow>
+        </SettingsGroup>
+
+        <SettingsGroup title="Motion and sound">
+          <SettingsRow icon={Wind} label="Reduce motion" hint="Turns off animations and slides.">
+            <Switch
+              label="Reduce motion"
+              checked={preferences.reduceMotion}
+              disabled={!loaded}
+              onChange={(value) => save({ reduceMotion: value })}
+            />
+          </SettingsRow>
+          <SettingsRow icon={Volume2} label="Audio guidance" hint="Plays spoken cues during practice.">
+            <Switch
+              label="Audio guidance"
+              checked={preferences.audioGuidance}
+              disabled={!loaded}
+              onChange={(value) => save({ audioGuidance: value })}
+            />
+          </SettingsRow>
+        </SettingsGroup>
+      </div>
     </>
   );
 }
 
-function Toggle({
+function SaveIndicator({ state }: { state: SaveState }) {
+  if (state === "saving") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Saving
+      </span>
+    );
+  }
+  if (state === "saved") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+        <Check className="h-3.5 w-3.5" aria-hidden="true" /> Saved
+      </span>
+    );
+  }
+  return <span className="h-4" />;
+}
+
+function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Card className="bg-[#fbfdff]">
+      <h2 className="px-1 pb-3 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">{title}</h2>
+      {/* bg-[#fff] instead of bg-white: `.app-canvas .bg-white` makes plain bg-white translucent. */}
+      <div className="divide-y divide-blue-100 overflow-hidden rounded-xl border border-blue-100 bg-[#fff]">{children}</div>
+    </Card>
+  );
+}
+
+function SettingsRow({
+  icon: Icon,
+  label,
+  hint,
+  children
+}: {
+  icon: typeof Type;
+  label: string;
+  hint: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+      <div className="flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-600">
+          <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-ink">{label}</p>
+          <p className="text-sm text-slate-500">{hint}</p>
+        </div>
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+function Switch({
   label,
   checked,
+  disabled,
   onChange
 }: {
   label: string;
   checked: boolean;
+  disabled?: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-blue-100 bg-skywash p-3 text-sm font-semibold">
-      <span>{label}</span>
-      <span className={`relative h-7 w-12 rounded-full transition ${checked ? "bg-blue-600" : "bg-white ring-1 ring-blue-200"}`}>
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(event) => onChange(event.target.checked)}
-          className="peer sr-only"
-        />
-        <span
-          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition peer-focus:ring-4 peer-focus:ring-blue-100 ${
-            checked ? "left-6" : "left-1 bg-blue-100"
-          }`}
-        />
-      </span>
-    </label>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative h-7 w-12 rounded-full transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 disabled:opacity-50",
+        checked ? "bg-blue-600" : "bg-slate-200"
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-1 h-5 w-5 rounded-full bg-[#fff] shadow-sm transition-[left]",
+          checked ? "left-6" : "left-1"
+        )}
+      />
+    </button>
   );
 }

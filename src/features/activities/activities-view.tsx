@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Library, Loader2, Pencil, Play, PlayCircle, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
+import { Activity as ActivityIcon, AlertTriangle, Library, Loader2, Pencil, Play, PlayCircle, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
@@ -714,11 +714,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   return (
     <>
       {!isStudentMode ? (
-        <PageHeader
-          eyebrow="Activities"
-          title="Activities"
-          description="Create, choose, and run classroom activities."
-        />
+        <PageHeader title="Activities" icon={ActivityIcon} />
       ) : null}
 
       {!isStudentMode ? <div className="grid gap-3 sm:grid-cols-2">

@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, HelpCircle } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 
 const manualSections = [
@@ -80,11 +80,7 @@ const faqs = [
 export function HelpView() {
   return (
     <>
-      <PageHeader
-        eyebrow="Help / Guide"
-        title="MakaLearn manual"
-        description="How to navigate the app, prepare lessons, and run guided practice."
-      />
+      <PageHeader title="Help" icon={HelpCircle} />
 
       <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-lg border border-blue-100 bg-white/80 p-5 shadow-sm">

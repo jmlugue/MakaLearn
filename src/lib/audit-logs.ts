@@ -61,17 +61,19 @@ export async function insertAuditLog(input: AuditLogInput) {
   return mapAuditLogRow(data);
 }
 
-export async function fetchAuditLogs() {
+/** Newest logs first. Pass `before` (a `createdAt` from the last loaded log) to load the next page. */
+export async function fetchAuditLogs({ limit = 50, before }: { limit?: number; before?: string } = {}) {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
     throw new Error("Supabase is not configured. Audit logs require Supabase.");
   }
 
-  const { data, error } = await supabase
-    .from("audit_logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(80);
+  let query = supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(limit);
+  if (before) {
+    query = query.lt("created_at", before);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(error.message);

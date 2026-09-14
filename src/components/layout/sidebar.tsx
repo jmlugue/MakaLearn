@@ -96,9 +96,10 @@ export function Sidebar() {
       )}
       aria-label="Main navigation"
     >
-      <Link href="/" aria-label="MakaLearn home" className="mb-6 ml-1 flex w-12 items-center">
+      {/* Logo is decorative only; it does not link back to the landing page. */}
+      <div className="mb-6 ml-1 flex w-12 items-center">
         <BrandLogo markClassName="h-12 w-12" />
-      </Link>
+      </div>
 
       <nav className="flex flex-1 flex-col gap-1.5">
         {topItems.map(renderItem)}

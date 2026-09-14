@@ -1,35 +1,22 @@
 import { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 
-export function PageHeader({
-  eyebrow,
-  title,
-  description,
-  actions
-}: {
-  eyebrow?: string;
-  title: string;
-  description: string;
-  actions?: ReactNode;
-}) {
+/**
+ * Page title row: icon tile and a big page name, with optional actions on the right. No band or box.
+ * The icon tile matches the Admin stat card icons (`src/components/common/stat-card.tsx`).
+ */
+export function PageHeader({ title, icon: Icon, actions }: { title: string; icon?: LucideIcon; actions?: ReactNode }) {
   return (
-    <header className="glass-panel mb-6 overflow-hidden rounded-[1.75rem] border">
-      <div className="grid gap-0 lg:grid-cols-[1fr_auto]">
-        <div className="relative overflow-hidden p-5 sm:p-6 lg:p-7">
-          <div className="absolute -right-12 -top-24 h-56 w-56 rounded-full bg-gradient-to-br from-blue-300/25 to-cyan-200/10 blur-xl" aria-hidden="true" />
-          <div className="relative">
-        {eyebrow ? (
-          <p className="mb-2 inline-flex rounded-full border border-white/80 bg-white/60 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.14em] text-blue-700 shadow-sm backdrop-blur">{eyebrow}</p>
+    <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        {Icon ? (
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/80 bg-gradient-to-br from-white/90 to-blue-50/70 text-blue-600 shadow-[0_10px_24px_rgba(37,99,235,0.12)]">
+            <Icon className="h-6 w-6" aria-hidden="true" />
+          </span>
         ) : null}
-        <h1 className="text-3xl font-extrabold leading-tight tracking-[-0.035em] text-ink md:text-4xl">{title}</h1>
-        <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">{description}</p>
-          </div>
-        </div>
-        {actions ? (
-          <div className="flex flex-wrap items-center gap-2 border-t border-white/70 bg-white/35 p-5 backdrop-blur-xl lg:min-w-72 lg:justify-end lg:border-l lg:border-t-0">
-            {actions}
-          </div>
-        ) : null}
+        <h1 className="truncate text-3xl font-extrabold tracking-[-0.035em] text-ink md:text-4xl">{title}</h1>
       </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
   );
 }

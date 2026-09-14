@@ -631,6 +631,10 @@ textarea {
   font-size: 112.5%;
 }
 
+.extra-large-text {
+  font-size: 125%;
+}
+
 .reduce-motion *,
 .reduce-motion *::before,
 .reduce-motion *::after {
