@@ -67,7 +67,8 @@ function mapCategory(row: CategoryRow): Category {
     name: row.name,
     description: row.description,
     color: row.color,
-    createdBy: row.created_by
+    createdBy: row.created_by,
+    createdAt: row.created_at
   };
 }
 
@@ -165,6 +166,7 @@ function mapLesson(row: LessonRow, lessonItems: LessonItemRow[]): Lesson {
     source: row.source,
     visibility: row.visibility,
     createdBy: row.created_by,
+    createdAt: row.created_at,
     learningItemIds: lessonItems
       .filter((item) => item.lesson_id === row.id)
       .sort((a, b) => a.position - b.position)
@@ -671,7 +673,13 @@ export async function deleteLearningItem(learningItemId: string, deleteMedia: bo
     await expectData(supabase.from("media_assets").delete().eq("related_item_id", learningItemId).select());
   }
 
-  await expectData(supabase.from("learning_items").delete().eq("id", learningItemId).select());
+  // RLS returns zero rows (not an error) when a teacher deletes someone else's material, so check what was deleted.
+  const deletedRows = (await expectData(
+    supabase.from("learning_items").delete().eq("id", learningItemId).select("id")
+  )) as Array<{ id: string }>;
+  if (!deletedRows.some((row) => row.id === learningItemId)) {
+    throw new Error("You can only delete materials you created.");
+  }
 }
 
 export async function updateProfileRole(userId: string, role: AppUser["role"]) {

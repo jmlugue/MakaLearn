@@ -37,6 +37,7 @@ export type Category = {
   description: string;
   color: string;
   createdBy: string;
+  createdAt?: string;
 };
 
 export type SentenceRole =
@@ -95,6 +96,7 @@ export type Lesson = {
   source: "manual" | "auto-generated";
   visibility: "shared" | "private";
   createdBy: string;
+  createdAt?: string;
 };
 
 export type ActivityType =

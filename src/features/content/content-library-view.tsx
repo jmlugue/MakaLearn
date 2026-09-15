@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Layers } from "lucide-react";
+import { BookOpen, FolderOpen, Image as ImageIcon, Layers, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
-import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { LoadingState } from "@/components/common/loading-state";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
@@ -32,10 +31,11 @@ import { ensurePecsManifestCategories, ensurePecsManifestItems } from "@/utils/p
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
 import { CardDetailDialog, type CardTextValues } from "@/features/content/card-detail-dialog";
 import { CardFormDialog, type NewCardFiles, type NewCardValues } from "@/features/content/card-form-dialog";
-import { CardsTab } from "@/features/content/cards-tab";
 import { CategoriesTab } from "@/features/content/categories-tab";
-import { CategoryFormDialog, type CategoryFormValues } from "@/features/content/category-form-dialog";
+import { CategoryDialog, type CategoryFormValues } from "@/features/content/category-dialog";
 import { createLearningItemInstruction, nameFor, type ContentKind } from "@/features/content/content-shared";
+import { MaterialsTab } from "@/features/content/materials-tab";
+import { cn } from "@/lib/utils";
 import { LessonFormDialog, type LessonFormMode, type LessonFormValues } from "@/features/content/lesson-form-dialog";
 import { LessonPreviewDialog } from "@/features/content/lesson-preview-dialog";
 import { LessonsTab } from "@/features/content/lessons-tab";
@@ -43,7 +43,7 @@ import { MediaPreviewDialog } from "@/features/content/media-preview-dialog";
 import { MediaTab } from "@/features/content/media-tab";
 import type { Activity, ActivityType, AppUser, Category, LearningItem, Lesson, MediaAsset } from "@/types";
 
-type Tab = "cards" | "lessons" | "categories" | "media";
+type Tab = "materials" | "lessons" | "categories" | "media";
 type UploadConfig = Pick<MediaAsset, "bucket" | "type">;
 
 function applyMediaUrlToItem(item: LearningItem, type: MediaAsset["type"], publicUrl: string, updatedAt: string): LearningItem {
@@ -65,7 +65,7 @@ function sameIds(a: string[], b: string[]) {
 export function ContentLibraryView({ initialItemId }: { initialItemId?: string } = {}) {
   const { notify } = useToast();
   const { user } = useAuthUser();
-  const [tab, setTab] = useState<Tab>("cards");
+  const [tab, setTab] = useState<Tab>("materials");
   const [ready, setReady] = useState(false);
   const [items, setItems] = useState<LearningItem[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -74,7 +74,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   const [activities, setActivities] = useState<Activity[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
 
-  // Cards tab filters live here so category tiles can jump into a filtered view.
+  // Materials filters live here so a deep link can open the right type.
   const [kind, setKind] = useState<ContentKind>("pecs");
   const [categoryId, setCategoryId] = useState("all");
   const [search, setSearch] = useState("");
@@ -87,7 +87,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   const [lessonMode, setLessonMode] = useState<LessonFormMode | null>(null);
   const [openLessonId, setOpenLessonId] = useState("");
   const [lessonToDelete, setLessonToDelete] = useState<Lesson | null>(null);
-  const [categoryForm, setCategoryForm] = useState<{ category: Category | null } | null>(null);
+  const [categoryDialog, setCategoryDialog] = useState<{ categoryId: string | null; mode: "view" | "edit" } | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [openAssetId, setOpenAssetId] = useState("");
 
@@ -118,17 +118,17 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     };
   }, [notify]);
 
-  // Deep link from the Admin page (/content?item=<id>): open that card once content has loaded.
+  // Deep link from the Admin page (/content?item=<id>): open that material once content has loaded.
   const deepLinkHandled = useRef(false);
   useEffect(() => {
     if (!ready || !initialItemId || deepLinkHandled.current) return;
     deepLinkHandled.current = true;
     const target = items.find((item) => item.id === initialItemId);
     if (!target) {
-      notify({ title: "Card not found", description: "It may have been deleted." });
+      notify({ title: "Material not found", description: "It may have been deleted." });
       return;
     }
-    setTab("cards");
+    setTab("materials");
     setKind(target.contentType);
     setOpenItemId(target.id);
   }, [initialItemId, items, notify, ready]);
@@ -138,6 +138,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   const libraryMedia = useMemo(() => media.filter((asset) => asset.type !== "learner-photo"), [media]);
   const openItem = itemById.get(openItemId) ?? null;
   const openLesson = lessons.find((lesson) => lesson.id === openLessonId) ?? null;
+  const dialogCategory = categoryDialog?.categoryId ? categories.find((category) => category.id === categoryDialog.categoryId) ?? null : null;
   const openAsset = libraryMedia.find((asset) => asset.id === openAssetId) ?? null;
 
   function itemsOf(lesson: Lesson) {
@@ -167,7 +168,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     return error instanceof Error ? error.message : fallback;
   }
 
-  // Cards
+  // Materials
 
   async function uploadToItem(item: LearningItem, file: File, config: UploadConfig) {
     const uploaded = await uploadMediaAssetToSupabase({
@@ -216,10 +217,10 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       setKind(values.kind);
       setCategoryId("all");
       setSearch("");
-      notify({ title: "Card added", description: `${saved.label} is in the library.`, tone: "success" });
+      notify({ title: `${kindLabel(values.kind)} added`, description: `${saved.label} is in the library.`, tone: "success" });
       return true;
     } catch (error) {
-      notify({ title: "Card not saved", description: errorText(error, "The card could not be saved."), tone: "error" });
+      notify({ title: "Not saved", description: errorText(error, "The material could not be saved."), tone: "error" });
       return false;
     }
   }
@@ -235,11 +236,11 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     try {
       const saved = await updateLearningItemDetails(next);
       setItems((current) => current.map((candidate) => (candidate.id === item.id ? saved : candidate)));
-      log("edit", "learning-item", saved.label, "Updated card details.", saved.id);
-      notify({ title: "Card updated", tone: "success" });
+      log("edit", "learning-item", saved.label, "Updated material details.", saved.id);
+      notify({ title: "Material updated", tone: "success" });
       return true;
     } catch (error) {
-      notify({ title: "Card not saved", description: errorText(error, "The card could not be updated."), tone: "error" });
+      notify({ title: "Not saved", description: errorText(error, "The material could not be updated."), tone: "error" });
       return false;
     }
   }
@@ -267,12 +268,12 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       await deleteLearningItem(itemToDelete.id, deleteMedia);
       setItems((current) => current.filter((candidate) => candidate.id !== itemToDelete.id));
       if (deleteMedia) setMedia((current) => current.filter((asset) => asset.relatedItemId !== itemToDelete.id));
-      log("delete", "learning-item", itemToDelete.label, deleteMedia ? "Deleted a card and its media." : "Deleted a card and kept its media.", itemToDelete.id);
-      notify({ title: "Card deleted", tone: "success" });
+      log("delete", "learning-item", itemToDelete.label, deleteMedia ? "Deleted a material and its media." : "Deleted a material and kept its media.", itemToDelete.id);
+      notify({ title: "Material deleted", tone: "success" });
       setItemToDelete(null);
       setOpenItemId("");
     } catch (error) {
-      notify({ title: "Delete failed", description: errorText(error, "The card could not be deleted."), tone: "error" });
+      notify({ title: "Delete failed", description: errorText(error, "The material could not be deleted."), tone: "error" });
     } finally {
       setDeleting(false);
     }
@@ -348,7 +349,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       ...base,
       title: values.title,
       objective: values.objective,
-      instructions: values.steps.join("\n"),
+      instructions: values.instructions,
       learningItemIds: selected.map((item) => item.id),
       activityType
     };
@@ -399,7 +400,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   // Categories
 
   async function saveCategory(values: CategoryFormValues) {
-    const editing = categoryForm?.category ?? null;
+    const editing = dialogCategory;
     try {
       if (editing) {
         const saved = await updateCategoryDetails({ ...editing, ...values, description: values.description || "Shared category" });
@@ -414,6 +415,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
           createdBy: user.id
         });
         setCategories((current) => [...current, saved]);
+        setCategoryDialog({ categoryId: saved.id, mode: "view" });
         log("create", "category", saved.name, "Created a category.", saved.id);
         notify({ title: "Category created", tone: "success" });
       }
@@ -427,7 +429,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   async function confirmDeleteCategory() {
     if (!categoryToDelete) return;
     if (items.some((item) => item.categoryId === categoryToDelete.id)) {
-      notify({ title: "Category in use", description: "Move its cards to another category first." });
+      notify({ title: "Category in use", description: "Move its materials to another category first." });
       setCategoryToDelete(null);
       return;
     }
@@ -439,6 +441,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       log("delete", "category", categoryToDelete.name, "Deleted a category.", categoryToDelete.id);
       notify({ title: "Category deleted", tone: "success" });
       setCategoryToDelete(null);
+      setCategoryDialog(null);
     } catch (error) {
       notify({ title: "Category not deleted", description: errorText(error, "The category could not be deleted."), tone: "error" });
     } finally {
@@ -446,23 +449,23 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     }
   }
 
-  const tabs = [
-    { value: "cards" as const, label: "Cards", count: items.length },
-    { value: "lessons" as const, label: "Lessons", count: lessons.length },
-    { value: "categories" as const, label: "Categories", count: categories.length },
-    { value: "media" as const, label: "Media", count: libraryMedia.length }
+  const sections: Array<{ value: Tab; label: string; count: number; icon: LucideIcon }> = [
+    { value: "materials", label: "Materials", count: items.length, icon: Layers },
+    { value: "lessons", label: "Lessons", count: lessons.length, icon: BookOpen },
+    { value: "categories", label: "Categories", count: categories.length, icon: FolderOpen },
+    { value: "media", label: "Media", count: libraryMedia.length, icon: ImageIcon }
   ];
 
   return (
     <div>
       <PageHeader title="Content" icon={Layers} />
-      <UnderlineTabs id="content-tabs" label="Content sections" options={tabs} value={tab} onChange={setTab} />
+      <SectionTiles sections={sections} value={tab} onChange={setTab} />
 
       <div className="mt-5">
         {!ready ? (
           <LoadingState label="Loading content" />
-        ) : tab === "cards" ? (
-          <CardsTab
+        ) : tab === "materials" ? (
+          <MaterialsTab
             items={items}
             categories={categories}
             kind={kind}
@@ -475,7 +478,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
             search={search}
             onSearchChange={setSearch}
             onOpenItem={(item) => setOpenItemId(item.id)}
-            onAddCard={() => setCardFormOpen(true)}
+            onAdd={() => setCardFormOpen(true)}
           />
         ) : tab === "lessons" ? (
           <LessonsTab
@@ -488,18 +491,11 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
           <CategoriesTab
             categories={categories}
             items={items}
-            onOpenCategory={(category, categoryKind) => {
-              setKind(categoryKind);
-              setCategoryId(category.id);
-              setSearch("");
-              setTab("cards");
-            }}
-            onNewCategory={() => setCategoryForm({ category: null })}
-            onEditCategory={(category) => setCategoryForm({ category })}
-            onDeleteCategory={setCategoryToDelete}
+            onOpenCategory={(category) => setCategoryDialog({ categoryId: category.id, mode: "view" })}
+            onNewCategory={() => setCategoryDialog({ categoryId: null, mode: "edit" })}
           />
         ) : (
-          <MediaTab media={libraryMedia} itemById={itemById} onOpenAsset={(asset) => setOpenAssetId(asset.id)} />
+          <MediaTab media={libraryMedia} itemById={itemById} userNames={userNames} onOpenAsset={(asset) => setOpenAssetId(asset.id)} />
         )}
       </div>
 
@@ -509,6 +505,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         item={openItem}
         categories={categories}
         creator={openItem ? nameFor(userNames, openItem.createdBy) : ""}
+        canDelete={Boolean(openItem && (user.role === "admin" || openItem.createdBy === user.id))}
         onClose={() => setOpenItemId("")}
         onSaveText={saveCardText}
         onUpload={uploadCardMedia}
@@ -522,15 +519,15 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       <Dialog
         open={Boolean(itemToDelete)}
         onClose={deleting ? () => undefined : () => setItemToDelete(null)}
-        title={`Delete ${itemToDelete?.label ?? "card"}?`}
-        description="This removes the card from the library. It cannot be undone."
+        title={`Delete ${itemToDelete?.label ?? "material"}?`}
+        description="This removes it from the library. It cannot be undone."
         footer={
           <>
             <Button type="button" variant="ghost" onClick={() => setItemToDelete(null)} disabled={deleting}>
               Cancel
             </Button>
             <Button type="button" variant="danger" onClick={confirmDeleteItem} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete card"}
+              {deleting ? "Deleting..." : "Delete"}
             </Button>
           </>
         }
@@ -554,6 +551,8 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       <LessonPreviewDialog
         lesson={openLesson}
         items={openLesson ? itemsOf(openLesson) : []}
+        pool={items}
+        creator={openLesson ? nameFor(userNames, openLesson.createdBy) : ""}
         activityHref={openLesson ? lessonActivityHref(openLesson) : "/activities"}
         onClose={() => setOpenLessonId("")}
         onEdit={(lesson) => {
@@ -566,7 +565,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       <ConfirmDialog
         open={Boolean(lessonToDelete)}
         title={`Delete ${lessonToDelete?.title ?? "lesson"}?`}
-        description="The lesson is removed. Its cards and activity stay."
+        description="The lesson is removed. Its materials and activity stay."
         confirmLabel="Delete lesson"
         tone="danger"
         loading={deleting}
@@ -574,7 +573,15 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         onClose={() => setLessonToDelete(null)}
       />
 
-      <CategoryFormDialog open={Boolean(categoryForm)} category={categoryForm?.category ?? null} onClose={() => setCategoryForm(null)} onSave={saveCategory} />
+      <CategoryDialog
+        state={categoryDialog ? { category: dialogCategory, mode: categoryDialog.mode } : null}
+        items={items}
+        onClose={() => setCategoryDialog(null)}
+        onModeChange={(mode) => setCategoryDialog((current) => (current ? { ...current, mode } : current))}
+        onSave={saveCategory}
+        onDelete={setCategoryToDelete}
+        onOpenItem={(item) => setOpenItemId(item.id)}
+      />
 
       <ConfirmDialog
         open={Boolean(categoryToDelete)}
@@ -597,6 +604,53 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
           setOpenItemId(item.id);
         }}
       />
+    </div>
+  );
+}
+
+function kindLabel(kind: ContentKind) {
+  return kind === "pecs" ? "PECS card" : "Gesture";
+}
+
+/** Page sections as large glassy tiles. The selected one fills blue. */
+function SectionTiles({
+  sections,
+  value,
+  onChange
+}: {
+  sections: Array<{ value: Tab; label: string; count: number; icon: LucideIcon }>;
+  value: Tab;
+  onChange: (value: Tab) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="tablist" aria-label="Content sections">
+      {sections.map((section) => {
+        const selected = section.value === value;
+        const Icon = section.icon;
+        return (
+          <button
+            key={section.value}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(section.value)}
+            className={cn(
+              "flex items-center gap-3 rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+              selected
+                ? "border-blue-500 bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_14px_30px_rgba(37,99,235,0.28)]"
+                : "border-white/80 bg-[#fff]/70 text-ink shadow-sm backdrop-blur-xl hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+            )}
+          >
+            <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", selected ? "bg-white/20 text-white" : "bg-blue-50 text-blue-600")}>
+              <Icon className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className={cn("block truncate text-sm font-semibold", selected ? "text-blue-50" : "text-slate-500")}>{section.label}</span>
+              <span className="block text-2xl font-black leading-tight">{section.count}</span>
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

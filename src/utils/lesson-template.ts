@@ -7,13 +7,12 @@ export function createLessonDraftFromItem(item: LearningItem): Omit<Lesson, "id"
     title: `${item.label} guided practice`,
     objective: `Practice "${item.label}" with teacher modeling and learner response.`,
     learningItemIds: [item.id],
-    // One step per line; the lesson form shows each line as a numbered step.
     instructions: [
       `Introduce ${item.label}.`,
       item.contentType === "gesture" ? `Model the ${item.label} sign.` : `Model the ${item.label} card.`,
       "Run a short practice.",
       "Review the learner's response."
-    ].join("\n"),
+    ].join(" "),
     activityType,
     estimatedDuration: 10,
     notes: "",

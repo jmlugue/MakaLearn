@@ -3,16 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Layers, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { EmptyState } from "@/components/common/empty-state";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { CardTile } from "@/features/content/card-tile";
-import { CategoryChips, kindMeta, type ContentKind } from "@/features/content/content-shared";
+import { CategoryPills, kindMeta, type ContentKind } from "@/features/content/content-shared";
 import type { Category, LearningItem } from "@/types";
 
 const PAGE_SIZE = 25;
 
-export function CardsTab({
+export function MaterialsTab({
   items,
   categories,
   kind,
@@ -22,7 +22,7 @@ export function CardsTab({
   search,
   onSearchChange,
   onOpenItem,
-  onAddCard
+  onAdd
 }: {
   items: LearningItem[];
   categories: Category[];
@@ -33,7 +33,7 @@ export function CardsTab({
   search: string;
   onSearchChange: (value: string) => void;
   onOpenItem: (item: LearningItem) => void;
-  onAddCard: () => void;
+  onAdd: () => void;
 }) {
   const [page, setPage] = useState(1);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
@@ -65,29 +65,36 @@ export function CardsTab({
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <SegmentedControl
-          label="Card type"
-          value={kind}
-          onChange={onKindChange}
-          options={[
-            { value: "pecs", label: kindMeta.pecs.plural, count: pecsCount },
-            { value: "gesture", label: kindMeta.gesture.plural, count: items.length - pecsCount }
-          ]}
-        />
-        <SearchInput
-          label="Search cards"
-          placeholder={kind === "pecs" ? "Search PECS cards" : "Search gestures"}
-          value={search}
-          onChange={onSearchChange}
-        />
-        <Button className="ml-auto" onClick={onAddCard}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Add card
-        </Button>
-      </div>
+      <UnderlineTabs
+        id="material-types"
+        label="Material type"
+        value={kind}
+        onChange={onKindChange}
+        options={(["pecs", "gesture"] as ContentKind[]).map((option) => ({
+          value: option,
+          label: kindMeta[option].plural,
+          icon: kindMeta[option].icon,
+          count: option === "pecs" ? pecsCount : items.length - pecsCount
+        }))}
+      />
 
-      {usedCategories.length > 1 ? <CategoryChips categories={usedCategories} value={categoryId} onChange={onCategoryChange} /> : null}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="min-w-0 flex-1">
+          {usedCategories.length > 1 ? <CategoryPills categories={usedCategories} value={categoryId} onChange={onCategoryChange} /> : null}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <SearchInput
+            label="Search materials"
+            placeholder={kind === "pecs" ? "Search PECS cards" : "Search gestures"}
+            value={search}
+            onChange={onSearchChange}
+          />
+          <Button onClick={onAdd}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {kindMeta[kind].addLabel}
+          </Button>
+        </div>
+      </div>
 
       {filtered.length ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -98,8 +105,8 @@ export function CardsTab({
       ) : (
         <EmptyState
           icon={Layers}
-          title={kindItems.length ? "No cards found" : kind === "pecs" ? "No PECS cards yet" : "No gestures yet"}
-          description={kindItems.length ? "Try another search or category." : "Use Add card to create the first one."}
+          title={kindItems.length ? "Nothing found" : kind === "pecs" ? "No PECS cards yet" : "No gestures yet"}
+          description={kindItems.length ? "Try another search or category." : `Use ${kindMeta[kind].addLabel} to create the first one.`}
         />
       )}
 

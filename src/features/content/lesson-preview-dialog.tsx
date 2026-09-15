@@ -1,76 +1,98 @@
 "use client";
 
+import { ReactNode } from "react";
 import Link from "next/link";
-import { Pencil, PlayCircle, Target, Trash2 } from "lucide-react";
+import { Clock, Hand, Pencil, PlayCircle, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { ActivitySample } from "@/features/content/activity-sample";
 import { AudioButton, CardImage } from "@/features/content/content-media";
-import { KindBadge, splitSteps } from "@/features/content/content-shared";
-import { PracticeLabel, SourceBadge } from "@/features/content/lesson-card";
-import type { LearningItem, Lesson } from "@/types";
+import { KindBadge, PopupTitle, SectionLabel, deleteButtonClass, glassBoxClass, kindTone } from "@/features/content/content-shared";
+import { SourceBadge } from "@/features/content/lesson-card";
+import type { ActivityType, LearningItem, Lesson } from "@/types";
 
-/** What a lesson does: goal, numbered steps, cards (tap to hear), and practice. Shared by the preview and the form's Review step. */
+/** What a lesson does: materials (tap to hear), instructions, and a try-it sample of the activity. Shared by view and Review. */
 export function LessonPreviewBody({
-  objective,
-  steps,
+  instructions,
   items,
-  activityType
+  pool,
+  activityType,
+  practiceControl
 }: {
-  objective: string;
-  steps: string[];
+  instructions: string;
   items: LearningItem[];
-  activityType: Lesson["activityType"];
+  pool: LearningItem[];
+  activityType: ActivityType;
+  /** Optional control shown above the sample (the practice dropdown in the form). */
+  practiceControl?: ReactNode;
 }) {
-  const hasPecs = items.some((item) => item.contentType === "pecs");
+  const pecsItems = items.filter((item) => item.contentType === "pecs");
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-start gap-3 rounded-2xl bg-blue-50/70 p-4">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600 text-white">
-          <Target className="h-5 w-5" aria-hidden="true" />
+    <div className="space-y-4">
+      <div className={cn("p-4", glassBoxClass)}>
+        <SectionLabel>Materials</SectionLabel>
+        <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+          {items.map((item) => {
+            const tone = kindTone(item.contentType);
+            return (
+              <div key={item.id} className="overflow-hidden rounded-2xl border border-blue-100 bg-[#fff] shadow-sm">
+                <div className={cn("grid aspect-square place-items-center p-2", tone.soft)}>
+                  <CardImage value={item.symbolImageUrl} label={item.label} className="text-sm" />
+                </div>
+                <div className="flex items-center gap-1.5 p-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-ink">{item.label}</span>
+                    <KindBadge kind={item.contentType} className="px-1.5 text-[9px]" />
+                  </span>
+                  <AudioButton value={item.audioUrl} label={item.label} className="h-7 w-7" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className={cn("p-4", glassBoxClass)}>
+        <SectionLabel>Instructions</SectionLabel>
+        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">{instructions || "No instructions yet."}</p>
+      </div>
+
+      <div className="rounded-2xl bg-gradient-to-br from-blue-100/70 via-blue-50/70 to-sky-50/80 p-4 ring-1 ring-blue-100">
+        <SectionLabel className="mb-2">How the activity goes</SectionLabel>
+        {practiceControl}
+        {pecsItems.length ? (
+          <ActivitySample key={activityType} type={activityType} items={pecsItems} pool={pool} />
+        ) : (
+          <div className="flex items-start gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-100 text-sky-700">
+              <Hand className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <p className="text-sm leading-6 text-slate-700">
+              Gesture practice: the learner signs each gesture to the camera and gets feedback on their hand shape.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function LessonMeta({ lesson, creator }: { lesson: Pick<Lesson, "source" | "estimatedDuration">; creator?: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <SourceBadge source={lesson.source} />
+      <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-blue-100">
+        <Clock className="h-3 w-3" aria-hidden="true" />
+        {lesson.estimatedDuration} min
+      </span>
+      {creator ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-blue-100">
+          <User className="h-3 w-3" aria-hidden="true" />
+          {creator}
         </span>
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Goal</p>
-          <p className="mt-0.5 text-sm font-semibold leading-6 text-ink">{objective || "No goal yet"}</p>
-        </div>
-      </div>
-
-      <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Steps</p>
-        <ol className="mt-2 space-y-2">
-          {steps.map((step, index) => (
-            <li key={`${index}-${step}`} className="flex items-start gap-3">
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#fff] text-xs font-bold text-blue-700 ring-1 ring-blue-200">
-                {index + 1}
-              </span>
-              <span className="pt-0.5 text-sm leading-6 text-slate-700">{step}</span>
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Cards</p>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-          {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-2 rounded-xl border border-blue-100 bg-[#fff] p-2">
-              <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#f8fbff]">
-                <CardImage value={item.symbolImageUrl} label={item.label} className="p-0.5 text-[10px] leading-tight" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink">{item.label}</span>
-                <KindBadge kind={item.contentType} className="mt-0.5 px-1.5 text-[9px]" />
-              </span>
-              <AudioButton value={item.audioUrl} label={item.label} className="h-7 w-7" />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-[#fff] px-4 py-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Practice</p>
-        <PracticeLabel hasPecs={hasPecs} activityType={activityType} className="text-sm" />
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -78,6 +100,8 @@ export function LessonPreviewBody({
 export function LessonPreviewDialog({
   lesson,
   items,
+  pool,
+  creator,
   activityHref,
   onClose,
   onEdit,
@@ -85,6 +109,8 @@ export function LessonPreviewDialog({
 }: {
   lesson: Lesson | null;
   items: LearningItem[];
+  pool: LearningItem[];
+  creator: string;
   activityHref: string;
   onClose: () => void;
   onEdit: (lesson: Lesson) => void;
@@ -97,11 +123,13 @@ export function LessonPreviewDialog({
       open={Boolean(lesson)}
       onClose={onClose}
       title={lesson?.title ?? ""}
-      className="max-w-2xl"
+      description={lesson?.objective}
+      className="max-w-3xl"
+      hideHeader
       footer={
         lesson ? (
           <>
-            <Button type="button" variant="ghost" className="mr-auto text-red-600 hover:bg-red-50" onClick={() => onDelete(lesson)}>
+            <Button type="button" variant="ghost" className={deleteButtonClass} onClick={() => onDelete(lesson)}>
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Delete
             </Button>
@@ -121,15 +149,13 @@ export function LessonPreviewDialog({
       }
     >
       {lesson ? (
-        <>
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <SourceBadge source={lesson.source} />
-            <span className="text-xs font-semibold text-slate-400">
-              {lesson.estimatedDuration} min · {items.length} {items.length === 1 ? "card" : "cards"}
-            </span>
-          </div>
-          <LessonPreviewBody objective={lesson.objective} steps={splitSteps(lesson.instructions)} items={items} activityType={lesson.activityType} />
-        </>
+        <div className="space-y-4">
+          <PopupTitle title={lesson.title}>
+            <LessonMeta lesson={lesson} creator={creator} />
+          </PopupTitle>
+          {lesson.objective ? <p className="-mt-2 text-sm leading-6 text-slate-600">{lesson.objective}</p> : null}
+          <LessonPreviewBody instructions={lesson.instructions} items={items} pool={pool} activityType={lesson.activityType} />
+        </div>
       ) : null}
     </Dialog>
   );
