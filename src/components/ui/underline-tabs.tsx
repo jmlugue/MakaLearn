@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-export type TabOption<T extends string> = { value: T; label: string };
+export type TabOption<T extends string> = { value: T; label: string; count?: number };
 
 /** Text tabs with a blue underline that slides to the selected tab. */
 export function UnderlineTabs<T extends string>({
@@ -40,6 +40,11 @@ export function UnderlineTabs<T extends string>({
             )}
           >
             {option.label}
+            {option.count !== undefined ? (
+              <span className={cn("ml-1.5 rounded-full px-1.5 text-xs font-bold", selected ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-500")}>
+                {option.count}
+              </span>
+            ) : null}
             {selected ? (
               <motion.span
                 layoutId={`${id}-underline`}
