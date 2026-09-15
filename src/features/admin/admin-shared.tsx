@@ -64,12 +64,70 @@ export function EmptyRow({ colSpan, children }: { colSpan: number; children: Rea
   );
 }
 
-export type LogFilter = "all" | "accounts" | "content" | "admin";
+export type LogFilter = "all" | "sign-ins" | "content" | "accounts";
 
-/** Maps a log to the Activity log filter it belongs to. Login/logout logs count as Accounts. */
+/**
+ * Maps a log to its Activity log tab. Sign-ins are login/logout. Accounts are admin changes to accounts,
+ * including temporary passwords (stored under the auth category).
+ */
 export function logGroup(log: AuditLog): Exclude<LogFilter, "all"> | "other" {
-  if (log.category === "auth") return "accounts";
-  if (log.category === "admin") return "admin";
+  if (log.action === "login" || log.action === "logout") return "sign-ins";
+  if (log.category === "admin" || log.targetType === "teacher_password") return "accounts";
   if (log.category === "content") return "content";
   return "other";
+}
+
+// Audit logs use raw target types from different writers (hyphens on the client, underscores in API routes).
+const itemTypeNames: Record<string, string> = {
+  session: "",
+  "learning-item": "Learning item",
+  "lesson-draft": "Lesson draft",
+  lesson: "Lesson",
+  category: "Category",
+  activity: "Activity",
+  media: "Media file",
+  teacher_account: "Account",
+  account_role: "Account role",
+  account_status: "Account status",
+  teacher_password: "Password"
+};
+
+const nouns: Record<string, string> = {
+  "learning-item": "a learning item",
+  lesson: "a lesson",
+  category: "a category",
+  activity: "an activity"
+};
+
+const verbs: Partial<Record<AuditLog["action"], string>> = { create: "Added", edit: "Edited", delete: "Deleted" };
+
+/** Plain-language sentence and item type for one log, e.g. "Uploaded a file" + "Media file". */
+export function describeActivity(log: AuditLog): { sentence: string; itemType: string } {
+  const itemType = itemTypeNames[log.targetType] ?? titleCase(log.targetType.replace(/[-_]/g, " "));
+
+  if (log.action === "login") return { sentence: "Signed in", itemType: "" };
+  if (log.action === "logout") return { sentence: "Signed out", itemType: "" };
+
+  switch (log.targetType) {
+    case "lesson-draft":
+      return { sentence: "Generated a lesson draft", itemType };
+    case "media":
+      return { sentence: log.action === "delete" ? "Deleted a file" : "Uploaded a file", itemType };
+    case "teacher_account":
+      return { sentence: /created admin account/i.test(log.detail) ? "Created an admin account" : "Created an account", itemType };
+    case "account_role": {
+      const role = log.detail.match(/to (admin|teacher)\.?$/i)?.[1];
+      return { sentence: role ? `Changed role to ${titleCase(role.toLowerCase())}` : "Changed a role", itemType };
+    }
+    case "account_status":
+      return { sentence: /to deactivated\.?$/i.test(log.detail) ? "Deactivated an account" : "Activated an account", itemType };
+    case "teacher_password":
+      return { sentence: "Set a temporary password", itemType };
+    default: {
+      const noun = nouns[log.targetType];
+      const verb = verbs[log.action];
+      if (noun && verb) return { sentence: `${verb} ${noun}`, itemType };
+      return { sentence: titleCase(log.action), itemType };
+    }
+  }
 }

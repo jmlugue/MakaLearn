@@ -14,9 +14,9 @@ import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { AccountsSection, type StatusFilter } from "@/features/admin/accounts-section";
 import { ActivitySection } from "@/features/admin/activity-section";
 import type { LogFilter } from "@/features/admin/admin-shared";
-import { ContentSection, type ItemsFilter } from "@/features/admin/content-section";
+import { ContentSection, type ContentView } from "@/features/admin/content-section";
 import { OverviewSection, type OverviewJump } from "@/features/admin/overview-section";
-import type { Activity as ActivityRecord, AppUser, AuditLog, LearningItem, Lesson, MediaAsset } from "@/types";
+import type { Activity as ActivityRecord, AppUser, AuditLog, Category, LearningItem, Lesson, MediaAsset } from "@/types";
 
 type Section = "home" | "accounts" | "content" | "activity";
 
@@ -47,8 +47,9 @@ export function AdminPanelView() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [hasMoreLogs, setHasMoreLogs] = useState(false);
   const [loadingMoreLogs, setLoadingMoreLogs] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [itemsFilter, setItemsFilter] = useState<ItemsFilter>("all");
+  const [contentView, setContentView] = useState<ContentView>("items");
   const [logFilter, setLogFilter] = useState<LogFilter>("all");
 
   // Sections are kept in the URL hash so refresh and the browser back button keep your place.
@@ -76,6 +77,7 @@ export function AdminPanelView() {
         setMedia(data.mediaAssets);
         setActivities(data.activities);
         setLessons(data.lessons);
+        setCategories(data.categories);
       })
       .catch(() => {
         notify({ title: "Admin data unavailable", description: "Data could not be loaded. Try refreshing.", tone: "error" });
@@ -118,9 +120,9 @@ export function AdminPanelView() {
   function handleJump(jump: OverviewJump) {
     if (jump.section === "accounts") {
       setStatusFilter(jump.status ?? "all");
-      if (jump.addTeacher) setAddTeacherRequest((current) => current + 1);
+      if (jump.addAccount) setAddTeacherRequest((current) => current + 1);
     }
-    if (jump.section === "content") setItemsFilter(jump.itemsFilter);
+    if (jump.section === "content") setContentView(jump.view ?? "items");
     goTo(jump.section);
   }
 
@@ -146,6 +148,7 @@ export function AdminPanelView() {
         <OverviewSection
           adminName={user.name}
           users={users}
+          categories={categories}
           items={items}
           media={media}
           activities={activities}
@@ -167,7 +170,39 @@ export function AdminPanelView() {
         />
       ) : null}
 
-      {section === "content" ? <ContentSection items={items} media={media} users={users} initialItemsFilter={itemsFilter} /> : null}
+      {section === "content" ? (
+        <ContentSection
+          items={items}
+          media={media}
+          users={users}
+          categories={categories}
+          initialView={contentView}
+          onItemSaved={(saved) => setItems((current) => current.map((item) => (item.id === saved.id ? saved : item)))}
+          onItemDeleted={(deleted, deletedMedia) => {
+            setItems((current) => current.filter((item) => item.id !== deleted.id));
+            if (deletedMedia) setMedia((current) => current.filter((asset) => asset.relatedItemId !== deleted.id));
+            reloadLogs();
+          }}
+          onMediaDeleted={(deleted) => {
+            setMedia((current) => current.filter((asset) => asset.id !== deleted.id));
+            // Clear the matching URL locally too, mirroring what the delete did in the database.
+            if (deleted.relatedItemId && deleted.publicUrl) {
+              setItems((current) =>
+                current.map((item) => {
+                  if (item.id !== deleted.relatedItemId) return item;
+                  return {
+                    ...item,
+                    symbolImageUrl: item.symbolImageUrl === deleted.publicUrl ? undefined : item.symbolImageUrl,
+                    gestureMediaUrl: item.gestureMediaUrl === deleted.publicUrl ? undefined : item.gestureMediaUrl,
+                    audioUrl: item.audioUrl === deleted.publicUrl ? undefined : item.audioUrl
+                  };
+                })
+              );
+            }
+            reloadLogs();
+          }}
+        />
+      ) : null}
 
       {section === "activity" ? (
         <ActivitySection

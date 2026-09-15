@@ -1,60 +1,47 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { requireActiveAdmin } from "@/lib/supabase/admin-guard";
+import type { UserRole } from "@/types";
 
 export const runtime = "nodejs";
 
-type CreateTeacherRequest = {
+// Path kept as "create-teacher" for compatibility; it now creates teacher or admin accounts.
+type CreateAccountRequest = {
   name?: unknown;
   email?: unknown;
+  role?: unknown;
+  password?: unknown;
 };
 
-async function requireActiveAdmin() {
-  const sessionClient = createSupabaseServerClient();
-  const {
-    data: { user },
-    error: sessionError
-  } = await sessionClient.auth.getUser();
+const MIN_PASSWORD_LENGTH = 6;
 
-  if (sessionError || !user) {
-    return { error: NextResponse.json({ error: "Sign in as an admin before creating teachers." }, { status: 401 }) };
-  }
-
-  const { data: profile, error: profileError } = await sessionClient
-    .from("profiles")
-    .select("id,name,role,status")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError || !profile || profile.role !== "admin" || profile.status !== "active") {
-    return { error: NextResponse.json({ error: "Only active admin accounts can create teachers." }, { status: 403 }) };
-  }
-
-  return { profile };
+function isUserRole(value: unknown): value is UserRole {
+  return value === "admin" || value === "teacher";
 }
 
 export async function POST(request: Request) {
-  let body: CreateTeacherRequest;
+  let body: CreateAccountRequest;
 
   try {
-    body = (await request.json()) as CreateTeacherRequest;
+    body = (await request.json()) as CreateAccountRequest;
   } catch {
-    return NextResponse.json({ error: "Invalid teacher account request." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid account request." }, { status: 400 });
   }
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const role: UserRole = isUserRole(body.role) ? body.role : "teacher";
+  const password = typeof body.password === "string" ? body.password : "";
 
   if (!name || !email.includes("@")) {
-    return NextResponse.json({ error: "Enter a teacher name and valid email address." }, { status: 400 });
+    return NextResponse.json({ error: "Enter a name and valid email address." }, { status: 400 });
   }
 
-  let admin;
-  try {
-    admin = await requireActiveAdmin();
-  } catch {
-    return NextResponse.json({ error: "Supabase is not configured." }, { status: 503 });
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return NextResponse.json({ error: `The temporary password needs at least ${MIN_PASSWORD_LENGTH} characters.` }, { status: 400 });
   }
 
+  const admin = await requireActiveAdmin();
   if ("error" in admin) return admin.error;
 
   let serviceClient;
@@ -64,20 +51,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Supabase service role key is not configured." }, { status: 503 });
   }
 
-  const temporaryPassword = process.env.SUPABASE_TEMPORARY_PASSWORD;
-  if (!temporaryPassword) {
-    return NextResponse.json({ error: "Temporary password is not configured." }, { status: 503 });
-  }
-
+  // The admin types the temporary password and shares it with the new user privately.
   const { data: created, error: createError } = await serviceClient.auth.admin.createUser({
     email,
-    password: temporaryPassword,
+    password,
     email_confirm: true,
-    user_metadata: { name, role: "teacher" }
+    user_metadata: { name, role }
   });
 
   if (createError || !created.user) {
-    return NextResponse.json({ error: createError?.message ?? "Teacher account could not be created." }, { status: 500 });
+    return NextResponse.json({ error: createError?.message ?? "Account could not be created." }, { status: 500 });
   }
 
   const { data: profile, error: profileError } = await serviceClient
@@ -86,7 +69,7 @@ export async function POST(request: Request) {
       id: created.user.id,
       name,
       email,
-      role: "teacher",
+      role,
       status: "active",
       updated_at: new Date().toISOString()
     })
@@ -94,7 +77,7 @@ export async function POST(request: Request) {
     .single();
 
   if (profileError || !profile) {
-    return NextResponse.json({ error: profileError?.message ?? "Teacher profile could not be created." }, { status: 500 });
+    return NextResponse.json({ error: profileError?.message ?? "Account profile could not be created." }, { status: 500 });
   }
 
   await serviceClient.from("audit_logs").insert({
@@ -105,7 +88,7 @@ export async function POST(request: Request) {
     target_type: "teacher_account",
     target_id: profile.id,
     target_title: profile.email,
-    detail: `${admin.profile.name} created teacher account ${profile.name}.`,
+    detail: `${admin.profile.name} created ${role} account ${profile.name}.`,
     created_at: new Date().toISOString()
   });
 

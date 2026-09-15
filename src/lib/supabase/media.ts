@@ -95,3 +95,37 @@ export async function uploadMediaAssetToSupabase({
 
   return mapMediaAssetRow(insert.data);
 }
+
+/**
+ * Deletes one media file: the storage object, its media_assets row, and the matching URL on the
+ * related learning item (only when that item still points at this file).
+ */
+export async function deleteMediaAssetFromSupabase(asset: MediaAsset) {
+  const supabase = getSupabaseBrowserClient();
+
+  if (!supabase) {
+    throw new Error("Supabase is not configured.");
+  }
+
+  if (asset.storagePath) {
+    // A missing storage object should not block removing the database record.
+    await supabase.storage.from(asset.bucket).remove([asset.storagePath]);
+  }
+
+  const { error } = await supabase.from("media_assets").delete().eq("id", asset.id);
+  if (error) {
+    throw error;
+  }
+
+  if (asset.relatedItemId && asset.publicUrl && asset.type !== "learner-photo") {
+    const updatedAt = new Date().toISOString();
+    const items = supabase.from("learning_items");
+    if (asset.type === "symbol-image") {
+      await items.update({ symbol_image_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("symbol_image_url", asset.publicUrl);
+    } else if (asset.type === "gesture-media") {
+      await items.update({ gesture_media_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("gesture_media_url", asset.publicUrl);
+    } else {
+      await items.update({ audio_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("audio_url", asset.publicUrl);
+    }
+  }
+}

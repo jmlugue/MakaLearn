@@ -1,15 +1,16 @@
 "use client";
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { ExternalLink, FileAudio, FileVideo, Image as ImageIcon, ImageOff, Volume2 } from "lucide-react";
+import { FileAudio, FileVideo, Image as ImageIcon, ImageOff, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/form";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { cn, formatDate } from "@/lib/utils";
 import { EmptyRow, Panel, SearchInput } from "@/features/admin/admin-shared";
-import type { AppUser, LearningItem, MediaAsset } from "@/types";
+import { ItemDetailDialog, MediaDetailDialog } from "@/features/admin/content-detail-dialog";
+import type { AppUser, Category, LearningItem, MediaAsset } from "@/types";
 
-type ContentView = "items" | "media";
+export type ContentView = "items" | "media";
 export type ItemsFilter = "all" | "pecs" | "gesture" | "missing-image" | "missing-audio";
 type MediaFilter = "all" | MediaAsset["type"];
 
@@ -36,24 +37,35 @@ export function ContentSection({
   items,
   media,
   users,
-  initialItemsFilter = "all"
+  categories,
+  initialView = "items",
+  onItemSaved,
+  onItemDeleted,
+  onMediaDeleted
 }: {
   items: LearningItem[];
   media: MediaAsset[];
   users: AppUser[];
-  initialItemsFilter?: ItemsFilter;
+  categories: Category[];
+  initialView?: ContentView;
+  onItemSaved: (item: LearningItem) => void;
+  onItemDeleted: (item: LearningItem, deletedMedia: boolean) => void;
+  onMediaDeleted: (asset: MediaAsset) => void;
 }) {
-  const [view, setView] = useState<ContentView>("items");
+  const [view, setView] = useState<ContentView>(initialView);
   const [search, setSearch] = useState("");
-  const [itemsFilter, setItemsFilter] = useState<ItemsFilter>(initialItemsFilter);
+  const [itemsFilter, setItemsFilter] = useState<ItemsFilter>("all");
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("all");
   const [person, setPerson] = useState("all");
   const [page, setPage] = useState(1);
+  const [openItemId, setOpenItemId] = useState<string | null>(null);
+  const [openMediaId, setOpenMediaId] = useState<string | null>(null);
+  const openItem = openItemId ? items.find((item) => item.id === openItemId) ?? null : null;
+  const openMedia = openMediaId ? media.find((asset) => asset.id === openMediaId) ?? null : null;
 
   useEffect(() => {
-    setItemsFilter(initialItemsFilter);
-    if (initialItemsFilter !== "all") setView("items");
-  }, [initialItemsFilter]);
+    setView(initialView);
+  }, [initialView]);
 
   useEffect(() => {
     setPage(1);
@@ -194,7 +206,11 @@ export function ContentSection({
           </p>
         </div>
 
-        {view === "items" ? <ItemsTable items={pageItems} users={users} /> : <MediaGrid media={pageMedia} users={users} />}
+        {view === "items" ? (
+          <ItemsTable items={pageItems} users={users} onOpen={(item) => setOpenItemId(item.id)} />
+        ) : (
+          <MediaGrid media={pageMedia} users={users} onOpen={(asset) => setOpenMediaId(asset.id)} />
+        )}
 
         {pageCount > 1 ? (
           <div className="flex items-center justify-end gap-2 text-xs">
@@ -210,6 +226,32 @@ export function ContentSection({
           </div>
         ) : null}
       </div>
+
+      <ItemDetailDialog
+        item={openItem}
+        users={users}
+        categories={categories}
+        onClose={() => setOpenItemId(null)}
+        onSaved={onItemSaved}
+        onDeleted={(item, deletedMedia) => {
+          setOpenItemId(null);
+          onItemDeleted(item, deletedMedia);
+        }}
+      />
+      <MediaDetailDialog
+        asset={openMedia}
+        users={users}
+        items={items}
+        onClose={() => setOpenMediaId(null)}
+        onDeleted={(asset) => {
+          setOpenMediaId(null);
+          onMediaDeleted(asset);
+        }}
+        onOpenItem={(item) => {
+          setOpenMediaId(null);
+          setOpenItemId(item.id);
+        }}
+      />
     </div>
   );
 }
@@ -259,7 +301,7 @@ function FilterOption({
   );
 }
 
-function ItemsTable({ items, users }: { items: LearningItem[]; users: AppUser[] }) {
+function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: AppUser[]; onOpen: (item: LearningItem) => void }) {
   return (
     <Panel>
       <div className="overflow-x-auto clean-scrollbar">
@@ -278,9 +320,21 @@ function ItemsTable({ items, users }: { items: LearningItem[]; users: AppUser[] 
               <EmptyRow colSpan={5}>No learning items match.</EmptyRow>
             ) : (
               items.map((item) => (
-                <tr key={item.id} className="border-t border-slate-100 first:border-t-0 hover:bg-blue-50/40">
+                <tr
+                  key={item.id}
+                  onClick={() => onOpen(item)}
+                  className="cursor-pointer border-t border-slate-100 first:border-t-0 hover:bg-blue-50/60"
+                >
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
+                    {/* The label is a real button so keyboard users can open the pop-up; the whole row also responds to clicks. */}
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpen(item);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                    >
                       <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl border border-blue-100 bg-[#f8fbff]">
                         {item.symbolImageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -289,11 +343,11 @@ function ItemsTable({ items, users }: { items: LearningItem[]; users: AppUser[] 
                           <ImageOff className="h-5 w-5 text-slate-300" aria-hidden="true" />
                         )}
                       </span>
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-ink">{item.label}</p>
-                        {item.tags.length ? <p className="truncate text-xs text-slate-500">{item.tags.slice(0, 3).join(", ")}</p> : null}
-                      </div>
-                    </div>
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-ink">{item.label}</span>
+                        {item.tags.length ? <span className="block truncate text-xs text-slate-500">{item.tags.slice(0, 3).join(", ")}</span> : null}
+                      </span>
+                    </button>
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -338,7 +392,7 @@ function MediaChip({ present, label, icon: Icon }: { present: boolean; label: st
   );
 }
 
-function MediaGrid({ media, users }: { media: MediaAsset[]; users: AppUser[] }) {
+function MediaGrid({ media, users, onOpen }: { media: MediaAsset[]; users: AppUser[]; onOpen: (asset: MediaAsset) => void }) {
   if (media.length === 0) {
     return <Panel className="px-4 py-10 text-center text-sm font-semibold text-slate-500">No media files match.</Panel>;
   }
@@ -348,8 +402,13 @@ function MediaGrid({ media, users }: { media: MediaAsset[]; users: AppUser[] }) 
       {media.map((asset) => {
         const Icon = asset.type === "audio-file" ? FileAudio : FileVideo;
         return (
-          <Panel key={asset.id} className="group flex flex-col transition hover:-translate-y-0.5 hover:shadow-md">
-            <div className="relative grid aspect-[4/3] place-items-center bg-[#f8fbff]">
+          <button
+            key={asset.id}
+            type="button"
+            onClick={() => onOpen(asset)}
+            className="group flex flex-col overflow-hidden rounded-2xl border border-blue-100 bg-[#fff] text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+          >
+            <span className="relative grid aspect-[4/3] w-full place-items-center bg-[#f8fbff]">
               {isImageFile(asset) && asset.publicUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={asset.publicUrl} alt={asset.title} className="h-full w-full object-contain p-3" />
@@ -359,26 +418,16 @@ function MediaGrid({ media, users }: { media: MediaAsset[]; users: AppUser[] }) 
               <span className="absolute left-2 top-2 rounded-full bg-[#fff]/90 px-2 py-0.5 text-[11px] font-semibold text-slate-600 shadow-sm">
                 {mediaTypeLabels[asset.type]}
               </span>
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5 border-t border-blue-100 p-3">
-              <p className="truncate text-sm font-semibold text-ink" title={asset.fileName}>
+            </span>
+            <span className="flex w-full min-w-0 flex-1 flex-col gap-0.5 border-t border-blue-100 p-3">
+              <span className="block truncate text-sm font-semibold text-ink" title={asset.fileName}>
                 {asset.title || asset.fileName}
-              </p>
-              <p className="truncate text-xs text-slate-500">
+              </span>
+              <span className="block truncate text-xs text-slate-500">
                 {nameFor(users, asset.uploadedBy)} · {formatDate(asset.uploadedAt)}
-              </p>
-              {asset.publicUrl ? (
-                <a
-                  href={asset.publicUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-auto inline-flex items-center gap-1 pt-2 text-xs font-semibold text-blue-700 hover:underline"
-                >
-                  Open <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                </a>
-              ) : null}
-            </div>
-          </Panel>
+              </span>
+            </span>
+          </button>
         );
       })}
     </div>

@@ -1,34 +1,32 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/form";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Avatar, EmptyRow, logGroup, type LogFilter, Panel, SearchInput, titleCase } from "@/features/admin/admin-shared";
+import { Avatar, describeActivity, EmptyRow, logGroup, type LogFilter, Panel, SearchInput } from "@/features/admin/admin-shared";
 import type { AuditLog } from "@/types";
 
 type ActionFilter = "all" | AuditLog["action"];
 
-const actionLabels: Record<AuditLog["action"], string> = {
+const actionFilterLabels: Record<AuditLog["action"], string> = {
   login: "Sign-ins",
   logout: "Sign-outs",
   upload: "Uploads",
-  create: "Creates",
-  edit: "Edits",
-  delete: "Deletes"
+  create: "Added",
+  edit: "Edited",
+  delete: "Deleted"
 };
 
-const actionTone: Record<AuditLog["action"], string> = {
-  login: "bg-emerald-100 text-emerald-700",
-  logout: "bg-slate-200 text-slate-600",
-  create: "bg-blue-100 text-blue-700",
-  upload: "bg-sky-100 text-sky-700",
-  edit: "bg-amber-100 text-amber-700",
-  delete: "bg-red-100 text-red-700"
+// Dot color hints at the kind of change without adding another column.
+const actionDot: Record<AuditLog["action"], string> = {
+  login: "bg-emerald-500",
+  logout: "bg-slate-400",
+  create: "bg-blue-600",
+  upload: "bg-sky-500",
+  edit: "bg-amber-500",
+  delete: "bg-red-500"
 };
-
-const groupLabels = { accounts: "Account", content: "Content", admin: "Admin", other: "Other" } as const;
 
 function dayLabel(value: string) {
   const date = new Date(value);
@@ -64,7 +62,7 @@ export function ActivitySection({
   const [actor, setActor] = useState("all");
 
   const counts = useMemo(() => {
-    const result = { all: logs.length, accounts: 0, content: 0, admin: 0 };
+    const result = { all: logs.length, "sign-ins": 0, content: 0, accounts: 0 };
     logs.forEach((log) => {
       const group = logGroup(log);
       if (group !== "other") result[group] += 1;
@@ -88,7 +86,8 @@ export function ActivitySection({
           !term ||
           log.actorName.toLowerCase().includes(term) ||
           log.targetTitle.toLowerCase().includes(term) ||
-          log.detail.toLowerCase().includes(term)
+          log.detail.toLowerCase().includes(term) ||
+          describeActivity(log).sentence.toLowerCase().includes(term)
       );
   }, [action, actor, filter, logs, search]);
 
@@ -103,17 +102,17 @@ export function ActivitySection({
           onChange={onFilterChange}
           options={[
             { value: "all", label: "All", count: counts.all },
-            { value: "accounts", label: "Accounts", count: counts.accounts },
+            { value: "sign-ins", label: "Sign-ins", count: counts["sign-ins"] },
             { value: "content", label: "Content", count: counts.content },
-            { value: "admin", label: "Admin", count: counts.admin }
+            { value: "accounts", label: "Accounts", count: counts.accounts }
           ]}
         />
-        <div className="w-40">
+        <div className="w-36">
           <Select aria-label="Filter by action" value={action} onChange={(event) => setAction(event.target.value as ActionFilter)}>
             <option value="all">All actions</option>
-            {(Object.keys(actionLabels) as AuditLog["action"][]).map((key) => (
+            {(Object.keys(actionFilterLabels) as AuditLog["action"][]).map((key) => (
               <option key={key} value={key}>
-                {actionLabels[key]}
+                {actionFilterLabels[key]}
               </option>
             ))}
           </Select>
@@ -135,35 +134,35 @@ export function ActivitySection({
 
       <Panel>
         <div className="overflow-x-auto clean-scrollbar">
-          <table className="w-full min-w-[820px] table-fixed text-left text-sm">
+          <table className="w-full min-w-[780px] table-fixed text-left text-sm">
             <colgroup>
               <col className="w-28" />
               <col className="w-52" />
-              <col className="w-28" />
-              <col className="w-28" />
+              <col className="w-64" />
               <col />
             </colgroup>
             <thead className="border-b border-blue-100 bg-[#f8fbff] text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-3">Time</th>
+                <th className="px-4 py-3">When</th>
                 <th className="px-4 py-3">Who</th>
-                <th className="px-4 py-3">Action</th>
-                <th className="px-4 py-3">Area</th>
-                <th className="px-4 py-3">What</th>
+                <th className="px-4 py-3">What happened</th>
+                <th className="px-4 py-3">Item</th>
               </tr>
             </thead>
             <tbody>
               {visible.length === 0 ? (
-                <EmptyRow colSpan={5}>{filtersActive ? "No activity matches these filters." : "No activity yet."}</EmptyRow>
+                <EmptyRow colSpan={4}>{filtersActive ? "No activity matches these filters." : "No activity yet."}</EmptyRow>
               ) : (
                 visible.map((log, index) => {
                   const day = dayLabel(log.createdAt);
                   const showDay = index === 0 || dayLabel(visible[index - 1].createdAt) !== day;
+                  const { sentence, itemType } = describeActivity(log);
+                  const isSession = log.action === "login" || log.action === "logout";
                   return (
                     <Fragment key={log.id}>
                       {showDay ? (
                         <tr className="border-t border-blue-100 bg-slate-50/80 first:border-t-0">
-                          <th colSpan={5} scope="colgroup" className="px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
+                          <th colSpan={4} scope="colgroup" className="px-4 py-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
                             {day}
                           </th>
                         </tr>
@@ -177,14 +176,23 @@ export function ActivitySection({
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge className={actionTone[log.action]}>{titleCase(log.action)}</Badge>
+                          <span className="flex items-center gap-2 text-ink">
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${actionDot[log.action]}`} aria-hidden="true" />
+                            {sentence}
+                          </span>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{groupLabels[logGroup(log)]}</td>
                         <td className="px-4 py-3">
-                          <p className="truncate font-semibold text-ink" title={log.targetTitle}>
-                            {log.targetTitle}
-                          </p>
-                          {log.detail ? <p className="mt-0.5 text-slate-500">{log.detail}</p> : null}
+                          {isSession ? (
+                            <span className="text-slate-400">-</span>
+                          ) : (
+                            <>
+                              <p className="truncate" title={log.targetTitle}>
+                                <span className="font-semibold text-ink">{log.targetTitle}</span>
+                                {itemType ? <span className="text-slate-400"> · {itemType}</span> : null}
+                              </p>
+                              {log.detail ? <p className="mt-0.5 text-xs text-slate-500">{log.detail}</p> : null}
+                            </>
+                          )}
                         </td>
                       </tr>
                     </Fragment>

@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { requireActiveAdmin } from "@/lib/supabase/admin-guard";
 
 export const runtime = "nodejs";
 
 type ResetPasswordRequest = {
   userId?: unknown;
+  password?: unknown;
 };
+
+const MIN_PASSWORD_LENGTH = 6;
 
 export async function POST(request: Request) {
   let body: ResetPasswordRequest;
@@ -17,38 +21,21 @@ export async function POST(request: Request) {
   }
 
   const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+
   if (!userId) {
     return NextResponse.json({ error: "Choose a teacher account to reset." }, { status: 400 });
   }
 
-  let sessionClient;
-  try {
-    sessionClient = createSupabaseServerClient();
-  } catch {
-    return NextResponse.json({ error: "Supabase is not configured." }, { status: 503 });
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return NextResponse.json({ error: `The temporary password needs at least ${MIN_PASSWORD_LENGTH} characters.` }, { status: 400 });
   }
 
-  const {
-    data: { user },
-    error: sessionError
-  } = await sessionClient.auth.getUser();
+  const admin = await requireActiveAdmin();
+  if ("error" in admin) return admin.error;
 
-  if (sessionError || !user) {
-    return NextResponse.json({ error: "Sign in as an admin before resetting passwords." }, { status: 401 });
-  }
-
-  const { data: adminProfile, error: adminProfileError } = await sessionClient
-    .from("profiles")
-    .select("id,name,role,status")
-    .eq("id", user.id)
-    .single();
-
-  if (adminProfileError || !adminProfile || adminProfile.role !== "admin" || adminProfile.status !== "active") {
-    return NextResponse.json({ error: "Only active admin accounts can reset teacher passwords." }, { status: 403 });
-  }
-
-  if (userId === user.id) {
-    return NextResponse.json({ error: "Use Settings to change your own password." }, { status: 400 });
+  if (userId === admin.profile.id) {
+    return NextResponse.json({ error: "Use Profile to change your own password." }, { status: 400 });
   }
 
   let serviceClient;
@@ -72,15 +59,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Only teacher account passwords can be reset here." }, { status: 400 });
   }
 
-  const temporaryPassword = process.env.SUPABASE_TEMPORARY_PASSWORD;
-  if (!temporaryPassword) {
-    return NextResponse.json({ error: "Temporary password is not configured." }, { status: 503 });
-  }
-
   // Supabase Auth Admin: this must stay server-side because it uses the service role key.
-  const { error: updateError } = await serviceClient.auth.admin.updateUserById(userId, {
-    password: temporaryPassword
-  });
+  const { error: updateError } = await serviceClient.auth.admin.updateUserById(userId, { password });
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
@@ -90,19 +70,17 @@ export async function POST(request: Request) {
     await serviceClient.from("audit_logs").insert({
       category: "auth",
       action: "edit",
-      actor_id: adminProfile.id,
-      actor_name: adminProfile.name,
+      actor_id: admin.profile.id,
+      actor_name: admin.profile.name,
       target_type: "teacher_password",
       target_id: targetProfile.id,
       target_title: targetProfile.email,
-      detail: `${adminProfile.name} set a temporary password for ${targetProfile.name}.`,
+      detail: `${admin.profile.name} set a temporary password for ${targetProfile.name}.`,
       created_at: new Date().toISOString()
     });
   } catch {
     // Audit logging should not block a successful password reset.
   }
 
-  return NextResponse.json({
-    message: `${targetProfile.name} can now sign in with the temporary password.`
-  });
+  return NextResponse.json({ message: `${targetProfile.name} can now sign in with the temporary password.` });
 }

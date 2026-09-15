@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { DropdownMenu, type MenuItem } from "@/components/ui/dropdown-menu";
 import { FieldError, Input, Label, Select } from "@/components/ui/form";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/common/toast-provider";
 import { Avatar, EmptyRow, Panel, RoleBadge, SearchInput, StatusBadge } from "@/features/admin/admin-shared";
 import type { AppUser, UserRole } from "@/types";
@@ -16,6 +17,8 @@ type PendingAction =
   | { kind: "password"; account: AppUser };
 
 type RoleFilter = "all" | UserRole;
+
+const MIN_PASSWORD_LENGTH = 6;
 export type StatusFilter = "all" | AppUser["status"];
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -54,6 +57,7 @@ export function AccountsSection({
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [working, setWorking] = useState(false);
   const [addOpen, setAddOpen] = useState(addTeacherRequest > 0);
+  const [resetPassword, setResetPassword] = useState("");
 
   useEffect(() => {
     setStatusFilter(initialStatusFilter);
@@ -113,11 +117,12 @@ export function AccountsSection({
         onUserChange(user);
         notify({ title: status === "active" ? "Account activated" : "Account deactivated", description: user.name, tone: "success" });
       } else {
-        await postJson<{ message?: string }>("/api/admin/reset-password", { userId: pending.account.id });
-        notify({ title: "Temporary password set", description: `${pending.account.name} can sign in with it now.`, tone: "success" });
+        await postJson<{ message?: string }>("/api/admin/reset-password", { userId: pending.account.id, password: resetPassword });
+        notify({ title: "Temporary password set", description: `Share it with ${pending.account.name} privately.`, tone: "success" });
       }
       onLogsChanged();
       setPending(null);
+      setResetPassword("");
     } catch (error) {
       notify({ title: "Action failed", description: error instanceof Error ? error.message : "Try again.", tone: "error" });
     } finally {
@@ -150,12 +155,7 @@ export function AccountsSection({
               confirmLabel: "Deactivate",
               tone: "danger" as const
             }
-        : {
-            title: `Set a temporary password for ${pending.account.name}?`,
-            description: "Their current password will stop working. Share the temporary password with them privately.",
-            confirmLabel: "Set password",
-            tone: "danger" as const
-          }
+        : null
     : null;
 
   return (
@@ -178,7 +178,7 @@ export function AccountsSection({
           </Select>
         </div>
         <Button type="button" className="ml-auto" onClick={() => setAddOpen(true)}>
-          <UserPlus className="h-4 w-4" aria-hidden="true" /> Add teacher
+          <UserPlus className="h-4 w-4" aria-hidden="true" /> Add account
         </Button>
       </div>
 
@@ -253,7 +253,57 @@ export function AccountsSection({
         />
       ) : null}
 
-      <AddTeacherDialog
+      <Dialog
+        open={pending?.kind === "password"}
+        onClose={() => {
+          if (working) return;
+          setPending(null);
+          setResetPassword("");
+        }}
+        title={pending?.kind === "password" ? `Set a temporary password for ${pending.account.name}` : "Set a temporary password"}
+        description="Their current password will stop working. Share the new one privately."
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (resetPassword.length >= MIN_PASSWORD_LENGTH) runPending();
+          }}
+        >
+          <div>
+            <Label htmlFor="reset-temporary-password">Temporary password</Label>
+            <Input
+              id="reset-temporary-password"
+              type="password"
+              autoComplete="new-password"
+              value={resetPassword}
+              onChange={(event) => setResetPassword(event.target.value)}
+              aria-describedby="reset-temporary-password-hint"
+            />
+            <p id="reset-temporary-password-hint" className="mt-1 text-xs text-slate-500">
+              At least {MIN_PASSWORD_LENGTH} characters. They can change it in Profile.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setPending(null);
+                setResetPassword("");
+              }}
+              disabled={working}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="danger" disabled={working || resetPassword.length < MIN_PASSWORD_LENGTH}>
+              {working ? "Working..." : "Set password"}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      <AddAccountDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onCreated={(user) => {
@@ -266,48 +316,79 @@ export function AccountsSection({
   );
 }
 
-function AddTeacherDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (user: AppUser) => void }) {
+function AddAccountDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (user: AppUser) => void }) {
   const { notify } = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
+  const [role, setRole] = useState<UserRole>("teacher");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string }>({});
   const [saving, setSaving] = useState(false);
+
+  function reset() {
+    setName("");
+    setEmail("");
+    setRole("teacher");
+    setPassword("");
+    setErrors({});
+  }
 
   function close() {
     if (saving) return;
-    setName("");
-    setEmail("");
-    setErrors({});
+    reset();
     onClose();
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextErrors = {
-      name: name.trim() ? undefined : "Enter the teacher's name.",
-      email: email.includes("@") ? undefined : "Enter a valid email."
+      name: name.trim() ? undefined : "Enter a name.",
+      email: email.includes("@") ? undefined : "Enter a valid email.",
+      password: password.length >= MIN_PASSWORD_LENGTH ? undefined : `Use at least ${MIN_PASSWORD_LENGTH} characters.`
     };
     setErrors(nextErrors);
-    if (nextErrors.name || nextErrors.email) return;
+    if (nextErrors.name || nextErrors.email || nextErrors.password) return;
 
     setSaving(true);
     try {
-      const { user } = await postJson<{ user: AppUser }>("/api/admin/create-teacher", { name: name.trim(), email: email.trim() });
-      notify({ title: "Teacher added", description: `${user.name} can sign in with the temporary password.`, tone: "success" });
-      setName("");
-      setEmail("");
-      setErrors({});
+      const { user } = await postJson<{ user: AppUser }>("/api/admin/create-teacher", {
+        name: name.trim(),
+        email: email.trim(),
+        role,
+        password
+      });
+      notify({
+        title: role === "admin" ? "Admin added" : "Teacher added",
+        description: `Share the temporary password with ${user.name} privately.`,
+        tone: "success"
+      });
+      reset();
       onCreated(user);
     } catch (error) {
-      notify({ title: "Teacher not added", description: error instanceof Error ? error.message : "Try again.", tone: "error" });
+      notify({ title: "Account not added", description: error instanceof Error ? error.message : "Try again.", tone: "error" });
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Dialog open={open} onClose={close} title="Add teacher" description="They sign in with the temporary password, then change it in Profile.">
-      <form id="add-teacher-form" className="space-y-4" onSubmit={submit}>
+    <Dialog open={open} onClose={close} title="Add account" description="They sign in with the temporary password, then change it in Profile.">
+      <form id="add-account-form" className="space-y-4" onSubmit={submit}>
+        <div>
+          <Label>Role</Label>
+          <div className="mt-1">
+            <SegmentedControl
+              label="Account role"
+              value={role}
+              onChange={setRole}
+              options={[
+                { value: "teacher", label: "Teacher" },
+                { value: "admin", label: "Admin" }
+              ]}
+            />
+          </div>
+          {role === "admin" ? <p className="mt-1 text-xs text-slate-500">Admins can manage accounts and see all activity.</p> : null}
+        </div>
         <div>
           <Label htmlFor="new-teacher-name">Name</Label>
           <Input
@@ -337,12 +418,34 @@ function AddTeacherDialog({ open, onClose, onCreated }: { open: boolean; onClose
           />
           <FieldError id="new-teacher-email-error" message={errors.email} />
         </div>
+        <div>
+          <Label htmlFor="new-account-password">Temporary password</Label>
+          <Input
+            id="new-account-password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setErrors((current) => ({ ...current, password: undefined }));
+            }}
+            aria-invalid={Boolean(errors.password)}
+            aria-describedby={errors.password ? "new-account-password-error" : "new-account-password-hint"}
+          />
+          {errors.password ? (
+            <FieldError id="new-account-password-error" message={errors.password} />
+          ) : (
+            <p id="new-account-password-hint" className="mt-1 text-xs text-slate-500">
+              Share it privately. They can change it in Profile.
+            </p>
+          )}
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="ghost" onClick={close} disabled={saving}>
             Cancel
           </Button>
           <Button type="submit" disabled={saving}>
-            {saving ? "Adding..." : "Add teacher"}
+            {saving ? "Adding..." : role === "admin" ? "Add admin" : "Add teacher"}
           </Button>
         </div>
       </form>

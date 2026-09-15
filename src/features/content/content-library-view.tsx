@@ -140,7 +140,7 @@ function isFixedGesture(item: LearningItem) {
   return item.contentType === "gesture" && (item.tags.includes("fixed") || fixedGestureLabels.has(item.label));
 }
 
-export function ContentLibraryView() {
+export function ContentLibraryView({ initialItemId }: { initialItemId?: string } = {}) {
   const { notify } = useToast();
   const { user } = useAuthUser();
   const [tab, setTab] = useState<Tab>("items");
@@ -231,6 +231,21 @@ export function ContentLibraryView() {
       active = false;
     };
   }, [notify]);
+
+  // Deep link from the Admin page (/content?item=<id>): open that item's detail once content has loaded.
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (!contentReady || !initialItemId || deepLinkHandled.current) return;
+    deepLinkHandled.current = true;
+    const target = items.find((item) => item.id === initialItemId);
+    if (!target) {
+      notify({ title: "Item not found", description: "It may have been deleted." });
+      return;
+    }
+    setTab("items");
+    setContentKind(target.contentType);
+    setSelectedItemId(target.id);
+  }, [contentReady, initialItemId, items, notify]);
 
   const userNameById = useMemo(() => new Map(users.map((candidate) => [candidate.id, candidate.name])), [users]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
