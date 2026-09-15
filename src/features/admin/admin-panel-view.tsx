@@ -10,13 +10,23 @@ import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { fetchAuditLogs } from "@/lib/audit-logs";
-import { fetchMakaLearnData } from "@/lib/supabase/app-data";
+import { fetchActivityResults, fetchMakaLearnData, fetchPracticeAttempts } from "@/lib/supabase/app-data";
 import { AccountsSection, type StatusFilter } from "@/features/admin/accounts-section";
 import { ActivitySection } from "@/features/admin/activity-section";
-import type { LogFilter } from "@/features/admin/admin-shared";
+import { type LogFilter, type LogRange, rangeStart } from "@/features/admin/admin-shared";
 import { ContentSection, type ContentView } from "@/features/admin/content-section";
 import { OverviewSection, type OverviewJump } from "@/features/admin/overview-section";
-import type { Activity as ActivityRecord, AppUser, AuditLog, Category, LearningItem, Lesson, MediaAsset } from "@/types";
+import type {
+  Activity as ActivityRecord,
+  ActivityResult,
+  AppUser,
+  AuditLog,
+  Category,
+  LearningItem,
+  Lesson,
+  MediaAsset,
+  PracticeAttempt
+} from "@/types";
 
 type Section = "home" | "accounts" | "content" | "activity";
 
@@ -38,7 +48,6 @@ export function AdminPanelView() {
   const { user } = useAuthUser();
   const { notify } = useToast();
   const [section, setSection] = useState<Section>("home");
-  const [addTeacherRequest, setAddTeacherRequest] = useState(0);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [items, setItems] = useState<LearningItem[]>([]);
   const [media, setMedia] = useState<MediaAsset[]>([]);
@@ -49,8 +58,14 @@ export function AdminPanelView() {
   const [loadingMoreLogs, setLoadingMoreLogs] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [contentView, setContentView] = useState<ContentView>("items");
+  const [contentView, setContentView] = useState<ContentView>("materials");
   const [logFilter, setLogFilter] = useState<LogFilter>("all");
+  const [logRange, setLogRange] = useState<LogRange>("all");
+  const [dashboardLogs, setDashboardLogs] = useState<AuditLog[]>([]);
+  const [practiceAttempts, setPracticeAttempts] = useState<PracticeAttempt[]>([]);
+  const [activityResults, setActivityResults] = useState<ActivityResult[]>([]);
+  // Set when a Home tile asks the Content section to open a material's pop-up; `at` makes repeat clicks re-trigger.
+  const [openItemRequest, setOpenItemRequest] = useState<{ id: string; at: number } | null>(null);
 
   // Sections are kept in the URL hash so refresh and the browser back button keep your place.
   useEffect(() => {
@@ -87,27 +102,62 @@ export function AdminPanelView() {
     };
   }, [notify]);
 
-  const reloadLogs = useCallback(async () => {
+  const reloadActivityLogs = useCallback(async () => {
     try {
-      const firstPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE });
+      const firstPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE, since: rangeStart(logRange) });
       setLogs(firstPage);
       setHasMoreLogs(firstPage.length === LOG_PAGE_SIZE);
     } catch {
       setLogs([]);
       setHasMoreLogs(false);
     }
+  }, [logRange]);
+
+  // The dashboard trend needs up to 6 months, independent of the Activity log's paging and date range.
+  const reloadDashboardLogs = useCallback(async () => {
+    const since = new Date();
+    since.setMonth(since.getMonth() - 6);
+    since.setHours(0, 0, 0, 0);
+    try {
+      setDashboardLogs(await fetchAuditLogs({ limit: 5000, since: since.toISOString() }));
+    } catch {
+      setDashboardLogs([]);
+    }
   }, []);
 
+  const reloadLogs = useCallback(() => {
+    reloadActivityLogs();
+    reloadDashboardLogs();
+  }, [reloadActivityLogs, reloadDashboardLogs]);
+
   useEffect(() => {
-    reloadLogs();
-  }, [reloadLogs]);
+    reloadActivityLogs();
+  }, [reloadActivityLogs]);
+
+  useEffect(() => {
+    reloadDashboardLogs();
+  }, [reloadDashboardLogs]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([fetchPracticeAttempts(), fetchActivityResults()])
+      .then(([attempts, results]) => {
+        if (!active) return;
+        setPracticeAttempts(attempts);
+        setActivityResults(results);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function loadMoreLogs() {
     const last = logs[logs.length - 1];
     if (!last) return;
     setLoadingMoreLogs(true);
     try {
-      const nextPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE, before: last.createdAt });
+      const nextPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE, before: last.createdAt, since: rangeStart(logRange) });
       setLogs((current) => [...current, ...nextPage]);
       setHasMoreLogs(nextPage.length === LOG_PAGE_SIZE);
     } catch {
@@ -118,11 +168,11 @@ export function AdminPanelView() {
   }
 
   function handleJump(jump: OverviewJump) {
-    if (jump.section === "accounts") {
-      setStatusFilter(jump.status ?? "all");
-      if (jump.addAccount) setAddTeacherRequest((current) => current + 1);
+    if (jump.section === "accounts") setStatusFilter(jump.status ?? "all");
+    if (jump.section === "content") {
+      setContentView(jump.view ?? "materials");
+      setOpenItemRequest(jump.openItemId ? { id: jump.openItemId, at: Date.now() } : null);
     }
-    if (jump.section === "content") setContentView(jump.view ?? "items");
     goTo(jump.section);
   }
 
@@ -148,12 +198,13 @@ export function AdminPanelView() {
         <OverviewSection
           adminName={user.name}
           users={users}
-          categories={categories}
           items={items}
           media={media}
           activities={activities}
           lessons={lessons}
-          logs={logs}
+          logs={dashboardLogs}
+          practiceAttempts={practiceAttempts}
+          activityResults={activityResults}
           onJump={handleJump}
         />
       ) : null}
@@ -163,7 +214,6 @@ export function AdminPanelView() {
           users={users}
           currentUserId={user.id}
           initialStatusFilter={statusFilter}
-          addTeacherRequest={addTeacherRequest}
           onUserChange={(changed) => setUsers((current) => current.map((account) => (account.id === changed.id ? changed : account)))}
           onUserAdd={(added) => setUsers((current) => [added, ...current.filter((account) => account.id !== added.id)])}
           onLogsChanged={reloadLogs}
@@ -177,6 +227,7 @@ export function AdminPanelView() {
           users={users}
           categories={categories}
           initialView={contentView}
+          openItemRequest={openItemRequest}
           onItemSaved={(saved) => setItems((current) => current.map((item) => (item.id === saved.id ? saved : item)))}
           onItemDeleted={(deleted, deletedMedia) => {
             setItems((current) => current.filter((item) => item.id !== deleted.id));
@@ -212,6 +263,8 @@ export function AdminPanelView() {
           onLoadMore={loadMoreLogs}
           filter={logFilter}
           onFilterChange={setLogFilter}
+          range={logRange}
+          onRangeChange={setLogRange}
         />
       ) : null}
     </>

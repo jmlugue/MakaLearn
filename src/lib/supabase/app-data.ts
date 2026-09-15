@@ -756,6 +756,24 @@ export async function upsertActivityPromptTemplates(
   return rows.map(mapActivityPromptTemplate);
 }
 
+/** All activity results, newest first. Used by the Admin dashboard (plays and average scores). */
+export async function fetchActivityResults() {
+  const supabase = getClientOrThrow();
+  const rows = (await expectData(
+    supabase.from("activity_results").select("*").order("created_at", { ascending: false })
+  )) as ActivityResultRow[];
+  return rows.map(mapActivityResult);
+}
+
+/** All gesture practice attempts, newest first. Used by the Admin dashboard (practice outcomes). */
+export async function fetchPracticeAttempts() {
+  const supabase = getClientOrThrow();
+  const rows = (await expectData(
+    supabase.from("practice_attempts").select("*").order("created_at", { ascending: false })
+  )) as PracticeAttemptRow[];
+  return rows.map(mapPracticeAttempt);
+}
+
 export async function insertActivityResult(
   result: Omit<ActivityResult, "id" | "createdAt">
 ) {

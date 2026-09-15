@@ -245,7 +245,7 @@ export function ItemDetailDialog({
 
             <dl className="divide-y divide-slate-100">
               <DetailRow label="Type">
-                <Badge className={current.contentType === "pecs" ? "bg-blue-100 text-blue-700" : "bg-sky-100 text-sky-700"}>
+                <Badge className={current.contentType === "pecs" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}>
                   {current.contentType === "pecs" ? "PECS card" : "Gesture"}
                 </Badge>
               </DetailRow>

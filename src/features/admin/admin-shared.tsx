@@ -66,6 +66,23 @@ export function EmptyRow({ colSpan, children }: { colSpan: number; children: Rea
 
 export type LogFilter = "all" | "sign-ins" | "content" | "accounts";
 
+export type LogRange = "all" | "today" | "week" | "month";
+
+/** Start of a date range as an ISO string (weeks start on Monday), or undefined for all time. */
+export function rangeStart(range: LogRange, now = new Date()) {
+  if (range === "all") return undefined;
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  if (range === "week") {
+    const daysSinceMonday = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - daysSinceMonday);
+  }
+  if (range === "month") {
+    start.setDate(1);
+  }
+  return start.toISOString();
+}
+
 /**
  * Maps a log to its Activity log tab. Sign-ins are login/logout. Accounts are admin changes to accounts,
  * including temporary passwords (stored under the auth category).

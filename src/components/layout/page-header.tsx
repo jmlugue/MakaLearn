@@ -14,7 +14,8 @@ export function PageHeader({ title, icon: Icon, actions }: { title: string; icon
             <Icon className="h-6 w-6" aria-hidden="true" />
           </span>
         ) : null}
-        <h1 className="truncate text-3xl font-extrabold tracking-[-0.035em] text-ink md:text-4xl">{title}</h1>
+        {/* leading-normal + pb-1: truncate hides overflow, and tighter line-height clipped descenders like the "g" in Settings. */}
+        <h1 className="truncate pb-1 text-3xl font-extrabold leading-normal tracking-[-0.035em] text-ink md:text-4xl">{title}</h1>
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
