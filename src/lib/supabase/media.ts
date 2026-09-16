@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { sizeError } from "@/utils/media-limits";
 import type { MediaAsset } from "@/types";
 import type { Database } from "@/types/database";
 
@@ -59,6 +60,12 @@ export async function uploadMediaAssetToSupabase({
     throw new Error("Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to .env.local.");
   }
 
+  // Checked here as well as in the form, so every caller gets the real reason instead of a storage error.
+  const tooBig = sizeError(file, bucket);
+  if (tooBig) {
+    throw new Error(tooBig);
+  }
+
   const storagePath = createStoragePath(file, relatedItemId);
   const upload = await supabase.storage.from(bucket).upload(storagePath, file, {
     cacheControl: "3600",
@@ -112,9 +119,13 @@ export async function deleteMediaAssetFromSupabase(asset: MediaAsset) {
     await supabase.storage.from(asset.bucket).remove([asset.storagePath]);
   }
 
-  const { error } = await supabase.from("media_assets").delete().eq("id", asset.id);
+  // RLS returns zero rows (not an error) when a teacher deletes someone else's file, so check the result.
+  const { data, error } = await supabase.from("media_assets").delete().eq("id", asset.id).select("id");
   if (error) {
     throw error;
+  }
+  if (!data?.some((row) => row.id === asset.id)) {
+    throw new Error("You can only delete files you uploaded.");
   }
 
   if (asset.relatedItemId && asset.publicUrl && asset.type !== "learner-photo") {

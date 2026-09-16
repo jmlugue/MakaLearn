@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { PageHeader } from "@/components/layout/page-header";
+import { GuideBanner } from "@/features/guide/guide-banner";
+import { GuideTip } from "@/features/guide/guide-tip";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { fetchAuditLogs } from "@/lib/audit-logs";
@@ -191,8 +193,11 @@ export function AdminPanelView() {
   return (
     <>
       <PageHeader title="Admin" icon={Shield} />
+      <GuideBanner pageKey="admin" />
 
-      <UnderlineTabs id="admin-sections" label="Admin sections" value={section} onChange={goTo} options={sections} className="mb-6" />
+      <GuideTip id="admin.sections">
+        <UnderlineTabs id="admin-sections" label="Admin sections" value={section} onChange={goTo} options={sections} className="mb-6" />
+      </GuideTip>
 
       {section === "home" ? (
         <OverviewSection

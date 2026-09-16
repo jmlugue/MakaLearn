@@ -14,6 +14,7 @@ import {
   deleteCategory,
   deleteLearningItem,
   deleteLesson,
+  detachLearningItemMedia,
   fetchMakaLearnData,
   insertActivity,
   insertCategory,
@@ -25,7 +26,7 @@ import {
   updateLearningItemMedia,
   updateLesson
 } from "@/lib/supabase/app-data";
-import { uploadMediaAssetToSupabase } from "@/lib/supabase/media";
+import { deleteMediaAssetFromSupabase, uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import { createLessonDraftFromItem } from "@/utils/lesson-template";
 import { ensurePecsManifestCategories, ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
@@ -34,6 +35,8 @@ import { CardFormDialog, type NewCardFiles, type NewCardValues } from "@/feature
 import { CategoriesTab } from "@/features/content/categories-tab";
 import { CategoryDialog, type CategoryFormValues } from "@/features/content/category-dialog";
 import { createLearningItemInstruction, nameFor, type ContentKind } from "@/features/content/content-shared";
+import { GuideBanner } from "@/features/guide/guide-banner";
+import { GuideTip } from "@/features/guide/guide-tip";
 import { MaterialsTab } from "@/features/content/materials-tab";
 import { cn } from "@/lib/utils";
 import { LessonFormDialog, type LessonFormMode, type LessonFormValues } from "@/features/content/lesson-form-dialog";
@@ -52,9 +55,16 @@ function applyMediaUrlToItem(item: LearningItem, type: MediaAsset["type"], publi
   return { ...item, audioUrl: publicUrl, updatedAt };
 }
 
+function urlOnItem(item: LearningItem, type: MediaAsset["type"]) {
+  if (type === "symbol-image") return item.symbolImageUrl;
+  if (type === "gesture-media") return item.gestureMediaUrl;
+  return item.audioUrl;
+}
+
+/** Plain name for a media type, used in titles, toasts, and the audit log. */
 function mediaTypeText(type: MediaAsset["type"]) {
   if (type === "symbol-image") return "image";
-  if (type === "gesture-media") return "gesture media";
+  if (type === "gesture-media") return "video";
   return "audio";
 }
 
@@ -83,6 +93,9 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   const [openItemId, setOpenItemId] = useState("");
   const [itemToDelete, setItemToDelete] = useState<LearningItem | null>(null);
   const [deleteMedia, setDeleteMedia] = useState(true);
+  const [mediaToRemove, setMediaToRemove] = useState<{ item: LearningItem; type: MediaAsset["type"] } | null>(null);
+  const [removeFile, setRemoveFile] = useState(true);
+  const [assetToDelete, setAssetToDelete] = useState<MediaAsset | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [lessonMode, setLessonMode] = useState<LessonFormMode | null>(null);
   const [openLessonId, setOpenLessonId] = useState("");
@@ -261,6 +274,82 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     }
   }
 
+  /** The Media library row behind a material's image, video, or audio, when one exists. */
+  function assetFor(item: LearningItem, type: MediaAsset["type"]) {
+    const url = urlOnItem(item, type);
+    if (!url) return undefined;
+    return media.find((asset) => asset.relatedItemId === item.id && asset.type === type && asset.publicUrl === url);
+  }
+
+  function clearMediaUrlInState(itemId: string, type: MediaAsset["type"]) {
+    const updatedAt = new Date().toISOString();
+    setItems((current) =>
+      current.map((candidate) => {
+        if (candidate.id !== itemId) return candidate;
+        if (type === "symbol-image") return { ...candidate, symbolImageUrl: undefined, updatedAt };
+        if (type === "gesture-media") return { ...candidate, gestureMediaUrl: undefined, updatedAt };
+        return { ...candidate, audioUrl: undefined, updatedAt };
+      })
+    );
+  }
+
+  async function confirmRemoveMedia() {
+    if (!mediaToRemove) return;
+    const { item, type } = mediaToRemove;
+    const asset = assetFor(item, type);
+    // Seeded materials point at a URL with no Media row behind it, so there is no file to delete even
+    // when the box is ticked. The message has to reflect what actually happened, not what was asked.
+    const fileDeleted = removeFile && Boolean(asset);
+    setDeleting(true);
+    try {
+      // Deleting the file already nulls the column, so only a detach needs the separate call.
+      if (fileDeleted && asset) {
+        await deleteMediaAssetFromSupabase(asset);
+        setMedia((current) => current.filter((candidate) => candidate.id !== asset.id));
+      } else {
+        await detachLearningItemMedia(item.id, type);
+      }
+      clearMediaUrlInState(item.id, type);
+      log(
+        "delete",
+        "media",
+        `${item.label} ${mediaTypeText(type)}`,
+        fileDeleted ? `Removed the ${mediaTypeText(type)} from ${item.label} and deleted the file.` : `Removed the ${mediaTypeText(type)} from ${item.label}.`,
+        asset?.id
+      );
+      notify({
+        title: fileDeleted ? "Media removed and deleted" : "Media removed",
+        description: removeFile && !asset ? "There was no stored file to delete." : undefined,
+        tone: "success"
+      });
+      setMediaToRemove(null);
+    } catch (error) {
+      notify({ title: "Not removed", description: errorText(error, "The file could not be removed."), tone: "error" });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function confirmDeleteAsset() {
+    if (!assetToDelete) return;
+    setDeleting(true);
+    try {
+      await deleteMediaAssetFromSupabase(assetToDelete);
+      setMedia((current) => current.filter((candidate) => candidate.id !== assetToDelete.id));
+      if (assetToDelete.relatedItemId && assetToDelete.type !== "learner-photo") {
+        clearMediaUrlInState(assetToDelete.relatedItemId, assetToDelete.type);
+      }
+      log("delete", "media", assetToDelete.title, `Deleted ${assetToDelete.fileName} from the media library.`, assetToDelete.id);
+      notify({ title: "File deleted", tone: "success" });
+      setAssetToDelete(null);
+      setOpenAssetId("");
+    } catch (error) {
+      notify({ title: "Delete failed", description: errorText(error, "The file could not be deleted."), tone: "error" });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function confirmDeleteItem() {
     if (!itemToDelete) return;
     setDeleting(true);
@@ -287,7 +376,10 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     setLessonMode({ kind: "draft", draft: createLessonDraftFromItem(item) });
   }
 
-  /** Creates or updates the PECS activity that belongs to a lesson. Gesture-only lessons have none. */
+  /**
+   * Creates or updates the PECS activity that belongs to a lesson, and stores its id on the lesson so
+   * "Open activity" does not have to guess later. Gesture-only lessons have no activity.
+   */
   async function syncLessonActivity(lesson: Lesson, previous: Lesson | null, pecsItems: LearningItem[], activityType: ActivityType) {
     if (!pecsItems.length) return;
     const existing = previous ? findLessonActivity(previous) : undefined;
@@ -307,6 +399,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         createdBy: user.id
       });
       setActivities((current) => [created, ...current]);
+      await rememberLessonActivity(lesson, created.id);
       return;
     }
 
@@ -325,6 +418,15 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       existing
     );
     setActivities((current) => current.map((activity) => (activity.id === updated.id ? updated : activity)));
+    await rememberLessonActivity(lesson, updated.id);
+  }
+
+  /** Saves the activity id onto the lesson row, so the link survives a reload and an activity rename. */
+  async function rememberLessonActivity(lesson: Lesson, activityId: string) {
+    if (lesson.relatedActivityId === activityId) return;
+    const next = { ...lesson, relatedActivityId: activityId };
+    const saved = await updateLesson(next, lesson);
+    setLessons((current) => current.map((candidate) => (candidate.id === saved.id ? saved : candidate)));
   }
 
   async function saveLesson(mode: LessonFormMode, values: LessonFormValues) {
@@ -459,7 +561,10 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   return (
     <div>
       <PageHeader title="Content" icon={Layers} />
-      <SectionTiles sections={sections} value={tab} onChange={setTab} />
+      <GuideBanner pageKey="content" />
+      <GuideTip id="content.sections">
+        <SectionTiles sections={sections} value={tab} onChange={setTab} />
+      </GuideTip>
 
       <div className="mt-5">
         {!ready ? (
@@ -505,10 +610,14 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         item={openItem}
         categories={categories}
         creator={openItem ? nameFor(userNames, openItem.createdBy) : ""}
-        canDelete={Boolean(openItem && (user.role === "admin" || openItem.createdBy === user.id))}
+        canManage={Boolean(openItem && (user.role === "admin" || openItem.createdBy === user.id))}
         onClose={() => setOpenItemId("")}
         onSaveText={saveCardText}
         onUpload={uploadCardMedia}
+        onRemoveMedia={(item, type) => {
+          setRemoveFile(true);
+          setMediaToRemove({ item, type });
+        }}
         onGenerateLesson={generateLesson}
         onDelete={(item) => {
           setDeleteMedia(true);
@@ -598,11 +707,58 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         asset={openAsset}
         item={openAsset?.relatedItemId ? itemById.get(openAsset.relatedItemId) : undefined}
         uploaderName={openAsset ? nameFor(userNames, openAsset.uploadedBy) : ""}
+        canDelete={Boolean(openAsset && (user.role === "admin" || openAsset.uploadedBy === user.id))}
         onClose={() => setOpenAssetId("")}
         onOpenCard={(item) => {
           setOpenAssetId("");
           setOpenItemId(item.id);
         }}
+        onDelete={setAssetToDelete}
+      />
+
+      <Dialog
+        open={Boolean(mediaToRemove)}
+        onClose={deleting ? () => undefined : () => setMediaToRemove(null)}
+        title={mediaToRemove ? `Remove the ${mediaTypeText(mediaToRemove.type)} from ${mediaToRemove.item.label}?` : "Remove media?"}
+        description="The material keeps everything else."
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setMediaToRemove(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button type="button" variant="danger" onClick={confirmRemoveMedia} disabled={deleting}>
+              {deleting ? "Removing..." : "Remove"}
+            </Button>
+          </>
+        }
+      >
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-blue-100 bg-[#fff] p-3">
+          <input
+            type="checkbox"
+            checked={removeFile}
+            onChange={(event) => setRemoveFile(event.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-blue-200 text-blue-600"
+          />
+          <span>
+            <span className="block text-sm font-semibold text-ink">Also delete the file from Media</span>
+            <span className="block text-xs text-slate-500">Turn off to keep the file in the Media library.</span>
+          </span>
+        </label>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(assetToDelete)}
+        title={`Delete ${assetToDelete?.fileName ?? "this file"}?`}
+        description={
+          assetToDelete?.relatedItemId && itemById.get(assetToDelete.relatedItemId)
+            ? `This is the ${mediaTypeText(assetToDelete.type)} for ${itemById.get(assetToDelete.relatedItemId)!.label}. Deleting it leaves that material without one.`
+            : "This file is not linked to a material. It cannot be undone."
+        }
+        confirmLabel="Delete file"
+        tone="danger"
+        loading={deleting}
+        onConfirm={confirmDeleteAsset}
+        onClose={() => setAssetToDelete(null)}
       />
     </div>
   );

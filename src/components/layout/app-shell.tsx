@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { GraduationCap, X } from "lucide-react";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Sidebar } from "@/components/layout/sidebar";
+import { GuideTour } from "@/features/guide/guide-tour";
 import { useAuthState } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { studentNavItems, studentRouteHrefs } from "@/components/layout/nav-items";
@@ -148,6 +149,8 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
         </div>
       </main>
       {isStudentMode ? null : <MobileNav />}
+      {/* Mounted once here, so the welcome tour opens on sign-in rather than once per page. */}
+      {isStudentMode ? null : <GuideTour />}
     </>
   );
 }

@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { CardTile } from "@/features/content/card-tile";
 import { CategoryPills, kindMeta, type ContentKind } from "@/features/content/content-shared";
+import { GuideTip } from "@/features/guide/guide-tip";
 import type { Category, LearningItem } from "@/types";
 
 const PAGE_SIZE = 25;
@@ -65,7 +66,8 @@ export function MaterialsTab({
 
   return (
     <section className="space-y-4">
-      <UnderlineTabs
+      <GuideTip id="content.types">
+        <UnderlineTabs
         id="material-types"
         label="Material type"
         value={kind}
@@ -76,11 +78,16 @@ export function MaterialsTab({
           icon: kindMeta[option].icon,
           count: option === "pecs" ? pecsCount : items.length - pecsCount
         }))}
-      />
+        />
+      </GuideTip>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="min-w-0 flex-1">
-          {usedCategories.length > 1 ? <CategoryPills categories={usedCategories} value={categoryId} onChange={onCategoryChange} /> : null}
+          {usedCategories.length > 1 ? (
+            <GuideTip id="content.categories">
+              <CategoryPills categories={usedCategories} value={categoryId} onChange={onCategoryChange} />
+            </GuideTip>
+          ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <SearchInput
@@ -89,10 +96,12 @@ export function MaterialsTab({
             value={search}
             onChange={onSearchChange}
           />
-          <Button onClick={onAdd}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            {kindMeta[kind].addLabel}
-          </Button>
+          <GuideTip id="content.addMaterial">
+            <Button onClick={onAdd}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {kindMeta[kind].addLabel}
+            </Button>
+          </GuideTip>
         </div>
       </div>
 

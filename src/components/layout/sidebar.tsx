@@ -10,6 +10,7 @@ import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { ProfileMenu } from "@/components/layout/profile-menu";
+import { GuideTip } from "@/features/guide/guide-tip";
 
 const OPEN_DELAY_MS = 120;
 const CLOSE_DELAY_MS = 220;
@@ -67,18 +68,19 @@ export function Sidebar() {
   function renderItem(item: NavItem) {
     const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
     return (
-      <Link
-        key={item.href}
-        href={item.href}
-        aria-current={active ? "page" : undefined}
-        className={cn(
-          itemBaseClass,
-          active ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]" : itemIdleClass
-        )}
-      >
-        <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-        {label(item.label)}
-      </Link>
+      <GuideTip key={item.href} id={item.tip}>
+        <Link
+          href={item.href}
+          aria-current={active ? "page" : undefined}
+          className={cn(
+            itemBaseClass,
+            active ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]" : itemIdleClass
+          )}
+        >
+          <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+          {label(item.label)}
+        </Link>
+      </GuideTip>
     );
   }
 
@@ -103,14 +105,16 @@ export function Sidebar() {
 
       <nav className="flex flex-1 flex-col gap-1.5">
         {topItems.map(renderItem)}
-        <button
-          type="button"
-          onClick={isStudentMode ? exitStudentMode : enterStudentMode}
-          className={cn(itemBaseClass, itemIdleClass)}
-        >
-          <GraduationCap className="h-5 w-5 shrink-0" aria-hidden="true" />
-          {label(isStudentMode ? "Exit student mode" : "Student mode")}
-        </button>
+        <GuideTip id="nav.student">
+          <button
+            type="button"
+            onClick={isStudentMode ? exitStudentMode : enterStudentMode}
+            className={cn(itemBaseClass, itemIdleClass)}
+          >
+            <GraduationCap className="h-5 w-5 shrink-0" aria-hidden="true" />
+            {label(isStudentMode ? "Exit student mode" : "Student mode")}
+          </button>
+        </GuideTip>
       </nav>
 
       <div className="mb-3 flex flex-col gap-1.5 border-t border-blue-100/80 pt-3">{renderItem(helpNavItem)}</div>

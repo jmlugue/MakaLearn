@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { CardImage } from "@/features/content/content-media";
 import { KindBadge, tintDot } from "@/features/content/content-shared";
+import { GuideTip } from "@/features/guide/guide-tip";
 import type { Category, LearningItem } from "@/types";
 
 type CategorySort = "name-asc" | "name-desc" | "most" | "newest";
@@ -63,10 +64,12 @@ export function CategoriesTab({
             ))}
           </Select>
         </div>
-        <Button className="ml-auto" onClick={onNewCategory}>
-          <FolderPlus className="h-4 w-4" aria-hidden="true" />
-          New category
-        </Button>
+        <GuideTip id="content.addCategory">
+          <Button className="ml-auto" onClick={onNewCategory}>
+            <FolderPlus className="h-4 w-4" aria-hidden="true" />
+            New category
+          </Button>
+        </GuideTip>
       </div>
 
       {visible.length ? (

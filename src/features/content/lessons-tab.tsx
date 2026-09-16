@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/form";
 import { EmptyState } from "@/components/common/empty-state";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { sortLabels, sortRecords, type SortOrder } from "@/features/content/content-shared";
+import { GuideTip } from "@/features/guide/guide-tip";
 import { LessonCard } from "@/features/content/lesson-card";
 import type { LearningItem, Lesson } from "@/types";
 
@@ -60,10 +61,12 @@ export function LessonsTab({
             ))}
           </Select>
         </div>
-        <Button className="ml-auto" onClick={onNewLesson}>
-          <BookPlus className="h-4 w-4" aria-hidden="true" />
-          New lesson
-        </Button>
+        <GuideTip id="content.addLesson">
+          <Button className="ml-auto" onClick={onNewLesson}>
+            <BookPlus className="h-4 w-4" aria-hidden="true" />
+            New lesson
+          </Button>
+        </GuideTip>
       </div>
 
       {filtered.length ? (

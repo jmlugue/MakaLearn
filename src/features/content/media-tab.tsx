@@ -9,9 +9,19 @@ import { formatDate } from "@/lib/utils";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { AudioButton, isVideoUrl } from "@/features/content/content-media";
 import { nameFor, sortLabels, sortRecords, type SortOrder, type Tone } from "@/features/content/content-shared";
+import { GuideTip } from "@/features/guide/guide-tip";
 import type { LearningItem, MediaAsset } from "@/types";
 
 export type LibraryMediaType = Exclude<MediaAsset["type"], "learner-photo">;
+
+/** Finds files that no material points at any more, so the library can be tidied up. */
+type LinkFilter = "all" | "linked" | "unlinked";
+
+const linkLabels: Record<LinkFilter, string> = {
+  all: "All files",
+  linked: "Linked to a material",
+  unlinked: "Not linked"
+};
 
 export const mediaTypeMeta: Record<LibraryMediaType, { label: string; single: string; icon: LucideIcon; tone: Tone }> = {
   "symbol-image": { label: "Images", single: "Image", icon: ImageIcon, tone: "indigo" },
@@ -35,6 +45,7 @@ export function MediaTab({
   onOpenAsset: (asset: MediaAsset) => void;
 }) {
   const [filter, setFilter] = useState<LibraryMediaType | null>(null);
+  const [link, setLink] = useState<LinkFilter>("all");
   const [sort, setSort] = useState<SortOrder>("newest");
   const [search, setSearch] = useState("");
 
@@ -44,12 +55,14 @@ export function MediaTab({
     const query = search.trim().toLowerCase();
     const list = media.filter((asset) => {
       if (filter && asset.type !== filter) return false;
+      if (link === "linked" && !asset.relatedItemId) return false;
+      if (link === "unlinked" && asset.relatedItemId) return false;
       if (!query) return true;
       return [asset.title, asset.fileName, cardLabel(asset) ?? "", nameFor(userNames, asset.uploadedBy)].join(" ").toLowerCase().includes(query);
     });
     return sortRecords(list, sort, (asset) => asset.fileName, (asset) => asset.uploadedAt);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cardLabel only reads itemById.
-  }, [filter, itemById, media, search, sort, userNames]);
+  }, [filter, itemById, link, media, search, sort, userNames]);
 
   const visuals = sorted.filter((asset) => asset.type !== "audio-file");
   const audio = sorted.filter((asset) => asset.type === "audio-file");
@@ -58,7 +71,8 @@ export function MediaTab({
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-        <UnderlineTabs
+        <GuideTip id="content.mediaTypes">
+          <UnderlineTabs
           id="media-types"
           label="Media type"
           className="min-w-0 flex-1"
@@ -73,11 +87,23 @@ export function MediaTab({
               count: countOf(type)
             }))
           ]}
-        />
+          />
+        </GuideTip>
       </div>
+
+      <p className="-mt-1 text-sm text-slate-500">Every file in MakaLearn. Delete files here.</p>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         <SearchInput label="Search media" placeholder="Search files, materials, or uploader" value={search} onChange={setSearch} />
+        <div className="w-44">
+          <Select aria-label="Filter by material" value={link} onChange={(event) => setLink(event.target.value as LinkFilter)}>
+            {(Object.keys(linkLabels) as LinkFilter[]).map((key) => (
+              <option key={key} value={key}>
+                {linkLabels[key]}
+              </option>
+            ))}
+          </Select>
+        </div>
         <div className="w-44">
           <Select aria-label="Sort media" value={sort} onChange={(event) => setSort(event.target.value as SortOrder)}>
             {(Object.keys(sortLabels) as SortOrder[]).map((key) => (
@@ -93,7 +119,7 @@ export function MediaTab({
         <EmptyState
           icon={ImageOff}
           title={media.length ? "No media found" : "No media yet"}
-          description={media.length ? "Try another search or type." : "Files uploaded to materials show up here."}
+          description={media.length ? "Try another search, type, or link filter." : "Files uploaded to materials show up here."}
         />
       ) : null}
 

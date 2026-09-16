@@ -8,6 +8,8 @@ import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/ca
 import { FieldError, FieldHint, Input, Label } from "@/components/ui/form";
 import { SelectionList } from "@/components/ui/selection-list";
 import { PageHeader } from "@/components/layout/page-header";
+import { GuideBanner } from "@/features/guide/guide-banner";
+import { GuideTip } from "@/features/guide/guide-tip";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
 import { StudentActivityPlayer } from "@/features/activities/student-activity-player";
@@ -714,7 +716,10 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
   return (
     <>
       {!isStudentMode ? (
-        <PageHeader title="Activities" icon={ActivityIcon} />
+        <>
+          <PageHeader title="Activities" icon={ActivityIcon} />
+          <GuideBanner pageKey="activities" />
+        </>
       ) : null}
 
       {!isStudentMode ? <div className="grid gap-3 sm:grid-cols-2">
@@ -821,6 +826,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                     <p className="text-xs text-slate-500">Pick one format.</p>
                   </div>
                 </div>
+                <GuideTip id="activities.types">
                 <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Activity type">
                   {activityTypes.map((item) => {
                     const selected = type === item;
@@ -843,6 +849,7 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
                     );
                   })}
                 </div>
+                </GuideTip>
               </section>
 
               <section className="rounded-xl border border-blue-100 bg-white p-4">

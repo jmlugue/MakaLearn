@@ -1,7 +1,8 @@
 "use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Check, Contrast, Loader2, Settings as SettingsIcon, Type, Volume2, Wind } from "lucide-react";
+import { Check, Compass, Contrast, Loader2, RotateCcw, Settings as SettingsIcon, Type, Volume2, Wind } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { PageHeader } from "@/components/layout/page-header";
@@ -18,8 +19,9 @@ const textSizes: { value: TextSize; label: string }[] = [
 
 // Profile details and password live on the Profile page (opened from the sidebar profile menu).
 export function SettingsView() {
-  const { preferences, loaded, updatePreferences } = useUserSettings();
+  const { preferences, loaded, updatePreferences, resetGuide } = useUserSettings();
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [replaying, setReplaying] = useState(false);
   const savedTimerRef = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -36,6 +38,12 @@ export function SettingsView() {
     }
     setSaveState("saved");
     savedTimerRef.current = window.setTimeout(() => setSaveState("idle"), 2000);
+  }
+
+  async function replay() {
+    setReplaying(true);
+    await resetGuide();
+    setReplaying(false);
   }
 
   return (
@@ -88,6 +96,22 @@ export function SettingsView() {
               disabled={!loaded}
               onChange={(value) => save({ audioGuidance: value })}
             />
+          </SettingsRow>
+        </SettingsGroup>
+
+        <SettingsGroup title="Guidance">
+          <SettingsRow icon={Compass} label="Guide mode" hint="Explains a control when you hover it.">
+            <Switch
+              label="Guide mode"
+              checked={preferences.guideMode}
+              disabled={!loaded}
+              onChange={(value) => save({ guideMode: value })}
+            />
+          </SettingsRow>
+          <SettingsRow icon={RotateCcw} label="Replay the tour" hint="Shows the welcome tour and the page introductions again.">
+            <Button type="button" variant="outline" size="sm" disabled={!loaded || replaying} onClick={replay}>
+              {replaying ? "Resetting..." : "Replay"}
+            </Button>
           </SettingsRow>
         </SettingsGroup>
       </div>

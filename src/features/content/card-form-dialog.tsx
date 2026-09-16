@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { CardTile } from "@/features/content/card-tile";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { GESTURE_CATEGORY_ID, PopupTitle, SectionLabel, fieldClass, glassBoxClass, kindMeta, kindTone, type ContentKind } from "@/features/content/content-shared";
+import { limitLabel, mediaSizeLimits, sizeError } from "@/utils/media-limits";
 import type { Category } from "@/types";
 
 export type NewCardFiles = Partial<Record<"symbol" | "gesture" | "audio", File>>;
@@ -118,6 +119,14 @@ function CardForm({
       setError("The gesture video must be a video file.");
       return;
     }
+    const oversized =
+      (files.gesture && sizeError(files.gesture, "gesture-media")) ||
+      (files.symbol && sizeError(files.symbol, "symbol-images")) ||
+      (files.audio && sizeError(files.audio, "audio-files"));
+    if (oversized) {
+      setError(oversized);
+      return;
+    }
     setSaving(true);
     const saved = await onSubmit({ kind, label: label.trim(), categoryId, description: description.trim(), files });
     setSaving(false);
@@ -187,7 +196,8 @@ function CardForm({
               icon={Film}
               label="Gesture video"
               accept="video/*"
-              hint="MP4, WebM, or MOV"
+              hint={`MP4, WebM, or MOV, up to ${limitLabel("gesture-media")}`}
+              maxBytes={mediaSizeLimits["gesture-media"]}
               storageNote="Shows how to sign it."
               successMessage="Ready to save."
               onUpload={stage("gesture")}
@@ -200,7 +210,8 @@ function CardForm({
             icon={ImageIcon}
             label={kind === "pecs" ? "Card image" : "Reference image"}
             accept="image/*"
-            hint="PNG, JPG, or WebP"
+            hint={`PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
+            maxBytes={mediaSizeLimits["symbol-images"]}
             storageNote="Saved with the material."
             successMessage="Ready to save."
             onUpload={stage("symbol")}
@@ -212,7 +223,8 @@ function CardForm({
             icon={FileAudio}
             label="Audio"
             accept="audio/*"
-            hint="MP3, WAV, or M4A"
+            hint={`MP3, WAV, or M4A, up to ${limitLabel("audio-files")}`}
+            maxBytes={mediaSizeLimits["audio-files"]}
             storageNote="Plays the spoken word."
             successMessage="Ready to save."
             onUpload={stage("audio")}

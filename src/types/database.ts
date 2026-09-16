@@ -222,6 +222,7 @@ export type Database = {
           notes: string;
           source: "manual" | "auto-generated";
           visibility: Visibility;
+          related_activity_id: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -236,6 +237,7 @@ export type Database = {
           notes?: string;
           source?: "manual" | "auto-generated";
           visibility?: Visibility;
+          related_activity_id?: string | null;
           created_by: string;
           created_at?: string;
           updated_at?: string;
@@ -250,6 +252,7 @@ export type Database = {
           notes?: string;
           source?: "manual" | "auto-generated";
           visibility?: Visibility;
+          related_activity_id?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -561,6 +564,8 @@ export type Database = {
           reduce_motion: boolean;
           audio_guidance: boolean;
           theme: "soft-blue" | "high-contrast";
+          guide_mode: boolean;
+          guide_seen: string[];
           updated_at: string;
         };
         Insert: {
@@ -570,6 +575,8 @@ export type Database = {
           reduce_motion?: boolean;
           audio_guidance?: boolean;
           theme?: "soft-blue" | "high-contrast";
+          guide_mode?: boolean;
+          guide_seen?: string[];
           updated_at?: string;
         };
         Update: {
@@ -579,6 +586,8 @@ export type Database = {
           reduce_motion?: boolean;
           audio_guidance?: boolean;
           theme?: "soft-blue" | "high-contrast";
+          guide_mode?: boolean;
+          guide_seen?: string[];
           updated_at?: string;
         };
         Relationships: [];

@@ -120,6 +120,11 @@ create table public.activities (
   updated_at timestamptz not null default now()
 );
 
+-- Added after activities so the foreign key can be declared. Lets a lesson remember its own activity.
+alter table public.lessons
+  add column if not exists related_activity_id text
+  references public.activities(id) on delete set null;
+
 create table public.activity_items (
   id text primary key default ('question-' || gen_random_uuid()::text),
   activity_id text not null references public.activities(id) on delete cascade,
@@ -470,8 +475,17 @@ create table if not exists public.user_settings (
   reduce_motion boolean not null default false,
   audio_guidance boolean not null default true,
   theme text not null default 'soft-blue' check (theme in ('soft-blue', 'high-contrast')),
+  -- Guide mode: the first-time tour and the hover explanations. guide_seen holds the keys
+  -- already shown ('welcome', 'content', 'activities', ...).
+  guide_mode boolean not null default true,
+  guide_seen text[] not null default '{}',
   updated_at timestamptz not null default now()
 );
+
+-- For databases created before Guide mode existed.
+alter table public.user_settings
+  add column if not exists guide_mode boolean not null default true,
+  add column if not exists guide_seen text[] not null default '{}';
 
 alter table public.practice_attempts
   add column if not exists id text default ('attempt-' || gen_random_uuid()::text),

@@ -1,11 +1,11 @@
 "use client";
 
-import { ExternalLink, Volume2 } from "lucide-react";
+import { ExternalLink, Trash2, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn, formatDate } from "@/lib/utils";
 import { CardImage, MediaPreview } from "@/features/content/content-media";
-import { KindBadge, PopupTitle, SectionLabel, glassBoxClass, toneClasses } from "@/features/content/content-shared";
+import { KindBadge, PopupTitle, SectionLabel, deleteButtonClass, glassBoxClass, toneClasses } from "@/features/content/content-shared";
 import { mediaTypeMeta, type LibraryMediaType } from "@/features/content/media-tab";
 import type { LearningItem, MediaAsset } from "@/types";
 
@@ -13,14 +13,19 @@ export function MediaPreviewDialog({
   asset,
   item,
   uploaderName,
+  canDelete,
   onClose,
-  onOpenCard
+  onOpenCard,
+  onDelete
 }: {
   asset: MediaAsset | null;
   item?: LearningItem;
   uploaderName: string;
+  /** Teachers can only delete files they uploaded (admins can delete any). */
+  canDelete: boolean;
   onClose: () => void;
   onOpenCard: (item: LearningItem) => void;
+  onDelete: (asset: MediaAsset) => void;
 }) {
   const type = (asset?.type ?? "symbol-image") as LibraryMediaType;
   const meta = mediaTypeMeta[type] ?? mediaTypeMeta["symbol-image"];
@@ -36,11 +41,21 @@ export function MediaPreviewDialog({
       className="max-w-2xl"
       hideHeader
       footer={
-        item ? (
-          <Button type="button" onClick={() => onOpenCard(item)}>
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            Open material
-          </Button>
+        asset ? (
+          <>
+            {canDelete ? (
+              <Button type="button" variant="ghost" className={deleteButtonClass} onClick={() => onDelete(asset)}>
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Delete file
+              </Button>
+            ) : null}
+            {item ? (
+              <Button type="button" onClick={() => onOpenCard(item)}>
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                Open material
+              </Button>
+            ) : null}
+          </>
         ) : null
       }
     >
