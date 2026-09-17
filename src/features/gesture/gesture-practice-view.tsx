@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Category as MediaPipeCategory, DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
 import {
   ArrowLeft,
@@ -12,12 +12,18 @@ import {
   EyeOff,
   Focus,
   Hand,
+  ListChecks,
   MousePointerClick,
   PlayCircle,
+  RotateCw,
   RotateCcw,
   ScanLine,
+  SkipForward,
   Smile,
   Sparkles,
+  Square,
+  ThumbsUp,
+  Trophy,
   TriangleAlert,
   UserRound,
   Volume2,
@@ -33,6 +39,7 @@ import { GuideTip } from "@/features/guide/guide-tip";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/dialog";
 import {
   buildGestureFeedbackRequest,
   createTemplateGestureFeedback,
@@ -64,6 +71,16 @@ import {
   resetLiveGestureBuffer,
   type GestureModelStatus
 } from "@/utils/gesture-model";
+import {
+  isThumbsUpPose,
+  labelsMatch,
+  shuffleGuidedGestures,
+  summarizeGuidedResults,
+  type GesturePracticeMode,
+  type GuidedAttempt,
+  type GuidedGestureResult,
+  type GuidedSessionPhase
+} from "@/utils/guided-gesture-session";
 import type { Category, LearningItem } from "@/types";
 
 type TrackingState = "idle" | "hands-visible" | "no-hands" | "too-many-hands" | "multiple-people";
@@ -72,6 +89,8 @@ type HandConnection = { start: number; end: number };
 const NO_HANDS_AUTO_PREDICT_DELAY_MS = 1000;
 const STABLE_POSE_AUTO_PREDICT_DELAY_MS = 2000;
 const MIN_CONFIDENT_PREDICTION_PERCENT = 70;
+const READY_GESTURE_HOLD_MS = 600;
+const GUIDED_FEEDBACK_DELAY_MS = 2200;
 
 const fixedGestureLabels = new Set([
   "I want to go to toilet",
@@ -153,6 +172,13 @@ export function GesturePracticeView() {
   const lastAutoAudioKeyRef = useRef<string | null>(null);
   const noHandsFrameCountRef = useRef(0);
   const showHandLandmarksRef = useRef(true);
+  const practiceModeRef = useRef<GesturePracticeMode>("free");
+  const guidedPhaseRef = useRef<GuidedSessionPhase>("ready");
+  const guidedQueueRef = useRef<LearningItem[]>([]);
+  const guidedIndexRef = useRef(0);
+  const guidedResultsRef = useRef<GuidedGestureResult[]>([]);
+  const readyGestureStartedAtRef = useRef(0);
+  const guidedTimeoutsRef = useRef<number[]>([]);
   const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cameraStarted, setCameraStarted] = useState(false);
@@ -169,6 +195,15 @@ export function GesturePracticeView() {
   const [carouselDirection, setCarouselDirection] = useState(1);
   const [cameraFocusMode, setCameraFocusMode] = useState(false);
   const [showHandLandmarks, setShowHandLandmarks] = useState(true);
+  const [practiceMode, setPracticeMode] = useState<GesturePracticeMode>("free");
+  const [guidedPhase, setGuidedPhase] = useState<GuidedSessionPhase>("ready");
+  const [guidedQueue, setGuidedQueue] = useState<LearningItem[]>([]);
+  const [guidedIndex, setGuidedIndex] = useState(0);
+  const [guidedResults, setGuidedResults] = useState<GuidedGestureResult[]>([]);
+  const [countdownValue, setCountdownValue] = useState(3);
+  const [guidedFeedbackTitle, setGuidedFeedbackTitle] = useState("");
+  const [guidedFeedbackDetail, setGuidedFeedbackDetail] = useState("");
+  const [endSessionDialogOpen, setEndSessionDialogOpen] = useState(false);
   const selectedGesture = learningItems.find((item) => item.id === selectedGestureId) ?? learningItems[0];
   const selectedGestureIndex = Math.max(
     0,
@@ -182,6 +217,8 @@ export function GesturePracticeView() {
   const meta = trackingMeta[trackingState];
   const hasValidHands = trackingState === "hands-visible";
   const recognizedGesture = Boolean(prediction);
+  const guidedTarget = guidedQueue[guidedIndex];
+  const guidedSummary = summarizeGuidedResults(guidedResults);
 
   useEffect(() => {
     showHandLandmarksRef.current = showHandLandmarks;
@@ -211,6 +248,8 @@ export function GesturePracticeView() {
     return () => {
       active = false;
       if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+      guidedTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      guidedTimeoutsRef.current = [];
       streamRef.current?.getTracks().forEach((track) => track.stop());
       handLandmarkerRef.current?.close();
       disposeMakaLearnGestureModel();
@@ -226,6 +265,7 @@ export function GesturePracticeView() {
 
   useEffect(() => {
     if (!prediction) return;
+    if (practiceMode === "guided" && (!guidedTarget || !labelsMatch(prediction.label, guidedTarget.label))) return;
     const audioKey = detectedGesture?.id ?? prediction.label;
     if (lastAutoAudioKeyRef.current === audioKey) return;
     lastAutoAudioKeyRef.current = audioKey;
@@ -246,7 +286,234 @@ export function GesturePracticeView() {
         description: "Use the reference panel audio control or check the uploaded audio file."
       });
     });
-  }, [detectedGesture?.audioUrl, detectedGesture?.id, detectedGesture?.label, notify, prediction]);
+  }, [detectedGesture?.audioUrl, detectedGesture?.id, detectedGesture?.label, guidedTarget, notify, practiceMode, prediction]);
+
+  function setGuidedPhaseValue(phase: GuidedSessionPhase) {
+    guidedPhaseRef.current = phase;
+    setGuidedPhase(phase);
+  }
+
+  function clearGuidedTimeouts() {
+    guidedTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    guidedTimeoutsRef.current = [];
+  }
+
+  function scheduleGuidedAction(action: () => void, delay: number) {
+    const timeoutId = window.setTimeout(() => {
+      guidedTimeoutsRef.current = guidedTimeoutsRef.current.filter((current) => current !== timeoutId);
+      action();
+    }, delay);
+    guidedTimeoutsRef.current.push(timeoutId);
+  }
+
+  function resetGuidedCapture({ keepPoseGate = false }: { keepPoseGate?: boolean } = {}) {
+    pendingModelPredictionRef.current = false;
+    gestureCaptureActiveRef.current = false;
+    resetStablePoseTracking();
+    resetLiveGestureBuffer(liveGestureFramesRef.current);
+    liveGestureHandFramesRef.current = [];
+    if (!keepPoseGate) {
+      predictedPoseAnchorRef.current = null;
+      waitingForPoseChangeRef.current = false;
+    }
+  }
+
+  function startGuidedRun() {
+    if (!learningItems.length) {
+      notify({
+        title: "Gestures are still loading",
+        description: "Wait a moment, then start guided practice again."
+      });
+      return;
+    }
+
+    clearGuidedTimeouts();
+    const nextQueue = shuffleGuidedGestures(learningItems);
+    const nextResults = nextQueue.map<GuidedGestureResult>((item) => ({
+      gestureId: item.id,
+      gestureLabel: item.label,
+      status: "not-attempted",
+      attempts: []
+    }));
+
+    practiceModeRef.current = "guided";
+    setPracticeMode("guided");
+    guidedQueueRef.current = nextQueue;
+    setGuidedQueue(nextQueue);
+    guidedResultsRef.current = nextResults;
+    setGuidedResults(nextResults);
+    guidedIndexRef.current = 0;
+    setGuidedIndex(0);
+    setSelectedGestureId(nextQueue[0].id);
+    setReferenceFlipped(false);
+    setCountdownValue(3);
+    setGuidedFeedbackTitle("");
+    setGuidedFeedbackDetail("");
+    readyGestureStartedAtRef.current = 0;
+    resetGuidedCapture();
+    clearPrediction();
+    setStatusMessage("");
+    setGuidedPhaseValue("ready");
+
+    if (!cameraStarted) void startCamera();
+  }
+
+  function switchToFreePractice() {
+    clearGuidedTimeouts();
+    practiceModeRef.current = "free";
+    setPracticeMode("free");
+    guidedQueueRef.current = [];
+    setGuidedQueue([]);
+    guidedResultsRef.current = [];
+    setGuidedResults([]);
+    guidedIndexRef.current = 0;
+    setGuidedIndex(0);
+    readyGestureStartedAtRef.current = 0;
+    setGuidedPhaseValue("ready");
+    resetGuidedCapture();
+    clearPrediction();
+    setStatusMessage(cameraStarted ? "Hold a supported gesture in frame when ready." : "");
+  }
+
+  function beginGuidedCountdown() {
+    if (practiceModeRef.current !== "guided" || guidedPhaseRef.current === "complete") return;
+    clearGuidedTimeouts();
+    resetGuidedCapture();
+    clearPrediction();
+    readyGestureStartedAtRef.current = 0;
+    setCountdownValue(3);
+    setGuidedPhaseValue("countdown");
+    scheduleGuidedAction(() => setCountdownValue(2), 1000);
+    scheduleGuidedAction(() => setCountdownValue(1), 2000);
+    scheduleGuidedAction(() => openGuidedCapture(false), 3000);
+  }
+
+  function openGuidedCapture(isRetry: boolean) {
+    if (practiceModeRef.current !== "guided") return;
+    clearGuidedTimeouts();
+    resetGuidedCapture({ keepPoseGate: isRetry });
+    clearPrediction();
+    setModelStatus("idle");
+    setStatusMessage(isRetry ? "Try the same gesture again." : "Make the gesture, then hold it still for 2 seconds.");
+    setGuidedPhaseValue("capturing");
+  }
+
+  function handleGuidedReadyPose(hands: HandLandmarkPoint[][]) {
+    if (practiceModeRef.current !== "guided" || guidedPhaseRef.current !== "ready") {
+      readyGestureStartedAtRef.current = 0;
+      return;
+    }
+
+    if (!isThumbsUpPose(hands)) {
+      readyGestureStartedAtRef.current = 0;
+      return;
+    }
+
+    const now = performance.now();
+    if (!readyGestureStartedAtRef.current) {
+      readyGestureStartedAtRef.current = now;
+      return;
+    }
+    if (now - readyGestureStartedAtRef.current >= READY_GESTURE_HOLD_MS) beginGuidedCountdown();
+  }
+
+  function updateGuidedResults(nextResults: GuidedGestureResult[]) {
+    guidedResultsRef.current = nextResults;
+    setGuidedResults(nextResults);
+  }
+
+  function completeGuidedSession() {
+    clearGuidedTimeouts();
+    resetGuidedCapture();
+    clearPrediction();
+    setStatusMessage("");
+    setGuidedPhaseValue("complete");
+  }
+
+  function advanceGuidedSession() {
+    if (practiceModeRef.current !== "guided") return;
+    const nextIndex = guidedIndexRef.current + 1;
+    if (nextIndex >= guidedQueueRef.current.length) {
+      completeGuidedSession();
+      return;
+    }
+
+    guidedIndexRef.current = nextIndex;
+    setGuidedIndex(nextIndex);
+    setSelectedGestureId(guidedQueueRef.current[nextIndex].id);
+    setReferenceFlipped(false);
+    beginGuidedCountdown();
+  }
+
+  function skipGuidedGesture() {
+    const target = guidedQueueRef.current[guidedIndexRef.current];
+    if (!target) return;
+    clearGuidedTimeouts();
+    const nextResults = guidedResultsRef.current.map((result) =>
+      result.gestureId === target.id ? { ...result, status: "skipped" as const } : result
+    );
+    updateGuidedResults(nextResults);
+    advanceGuidedSession();
+  }
+
+  function handleGuidedPrediction(
+    nextPrediction: DemoGesturePrediction | null,
+    feedbackPrediction: DemoGesturePrediction | null,
+    capturedHandCount: number,
+    feedbackOverride?: string,
+    feedbackIssueCategory?: GestureFeedbackIssueCategory
+  ) {
+    const target = guidedQueueRef.current[guidedIndexRef.current];
+    if (!target || guidedPhaseRef.current !== "capturing") return;
+
+    const correct = Boolean(nextPrediction && labelsMatch(nextPrediction.label, target.label));
+    const previousResult = guidedResultsRef.current.find((result) => result.gestureId === target.id);
+    const attempt: GuidedAttempt = {
+      targetId: target.id,
+      targetLabel: target.label,
+      predictedLabel: feedbackPrediction?.label ?? nextPrediction?.label ?? null,
+      confidence: feedbackPrediction?.matchPercent ?? nextPrediction?.matchPercent ?? null,
+      outcome: correct ? "correct" : feedbackPrediction ? "incorrect" : "unclear",
+      attemptNumber: (previousResult?.attempts.length ?? 0) + 1
+    };
+    const nextResults = guidedResultsRef.current.map((result) =>
+      result.gestureId === target.id
+        ? {
+            ...result,
+            status: correct ? ("correct" as const) : result.status,
+            attempts: [...result.attempts, attempt]
+          }
+        : result
+    );
+    updateGuidedResults(nextResults);
+    setPrediction(nextPrediction);
+    setStatusMessage("");
+    setGuidedPhaseValue("feedback");
+
+    void requestCorrectiveFeedback(
+      feedbackPrediction ?? nextPrediction,
+      capturedHandCount,
+      "hands-visible",
+      feedbackOverride,
+      feedbackIssueCategory,
+      target.label
+    );
+
+    if (correct) {
+      setGuidedFeedbackTitle("Great job!");
+      setGuidedFeedbackDetail(`${getLearnerCardLabel(target.label)} was recognized.`);
+      scheduleGuidedAction(advanceGuidedSession, GUIDED_FEEDBACK_DELAY_MS);
+      return;
+    }
+
+    setGuidedFeedbackTitle("Try that one again");
+    setGuidedFeedbackDetail(
+      feedbackPrediction
+        ? `That looked like ${getLearnerCardLabel(feedbackPrediction.label)}. Show ${getLearnerCardLabel(target.label)}.`
+        : `Keep your hands clear in the camera and show ${getLearnerCardLabel(target.label)}.`
+    );
+    scheduleGuidedAction(() => openGuidedCapture(true), GUIDED_FEEDBACK_DELAY_MS + 500);
+  }
 
   async function prepareHandTracker() {
     if (handLandmarkerRef.current && drawingUtilsRef.current) return handLandmarkerRef.current;
@@ -323,7 +590,12 @@ export function GesturePracticeView() {
         setTrackingState(handCount === 0 ? "no-hands" : handCount <= 2 ? "hands-visible" : "too-many-hands");
       }
 
-      updateLiveModelCapture(result.landmarks, result.handedness);
+      handleGuidedReadyPose(result.landmarks);
+      const guidedCaptureOpen =
+        practiceModeRef.current === "guided" && guidedPhaseRef.current === "capturing";
+      if (practiceModeRef.current === "free" || guidedCaptureOpen) {
+        updateLiveModelCapture(result.landmarks, result.handedness);
+      }
     }
 
     animationFrameRef.current = window.requestAnimationFrame(runHandTracking);
@@ -363,6 +635,8 @@ export function GesturePracticeView() {
       runHandTracking();
     } catch {
       setTrackerStatus("error");
+      setCameraStarted(false);
+      setTrackingState("idle");
       notify({
         title: "Camera unavailable",
         description: "Allow camera access and restart the camera to use the live hand outline."
@@ -404,6 +678,11 @@ export function GesturePracticeView() {
     liveGestureHandFramesRef.current = [];
     setModelStatus("idle");
     setStatusMessage("");
+    if (practiceModeRef.current === "guided" && guidedPhaseRef.current !== "complete") {
+      clearGuidedTimeouts();
+      readyGestureStartedAtRef.current = 0;
+      setGuidedPhaseValue("ready");
+    }
   }
 
   function clearPrediction() {
@@ -571,6 +850,17 @@ export function GesturePracticeView() {
     capturedHandCount = detectedHandCount,
     feedbackIssueCategory?: GestureFeedbackIssueCategory
   ) {
+    if (practiceModeRef.current === "guided") {
+      handleGuidedPrediction(
+        nextPrediction,
+        feedbackPrediction,
+        capturedHandCount,
+        feedbackOverride,
+        feedbackIssueCategory
+      );
+      return;
+    }
+
     const nextLabel = nextPrediction?.label ?? null;
     predictionCandidateRef.current = { label: nextLabel, frames: nextPrediction ? 1 : 0 };
     currentPredictionLabelRef.current = nextLabel;
@@ -584,15 +874,17 @@ export function GesturePracticeView() {
     handCount: number,
     feedbackTrackingState: GestureFeedbackTrackingState,
     localFeedbackHint?: string,
-    localIssueCategory?: GestureFeedbackIssueCategory
+    localIssueCategory?: GestureFeedbackIssueCategory,
+    selectedTargetLabel?: string
   ) {
-    if (!selectedGesture) return;
+    if (!selectedGesture && !selectedTargetLabel) return;
 
     const requestId = feedbackRequestIdRef.current + 1;
     feedbackRequestIdRef.current = requestId;
-    const feedbackTargetLabel = feedbackPrediction?.label ?? selectedGesture.label;
+    const selectedLabel = selectedTargetLabel ?? selectedGesture?.label ?? "Gesture";
+    const feedbackTargetLabel = selectedTargetLabel ?? feedbackPrediction?.label ?? selectedLabel;
     const feedbackRequest = buildGestureFeedbackRequest({
-      selectedGestureLabel: selectedGesture.label,
+      selectedGestureLabel: selectedLabel,
       feedbackTargetLabel,
       prediction: feedbackPrediction,
       detectedHandCount: handCount,
@@ -696,6 +988,7 @@ export function GesturePracticeView() {
 
   if (isStudentMode) {
     return (
+      <>
       <section
         className={cn(
           "relative isolate overflow-hidden rounded-[2rem] border border-white/90 bg-[#f4fbff] shadow-[0_24px_70px_rgba(37,99,235,0.14)]",
@@ -715,6 +1008,38 @@ export function GesturePracticeView() {
         >
           <div className={cn("min-w-0", cameraFocusMode && "flex min-h-0 flex-col")}>
             <div className={cn("flex flex-wrap items-center justify-center gap-3", cameraFocusMode ? "mb-2" : "mb-4")}>
+              <div
+                className="flex rounded-full border border-white/90 bg-white/80 p-1.5 shadow-[0_10px_22px_rgba(37,99,235,0.12)] backdrop-blur-xl"
+                role="group"
+                aria-label="Practice mode"
+              >
+                <button
+                  type="button"
+                  onClick={switchToFreePractice}
+                  aria-pressed={practiceMode === "free"}
+                  className={cn(
+                    "inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-black transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200 sm:px-5",
+                    practiceMode === "free" ? "bg-blue-600 text-white shadow-md" : "text-slate-600 hover:bg-blue-50"
+                  )}
+                >
+                  <Hand className="h-5 w-5" aria-hidden="true" />
+                  Free practice
+                </button>
+                <button
+                  type="button"
+                  onClick={startGuidedRun}
+                  aria-pressed={practiceMode === "guided"}
+                  className={cn(
+                    "inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-black transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200 sm:px-5",
+                    practiceMode === "guided"
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "text-slate-600 hover:bg-indigo-50"
+                  )}
+                >
+                  <ListChecks className="h-5 w-5" aria-hidden="true" />
+                  Guided 7
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setCameraFocusMode((current) => !current)}
@@ -750,12 +1075,46 @@ export function GesturePracticeView() {
               focusMode={cameraFocusMode}
               onStartCamera={startCamera}
               onStopCamera={stopCamera}
+              overlay={
+                practiceMode === "guided" ? (
+                  <GuidedCameraOverlay
+                    phase={guidedPhase}
+                    countdownValue={countdownValue}
+                    target={guidedTarget}
+                    currentIndex={guidedIndex}
+                    total={guidedQueue.length}
+                    cameraReady={cameraStarted && trackerStatus === "ready"}
+                    feedbackTitle={guidedFeedbackTitle}
+                    feedbackDetail={guidedFeedbackDetail}
+                    onReady={beginGuidedCountdown}
+                    onStartCamera={startCamera}
+                    onSkip={skipGuidedGesture}
+                    onEnd={() => setEndSessionDialogOpen(true)}
+                  />
+                ) : undefined
+              }
             />
 
             <LearnerFeedbackBar
-              stateLabel={recognizedGesture ? "Good Job" : "Ready"}
+              stateLabel={
+                practiceMode === "guided"
+                  ? guidedPhase === "complete"
+                    ? "Session complete"
+                    : guidedPhase === "feedback"
+                      ? guidedFeedbackTitle
+                      : `Gesture ${Math.min(guidedIndex + 1, guidedQueue.length)} of ${guidedQueue.length}`
+                  : recognizedGesture
+                    ? "Good Job"
+                    : "Ready"
+              }
               detail={
-                prediction
+                practiceMode === "guided"
+                  ? guidedPhase === "feedback"
+                    ? guidedFeedbackDetail
+                    : guidedTarget
+                      ? `Show: ${getLearnerCardLabel(guidedTarget.label)}`
+                      : ""
+                  : prediction
                   ? `Recognized: ${formatRecognizedGestureDetail(prediction.label)}`
                   : cameraStarted
                     ? "Keep your hands inside the box."
@@ -764,13 +1123,20 @@ export function GesturePracticeView() {
               statusMessage={prediction ? "" : statusMessage}
               correctiveFeedback={correctiveFeedback}
               feedbackLoading={feedbackLoading}
-              success={recognizedGesture}
+              success={practiceMode === "guided" ? guidedPhase === "feedback" && Boolean(prediction && guidedTarget && labelsMatch(prediction.label, guidedTarget.label)) : recognizedGesture}
               compact={cameraFocusMode}
             />
           </div>
 
           <div className={cameraFocusMode ? "hidden" : "min-w-0 xl:pt-10"}>
-            {selectedGesture ? (
+            {practiceMode === "guided" && guidedPhase === "complete" ? (
+              <GuidedSessionSummary
+                results={guidedResults}
+                summary={guidedSummary}
+                onTryAgain={startGuidedRun}
+                onFreePractice={switchToFreePractice}
+              />
+            ) : selectedGesture ? (
               <AnimatePresence custom={carouselDirection} mode="wait">
                 <motion.div
                   key={selectedGesture.id}
@@ -790,6 +1156,15 @@ export function GesturePracticeView() {
               </AnimatePresence>
             ) : null}
 
+            {practiceMode === "guided" && guidedPhase !== "complete" ? (
+              <GuidedProgressPanel
+                queue={guidedQueue}
+                results={guidedResults}
+                currentIndex={guidedIndex}
+                onSkip={skipGuidedGesture}
+                onEnd={() => setEndSessionDialogOpen(true)}
+              />
+            ) : (
             <div className="mt-4 flex items-center justify-center gap-5 sm:gap-8">
               <Button type="button" variant="secondary" size="icon" aria-label="Previous card" onClick={() => moveGesture(-1)} className="h-16 w-16 rounded-full border-4 border-white bg-white/95 text-[#19294d] shadow-[0_16px_28px_rgba(37,99,235,0.16),inset_0_2px_0_rgba(255,255,255,0.95)] sm:h-20 sm:w-20">
                 <ArrowLeft className="h-9 w-9 stroke-[3.5] sm:h-11 sm:w-11" aria-hidden="true" />
@@ -809,9 +1184,23 @@ export function GesturePracticeView() {
                 <ArrowRight className="h-9 w-9 stroke-[3.5] sm:h-11 sm:w-11" aria-hidden="true" />
               </Button>
             </div>
+            )}
           </div>
         </div>
       </section>
+      <ConfirmDialog
+        open={endSessionDialogOpen}
+        title="End guided practice?"
+        description="Your attempts so far will stay in the session summary. Gestures you have not reached will be marked as not attempted."
+        confirmLabel="End session"
+        tone="danger"
+        onClose={() => setEndSessionDialogOpen(false)}
+        onConfirm={() => {
+          setEndSessionDialogOpen(false);
+          completeGuidedSession();
+        }}
+      />
+      </>
     );
   }
 
@@ -978,6 +1367,323 @@ function StudentGestureImageBackground() {
       className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
       style={{ backgroundImage: "url('/gesture-practice/student-mode-background.png')" }}
     />
+  );
+}
+
+function GuidedCameraOverlay({
+  phase,
+  countdownValue,
+  target,
+  currentIndex,
+  total,
+  cameraReady,
+  feedbackTitle,
+  feedbackDetail,
+  onReady,
+  onStartCamera,
+  onSkip,
+  onEnd
+}: {
+  phase: GuidedSessionPhase;
+  countdownValue: number;
+  target?: LearningItem;
+  currentIndex: number;
+  total: number;
+  cameraReady: boolean;
+  feedbackTitle: string;
+  feedbackDetail: string;
+  onReady: () => void;
+  onStartCamera: () => void;
+  onSkip: () => void;
+  onEnd: () => void;
+}) {
+  const reduceMotion = useReducedMotion();
+  const shortLabel = target ? getLearnerCardLabel(target.label) : "Gesture";
+
+  if (phase === "ready") {
+    return (
+      <div className="pointer-events-none grid h-full place-items-center bg-slate-950/55 p-4 backdrop-blur-[2px]">
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className="pointer-events-auto max-w-md rounded-[2rem] border-4 border-white/80 bg-white/95 p-5 text-center shadow-[0_24px_60px_rgba(15,23,42,0.32)] sm:p-7"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-[0_14px_28px_rgba(16,185,129,0.3)]">
+            <ThumbsUp className="h-10 w-10" aria-hidden="true" />
+          </span>
+          <p className="mt-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Guided practice</p>
+          <h2 className="mt-2 text-2xl font-black tracking-tight text-ink sm:text-3xl">
+            {cameraReady ? "Give a thumbs up when you’re ready" : "Let’s get the camera ready"}
+          </h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+            {cameraReady
+              ? "Hold the thumbs-up pose for a moment, or use the button below."
+              : "Camera access is needed before the seven-gesture session can begin."}
+          </p>
+          <Button
+            type="button"
+            size="lg"
+            className="mt-5 w-full rounded-full"
+            onClick={cameraReady ? onReady : onStartCamera}
+          >
+            {cameraReady ? <ThumbsUp className="h-5 w-5" aria-hidden="true" /> : <Camera className="h-5 w-5" aria-hidden="true" />}
+            {cameraReady ? "I’m ready" : "Start camera"}
+          </Button>
+          <button
+            type="button"
+            onClick={onEnd}
+            className="mt-3 min-h-11 px-4 text-sm font-bold text-slate-500 underline-offset-4 hover:text-slate-800 hover:underline focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200"
+          >
+            End guided practice
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (phase === "countdown") {
+    return (
+      <div className="pointer-events-none grid h-full place-items-center bg-[#10234f]/62 p-4 backdrop-blur-[2px]" role="status" aria-live="assertive">
+        <div className="text-center text-white">
+          <p className="text-sm font-black uppercase tracking-[0.22em] text-blue-100">
+            Gesture {currentIndex + 1} of {total}
+          </p>
+          <p className="mt-2 text-2xl font-black sm:text-3xl">Get ready for {shortLabel}</p>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={countdownValue}
+              initial={reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.55, rotate: -8 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.3 }}
+              transition={{ duration: reduceMotion ? 0 : 0.35 }}
+              className="mx-auto mt-5 grid h-32 w-32 place-items-center rounded-full border-8 border-white/80 bg-white/15 text-7xl font-black shadow-[0_0_0_14px_rgba(255,255,255,0.08)] sm:h-40 sm:w-40 sm:text-8xl"
+            >
+              {countdownValue}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "complete") {
+    return (
+      <div className="pointer-events-none grid h-full place-items-center bg-slate-950/48 p-4 backdrop-blur-sm">
+        <div className="rounded-full border-2 border-white/80 bg-white/95 px-6 py-3 text-center font-black text-indigo-700 shadow-xl">
+          <Trophy className="mr-2 inline h-5 w-5" aria-hidden="true" />
+          Session complete
+        </div>
+      </div>
+    );
+  }
+
+  const success = phase === "feedback" && feedbackTitle === "Great job!";
+  return (
+    <div className="pointer-events-none flex h-full flex-col justify-between bg-gradient-to-b from-slate-950/60 via-transparent to-slate-950/75 p-3 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="rounded-2xl border border-white/30 bg-slate-950/70 px-4 py-3 text-white shadow-lg backdrop-blur-md">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
+            Gesture {currentIndex + 1} of {total}
+          </p>
+          <p className="mt-1 text-xl font-black sm:text-2xl">Show {shortLabel}</p>
+        </div>
+        <div className="pointer-events-auto flex gap-2">
+          <button
+            type="button"
+            onClick={onSkip}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-950/70 px-4 text-sm font-bold text-white backdrop-blur-md hover:bg-slate-900 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200"
+          >
+            <SkipForward className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Skip</span>
+          </button>
+          <button
+            type="button"
+            onClick={onEnd}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-950/70 px-4 text-sm font-bold text-white backdrop-blur-md hover:bg-slate-900 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200"
+          >
+            <Square className="h-4 w-4 fill-current" aria-hidden="true" />
+            <span className="hidden sm:inline">End</span>
+          </button>
+        </div>
+      </div>
+
+      {phase === "feedback" ? (
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className={cn(
+            "mx-auto mb-4 max-w-lg rounded-[1.75rem] border-4 px-5 py-4 text-center shadow-2xl backdrop-blur-xl sm:px-7",
+            success ? "border-emerald-200 bg-emerald-50/95 text-emerald-950" : "border-amber-200 bg-amber-50/95 text-amber-950"
+          )}
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-2xl font-black sm:text-3xl">{feedbackTitle}</p>
+          <p className="mt-1 text-sm font-semibold leading-6 sm:text-base">{feedbackDetail}</p>
+        </motion.div>
+      ) : (
+        <div className="mx-auto mb-3 rounded-full border border-white/30 bg-slate-950/70 px-5 py-2 text-sm font-black text-white backdrop-blur-md">
+          Make the gesture, then hold still
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GuidedProgressPanel({
+  queue,
+  results,
+  currentIndex,
+  onSkip,
+  onEnd
+}: {
+  queue: LearningItem[];
+  results: GuidedGestureResult[];
+  currentIndex: number;
+  onSkip: () => void;
+  onEnd: () => void;
+}) {
+  return (
+    <div className="mt-4 rounded-[1.5rem] border border-white/90 bg-white/85 p-4 shadow-[0_14px_30px_rgba(37,99,235,0.12)] backdrop-blur-xl">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-600">Guided 7</p>
+          <p className="mt-1 font-black text-ink">Your gesture journey</p>
+        </div>
+        <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-black text-indigo-700">
+          {Math.min(currentIndex + 1, queue.length)}/{queue.length}
+        </span>
+      </div>
+      <ol className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
+        {queue.map((item, index) => {
+          const result = results.find((entry) => entry.gestureId === item.id);
+          const complete = result?.status === "correct";
+          const skipped = result?.status === "skipped";
+          const current = index === currentIndex;
+          return (
+            <li
+              key={item.id}
+              className={cn(
+                "flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold",
+                complete
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : skipped
+                    ? "border-amber-200 bg-amber-50 text-amber-800"
+                    : current
+                      ? "border-indigo-300 bg-indigo-50 text-indigo-800 shadow-sm"
+                      : "border-blue-100 bg-white/70 text-slate-500"
+              )}
+            >
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/90 text-xs shadow-sm">
+                {complete ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : skipped ? <SkipForward className="h-4 w-4" aria-hidden="true" /> : index + 1}
+              </span>
+              <span className="truncate">{getLearnerCardLabel(item.label)}</span>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <Button type="button" variant="outline" size="lg" onClick={onSkip}>
+          <SkipForward className="h-5 w-5" aria-hidden="true" />
+          Skip gesture
+        </Button>
+        <Button type="button" variant="danger" size="lg" onClick={onEnd}>
+          <Square className="h-4 w-4 fill-current" aria-hidden="true" />
+          End session
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function GuidedSessionSummary({
+  results,
+  summary,
+  onTryAgain,
+  onFreePractice
+}: {
+  results: GuidedGestureResult[];
+  summary: ReturnType<typeof summarizeGuidedResults>;
+  onTryAgain: () => void;
+  onFreePractice: () => void;
+}) {
+  return (
+    <div className="rounded-[2rem] border-4 border-white/90 bg-white/[0.92] p-5 shadow-[0_24px_60px_rgba(37,99,235,0.18)] backdrop-blur-xl sm:p-6">
+      <div className="text-center">
+        <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-[0_14px_28px_rgba(251,146,60,0.3)]">
+          <Trophy className="h-10 w-10" aria-hidden="true" />
+        </span>
+        <p className="mt-4 text-xs font-black uppercase tracking-[0.2em] text-indigo-600">Session summary</p>
+        <h2 className="mt-1 text-3xl font-black tracking-tight text-ink">You finished your practice</h2>
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-2">
+        <SummaryMetric value={`${summary.completed}/${results.length}`} label="Completed" />
+        <SummaryMetric value={`${summary.firstTryCorrect}/${results.length}`} label="First try" />
+        <SummaryMetric value={String(summary.totalAttempts)} label="Attempts" />
+      </div>
+
+      <div className="mt-5 max-h-64 space-y-2 overflow-y-auto pr-1" aria-label="Gesture results">
+        {results.map((result, index) => {
+          const latestAttempt = result.attempts[result.attempts.length - 1];
+          return (
+            <div key={result.gestureId} className="flex items-center gap-3 rounded-xl border border-blue-100 bg-[#f8fbff] p-3">
+              <span
+                className={cn(
+                  "grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-black",
+                  result.status === "correct"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : result.status === "skipped"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-slate-100 text-slate-500"
+                )}
+              >
+                {result.status === "correct" ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : index + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-black text-ink">{getLearnerCardLabel(result.gestureLabel)}</p>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                  {result.status === "correct"
+                    ? `${result.attempts.length} attempt${result.attempts.length === 1 ? "" : "s"}`
+                    : result.status === "skipped"
+                      ? "Skipped"
+                      : "Not attempted"}
+                  {latestAttempt?.predictedLabel ? ` · Last recognized: ${getLearnerCardLabel(latestAttempt.predictedLabel)}` : ""}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {summary.skipped ? (
+        <p className="mt-3 text-center text-sm font-semibold text-amber-800">
+          {summary.skipped} gesture{summary.skipped === 1 ? " was" : "s were"} skipped.
+        </p>
+      ) : null}
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <Button type="button" size="lg" onClick={onTryAgain}>
+          <RotateCw className="h-5 w-5" aria-hidden="true" />
+          Try again
+        </Button>
+        <Button type="button" variant="secondary" size="lg" onClick={onFreePractice}>
+          <Hand className="h-5 w-5" aria-hidden="true" />
+          Free practice
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SummaryMetric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 px-2 py-3 text-center">
+      <p className="text-xl font-black text-indigo-700 sm:text-2xl">{value}</p>
+      <p className="mt-1 text-[0.68rem] font-black uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
+    </div>
   );
 }
 
@@ -1336,7 +2042,8 @@ function CameraPanel({
   playful = false,
   focusMode = false,
   onStartCamera,
-  onStopCamera
+  onStopCamera,
+  overlay
 }: {
   cameraStarted: boolean;
   videoRef: RefObject<HTMLVideoElement>;
@@ -1347,6 +2054,7 @@ function CameraPanel({
   focusMode?: boolean;
   onStartCamera?: () => void;
   onStopCamera?: () => void;
+  overlay?: ReactNode;
 }) {
   const canStartFromPanel = Boolean(playful && !cameraStarted && onStartCamera);
   const canStopFromPanel = Boolean(cameraStarted && onStopCamera);
@@ -1414,6 +2122,7 @@ function CameraPanel({
           </div>
         </div>
       ) : null}
+      {overlay ? <div className="absolute inset-0 z-20">{overlay}</div> : null}
     </div>
   );
 }

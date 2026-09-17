@@ -31,7 +31,8 @@ const manualSections = [
     title: "Run practice",
     steps: [
       "For PECS lessons, choose Open activity from the saved lesson or open Activities directly.",
-      "For gesture lessons, choose Practice gesture from the saved lesson and use Gesture Practice.",
+      "For gesture lessons, choose Practice gesture from the saved lesson. In Student Mode, use Free practice for open recognition or Guided 7 for a shuffled seven-gesture session.",
+      "Guided 7 waits for a thumbs-up, counts down before each new gesture, and retries the same prompt until it is recognized or skipped.",
       "Use Playground when the learner needs to build a PECS/AAC sentence from cards.",
       "One card is accepted as a valid Playground sentence when the learner is practising a single response."
     ]
@@ -70,6 +71,10 @@ const faqs = [
   {
     question: "What is Student Mode for?",
     answer: "Student Mode hides teacher editing tools and keeps the learner in Playground, Gesture Practice, and Activities."
+  },
+  {
+    question: "Are Guided 7 gesture results saved?",
+    answer: "No. Guided 7 shows first-try results and attempts in the completion summary, but gesture scoring remains session-only in this MVP."
   },
   {
     question: "Why does MakaLearn use Supabase?",
