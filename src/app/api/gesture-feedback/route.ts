@@ -48,6 +48,14 @@ export async function POST(request: Request) {
   }
 
   const fallback = createTemplateGestureFeedback(payload);
+
+  // Palm direction is determined by the local landmark safety rules. Preserve
+  // their exact corrective wording so an optional generated response cannot
+  // drop an important alternative-gesture cue such as the Eat hand tilt.
+  if (payload.issueCategory === "palm-orientation-mismatch" && payload.localFeedbackHint) {
+    return NextResponse.json(fallback);
+  }
+
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
 

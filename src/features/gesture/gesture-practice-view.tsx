@@ -46,6 +46,12 @@ import {
   type HandLandmarkPoint
 } from "@/utils/gesture-prediction";
 import {
+  copyHands,
+  getHandPoseDistance,
+  PREDICTED_POSE_REARM_DISTANCE,
+  STABLE_POSE_MOVEMENT_TOLERANCE
+} from "@/utils/gesture-stability";
+import {
   applyBasicGesturePredictionGuards,
   applyEatToiletFingerSafety,
   type CapturedGestureFrame
@@ -64,6 +70,7 @@ type TrackingState = "idle" | "hands-visible" | "no-hands" | "too-many-hands" | 
 type HandConnection = { start: number; end: number };
 
 const NO_HANDS_AUTO_PREDICT_DELAY_MS = 1000;
+const STABLE_POSE_AUTO_PREDICT_DELAY_MS = 2000;
 const MIN_CONFIDENT_PREDICTION_PERCENT = 70;
 
 const fixedGestureLabels = new Set([
@@ -89,7 +96,7 @@ const trackingMeta: Record<
   },
   "hands-visible": {
     label: "Hands ready",
-    detail: "One or two hands are visible. Perform the gesture, then move hands away to predict.",
+    detail: "Perform the gesture, then hold it still for 2 seconds to predict.",
     handCount: 1,
     peopleCount: 1,
     tone: "ready"
@@ -136,6 +143,11 @@ export function GesturePracticeView() {
   const pendingModelPredictionRef = useRef(false);
   const gestureCaptureActiveRef = useRef(false);
   const lastHandsSeenAtRef = useRef(0);
+  const stablePoseStartedAtRef = useRef(0);
+  const stablePoseAnchorRef = useRef<HandLandmarkPoint[][] | null>(null);
+  const predictedPoseAnchorRef = useRef<HandLandmarkPoint[][] | null>(null);
+  const waitingForPoseChangeRef = useRef(false);
+  const stableStatusStepRef = useRef(-1);
   const modelFailureNotifiedRef = useRef(false);
   const feedbackRequestIdRef = useRef(0);
   const lastAutoAudioKeyRef = useRef<string | null>(null);
@@ -328,6 +340,9 @@ export function GesturePracticeView() {
     pendingModelPredictionRef.current = false;
     gestureCaptureActiveRef.current = false;
     lastHandsSeenAtRef.current = 0;
+    resetStablePoseTracking();
+    predictedPoseAnchorRef.current = null;
+    waitingForPoseChangeRef.current = false;
     modelFailureNotifiedRef.current = false;
     clearPrediction();
     resetLiveGestureBuffer(liveGestureFramesRef.current);
@@ -380,6 +395,9 @@ export function GesturePracticeView() {
     pendingModelPredictionRef.current = false;
     gestureCaptureActiveRef.current = false;
     lastHandsSeenAtRef.current = 0;
+    resetStablePoseTracking();
+    predictedPoseAnchorRef.current = null;
+    waitingForPoseChangeRef.current = false;
     modelFailureNotifiedRef.current = false;
     clearPrediction();
     resetLiveGestureBuffer(liveGestureFramesRef.current);
@@ -404,11 +422,30 @@ export function GesturePracticeView() {
     const now = performance.now();
 
     if (hands.length) {
+      const currentHands = copyHands(hands);
+      lastHandsSeenAtRef.current = now;
+
+      if (pendingModelPredictionRef.current) return;
+
+      // Keep the completed result visible while the learner holds the same pose.
+      // A meaningful pose change starts a new capture without requiring hands to leave the frame.
+      if (waitingForPoseChangeRef.current) {
+        const distanceFromPredictedPose = getHandPoseDistance(predictedPoseAnchorRef.current, currentHands);
+        if (distanceFromPredictedPose < PREDICTED_POSE_REARM_DISTANCE) return;
+
+        waitingForPoseChangeRef.current = false;
+        predictedPoseAnchorRef.current = null;
+      }
+
       if (!gestureCaptureActiveRef.current) {
         clearPrediction();
         resetLiveGestureBuffer(liveGestureFramesRef.current);
         liveGestureHandFramesRef.current = [];
         gestureCaptureActiveRef.current = true;
+        stablePoseStartedAtRef.current = now;
+        stablePoseAnchorRef.current = currentHands;
+        stableStatusStepRef.current = 0;
+        setStatusMessage("Hold still — 2.0 seconds to prediction.");
       }
 
       appendLiveGestureFrame(liveGestureFramesRef.current, hands);
@@ -416,19 +453,54 @@ export function GesturePracticeView() {
       if (liveGestureHandFramesRef.current.length > 192) {
         liveGestureHandFramesRef.current.splice(0, liveGestureHandFramesRef.current.length - 192);
       }
-      lastHandsSeenAtRef.current = now;
       setModelStatus((current) => (current === "ready" ? current : "idle"));
+
+      const movementFromStableAnchor = getHandPoseDistance(stablePoseAnchorRef.current, currentHands);
+      if (movementFromStableAnchor > STABLE_POSE_MOVEMENT_TOLERANCE) {
+        stablePoseStartedAtRef.current = now;
+        stablePoseAnchorRef.current = currentHands;
+        stableStatusStepRef.current = 0;
+        setStatusMessage("Hold still — 2.0 seconds to prediction.");
+        return;
+      }
+
+      const stableDuration = now - stablePoseStartedAtRef.current;
+      const statusStep = Math.min(4, Math.floor(stableDuration / 500));
+      if (statusStep !== stableStatusStepRef.current && statusStep < 4) {
+        stableStatusStepRef.current = statusStep;
+        const secondsRemaining = (STABLE_POSE_AUTO_PREDICT_DELAY_MS - statusStep * 500) / 1000;
+        setStatusMessage(`Hold still — ${secondsRemaining.toFixed(1)} seconds to prediction.`);
+      }
+
+      if (stableDuration >= STABLE_POSE_AUTO_PREDICT_DELAY_MS) {
+        completeLiveGestureCapture("stable-pose", currentHands);
+      }
       return;
     }
 
+    resetStablePoseTracking();
+    predictedPoseAnchorRef.current = null;
+    waitingForPoseChangeRef.current = false;
     if (!gestureCaptureActiveRef.current || pendingModelPredictionRef.current) return;
 
     const noHandsDuration = now - lastHandsSeenAtRef.current;
     if (noHandsDuration < NO_HANDS_AUTO_PREDICT_DELAY_MS) return;
 
+    completeLiveGestureCapture("hands-removed");
+  }
+
+  function completeLiveGestureCapture(
+    trigger: "stable-pose" | "hands-removed",
+    heldHands: HandLandmarkPoint[][] | null = null
+  ) {
+    if (!gestureCaptureActiveRef.current || pendingModelPredictionRef.current) return;
+
     const capturedFrames = liveGestureFramesRef.current.slice();
     const capturedHandFrames = liveGestureHandFramesRef.current.slice();
     gestureCaptureActiveRef.current = false;
+    resetStablePoseTracking();
+    waitingForPoseChangeRef.current = trigger === "stable-pose";
+    predictedPoseAnchorRef.current = trigger === "stable-pose" ? heldHands : null;
     resetLiveGestureBuffer(liveGestureFramesRef.current);
     liveGestureHandFramesRef.current = [];
 
@@ -445,6 +517,7 @@ export function GesturePracticeView() {
 
     pendingModelPredictionRef.current = true;
     setModelStatus("loading");
+    setStatusMessage(trigger === "stable-pose" ? "Gesture held still. Checking prediction..." : "Checking gesture...");
 
     void predictMakaLearnGesture(capturedFrames)
       .then((nextPrediction) => {
@@ -483,6 +556,12 @@ export function GesturePracticeView() {
       .finally(() => {
         pendingModelPredictionRef.current = false;
       });
+  }
+
+  function resetStablePoseTracking() {
+    stablePoseStartedAtRef.current = 0;
+    stablePoseAnchorRef.current = null;
+    stableStatusStepRef.current = -1;
   }
 
   function updateCompletedGesturePrediction(
@@ -940,13 +1019,13 @@ function getModelStatusLabel(status: GestureModelStatus, hasValidHands: boolean)
 function getPredictionWaitingLabel(status: GestureModelStatus, hasValidHands: boolean) {
   if (status === "loading") return "Checking gesture";
   if (status === "error") return "Recognition unavailable";
-  return hasValidHands ? "Do the gesture, then move hands away" : "Waiting for hands";
+  return hasValidHands ? "Hold the gesture still for 2 seconds" : "Waiting for hands";
 }
 
 function getConfidenceWaitingLabel(status: GestureModelStatus, hasValidHands: boolean) {
-  if (status === "loading") return "Predicting after hands leave...";
+  if (status === "loading") return "Predicting held gesture...";
   if (status === "error") return "Model file not loaded";
-  return hasValidHands ? "Recording gesture..." : "Move hands into frame";
+  return hasValidHands ? "Recording — hold still to submit" : "Move hands into frame";
 }
 
 function getFixedGestureItems(items: LearningItem[]) {

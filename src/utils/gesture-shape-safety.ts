@@ -178,7 +178,8 @@ function validateNoPalmFacing(
   if (orientation.palmFacingRatio < 0.55) {
     return {
       prediction: null,
-      feedback: "For no, face your palm toward the camera and try again.",
+      feedback:
+        "For no, keep the side motion and face your palm toward the camera. If you are trying to sign eat, tilt your hand slightly instead of holding it upright.",
       issueCategory: "palm-orientation-mismatch"
     };
   }
