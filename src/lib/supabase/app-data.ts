@@ -67,7 +67,8 @@ function mapCategory(row: CategoryRow): Category {
     name: row.name,
     description: row.description,
     color: row.color,
-    createdBy: row.created_by
+    createdBy: row.created_by,
+    createdAt: row.created_at
   };
 }
 
@@ -149,6 +150,9 @@ function mapUserSettings(row: UserSettingsRow): UserSettings {
     reduceMotion: row.reduce_motion,
     audioGuidance: row.audio_guidance,
     theme: row.theme,
+    // Databases that predate Guide mode return undefined until the migration runs.
+    guideMode: row.guide_mode ?? true,
+    guideSeen: row.guide_seen ?? [],
     updatedAt: row.updated_at
   };
 }
@@ -164,7 +168,9 @@ function mapLesson(row: LessonRow, lessonItems: LessonItemRow[]): Lesson {
     notes: row.notes,
     source: row.source,
     visibility: row.visibility,
+    relatedActivityId: row.related_activity_id ?? undefined,
     createdBy: row.created_by,
+    createdAt: row.created_at,
     learningItemIds: lessonItems
       .filter((item) => item.lesson_id === row.id)
       .sort((a, b) => a.position - b.position)
@@ -202,6 +208,27 @@ async function expectData<T>(
     throw new Error(error.message);
   }
   return data as NonNullable<T>;
+}
+
+/**
+ * True when Postgres rejected a write because the column is not there yet. Columns added by a migration
+ * that a given database has not run should degrade rather than break the whole write.
+ */
+function isMissingColumn(error: unknown, column: string) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes(column) && /column|schema cache/i.test(message);
+}
+
+/** Runs a lessons write, retrying without `related_activity_id` when that column does not exist yet. */
+async function writeLessonRow(
+  attempt: (withActivityId: boolean) => PromiseLike<{ data: LessonRow | null; error: { message: string } | null }>
+) {
+  try {
+    return (await expectData(attempt(true))) as LessonRow;
+  } catch (error) {
+    if (!isMissingColumn(error, "related_activity_id")) throw error;
+    return (await expectData(attempt(false))) as LessonRow;
+  }
 }
 
 export async function fetchMakaLearnData(): Promise<MakaLearnData> {
@@ -367,7 +394,7 @@ export async function updateLearningItemDetails(item: LearningItem) {
 
 export async function insertLesson(lesson: Lesson) {
   const supabase = getClientOrThrow();
-  const row = (await expectData(
+  const row = await writeLessonRow((withActivityId) =>
     supabase
       .from("lessons")
       .insert({
@@ -380,11 +407,12 @@ export async function insertLesson(lesson: Lesson) {
         notes: lesson.notes,
         source: lesson.source,
         visibility: lesson.visibility,
+        ...(withActivityId ? { related_activity_id: lesson.relatedActivityId ?? null } : {}),
         created_by: lesson.createdBy
       })
       .select()
       .single()
-  )) as LessonRow;
+  );
 
   if (lesson.learningItemIds.length) {
     await expectData(
@@ -417,7 +445,7 @@ export async function updateLesson(lesson: Lesson, previousLesson: Lesson) {
   const previousLearningItemIds = new Set(previousLesson.learningItemIds);
 
   try {
-    const row = (await expectData(
+    const row = await writeLessonRow((withActivityId) =>
       supabase
         .from("lessons")
         .update({
@@ -429,12 +457,13 @@ export async function updateLesson(lesson: Lesson, previousLesson: Lesson) {
           notes: lesson.notes,
           source: lesson.source,
           visibility: lesson.visibility,
+          ...(withActivityId ? { related_activity_id: lesson.relatedActivityId ?? null } : {}),
           updated_at: new Date().toISOString()
         })
         .eq("id", lesson.id)
         .select()
         .single()
-    )) as LessonRow;
+    );
 
     if (nextLessonItems.length) {
       await expectData(supabase.from("lesson_items").upsert(nextLessonItems));
@@ -651,7 +680,11 @@ export async function updateLearningItemMedia(
   await expectData(supabase.from("learning_items").update(update).eq("id", learningItemId).select());
 }
 
-export async function clearLearningItemMedia(learningItemId: string, type: MediaAsset["type"]) {
+/**
+ * Unlinks one file from a material without touching the Media library. Deleting the file itself is
+ * `deleteMediaAssetFromSupabase`, so the caller decides which of the two should happen.
+ */
+export async function detachLearningItemMedia(learningItemId: string, type: MediaAsset["type"]) {
   const supabase = getClientOrThrow();
   const update =
     type === "symbol-image"
@@ -660,18 +693,51 @@ export async function clearLearningItemMedia(learningItemId: string, type: Media
         ? { gesture_media_url: null, updated_at: new Date().toISOString() }
         : { audio_url: null, updated_at: new Date().toISOString() };
 
-  await expectData(supabase.from("learning_items").update(update).eq("id", learningItemId).select());
-  await expectData(supabase.from("media_assets").delete().eq("related_item_id", learningItemId).eq("type", type).select());
+  const rows = (await expectData(
+    supabase.from("learning_items").update(update).eq("id", learningItemId).select("id")
+  )) as Array<{ id: string }>;
+
+  if (!rows.some((row) => row.id === learningItemId)) {
+    throw new Error("You can only change materials you created.");
+  }
 }
 
 export async function deleteLearningItem(learningItemId: string, deleteMedia: boolean) {
   const supabase = getClientOrThrow();
 
-  if (deleteMedia) {
-    await expectData(supabase.from("media_assets").delete().eq("related_item_id", learningItemId).select());
+  // Read the files first. `related_item_id` is `on delete set null`, so once the material is gone the
+  // link to its uploads is gone with it and the files could never be found again.
+  const assets = deleteMedia
+    ? ((await expectData(
+        supabase.from("media_assets").select("id, bucket, storage_path").eq("related_item_id", learningItemId)
+      )) as Array<{ id: string; bucket: MediaAsset["bucket"]; storage_path: string }>)
+    : [];
+
+  // Delete the material before its media, so a refused delete does not destroy the files anyway.
+  // RLS returns zero rows (not an error) when a teacher deletes someone else's material.
+  const deletedRows = (await expectData(
+    supabase.from("learning_items").delete().eq("id", learningItemId).select("id")
+  )) as Array<{ id: string }>;
+  if (!deletedRows.some((row) => row.id === learningItemId)) {
+    throw new Error("You can only delete materials you created.");
   }
 
-  await expectData(supabase.from("learning_items").delete().eq("id", learningItemId).select());
+  if (!assets.length) return;
+
+  // Remove the stored files too. Deleting only the rows would leave the uploads orphaned in the bucket.
+  const byBucket = new Map<MediaAsset["bucket"], string[]>();
+  for (const asset of assets) {
+    if (!asset.storage_path) continue;
+    byBucket.set(asset.bucket, [...(byBucket.get(asset.bucket) ?? []), asset.storage_path]);
+  }
+  for (const [bucket, paths] of byBucket) {
+    // A missing object should not stop the rest of the cleanup.
+    await supabase.storage.from(bucket).remove(paths);
+  }
+
+  await expectData(
+    supabase.from("media_assets").delete().in("id", assets.map((asset) => asset.id)).select("id")
+  );
 }
 
 export async function updateProfileRole(userId: string, role: AppUser["role"]) {
@@ -756,6 +822,24 @@ export async function upsertActivityPromptTemplates(
   return rows.map(mapActivityPromptTemplate);
 }
 
+/** All activity results, newest first. Used by the Admin dashboard (plays and average scores). */
+export async function fetchActivityResults() {
+  const supabase = getClientOrThrow();
+  const rows = (await expectData(
+    supabase.from("activity_results").select("*").order("created_at", { ascending: false })
+  )) as ActivityResultRow[];
+  return rows.map(mapActivityResult);
+}
+
+/** All gesture practice attempts, newest first. Used by the Admin dashboard (practice outcomes). */
+export async function fetchPracticeAttempts() {
+  const supabase = getClientOrThrow();
+  const rows = (await expectData(
+    supabase.from("practice_attempts").select("*").order("created_at", { ascending: false })
+  )) as PracticeAttemptRow[];
+  return rows.map(mapPracticeAttempt);
+}
+
 export async function insertActivityResult(
   result: Omit<ActivityResult, "id" | "createdAt">
 ) {
@@ -813,23 +897,36 @@ export async function fetchUserSettings(userId: string): Promise<UserSettings | 
 
 export async function upsertUserSettings(settings: Omit<UserSettings, "updatedAt">) {
   const supabase = getClientOrThrow();
-  const row = (await expectData(
-    supabase
-      .from("user_settings")
-      .upsert({
-        user_id: settings.userId,
-        large_text: settings.largeText,
-        high_contrast: settings.highContrast,
-        reduce_motion: settings.reduceMotion,
-        audio_guidance: settings.audioGuidance,
-        theme: settings.theme,
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-  )) as UserSettingsRow;
+  const base = {
+    user_id: settings.userId,
+    large_text: settings.largeText,
+    high_contrast: settings.highContrast,
+    reduce_motion: settings.reduceMotion,
+    audio_guidance: settings.audioGuidance,
+    theme: settings.theme,
+    updated_at: new Date().toISOString()
+  };
 
-  return mapUserSettings(row);
+  try {
+    const row = (await expectData(
+      supabase
+        .from("user_settings")
+        .upsert({ ...base, guide_mode: settings.guideMode, guide_seen: settings.guideSeen })
+        .select()
+        .single()
+    )) as UserSettingsRow;
+    return mapUserSettings(row);
+  } catch (error) {
+    // Before the Guide mode migration is run these two columns do not exist. Saving the rest still has
+    // to work, so the accessibility settings are not held hostage by a pending migration. Guide mode
+    // falls back to the per-browser copy kept by the settings context.
+    if (!isMissingColumn(error, "guide_mode") && !isMissingColumn(error, "guide_seen")) throw error;
+
+    const row = (await expectData(
+      supabase.from("user_settings").upsert(base).select().single()
+    )) as UserSettingsRow;
+    return mapUserSettings(row);
+  }
 }
 
 export function createActivityQuestions(

@@ -37,6 +37,7 @@ export type Category = {
   description: string;
   color: string;
   createdBy: string;
+  createdAt?: string;
 };
 
 export type SentenceRole =
@@ -95,6 +96,7 @@ export type Lesson = {
   source: "manual" | "auto-generated";
   visibility: "shared" | "private";
   createdBy: string;
+  createdAt?: string;
 };
 
 export type ActivityType =
@@ -178,5 +180,9 @@ export type UserSettings = {
   reduceMotion: boolean;
   audioGuidance: boolean;
   theme: "soft-blue" | "high-contrast";
+  /** Shows the first-time tour, the page intros, and the hover explanations. */
+  guideMode: boolean;
+  /** Guide keys already shown to this user ("welcome", "content", ...). */
+  guideSeen: string[];
   updatedAt: string;
 };

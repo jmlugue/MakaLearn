@@ -38,8 +38,7 @@ export function AccountsSection({
   onUserChange,
   onUserAdd,
   onLogsChanged,
-  initialStatusFilter = "all",
-  addTeacherRequest = 0
+  initialStatusFilter = "all"
 }: {
   users: AppUser[];
   currentUserId: string;
@@ -47,8 +46,6 @@ export function AccountsSection({
   onUserAdd: (user: AppUser) => void;
   onLogsChanged: () => void;
   initialStatusFilter?: StatusFilter;
-  /** Increments when "Add teacher" is clicked on the Home dashboard, which opens the dialog here. */
-  addTeacherRequest?: number;
 }) {
   const { notify } = useToast();
   const [search, setSearch] = useState("");
@@ -56,17 +53,12 @@ export function AccountsSection({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatusFilter);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [working, setWorking] = useState(false);
-  const [addOpen, setAddOpen] = useState(addTeacherRequest > 0);
+  const [addOpen, setAddOpen] = useState(false);
   const [resetPassword, setResetPassword] = useState("");
 
   useEffect(() => {
     setStatusFilter(initialStatusFilter);
   }, [initialStatusFilter]);
-
-  useEffect(() => {
-    if (addTeacherRequest > 0) setAddOpen(true);
-  }, [addTeacherRequest]);
-
   const activeAdminCount = users.filter((account) => account.role === "admin" && account.status === "active").length;
 
   const visibleUsers = useMemo(() => {

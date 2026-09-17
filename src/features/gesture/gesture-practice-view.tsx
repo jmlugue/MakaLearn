@@ -28,6 +28,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { FieldHint, Label, Select } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
+import { GuideBanner } from "@/features/guide/guide-banner";
+import { GuideTip } from "@/features/guide/guide-tip";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { cn } from "@/lib/utils";
@@ -735,7 +737,9 @@ export function GesturePracticeView() {
   }
 
   return (
-    <section className="grid gap-3 xl:h-[calc(100vh-4.25rem)] xl:min-h-0 xl:grid-cols-[1.08fr_0.92fr]">
+    <>
+      {isStudentMode ? null : <GuideBanner pageKey="gesture-practice" />}
+      <section className="grid gap-3 xl:h-[calc(100vh-4.25rem)] xl:min-h-0 xl:grid-cols-[1.08fr_0.92fr]">
       <Card className="flex min-h-0 flex-col overflow-hidden p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -751,14 +755,16 @@ export function GesturePracticeView() {
           </div>
         </div>
 
-        <CameraPanel
-          cameraStarted={cameraStarted}
-          videoRef={videoRef}
-          canvasRef={canvasRef}
-          trackerStatus={trackerStatus}
-          detectedHandCount={detectedHandCount}
-          onStopCamera={stopCamera}
-        />
+        <GuideTip id="gesture.camera">
+          <CameraPanel
+            cameraStarted={cameraStarted}
+            videoRef={videoRef}
+            canvasRef={canvasRef}
+            trackerStatus={trackerStatus}
+            detectedHandCount={detectedHandCount}
+            onStopCamera={stopCamera}
+          />
+        </GuideTip>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <TrackingMetric icon={Hand} label="Hands" value={`${detectedHandCount}/2`} valid={hasValidHands} />
@@ -881,7 +887,8 @@ export function GesturePracticeView() {
           </>
         ) : null}
       </Card>
-    </section>
+      </section>
+    </>
   );
 }
 

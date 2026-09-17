@@ -1,31 +1,28 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, ReactNode, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/form";
+import { Dialog } from "@/components/ui/dialog";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Avatar, describeActivity, EmptyRow, logGroup, type LogFilter, Panel, SearchInput } from "@/features/admin/admin-shared";
+import { Select } from "@/components/ui/form";
+import { Avatar, describeActivity, EmptyRow, logGroup, type LogFilter, type LogRange, Panel, SearchInput } from "@/features/admin/admin-shared";
 import type { AuditLog } from "@/types";
 
-type ActionFilter = "all" | AuditLog["action"];
-
-const actionFilterLabels: Record<AuditLog["action"], string> = {
-  login: "Sign-ins",
-  logout: "Sign-outs",
-  upload: "Uploads",
-  create: "Added",
-  edit: "Edited",
-  delete: "Deleted"
+// Palette roles: green = added/signed in, yellow = edited, red = deleted, slate = signed out.
+const actionDot: Record<AuditLog["action"], string> = {
+  login: "bg-emerald-400",
+  create: "bg-emerald-400",
+  upload: "bg-emerald-400",
+  edit: "bg-amber-300",
+  delete: "bg-red-400",
+  logout: "bg-slate-300"
 };
 
-// Dot color hints at the kind of change without adding another column.
-const actionDot: Record<AuditLog["action"], string> = {
-  login: "bg-emerald-500",
-  logout: "bg-slate-400",
-  create: "bg-blue-600",
-  upload: "bg-sky-500",
-  edit: "bg-amber-500",
-  delete: "bg-red-500"
+const tabNames: Record<ReturnType<typeof logGroup>, string> = {
+  "sign-ins": "Sign-ins",
+  content: "Materials",
+  accounts: "Accounts",
+  other: "Other"
 };
 
 function dayLabel(value: string) {
@@ -42,13 +39,28 @@ function timeLabel(value: string) {
   return new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
+function fullDateTime(value: string) {
+  return new Intl.DateTimeFormat("en", { dateStyle: "full", timeStyle: "short" }).format(new Date(value));
+}
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-2.5 text-sm">
+      <dt className="font-semibold text-slate-500">{label}</dt>
+      <dd className="min-w-0 break-words text-ink">{children}</dd>
+    </div>
+  );
+}
+
 export function ActivitySection({
   logs,
   hasMore,
   loadingMore,
   onLoadMore,
   filter,
-  onFilterChange
+  onFilterChange,
+  range,
+  onRangeChange
 }: {
   logs: AuditLog[];
   hasMore: boolean;
@@ -56,10 +68,12 @@ export function ActivitySection({
   onLoadMore: () => void;
   filter: LogFilter;
   onFilterChange: (filter: LogFilter) => void;
+  range: LogRange;
+  onRangeChange: (range: LogRange) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [action, setAction] = useState<ActionFilter>("all");
-  const [actor, setActor] = useState("all");
+  const [openLogId, setOpenLogId] = useState<string | null>(null);
+  const openLog = openLogId ? logs.find((log) => log.id === openLogId) ?? null : null;
 
   const counts = useMemo(() => {
     const result = { all: logs.length, "sign-ins": 0, content: 0, accounts: 0 };
@@ -70,17 +84,11 @@ export function ActivitySection({
     return result;
   }, [logs]);
 
-  const actors = useMemo(
-    () => Array.from(new Map(logs.map((log) => [log.actorId, log.actorName])).entries()).sort((a, b) => a[1].localeCompare(b[1])),
-    [logs]
-  );
-
+  // One search box covers user, action, and record, so the list stays usable with many accounts.
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     return logs
       .filter((log) => filter === "all" || logGroup(log) === filter)
-      .filter((log) => action === "all" || log.action === action)
-      .filter((log) => actor === "all" || log.actorId === actor)
       .filter(
         (log) =>
           !term ||
@@ -89,9 +97,9 @@ export function ActivitySection({
           log.detail.toLowerCase().includes(term) ||
           describeActivity(log).sentence.toLowerCase().includes(term)
       );
-  }, [action, actor, filter, logs, search]);
+  }, [filter, logs, search]);
 
-  const filtersActive = action !== "all" || actor !== "all" || search.trim() !== "" || filter !== "all";
+  const filtersActive = search.trim() !== "" || filter !== "all" || range !== "all";
 
   return (
     <div className="w-full space-y-4">
@@ -103,50 +111,38 @@ export function ActivitySection({
           options={[
             { value: "all", label: "All", count: counts.all },
             { value: "sign-ins", label: "Sign-ins", count: counts["sign-ins"] },
-            { value: "content", label: "Content", count: counts.content },
+            { value: "content", label: "Materials", count: counts.content },
             { value: "accounts", label: "Accounts", count: counts.accounts }
           ]}
         />
-        <div className="w-36">
-          <Select aria-label="Filter by action" value={action} onChange={(event) => setAction(event.target.value as ActionFilter)}>
-            <option value="all">All actions</option>
-            {(Object.keys(actionFilterLabels) as AuditLog["action"][]).map((key) => (
-              <option key={key} value={key}>
-                {actionFilterLabels[key]}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="w-44">
-          <Select aria-label="Filter by person" value={actor} onChange={(event) => setActor(event.target.value)}>
-            <option value="all">Everyone</option>
-            {actors.map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
+        <div className="w-40">
+          <Select aria-label="Date range" value={range} onChange={(event) => onRangeChange(event.target.value as LogRange)}>
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+            <option value="month">This month</option>
           </Select>
         </div>
         <div className="ml-auto flex min-w-0 flex-1 justify-end">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search person or item" label="Search activity" />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search user, action, or record" label="Search activity" />
         </div>
       </div>
 
       <Panel>
         <div className="overflow-x-auto clean-scrollbar">
-          <table className="w-full min-w-[780px] table-fixed text-left text-sm">
+          <table className="w-full min-w-[720px] table-fixed text-left text-sm">
             <colgroup>
               <col className="w-28" />
-              <col className="w-52" />
-              <col className="w-64" />
+              <col className="w-56" />
+              <col className="w-72" />
               <col />
             </colgroup>
             <thead className="border-b border-blue-100 bg-[#f8fbff] text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-3">When</th>
-                <th className="px-4 py-3">Who</th>
-                <th className="px-4 py-3">What happened</th>
-                <th className="px-4 py-3">Item</th>
+                <th className="px-4 py-3">Date &amp; Time</th>
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3">Action</th>
+                <th className="px-4 py-3">Record</th>
               </tr>
             </thead>
             <tbody>
@@ -167,7 +163,7 @@ export function ActivitySection({
                           </th>
                         </tr>
                       ) : null}
-                      <tr className="border-t border-slate-100 align-top hover:bg-blue-50/40">
+                      <tr onClick={() => setOpenLogId(log.id)} className="cursor-pointer border-t border-slate-100 hover:bg-blue-50/60">
                         <td className="whitespace-nowrap px-4 py-3 text-slate-500">{timeLabel(log.createdAt)}</td>
                         <td className="px-4 py-3">
                           <span className="flex min-w-0 items-center gap-2">
@@ -176,21 +172,28 @@ export function ActivitySection({
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="flex items-center gap-2 text-ink">
+                          {/* Real button so the details pop-up opens from the keyboard too. */}
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setOpenLogId(log.id);
+                            }}
+                            className="flex items-center gap-2 rounded text-left text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                          >
                             <span className={`h-2 w-2 shrink-0 rounded-full ${actionDot[log.action]}`} aria-hidden="true" />
                             {sentence}
-                          </span>
+                          </button>
                         </td>
                         <td className="px-4 py-3">
                           {isSession ? (
                             <span className="text-slate-400">-</span>
                           ) : (
                             <>
-                              <p className="truncate" title={log.targetTitle}>
-                                <span className="font-semibold text-ink">{log.targetTitle}</span>
-                                {itemType ? <span className="text-slate-400"> · {itemType}</span> : null}
+                              <p className="truncate font-semibold text-ink" title={log.targetTitle}>
+                                {log.targetTitle}
                               </p>
-                              {log.detail ? <p className="mt-0.5 text-xs text-slate-500">{log.detail}</p> : null}
+                              {itemType ? <p className="truncate text-xs text-slate-500">{itemType}</p> : null}
                             </>
                           )}
                         </td>
@@ -216,6 +219,28 @@ export function ActivitySection({
           <span>All activity loaded</span>
         )}
       </div>
+
+      <Dialog open={Boolean(openLog)} onClose={() => setOpenLogId(null)} title={openLog ? describeActivity(openLog).sentence : "Activity"}>
+        {openLog ? (
+          <dl className="divide-y divide-slate-100">
+            <DetailRow label="User">
+              <span className="flex items-center gap-2">
+                <Avatar name={openLog.actorName} className="h-6 w-6 text-[10px]" />
+                {openLog.actorName}
+              </span>
+            </DetailRow>
+            <DetailRow label="Date & Time">{fullDateTime(openLog.createdAt)}</DetailRow>
+            {openLog.action !== "login" && openLog.action !== "logout" ? (
+              <>
+                <DetailRow label="Record">{openLog.targetTitle}</DetailRow>
+                <DetailRow label="Type">{describeActivity(openLog).itemType || "-"}</DetailRow>
+              </>
+            ) : null}
+            <DetailRow label="Area">{tabNames[logGroup(openLog)]}</DetailRow>
+            <DetailRow label="Details">{openLog.detail || "-"}</DetailRow>
+          </dl>
+        ) : null}
+      </Dialog>
     </div>
   );
 }

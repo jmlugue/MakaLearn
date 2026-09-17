@@ -61,8 +61,11 @@ export async function insertAuditLog(input: AuditLogInput) {
   return mapAuditLogRow(data);
 }
 
-/** Newest logs first. Pass `before` (a `createdAt` from the last loaded log) to load the next page. */
-export async function fetchAuditLogs({ limit = 50, before }: { limit?: number; before?: string } = {}) {
+/**
+ * Newest logs first. Pass `before` (a `createdAt` from the last loaded log) to load the next page,
+ * and `since` (an ISO date) to only include logs from that moment on.
+ */
+export async function fetchAuditLogs({ limit = 50, before, since }: { limit?: number; before?: string; since?: string } = {}) {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
     throw new Error("Supabase is not configured. Audit logs require Supabase.");
@@ -71,6 +74,9 @@ export async function fetchAuditLogs({ limit = 50, before }: { limit?: number; b
   let query = supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(limit);
   if (before) {
     query = query.lt("created_at", before);
+  }
+  if (since) {
+    query = query.gte("created_at", since);
   }
 
   const { data, error } = await query;

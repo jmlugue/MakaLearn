@@ -4,6 +4,7 @@ import { ChangeEvent, useId, useRef, useState } from "react";
 import { CheckCircle2, FileUp, Loader2, Trash2, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatBytes } from "@/utils/media-limits";
 
 export function FileUpload({
   label,
@@ -15,12 +16,15 @@ export function FileUpload({
   existingFileName,
   successMessage = "File attached.",
   icon: Icon = FileUp,
-  compact = false
+  compact = false,
+  maxBytes
 }: {
   label: string;
   accept: string;
   hint: string;
   storageNote: string;
+  /** Largest file this input accepts. Oversized files are refused before any upload starts. */
+  maxBytes?: number;
   onUpload?: (file: File) => Promise<void>;
   onRemove?: () => Promise<void> | void;
   existingFileName?: string;
@@ -37,8 +41,17 @@ export function FileUpload({
 
   async function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    setFileName(file?.name ?? "");
     setMessage("");
+
+    if (file && maxBytes && file.size > maxBytes) {
+      event.target.value = "";
+      setFileName("");
+      setStatus("error");
+      setMessage(`This file is ${formatBytes(file.size)}. The limit is ${formatBytes(maxBytes)}.`);
+      return;
+    }
+
+    setFileName(file?.name ?? "");
 
     if (!file || !onUpload) {
       setStatus("idle");

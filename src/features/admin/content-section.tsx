@@ -10,35 +10,51 @@ import { EmptyRow, Panel, SearchInput } from "@/features/admin/admin-shared";
 import { ItemDetailDialog, MediaDetailDialog } from "@/features/admin/content-detail-dialog";
 import type { AppUser, Category, LearningItem, MediaAsset } from "@/types";
 
-export type ContentView = "items" | "media";
-export type ItemsFilter = "all" | "pecs" | "gesture" | "missing-image" | "missing-audio";
-type MediaFilter = "all" | MediaAsset["type"];
+export type ContentView = "materials" | "media";
+export type ItemsFilter = "all" | "pecs" | "gesture";
+// "incomplete" is materials-only: it keeps only materials missing an image or audio (newest first).
+type ContentSort = "newest" | "oldest" | "name-asc" | "name-desc" | "incomplete";
+// Learner photos are not part of the admin media view.
+type AdminMediaType = Exclude<MediaAsset["type"], "learner-photo">;
+type MediaFilter = "all" | AdminMediaType;
 
 const PAGE_SIZE = 20;
 
-const mediaTypeLabels: Record<MediaAsset["type"], string> = {
+const mediaTypeLabels: Record<AdminMediaType, string> = {
   "symbol-image": "Symbol images",
   "gesture-media": "Gesture media",
-  "audio-file": "Audio",
-  "learner-photo": "Learner photos"
+  "audio-file": "Audio"
 };
 
 function isImageFile(asset: MediaAsset) {
-  if (asset.type === "symbol-image" || asset.type === "learner-photo") return true;
+  if (asset.type === "symbol-image") return true;
   return /\.(png|jpe?g|gif|webp|svg)$/i.test(asset.fileName);
+}
+
+/** PECS cards need an image; every material needs audio. Gestures use fixed references, so no image check. */
+function missingMediaTags(item: LearningItem) {
+  const tags: string[] = [];
+  if (item.contentType === "pecs" && !item.symbolImageUrl) tags.push("No image");
+  if (!item.audioUrl) tags.push("No audio");
+  return tags;
+}
+
+function isMissingMedia(item: LearningItem) {
+  return missingMediaTags(item).length > 0;
 }
 
 function nameFor(users: AppUser[], id: string) {
   return users.find((candidate) => candidate.id === id)?.name ?? "MakaLearn user";
 }
 
-/** Teacher-managed content: learning items and uploaded media, with filters in a side panel. */
+/** Teacher-managed content: materials (learning items) and uploaded media, with filters in a side panel. */
 export function ContentSection({
   items,
   media,
   users,
   categories,
-  initialView = "items",
+  initialView = "materials",
+  openItemRequest = null,
   onItemSaved,
   onItemDeleted,
   onMediaDeleted
@@ -48,6 +64,8 @@ export function ContentSection({
   users: AppUser[];
   categories: Category[];
   initialView?: ContentView;
+  /** Opens a material's pop-up when set (sent from the Home "Latest materials" tile). */
+  openItemRequest?: { id: string; at: number } | null;
   onItemSaved: (item: LearningItem) => void;
   onItemDeleted: (item: LearningItem, deletedMedia: boolean) => void;
   onMediaDeleted: (asset: MediaAsset) => void;
@@ -56,71 +74,86 @@ export function ContentSection({
   const [search, setSearch] = useState("");
   const [itemsFilter, setItemsFilter] = useState<ItemsFilter>("all");
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("all");
-  const [person, setPerson] = useState("all");
+  const [sort, setSort] = useState<ContentSort>("newest");
+  const adminMedia = useMemo(() => media.filter((asset) => asset.type !== "learner-photo"), [media]);
   const [page, setPage] = useState(1);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [openMediaId, setOpenMediaId] = useState<string | null>(null);
   const openItem = openItemId ? items.find((item) => item.id === openItemId) ?? null : null;
-  const openMedia = openMediaId ? media.find((asset) => asset.id === openMediaId) ?? null : null;
+  const openMedia = openMediaId ? adminMedia.find((asset) => asset.id === openMediaId) ?? null : null;
 
   useEffect(() => {
     setView(initialView);
   }, [initialView]);
 
   useEffect(() => {
+    if (openItemRequest) setOpenItemId(openItemRequest.id);
+  }, [openItemRequest]);
+
+  useEffect(() => {
     setPage(1);
-  }, [itemsFilter, mediaFilter, person, search, view]);
+  }, [itemsFilter, mediaFilter, sort, search, view]);
 
   const itemCounts = useMemo(
     () => ({
       all: items.length,
       pecs: items.filter((item) => item.contentType === "pecs").length,
-      gesture: items.filter((item) => item.contentType === "gesture").length,
-      "missing-image": items.filter((item) => item.contentType === "pecs" && !item.symbolImageUrl).length,
-      "missing-audio": items.filter((item) => !item.audioUrl).length
+      gesture: items.filter((item) => item.contentType === "gesture").length
     }),
     [items]
   );
 
   const mediaCounts = useMemo(() => {
-    const counts: Record<MediaFilter, number> = { all: media.length, "symbol-image": 0, "gesture-media": 0, "audio-file": 0, "learner-photo": 0 };
-    media.forEach((asset) => {
-      counts[asset.type] += 1;
+    const counts: Record<MediaFilter, number> = { all: adminMedia.length, "symbol-image": 0, "gesture-media": 0, "audio-file": 0 };
+    adminMedia.forEach((asset) => {
+      counts[asset.type as AdminMediaType] += 1;
     });
     return counts;
-  }, [media]);
+  }, [adminMedia]);
 
-  const people = useMemo(() => {
-    const ids = new Set(view === "items" ? items.map((item) => item.createdBy) : media.map((asset) => asset.uploadedBy));
-    return Array.from(ids)
-      .map((id) => ({ id, name: nameFor(users, id) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [items, media, users, view]);
-
+  // Search also matches the creator/uploader name, so no person dropdown is needed as accounts grow.
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return items
-      .filter((item) => {
-        if (itemsFilter === "pecs" || itemsFilter === "gesture") return item.contentType === itemsFilter;
-        if (itemsFilter === "missing-image") return item.contentType === "pecs" && !item.symbolImageUrl;
-        if (itemsFilter === "missing-audio") return !item.audioUrl;
-        return true;
-      })
-      .filter((item) => person === "all" || item.createdBy === person)
-      .filter((item) => !term || item.label.toLowerCase().includes(term) || item.tags.some((tag) => tag.toLowerCase().includes(term)))
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  }, [items, itemsFilter, person, search]);
+    const matches = items
+      .filter((item) => itemsFilter === "all" || item.contentType === itemsFilter)
+      .filter((item) => sort !== "incomplete" || isMissingMedia(item))
+      .filter(
+        (item) =>
+          !term ||
+          item.label.toLowerCase().includes(term) ||
+          item.tags.some((tag) => tag.toLowerCase().includes(term)) ||
+          nameFor(users, item.createdBy).toLowerCase().includes(term)
+      );
+    return [...matches].sort((a, b) => {
+      if (sort === "oldest") return a.updatedAt.localeCompare(b.updatedAt);
+      if (sort === "name-asc") return a.label.localeCompare(b.label);
+      if (sort === "name-desc") return b.label.localeCompare(a.label);
+      return b.updatedAt.localeCompare(a.updatedAt);
+    });
+  }, [items, itemsFilter, search, sort, users]);
 
   const filteredMedia = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return media
+    const matches = adminMedia
       .filter((asset) => mediaFilter === "all" || asset.type === mediaFilter)
-      .filter((asset) => person === "all" || asset.uploadedBy === person)
-      .filter((asset) => !term || asset.title.toLowerCase().includes(term) || asset.fileName.toLowerCase().includes(term))
-      .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
-  }, [media, mediaFilter, person, search]);
+      .filter(
+        (asset) =>
+          !term ||
+          asset.title.toLowerCase().includes(term) ||
+          asset.fileName.toLowerCase().includes(term) ||
+          nameFor(users, asset.uploadedBy).toLowerCase().includes(term)
+      );
+    return [...matches].sort((a, b) => {
+      const nameA = a.title || a.fileName;
+      const nameB = b.title || b.fileName;
+      if (sort === "oldest") return a.uploadedAt.localeCompare(b.uploadedAt);
+      if (sort === "name-asc") return nameA.localeCompare(nameB);
+      if (sort === "name-desc") return nameB.localeCompare(nameA);
+      return b.uploadedAt.localeCompare(a.uploadedAt);
+    });
+  }, [adminMedia, mediaFilter, search, sort, users]);
 
-  const total = view === "items" ? filteredItems.length : filteredMedia.length;
+  const total = view === "materials" ? filteredItems.length : filteredMedia.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageItems = filteredItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const pageMedia = filteredMedia.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -134,42 +167,27 @@ export function ContentSection({
           value={view}
           onChange={(next) => {
             setView(next);
-            setPerson("all");
+            setSearch("");
+            if (sort === "incomplete") setSort("newest");
           }}
           options={[
-            { value: "items", label: "Items" },
+            { value: "materials", label: "Materials" },
             { value: "media", label: "Media" }
           ]}
         />
 
-        {view === "items" ? (
+        {view === "materials" ? (
           <>
             <FilterGroup title="Type">
-              <FilterOption label="All items" count={itemCounts.all} selected={itemsFilter === "all"} onSelect={() => setItemsFilter("all")} />
+              <FilterOption label="All materials" count={itemCounts.all} selected={itemsFilter === "all"} onSelect={() => setItemsFilter("all")} />
               <FilterOption label="PECS cards" count={itemCounts.pecs} selected={itemsFilter === "pecs"} onSelect={() => setItemsFilter("pecs")} />
               <FilterOption label="Gestures" count={itemCounts.gesture} selected={itemsFilter === "gesture"} onSelect={() => setItemsFilter("gesture")} />
-            </FilterGroup>
-            <FilterGroup title="Needs attention">
-              <FilterOption
-                label="Missing image"
-                count={itemCounts["missing-image"]}
-                tone="warning"
-                selected={itemsFilter === "missing-image"}
-                onSelect={() => setItemsFilter("missing-image")}
-              />
-              <FilterOption
-                label="Missing audio"
-                count={itemCounts["missing-audio"]}
-                tone="warning"
-                selected={itemsFilter === "missing-audio"}
-                onSelect={() => setItemsFilter("missing-audio")}
-              />
             </FilterGroup>
           </>
         ) : (
           <FilterGroup title="Type">
             <FilterOption label="All media" count={mediaCounts.all} selected={mediaFilter === "all"} onSelect={() => setMediaFilter("all")} />
-            {(Object.keys(mediaTypeLabels) as MediaAsset["type"][]).map((type) => (
+            {(Object.keys(mediaTypeLabels) as AdminMediaType[]).map((type) => (
               <FilterOption
                 key={type}
                 label={mediaTypeLabels[type]}
@@ -180,33 +198,31 @@ export function ContentSection({
             ))}
           </FilterGroup>
         )}
-
-        <FilterGroup title={view === "items" ? "Created by" : "Uploaded by"}>
-          <Select aria-label={view === "items" ? "Filter by creator" : "Filter by uploader"} value={person} onChange={(event) => setPerson(event.target.value)}>
-            <option value="all">Everyone</option>
-            {people.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.name}
-              </option>
-            ))}
-          </Select>
-        </FilterGroup>
       </Panel>
 
       <div className="min-w-0 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <SearchInput
             value={search}
             onChange={setSearch}
-            placeholder={view === "items" ? "Search label or tag" : "Search file name"}
-            label={view === "items" ? "Search learning items" : "Search media"}
+            placeholder={view === "materials" ? "Search label, tag, or creator" : "Search file name or uploader"}
+            label={view === "materials" ? "Search materials" : "Search media"}
           />
-          <p className="text-sm font-semibold text-slate-500">
-            {total} {view === "items" ? (total === 1 ? "item" : "items") : total === 1 ? "file" : "files"}
+          <div className="w-52">
+            <Select aria-label={view === "materials" ? "Sort materials" : "Sort media"} value={sort} onChange={(event) => setSort(event.target.value as ContentSort)}>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="name-asc">Name (ascending)</option>
+              <option value="name-desc">Name (descending)</option>
+              {view === "materials" ? <option value="incomplete">Incomplete media</option> : null}
+            </Select>
+          </div>
+          <p className="ml-auto text-sm font-semibold text-slate-500">
+            {total} {view === "materials" ? (total === 1 ? "material" : "materials") : total === 1 ? "file" : "files"}
           </p>
         </div>
 
-        {view === "items" ? (
+        {view === "materials" ? (
           <ItemsTable items={pageItems} users={users} onOpen={(item) => setOpenItemId(item.id)} />
         ) : (
           <MediaGrid media={pageMedia} users={users} onOpen={(asset) => setOpenMediaId(asset.id)} />
@@ -308,7 +324,7 @@ function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: Ap
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-b border-blue-100 bg-[#f8fbff] text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Item</th>
+              <th className="px-4 py-3">Material</th>
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Media</th>
               <th className="px-4 py-3">Created by</th>
@@ -317,7 +333,7 @@ function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: Ap
           </thead>
           <tbody>
             {items.length === 0 ? (
-              <EmptyRow colSpan={5}>No learning items match.</EmptyRow>
+              <EmptyRow colSpan={5}>No materials match.</EmptyRow>
             ) : (
               items.map((item) => (
                 <tr
@@ -353,16 +369,21 @@ function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: Ap
                     <span
                       className={cn(
                         "rounded-full px-2.5 py-1 text-xs font-semibold",
-                        item.contentType === "pecs" ? "bg-blue-100 text-blue-700" : "bg-sky-100 text-sky-700"
+                        item.contentType === "pecs" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
                       )}
                     >
                       {item.contentType === "pecs" ? "PECS card" : "Gesture"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="flex items-center gap-1.5">
+                    <span className="flex flex-wrap items-center gap-1.5">
                       <MediaChip present={Boolean(item.symbolImageUrl || item.gestureMediaUrl)} label="Image or video" icon={ImageIcon} />
                       <MediaChip present={Boolean(item.audioUrl)} label="Audio" icon={Volume2} />
+                      {missingMediaTags(item).map((tag) => (
+                        <span key={tag} className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                          {tag}
+                        </span>
+                      ))}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{nameFor(users, item.createdBy)}</td>
@@ -416,7 +437,7 @@ function MediaGrid({ media, users, onOpen }: { media: MediaAsset[]; users: AppUs
                 <Icon className="h-10 w-10 text-blue-300" aria-hidden="true" />
               )}
               <span className="absolute left-2 top-2 rounded-full bg-[#fff]/90 px-2 py-0.5 text-[11px] font-semibold text-slate-600 shadow-sm">
-                {mediaTypeLabels[asset.type]}
+                {mediaTypeLabels[asset.type as AdminMediaType]}
               </span>
             </span>
             <span className="flex w-full min-w-0 flex-1 flex-col gap-0.5 border-t border-blue-100 p-3">
