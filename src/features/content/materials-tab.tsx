@@ -49,12 +49,12 @@ export function MaterialsTab({
     return kindItems.filter((item) => {
       if (categoryId !== "all" && item.categoryId !== categoryId) return false;
       if (!query) return true;
-      return [item.label, item.description, item.tags.join(" "), categoryById.get(item.categoryId)?.name ?? ""]
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
+      // Material search is intentionally label-only and prefix-based. This keeps
+      // a search such as "s" focused on cards whose labels start with "s";
+      // descriptions, tags, and category names should not produce false matches.
+      return item.label.trim().toLowerCase().startsWith(query);
     });
-  }, [categoryById, categoryId, kindItems, search]);
+  }, [categoryId, kindItems, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);

@@ -111,7 +111,8 @@ export function ContentSection({
     return counts;
   }, [adminMedia]);
 
-  // Search also matches the creator/uploader name, so no person dropdown is needed as accounts grow.
+  // Admin material search follows the same label-prefix behavior as the
+  // Content Library, so metadata cannot produce unrelated card matches.
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
     const matches = items
@@ -120,9 +121,7 @@ export function ContentSection({
       .filter(
         (item) =>
           !term ||
-          item.label.toLowerCase().includes(term) ||
-          item.tags.some((tag) => tag.toLowerCase().includes(term)) ||
-          nameFor(users, item.createdBy).toLowerCase().includes(term)
+          item.label.trim().toLowerCase().startsWith(term)
       );
     return [...matches].sort((a, b) => {
       if (sort === "oldest") return a.updatedAt.localeCompare(b.updatedAt);
@@ -130,7 +129,7 @@ export function ContentSection({
       if (sort === "name-desc") return b.label.localeCompare(a.label);
       return b.updatedAt.localeCompare(a.updatedAt);
     });
-  }, [items, itemsFilter, search, sort, users]);
+  }, [items, itemsFilter, search, sort]);
 
   const filteredMedia = useMemo(() => {
     const term = search.trim().toLowerCase();
