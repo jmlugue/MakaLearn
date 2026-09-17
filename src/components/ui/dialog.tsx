@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -96,35 +96,32 @@ export function Dialog({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <AnimatePresence>
-      {open ? (
+    open ? (
+      <motion.div
+        className="fixed inset-0 z-[150] flex overflow-y-auto bg-slate-900/40 px-4 py-6 backdrop-blur-[2px]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
+      >
         <motion.div
-          className="fixed inset-0 z-[150] flex overflow-y-auto bg-slate-900/40 px-4 py-6 backdrop-blur-[2px]"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) onClose();
-          }}
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={description ? descriptionId : undefined}
+          tabIndex={-1}
+          onKeyDown={handleKeyDown}
+          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          className={cn(
+            "relative m-auto w-full max-w-md overflow-hidden rounded-3xl border border-white/90 bg-gradient-to-br from-white via-[#f5f9ff] to-[#eaf4ff] p-5 shadow-[0_30px_80px_rgba(30,64,175,0.28)] outline-none sm:p-6",
+            className
+          )}
         >
-          <motion.div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            aria-describedby={description ? descriptionId : undefined}
-            tabIndex={-1}
-            onKeyDown={handleKeyDown}
-            initial={{ opacity: 0, y: 12, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className={cn(
-              "relative m-auto w-full max-w-md overflow-hidden rounded-3xl border border-white/90 bg-gradient-to-br from-white via-[#f5f9ff] to-[#eaf4ff] p-5 shadow-[0_30px_80px_rgba(30,64,175,0.28)] outline-none sm:p-6",
-              className
-            )}
-          >
             {/* Soft blue glow in the corner gives the glass a hint of the app's blue. */}
             <span
               aria-hidden="true"
@@ -174,11 +171,10 @@ export function Dialog({
               </div>
             )}
             {children ? <div className={cn("relative", hideHeader ? "" : "mt-4")}>{children}</div> : null}
-            {footer ? <div className="relative mt-6 flex flex-wrap justify-end gap-2">{footer}</div> : null}
-          </motion.div>
+          {footer ? <div className="relative mt-6 flex flex-wrap justify-end gap-2">{footer}</div> : null}
         </motion.div>
-      ) : null}
-    </AnimatePresence>,
+      </motion.div>
+    ) : null,
     document.body
   );
 }
