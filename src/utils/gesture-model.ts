@@ -1,7 +1,11 @@
 "use client";
 
 import * as tf from "@tensorflow/tfjs";
-import type { DemoGesturePrediction, HandLandmarkPoint } from "@/utils/gesture-prediction";
+import {
+  getExpectedGestureHandCount,
+  type DemoGesturePrediction,
+  type HandLandmarkPoint
+} from "@/utils/gesture-prediction";
 
 export type GestureModelStatus = "idle" | "loading" | "ready" | "error";
 
@@ -204,11 +208,12 @@ class MakaLearnGestureModel {
     if (confidence < this.confidenceThreshold) return null;
 
     const trainingLabel = this.labels[bestIndex];
+    const label = labelToPracticeLabel[trainingLabel];
     return {
-      label: labelToPracticeLabel[trainingLabel],
+      label,
       pose: labelToPose[trainingLabel],
       fingers: [],
-      handCount: 1,
+      handCount: getExpectedGestureHandCount(label) ?? 1,
       matchPercent: Math.round(confidence * 100)
     };
   }

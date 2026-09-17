@@ -38,7 +38,11 @@ import {
   type GestureFeedbackResponse,
   type GestureFeedbackTrackingState
 } from "@/utils/gesture-feedback";
-import { type DemoGesturePrediction, type HandLandmarkPoint } from "@/utils/gesture-prediction";
+import {
+  getExpectedGestureHandCount,
+  type DemoGesturePrediction,
+  type HandLandmarkPoint
+} from "@/utils/gesture-prediction";
 import {
   applyBasicGesturePredictionGuards,
   applyEatToiletFingerSafety,
@@ -546,12 +550,6 @@ export function GesturePracticeView() {
     const counts = new Map<number, number>();
     frames.forEach((frame) => counts.set(frame.hands.length, (counts.get(frame.hands.length) ?? 0) + 1));
     return Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0]?.[0] ?? 0;
-  }
-
-  function getExpectedGestureHandCount(label: string): 1 | 2 | null {
-    if (/help/i.test(label)) return 2;
-    if (/toilet|eat food|drink water|yes|no|sit/i.test(label)) return 1;
-    return null;
   }
 
   function applyConfidenceThreshold(nextPrediction: DemoGesturePrediction | null): {

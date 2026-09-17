@@ -1,4 +1,9 @@
-import type { DemoFinger, DemoGesturePrediction, HandLandmarkPoint } from "@/utils/gesture-prediction";
+import {
+  getExpectedGestureHandCount,
+  type DemoFinger,
+  type DemoGesturePrediction,
+  type HandLandmarkPoint
+} from "@/utils/gesture-prediction";
 import type { GestureFeedbackIssueCategory } from "@/utils/gesture-feedback";
 
 type EatToiletSafetyResult = {
@@ -20,16 +25,6 @@ const HELP_LABEL = "Help";
 const NO_LABEL = "No";
 const SIT_LABEL = "Sit down";
 const YES_LABEL = "Yes";
-
-const expectedHandCounts: Record<string, 1 | 2> = {
-  [DRINK_LABEL]: 1,
-  [EAT_LABEL]: 1,
-  [HELP_LABEL]: 2,
-  [NO_LABEL]: 1,
-  [SIT_LABEL]: 1,
-  [TOILET_LABEL]: 1,
-  [YES_LABEL]: 1
-};
 
 const fingerJoints: Record<DemoFinger, { base: number; middle: number; tip: number; ratio: number }> = {
   Thumb: { base: 2, middle: 3, tip: 4, ratio: 1.08 },
@@ -119,7 +114,7 @@ function validateExpectedHandCount(
   prediction: DemoGesturePrediction,
   capturedFrames: CapturedGestureFrame[]
 ): EatToiletSafetyResult {
-  const expectedHandCount = expectedHandCounts[prediction.label];
+  const expectedHandCount = getExpectedGestureHandCount(prediction.label);
   if (!expectedHandCount) return { prediction };
 
   const summary = summarizeHandCounts(capturedFrames);

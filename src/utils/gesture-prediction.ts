@@ -13,3 +13,22 @@ export type DemoGesturePrediction = {
   handCount: 1 | 2;
   matchPercent: number;
 };
+
+export const expectedGestureHandCounts: Record<string, 1 | 2> = {
+  "I want to drink water": 1,
+  "I want to eat food": 1,
+  Help: 2,
+  No: 1,
+  "Sit down": 2,
+  "I want to go to toilet": 1,
+  Yes: 1
+};
+
+export function getExpectedGestureHandCount(label: string): 1 | 2 | null {
+  const trimmed = label.trim();
+  if (trimmed in expectedGestureHandCounts) return expectedGestureHandCounts[trimmed];
+  if (/help/i.test(trimmed)) return 2;
+  if (/sit/i.test(trimmed)) return 2;
+  if (/toilet|eat food|drink water|yes|no/i.test(trimmed)) return 1;
+  return null;
+}
