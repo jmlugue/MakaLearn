@@ -45,7 +45,6 @@ export type GestureFeedbackCandidate = {
 };
 
 const LOW_CONFIDENCE_PERCENT = 70;
-const MAX_LEARNER_MESSAGE_LENGTH = 140;
 const MAX_TEACHER_NOTE_LENGTH = 240;
 const UNSAFE_FEEDBACK_PATTERNS = [
   /\bdiagnos(?:e|is|tic)\b/i,
@@ -134,49 +133,47 @@ export function deriveGestureFeedbackIssue(input: {
 }
 
 export function createTemplateGestureFeedback(request: GestureFeedbackRequest): GestureFeedbackResponse {
-  const selected = simplifyGestureLabel(request.selectedGestureLabel);
-  const predicted = request.predictedGestureLabel ? simplifyGestureLabel(request.predictedGestureLabel) : "another gesture";
   const matchPercent = request.matchPercent ?? 0;
 
   const templates: Record<GestureFeedbackIssueCategory, Omit<GestureFeedbackResponse, "source" | "issueCategory">> = {
     correct: {
-      learnerMessage: `Great signing. That looked like ${selected}.`,
+      learnerMessage: createLearnerGestureMessage("correct"),
       teacherNote: `The recognizer identified ${request.selectedGestureLabel}${request.matchPercent === null ? "." : ` at ${matchPercent}% confidence.`}`
     },
     "hand-not-visible": {
-      learnerMessage: "Show your hands in the camera box, then try again.",
+      learnerMessage: createLearnerGestureMessage("hand-not-visible"),
       teacherNote: "No hand landmarks were available for this attempt. Reposition the learner or camera before repeating."
     },
     "too-many-hands": {
-      learnerMessage: "I see extra hands. Try again with only your hands in the box.",
+      learnerMessage: createLearnerGestureMessage("too-many-hands"),
       teacherNote: "More than the supported hands were detected, so the attempt was not treated as a valid gesture sample."
     },
     "low-confidence": {
-      learnerMessage: `Good try. Make ${selected} a little clearer and try once more.`,
+      learnerMessage: createLearnerGestureMessage("low-confidence"),
       teacherNote: `The model confidence was below ${LOW_CONFIDENCE_PERCENT}%${request.matchPercent === null ? "." : ` at ${matchPercent}%.`} Give a slower demonstration and repeat.`
     },
     "wrong-gesture": {
-      learnerMessage: `Good try. This looked like ${predicted}. Try ${selected} again.`,
+      learnerMessage: createLearnerGestureMessage("wrong-gesture"),
       teacherNote: `The local recognizer predicted ${request.predictedGestureLabel ?? "another gesture"}, but this attempt was being compared with ${request.selectedGestureLabel}. Use this only when a teacher has assigned a specific target.`
     },
     "unclear-movement": {
-      learnerMessage: `Good effort. Try ${selected} again slowly in the camera box.`,
+      learnerMessage: createLearnerGestureMessage("unclear-movement"),
       teacherNote: "The gesture movement was not clear enough for a supported local prediction. Cue the start and finish positions."
     },
     "hand-count-mismatch": {
-      learnerMessage: `Try ${selected} again with the same hands as the example.`,
-      teacherNote: `Detected ${request.detectedHandCount} hand${request.detectedHandCount === 1 ? "" : "s"}; this reference expects ${request.expectedHandCount} hand${request.expectedHandCount === 1 ? "" : "s"}.`
+      learnerMessage: createLearnerGestureMessage("hand-count-mismatch"),
+      teacherNote: `The camera detected ${request.detectedHandCount} hand${request.detectedHandCount === 1 ? "" : "s"}, but this gesture uses ${request.expectedHandCount} hand${request.expectedHandCount === 1 ? "" : "s"}. Ask the learner to match the number of hands shown in the example and try again.`
     },
     "hand-shape-mismatch": {
-      learnerMessage: request.localFeedbackHint ?? `Try ${selected} again with a clearer hand shape.`,
+      learnerMessage: createLearnerGestureMessage("hand-shape-mismatch"),
       teacherNote: request.localFeedbackHint ?? `The local shape check did not match the expected hand shape for ${request.selectedGestureLabel}.`
     },
     "palm-orientation-mismatch": {
-      learnerMessage: request.localFeedbackHint ?? `Try ${selected} again with your palm turned like the example.`,
+      learnerMessage: createLearnerGestureMessage("palm-orientation-mismatch"),
       teacherNote: request.localFeedbackHint ?? `The local orientation check did not match the expected palm direction for ${request.selectedGestureLabel}.`
     },
     "motion-direction-mismatch": {
-      learnerMessage: request.localFeedbackHint ?? `Try ${selected} again in the same direction as the example.`,
+      learnerMessage: createLearnerGestureMessage("motion-direction-mismatch"),
       teacherNote: request.localFeedbackHint ?? `The local motion check detected the gesture moving in the opposite direction for ${request.selectedGestureLabel}.`
     }
   };
@@ -192,19 +189,40 @@ export function validateGeminiGestureFeedback(
   candidate: GestureFeedbackCandidate,
   request: GestureFeedbackRequest
 ): GestureFeedbackResponse | null {
-  const learnerMessage = normalizeFeedbackText(candidate.learnerMessage, MAX_LEARNER_MESSAGE_LENGTH);
+  const generatedLearnerMessage = normalizeFeedbackText(candidate.learnerMessage, 140);
   const teacherNote = normalizeFeedbackText(candidate.teacherNote, MAX_TEACHER_NOTE_LENGTH);
 
-  if (!learnerMessage || !teacherNote) return null;
-  if (isUnsafeFeedbackText(learnerMessage) || isUnsafeFeedbackText(teacherNote)) return null;
-  if (!isGroundedFeedbackText(`${learnerMessage} ${teacherNote}`, request)) return null;
+  if (!generatedLearnerMessage || !teacherNote) return null;
+  if (isUnsafeFeedbackText(generatedLearnerMessage) || isUnsafeFeedbackText(teacherNote)) return null;
+  if (!isContinuousTeacherNote(teacherNote)) return null;
+  if (!isGroundedFeedbackText(`${generatedLearnerMessage} ${teacherNote}`, request)) return null;
 
   return {
     source: "gemini",
     issueCategory: request.issueCategory,
-    learnerMessage,
+    // Learner-facing copy stays deterministic and easy to understand. Generated
+    // feedback is reserved for the more detailed teacher note.
+    learnerMessage: createLearnerGestureMessage(request.issueCategory),
     teacherNote
   };
+}
+
+/** Short, consistent prompts for learners who may have limited reading comprehension. */
+export function createLearnerGestureMessage(issueCategory: GestureFeedbackIssueCategory) {
+  const messages: Record<GestureFeedbackIssueCategory, string> = {
+    correct: "Great job!",
+    "hand-not-visible": "Hands in the box.",
+    "too-many-hands": "Only your hands.",
+    "low-confidence": "Try again slowly.",
+    "wrong-gesture": "Try again.",
+    "unclear-movement": "Try again slowly.",
+    "hand-count-mismatch": "Copy the example.",
+    "hand-shape-mismatch": "Copy the hand shape.",
+    "palm-orientation-mismatch": "Turn your hand.",
+    "motion-direction-mismatch": "Move the same way."
+  };
+
+  return messages[issueCategory];
 }
 
 export function simplifyGestureLabel(label: string) {
@@ -229,6 +247,12 @@ function normalizeFeedbackText(value: unknown, maxLength: number) {
 
 function isUnsafeFeedbackText(value: string) {
   return UNSAFE_FEEDBACK_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function isContinuousTeacherNote(value: string) {
+  // Reject label-like generated copy such as "Observation:" or "Next cue:".
+  // The route will use the sentence-based template fallback instead.
+  return !/[:;\u2022]/.test(value) && !/(^|\s)[*-]\s/.test(value);
 }
 
 function isGroundedFeedbackText(value: string, request: GestureFeedbackRequest) {

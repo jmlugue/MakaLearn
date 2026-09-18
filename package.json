@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "next lint",
+    "validate:materials": "node scripts/validate-learning-materials.mjs",
     "supabase:migrate-learning-media": "node scripts/upload-learning-media.mjs",
     "supabase:migrate-learning-media:dry-run": "node scripts/upload-learning-media.mjs --dry-run",
     "test:feedback": "node scripts/test-gesture-feedback.mjs",

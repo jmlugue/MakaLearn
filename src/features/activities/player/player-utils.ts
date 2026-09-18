@@ -110,7 +110,7 @@ export function getCorrectResultListenItems(
 }
 
 export function getSymbolOptionValue(item: LearningItem) {
-  return item.symbolImageUrl ?? item.label;
+  return item.id;
 }
 
 export function seededRandom(seed: number) {

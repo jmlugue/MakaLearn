@@ -105,28 +105,68 @@ export function ensurePecsManifestCategories(records: Category[]) {
   return records;
 }
 
+function getManifestCard(label: string) {
+  const normalizedLabel = normalizePecsLabel(label);
+  return pecsCardManifest.find((card) => normalizePecsLabel(card.label) === normalizedLabel);
+}
+
+function getManifestItemId(filename: string) {
+  return `pecs-${filename.replace(/\.[^.]+$/i, "").replace(/_/g, "-")}`;
+}
+
+function getPecsItemPreference(item: LearningItem) {
+  const card = getManifestCard(item.label);
+  let score = 0;
+
+  // A usable image matters most. The canonical manifest ID breaks ties between
+  // old seed rows such as item-eat and the current pecs-eat record.
+  if (isEmbeddableMediaUrl(item.symbolImageUrl)) score += 100;
+  if (card && item.id === getManifestItemId(card.filename)) score += 50;
+  if (isEmbeddableMediaUrl(item.audioUrl) || isSpeechFallbackAudio(item.audioUrl)) score += 10;
+  if (card && item.categoryId === getPecsCategoryId(card.category)) score += 5;
+
+  return score;
+}
+
+function upgradePecsItem(item: LearningItem) {
+  if (item.contentType !== "pecs") return item;
+
+  const card = getManifestCard(item.label);
+  if (!card) return item;
+
+  return {
+    ...item,
+    description: isGenericPecsDescription(item.description) ? createPecsDescription(card.label, card.category) : item.description,
+    symbolImageUrl: isEmbeddableMediaUrl(item.symbolImageUrl) ? item.symbolImageUrl : undefined,
+    audioUrl: isEmbeddableMediaUrl(item.audioUrl) || isSpeechFallbackAudio(item.audioUrl) ? item.audioUrl : undefined,
+    sentenceRole: item.sentenceRole ?? card.sentenceRole,
+    tags: uniqueTags([...item.tags, "pecs", "playground", card.category.toLowerCase(), card.sentenceRole])
+  };
+}
+
 export function ensurePecsManifestItems(records: LearningItem[]) {
-  const itemByLabel = new Map(
-    records
-      .filter((item) => item.contentType === "pecs")
-      .map((item) => [normalizePecsLabel(item.label), item])
-  );
+  const deduplicated: LearningItem[] = [];
+  const pecsIndexByLabel = new Map<string, number>();
 
-  const upgradedRecords = records.map((item) => {
-    if (item.contentType !== "pecs") return item;
+  for (const sourceItem of records) {
+    const item = upgradePecsItem(sourceItem);
+    if (item.contentType !== "pecs") {
+      deduplicated.push(item);
+      continue;
+    }
 
-    const card = pecsCardManifest.find((candidate) => normalizePecsLabel(candidate.label) === normalizePecsLabel(item.label));
-    if (!card) return item;
+    const labelKey = normalizePecsLabel(item.label);
+    const existingIndex = pecsIndexByLabel.get(labelKey);
+    if (existingIndex === undefined) {
+      pecsIndexByLabel.set(labelKey, deduplicated.length);
+      deduplicated.push(item);
+      continue;
+    }
 
-    return {
-      ...item,
-      description: isGenericPecsDescription(item.description) ? createPecsDescription(card.label, card.category) : item.description,
-      symbolImageUrl: isEmbeddableMediaUrl(item.symbolImageUrl) ? item.symbolImageUrl : undefined,
-      audioUrl: isEmbeddableMediaUrl(item.audioUrl) || isSpeechFallbackAudio(item.audioUrl) ? item.audioUrl : undefined,
-      sentenceRole: item.sentenceRole ?? card.sentenceRole,
-      tags: uniqueTags([...item.tags, "pecs", "playground", card.category.toLowerCase(), card.sentenceRole])
-    };
-  });
+    if (getPecsItemPreference(item) > getPecsItemPreference(deduplicated[existingIndex])) {
+      deduplicated[existingIndex] = item;
+    }
+  }
 
-  return upgradedRecords.filter((item) => itemByLabel.has(normalizePecsLabel(item.label)) || item.contentType !== "pecs");
+  return deduplicated;
 }

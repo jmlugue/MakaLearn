@@ -28,6 +28,8 @@ values
   ('cat-needs', 'Needs', 'Placeholder words for everyday requests and support.', '#dcfce7', (select id from public.profiles where email = 'teacher@makalearn.local')),
   ('cat-feelings', 'Feelings', 'Placeholder words for emotional check-ins.', '#fee2e2', (select id from public.profiles where email = 'admin@makalearn.local')),
   ('cat-choices', 'Choices', 'Placeholder words for quick answers.', '#fef3c7', (select id from public.profiles where email = 'admin@makalearn.local')),
+  ('cat-pecs-greetings', 'Greetings', 'PECS/AAC cards for greetings practice.', '#dbeafe', (select id from public.profiles where email = 'admin@makalearn.local')),
+  ('cat-pecs-food', 'Food', 'PECS/AAC cards for food practice.', '#dcfce7', (select id from public.profiles where email = 'admin@makalearn.local')),
   ('cat-gestures', 'Fixed gestures', 'The seven placeholder gesture cards used by gesture recognition.', '#dcfce7', (select id from public.profiles where email = 'admin@makalearn.local'))
 on conflict (id) do nothing;
 
@@ -46,8 +48,9 @@ insert into public.learning_items (
   created_by
 )
 values
-  ('item-eat', 'pecs', 'Eat', 'cat-needs', 'A classroom request used around snack or lunch.', 'Pair the spoken word with a picture prompt and gesture practice.', 'https://tjqwyogtawkhyviljzrr.supabase.co/storage/v1/object/public/symbol-images/learning-content/pecs/generated-cards/eat.png', null, null, array['needs', 'food', 'placeholder'], 'verb', (select id from public.profiles where email = 'teacher@makalearn.local')),
-  ('item-drink', 'pecs', 'Drink', 'cat-needs', 'A request for water or another drink.', 'Use a real cup or photo card as a prompt.', 'https://tjqwyogtawkhyviljzrr.supabase.co/storage/v1/object/public/symbol-images/learning-content/pecs/generated-cards/drink.png', null, null, array['needs', 'drink', 'placeholder'], 'object', (select id from public.profiles where email = 'admin@makalearn.local')),
+  ('pecs-hello', 'pecs', 'Hello', 'cat-pecs-greetings', 'Use when greeting someone or starting a classroom interaction.', 'Use this card during teacher-guided PECS/AAC sentence building and classroom routines.', 'https://tjqwyogtawkhyviljzrr.supabase.co/storage/v1/object/public/symbol-images/learning-content/pecs/generated-cards/hello.png', null, null, array['pecs', 'greetings', 'placeholder'], 'greeting', (select id from public.profiles where email = 'teacher@makalearn.local')),
+  ('pecs-eat', 'pecs', 'Eat', 'cat-pecs-food', 'Use when the learner wants to eat or is talking about meal routines.', 'Use this card during teacher-guided PECS/AAC sentence building and classroom routines.', 'https://tjqwyogtawkhyviljzrr.supabase.co/storage/v1/object/public/symbol-images/learning-content/pecs/generated-cards/eat.png', null, null, array['pecs', 'food', 'placeholder'], 'verb', (select id from public.profiles where email = 'teacher@makalearn.local')),
+  ('pecs-drink', 'pecs', 'Drink', 'cat-pecs-food', 'Use when the learner wants a drink or is talking about drink choices.', 'Use this card during teacher-guided PECS/AAC sentence building and classroom routines.', 'https://tjqwyogtawkhyviljzrr.supabase.co/storage/v1/object/public/symbol-images/learning-content/pecs/generated-cards/drink.png', null, null, array['pecs', 'food', 'placeholder'], 'verb', (select id from public.profiles where email = 'admin@makalearn.local')),
   ('gesture-toilet', 'gesture', 'I want to go to toilet', 'cat-gestures', 'Fixed demo gesture for requesting the toilet.', 'Show the reference, start the camera, and check that both hands remain visible.', null, null, null, array['gesture', 'fixed', 'demo'], null, (select id from public.profiles where email = 'admin@makalearn.local')),
   ('gesture-eat-food', 'gesture', 'I want to eat food', 'cat-gestures', 'Fixed demo gesture for requesting food.', 'Keep the learner centered and check that the live hand outline follows the movement.', null, null, null, array['gesture', 'fixed', 'demo'], null, (select id from public.profiles where email = 'admin@makalearn.local')),
   ('gesture-drink-water', 'gesture', 'I want to drink water', 'cat-gestures', 'Fixed demo gesture for requesting water.', 'Use the hand visibility indicator before giving corrective feedback.', null, null, null, array['gesture', 'fixed', 'demo'], null, (select id from public.profiles where email = 'admin@makalearn.local')),
@@ -91,8 +94,8 @@ on conflict (id) do nothing;
 
 insert into public.lesson_items (lesson_id, learning_item_id, position)
 values
-  ('lesson-needs', 'item-eat', 0),
-  ('lesson-needs', 'item-drink', 1)
+  ('lesson-needs', 'pecs-eat', 0),
+  ('lesson-needs', 'pecs-drink', 1)
 on conflict (lesson_id, learning_item_id) do nothing;
 
 insert into public.activities (
@@ -105,15 +108,15 @@ insert into public.activities (
   created_by
 )
 values
-  ('activity-match', 'Match Words to Placeholder Symbols', 'match-word-symbol', 'Pick the matching placeholder symbol for each word.', array['pecs-hello', 'item-eat', 'item-drink'], 'shared', (select id from public.profiles where email = 'teacher@makalearn.local')),
-  ('activity-choice', 'Choose the Correct Symbol', 'choose-correct-symbol', 'Listen to the teacher prompt and choose the correct placeholder symbol.', array['pecs-hello', 'item-eat', 'item-drink'], 'shared', (select id from public.profiles where email = 'admin@makalearn.local'))
+  ('activity-match', 'Match Words to Placeholder Symbols', 'match-word-symbol', 'Pick the matching placeholder symbol for each word.', array['pecs-hello', 'pecs-eat', 'pecs-drink'], 'shared', (select id from public.profiles where email = 'teacher@makalearn.local')),
+  ('activity-choice', 'Choose the Correct Symbol', 'choose-correct-symbol', 'Listen to the teacher prompt and choose the correct placeholder symbol.', array['pecs-hello', 'pecs-eat', 'pecs-drink'], 'shared', (select id from public.profiles where email = 'admin@makalearn.local'))
 on conflict (id) do nothing;
 
 insert into public.activity_items (id, activity_id, prompt, answer, options, learning_item_id, position)
 values
-  ('q-match-hello', 'activity-match', 'Hello', 'Hello', array['Hello', 'Eat', 'Drink'], 'pecs-hello', 0),
-  ('q-match-eat', 'activity-match', 'Eat', 'Eat', array['Hello', 'Eat', 'Drink'], 'item-eat', 1),
-  ('q-choice-drink', 'activity-choice', 'Choose Drink', 'Drink', array['Hello', 'Eat', 'Drink'], 'item-drink', 0)
+  ('q-match-hello', 'activity-match', 'Hello', 'pecs-hello', array['pecs-hello', 'pecs-eat', 'pecs-drink'], 'pecs-hello', 0),
+  ('q-match-eat', 'activity-match', 'Eat', 'pecs-eat', array['pecs-hello', 'pecs-eat', 'pecs-drink'], 'pecs-eat', 1),
+  ('q-choice-drink', 'activity-choice', 'Choose Drink', 'pecs-drink', array['pecs-hello', 'pecs-eat', 'pecs-drink'], 'pecs-drink', 0)
 on conflict (id) do nothing;
 
 insert into public.audit_logs (

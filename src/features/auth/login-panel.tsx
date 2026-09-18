@@ -106,24 +106,11 @@ export function LoginPanel() {
     }
   }
 
-  async function resetPassword() {
+  function resetPassword() {
     setFormError("");
-    if (!email.includes("@")) {
-      setErrors((current) => ({ ...current, email: "Enter your account email first." }));
-      return;
-    }
-
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
-      notify({ title: "Password reset unavailable", description: "Ask an administrator to finish account setup." });
-      return;
-    }
-
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
     notify({
-      title: error ? "Reset email failed" : "Password reset email sent",
-      description: error ? "Password reset could not be started. Try again." : "Check the email inbox configured for this account.",
-      tone: error ? "error" : "success"
+      title: "Contact your administrator",
+      description: "Please contact your MakaLearn administrator to reset your password."
     });
   }
 

@@ -9,7 +9,7 @@ type ResetPasswordRequest = {
   password?: unknown;
 };
 
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 
 export async function POST(request: Request) {
   let body: ResetPasswordRequest;

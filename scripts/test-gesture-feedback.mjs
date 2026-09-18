@@ -96,7 +96,8 @@ const localPalmRequest = buildGestureFeedbackRequest({
   localIssueCategory: "palm-orientation-mismatch"
 });
 assert.equal(localPalmRequest.issueCategory, "palm-orientation-mismatch");
-assert.match(createTemplateGestureFeedback(localPalmRequest).learnerMessage, /palm sideways/i);
+assert.equal(createTemplateGestureFeedback(localPalmRequest).learnerMessage, "Turn your hand.");
+assert.match(createTemplateGestureFeedback(localPalmRequest).teacherNote, /palm sideways/i);
 
 const freePracticeRequest = buildGestureFeedbackRequest({
   selectedGestureLabel: "Help",
@@ -117,6 +118,18 @@ const valid = validateGeminiGestureFeedback(
   request
 );
 assert.equal(valid?.source, "gemini");
+assert.equal(valid?.learnerMessage, "Great job!");
+
+assert.equal(
+  validateGeminiGestureFeedback(
+    {
+      learnerMessage: "Try again.",
+      teacherNote: "Observation: the hand shape was unclear. Next cue: ask the learner to slow down."
+    },
+    request
+  ),
+  null
+);
 
 assert.equal(validateGeminiGestureFeedback({ learnerMessage: "Nice work." }, request), null);
 assert.equal(
@@ -270,7 +283,21 @@ const noPalmWithEatHintRequest = buildGestureFeedbackRequest({
   localFeedbackHint: movingBackhandNoResult.feedback,
   localIssueCategory: movingBackhandNoResult.issueCategory
 });
-assert.match(createTemplateGestureFeedback(noPalmWithEatHintRequest).learnerMessage, /tilt your hand slightly/i);
+assert.equal(createTemplateGestureFeedback(noPalmWithEatHintRequest).learnerMessage, "Turn your hand.");
+assert.match(createTemplateGestureFeedback(noPalmWithEatHintRequest).teacherNote, /tilt your hand slightly/i);
+
+const wrongGestureRequest = buildGestureFeedbackRequest({
+  selectedGestureLabel: "No",
+  feedbackTargetLabel: "No",
+  prediction: { label: "Yes", matchPercent: 91 },
+  detectedHandCount: 1,
+  expectedHandCount: 1,
+  trackingState: "hands-visible"
+});
+const wrongGestureFeedback = createTemplateGestureFeedback(wrongGestureRequest);
+assert.equal(wrongGestureFeedback.learnerMessage, "Try again.");
+assert.match(wrongGestureFeedback.teacherNote, /predicted Yes/i);
+assert.doesNotMatch(wrongGestureFeedback.learnerMessage, /looked like|show no/i);
 
 const drinkReversedResult = applyBasicGesturePredictionGuards(
   { label: "I want to drink water", pose: "Drinking gesture", fingers: [], handCount: 1, matchPercent: 94 },
@@ -353,7 +380,8 @@ try {
   };
   const palmFeedbackResponse = await (await postRoute(noPalmWithEatHintRequest)).json();
   assert.equal(palmFeedbackResponse.source, "template");
-  assert.match(palmFeedbackResponse.learnerMessage, /trying to sign eat, tilt your hand slightly/i);
+  assert.equal(palmFeedbackResponse.learnerMessage, "Turn your hand.");
+  assert.match(palmFeedbackResponse.teacherNote, /trying to sign eat, tilt your hand slightly/i);
   assert.equal(palmFeedbackFetchCalled, false);
 
   mockGeminiText("not-json");

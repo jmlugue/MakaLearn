@@ -65,12 +65,41 @@ export function findLearningItemForActivityValue(value: string, learningItems: L
   return undefined;
 }
 
-export function resolveActivitySymbolValue(value: string, learningItems: LearningItem[], relatedItem?: LearningItem) {
-  if (isEmbeddableActivityMediaUrl(value)) return value;
-  if (relatedItem?.symbolImageUrl) return relatedItem.symbolImageUrl;
+function findCanonicalVersion(item: LearningItem, learningItems: LearningItem[]) {
+  return learningItems.find(
+    (candidate) =>
+      candidate.contentType === item.contentType &&
+      normalizeLookupValue(candidate.label) === normalizeLookupValue(item.label)
+  );
+}
 
-  const item = findLearningItemForActivityValue(value, learningItems);
-  return item?.symbolImageUrl ?? value.trim();
+export function resolveCanonicalLearningItemId(
+  learningItemId: string,
+  learningItems: LearningItem[],
+  sourceLearningItems: LearningItem[] = learningItems
+) {
+  if (learningItems.some((item) => item.id === learningItemId)) return learningItemId;
+
+  const sourceItem = sourceLearningItems.find((item) => item.id === learningItemId);
+  return sourceItem ? findCanonicalVersion(sourceItem, learningItems)?.id ?? learningItemId : learningItemId;
+}
+
+export function resolveActivitySymbolValue(
+  value: string,
+  learningItems: LearningItem[],
+  relatedItem?: LearningItem,
+  sourceLearningItems: LearningItem[] = learningItems
+) {
+  if (relatedItem?.symbolImageUrl) return relatedItem.id;
+
+  const currentItem = findLearningItemForActivityValue(value, learningItems);
+  if (currentItem?.symbolImageUrl) return currentItem.id;
+
+  const sourceItem = findLearningItemForActivityValue(value, sourceLearningItems);
+  const canonicalItem = sourceItem ? findCanonicalVersion(sourceItem, learningItems) : undefined;
+  if (canonicalItem?.symbolImageUrl) return canonicalItem.id;
+
+  return value.trim();
 }
 
 export function getActivityDisplayLabel(value: string, learningItems: LearningItem[]) {
@@ -82,16 +111,29 @@ function uniqueValues(values: string[]) {
   return values.filter((value, index) => value && values.indexOf(value) === index);
 }
 
-export function normalizeActivitySymbolQuestions(activity: Activity, learningItems: LearningItem[]): Activity {
-  if (!activityUsesSymbolOptions(activity.type)) return activity;
+export function normalizeActivitySymbolQuestions(
+  activity: Activity,
+  learningItems: LearningItem[],
+  sourceLearningItems: LearningItem[] = learningItems
+): Activity {
+  const learningItemIds = uniqueValues(
+    activity.learningItemIds.map((id) => resolveCanonicalLearningItemId(id, learningItems, sourceLearningItems))
+  );
+  const questions = activity.questions.map((question) => {
+    const learningItemId = resolveCanonicalLearningItemId(question.learningItemId, learningItems, sourceLearningItems);
+    return { ...question, learningItemId };
+  });
+
+  if (!activityUsesSymbolOptions(activity.type)) return { ...activity, learningItemIds, questions };
 
   return {
     ...activity,
-    questions: activity.questions.map((question) => {
+    learningItemIds,
+    questions: questions.map((question) => {
       const relatedItem = learningItems.find((item) => item.id === question.learningItemId);
-      const answer = resolveActivitySymbolValue(question.answer, learningItems, relatedItem);
+      const answer = resolveActivitySymbolValue(question.answer, learningItems, relatedItem, sourceLearningItems);
       const options = uniqueValues([
-        ...question.options.map((option) => resolveActivitySymbolValue(option, learningItems)),
+        ...question.options.map((option) => resolveActivitySymbolValue(option, learningItems, undefined, sourceLearningItems)),
         answer
       ]);
 

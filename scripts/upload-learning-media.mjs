@@ -204,8 +204,16 @@ function matchingRows(existingItems, label, contentType, fallbackId) {
   const matches = existingItems.filter(
     (item) => item.content_type === contentType && normalizeLabel(item.label) === normalized
   );
+  const canonical = matches.find((item) => item.id === fallbackId);
+  const metadataSource = canonical ?? matches[0];
 
-  return matches.length ? matches : [{ id: fallbackId, created_by: undefined, tags: [] }];
+  // Upload each manifest entry into one stable record. Older versions updated
+  // every same-label row, which kept item-eat and pecs-eat alive together.
+  return [{
+    id: fallbackId,
+    created_by: metadataSource?.created_by,
+    tags: metadataSource?.tags ?? []
+  }];
 }
 
 function createPecsDescription(label, category) {

@@ -40,7 +40,10 @@ import {
   upsertActivityPromptTemplates
 } from "@/lib/supabase/app-data";
 import { buildDefaultActivityPrompt, canDraftQuestionPrompts } from "@/utils/activity-ai-draft";
-import { normalizeActivitySymbolQuestions } from "@/utils/activity-symbol-options";
+import {
+  normalizeActivitySymbolQuestions,
+  resolveCanonicalLearningItemId
+} from "@/utils/activity-symbol-options";
 import { activityPlayHref, findLessonActivity } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories } from "@/utils/pecs-content-library";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
@@ -101,12 +104,27 @@ export function ActivitiesView() {
     fetchMakaLearnData()
       .then((data) => {
         if (!active) return;
-        const nextItems = getActivityItems(upgradeStarterLearningItemPrompts(data.learningItems));
+        const sourceItems = upgradeStarterLearningItemPrompts(data.learningItems);
+        const nextItems = getActivityItems(sourceItems);
         setLearningItems(nextItems);
-        setActivities(upgradeStarterActivityPrompts(data.activities).map((activity) => normalizeActivitySymbolQuestions(activity, nextItems)));
+        setActivities(
+          upgradeStarterActivityPrompts(data.activities).map((activity) =>
+            normalizeActivitySymbolQuestions(activity, nextItems, sourceItems)
+          )
+        );
         setLessons(data.lessons);
         setCategories(ensurePecsManifestCategories(data.categories));
-        setPromptStore(Object.fromEntries(data.promptTemplates.map((template) => [getPromptStoreKey(template.activityType, template.learningItemId), template.prompt])));
+        setPromptStore(
+          Object.fromEntries(
+            data.promptTemplates.map((template) => [
+              getPromptStoreKey(
+                template.activityType,
+                resolveCanonicalLearningItemId(template.learningItemId, nextItems, sourceItems)
+              ),
+              template.prompt
+            ])
+          )
+        );
       })
       .catch(() => {
         if (!active) return;

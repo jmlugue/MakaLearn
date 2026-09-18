@@ -9,7 +9,8 @@ import {
   RotateCcw,
   Shuffle,
   Star,
-  Volume2
+  Volume2,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import {
 } from "@/data/pecs-card-manifest";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { validatePecsSentence, type PecsSentenceValidationResult } from "@/utils/pecs-sentence-validation";
+import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import type { LearningItem } from "@/types";
 
 type PlaygroundCard = PecsManifestCard & {
@@ -47,7 +49,7 @@ function getPecsItems(items: LearningItem[]) {
 function buildPlaygroundCards(items: LearningItem[]): PlaygroundCard[] {
   const manifestByLabel = new Map(pecsCardManifest.map((card) => [normalizePecsLabel(card.label), card]));
 
-  return getPecsItems(items)
+  return getPecsItems(ensurePecsManifestItems(items))
     .flatMap((item) => {
       if (!item.symbolImageUrl || !isEmbeddableMediaUrl(item.symbolImageUrl)) return [];
 
@@ -390,23 +392,29 @@ export function PlaygroundView() {
                     {sentenceCards.length ? (
                       <div className={`${sentenceCanvasClass} flex flex-wrap items-center justify-center ${isStudentMode ? "gap-2 sm:gap-3" : "gap-2"}`}>
                         {sentenceCards.map((card, index) => (
-                          <button
+                          <div
                             key={`${card.id}-${index}`}
-                            type="button"
                             draggable
-                            onClick={() => removeCard(index)}
                             onDragStart={() => setDraggedSentenceIndex(index)}
                             onDragEnd={() => setDraggedSentenceIndex(null)}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleSentenceDrop(event, index)}
-                            aria-label={`Remove ${card.label} from sentence`}
-                            className={`${getDropAreaCardClass(sentenceCards.length)} grid min-w-14 place-items-center rounded-lg border border-blue-100 bg-white p-1.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft sm:min-w-20`}
+                            className={`${getDropAreaCardClass(sentenceCards.length)} relative grid min-w-14 cursor-grab place-items-center rounded-lg border border-blue-100 bg-white p-1.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft active:cursor-grabbing sm:min-w-20`}
                           >
+                            <button
+                              type="button"
+                              onClick={() => removeCard(index)}
+                              aria-label={`Remove ${card.label} from sentence`}
+                              title={`Remove ${card.label}`}
+                              className="absolute right-1.5 top-1.5 z-10 grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-red-600 text-white shadow-md transition hover:scale-105 hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-200"
+                            >
+                              <X className="h-5 w-5" strokeWidth={3} aria-hidden="true" />
+                            </button>
                             <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={card.imageUrl} alt={`${card.label} selected card`} className="h-full w-full object-contain" />
                             </div>
-                          </button>
+                          </div>
                         ))}
                       </div>
                     ) : (
