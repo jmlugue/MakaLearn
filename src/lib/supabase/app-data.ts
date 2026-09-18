@@ -960,14 +960,12 @@ export function createActivityQuestions(
     const choiceItems = [item, ...eligibleOptions.filter((candidate) => candidate.id !== item.id)].slice(0, 3);
     const rotation = choiceItems.length ? index % choiceItems.length : 0;
     const rotatedChoices = [...choiceItems.slice(rotation), ...choiceItems.slice(0, rotation)];
-    const options = rotatedChoices.map((candidate) =>
-      usesSymbolOptions ? candidate.symbolImageUrl ?? candidate.label : candidate.label
-    );
+    const options = rotatedChoices.map((candidate) => usesSymbolOptions ? candidate.id : candidate.label);
 
     return {
       id: `q-${Date.now()}-${item.id}`,
       prompt: createAdaptivePrompt(type, item, promptOverrides),
-      answer: usesSymbolOptions ? item.symbolImageUrl ?? item.label : item.label,
+      answer: usesSymbolOptions ? item.id : item.label,
       options,
       learningItemId: item.id
     };

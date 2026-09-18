@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
@@ -28,8 +28,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading, error } = useAuthState();
-  const { isStudentMode, exitStudentMode } = useStudentMode();
-  const [studentNavOpen, setStudentNavOpen] = useState(false);
+  const { isStudentMode, isStudentNavOpen, exitStudentMode, openStudentNav, closeStudentNav } = useStudentMode();
   useEffect(() => {
     if (!loading && !user && !error) {
       router.replace("/login");
@@ -47,10 +46,6 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
       router.replace(user.role === "admin" ? "/admin" : "/content");
     }
   }, [isStudentMode, loading, pathname, router, user]);
-
-  useEffect(() => {
-    setStudentNavOpen(isStudentMode);
-  }, [isStudentMode]);
 
   function handleExitStudentMode() {
     exitStudentMode();
@@ -99,15 +94,15 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
         <>
           <button
             type="button"
-            onClick={() => setStudentNavOpen(true)}
+            onClick={openStudentNav}
             className="fixed left-4 top-3 z-[90] rounded-2xl shadow-[0_12px_30px_rgba(37,99,235,0.18)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100"
             aria-label="Open student navigation"
-            aria-expanded={studentNavOpen}
+            aria-expanded={isStudentNavOpen}
           >
             <BrandLogo markClassName="h-12 w-12 rounded-2xl" />
           </button>
-          {studentNavOpen ? (
-            <div className="fixed inset-0 z-[100] bg-slate-950/35 backdrop-blur-sm" role="presentation" onClick={() => setStudentNavOpen(false)}>
+          {isStudentNavOpen ? (
+            <div className="fixed inset-0 z-[100] bg-slate-950/35 backdrop-blur-sm" role="presentation" onClick={closeStudentNav}>
               <aside
                 className="glass-panel-strong absolute bottom-3 left-3 top-3 flex w-72 max-w-[calc(100vw-1.5rem)] flex-col rounded-[1.75rem] border p-4 shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
                 aria-label="Student navigation"
@@ -116,7 +111,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
                 <div className="mb-3 flex justify-end">
                   <button
                     type="button"
-                    onClick={() => setStudentNavOpen(false)}
+                    onClick={closeStudentNav}
                     className="grid h-11 w-11 place-items-center rounded-full border border-blue-100 bg-white text-blue-700 shadow-sm transition hover:bg-skywash"
                     aria-label="Close student navigation"
                   >
@@ -126,7 +121,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
                 <StudentNavigationContent
                   pathname={pathname}
                   onExit={handleExitStudentMode}
-                  onNavigate={() => setStudentNavOpen(false)}
+                  onNavigate={closeStudentNav}
                 />
               </aside>
             </div>

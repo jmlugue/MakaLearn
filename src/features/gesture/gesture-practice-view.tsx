@@ -90,7 +90,7 @@ const NO_HANDS_AUTO_PREDICT_DELAY_MS = 1000;
 const STABLE_POSE_AUTO_PREDICT_DELAY_MS = 2000;
 const MIN_CONFIDENT_PREDICTION_PERCENT = 70;
 const READY_GESTURE_HOLD_MS = 600;
-const GUIDED_FEEDBACK_DELAY_MS = 2200;
+const GUIDED_SUCCESS_DELAY_MS = 2200;
 
 const fixedGestureLabels = new Set([
   "I want to go to toilet",
@@ -219,6 +219,9 @@ export function GesturePracticeView() {
   const recognizedGesture = Boolean(prediction);
   const guidedTarget = guidedQueue[guidedIndex];
   const guidedSummary = summarizeGuidedResults(guidedResults);
+  const guidedFeedbackCorrect = Boolean(
+    guidedPhase === "feedback" && prediction && guidedTarget && labelsMatch(prediction.label, guidedTarget.label)
+  );
 
   useEffect(() => {
     showHandLandmarksRef.current = showHandLandmarks;
@@ -490,6 +493,14 @@ export function GesturePracticeView() {
     setStatusMessage("");
     setGuidedPhaseValue("feedback");
 
+    if (correct) {
+      clearCorrectiveFeedback();
+      setGuidedFeedbackTitle("Great job!");
+      setGuidedFeedbackDetail("You did it.");
+      scheduleGuidedAction(advanceGuidedSession, GUIDED_SUCCESS_DELAY_MS);
+      return;
+    }
+
     void requestCorrectiveFeedback(
       feedbackPrediction ?? nextPrediction,
       capturedHandCount,
@@ -498,21 +509,8 @@ export function GesturePracticeView() {
       feedbackIssueCategory,
       target.label
     );
-
-    if (correct) {
-      setGuidedFeedbackTitle("Great job!");
-      setGuidedFeedbackDetail(`${getLearnerCardLabel(target.label)} was recognized.`);
-      scheduleGuidedAction(advanceGuidedSession, GUIDED_FEEDBACK_DELAY_MS);
-      return;
-    }
-
-    setGuidedFeedbackTitle("Try that one again");
-    setGuidedFeedbackDetail(
-      feedbackPrediction
-        ? `That looked like ${getLearnerCardLabel(feedbackPrediction.label)}. Show ${getLearnerCardLabel(target.label)}.`
-        : `Keep your hands clear in the camera and show ${getLearnerCardLabel(target.label)}.`
-    );
-    scheduleGuidedAction(() => openGuidedCapture(true), GUIDED_FEEDBACK_DELAY_MS + 500);
+    setGuidedFeedbackTitle("Try again");
+    setGuidedFeedbackDetail("");
   }
 
   async function prepareHandTracker() {
@@ -686,10 +684,14 @@ export function GesturePracticeView() {
   }
 
   function clearPrediction() {
-    feedbackRequestIdRef.current += 1;
     predictionCandidateRef.current = { label: null, frames: 0 };
     currentPredictionLabelRef.current = null;
     setPrediction(null);
+    clearCorrectiveFeedback();
+  }
+
+  function clearCorrectiveFeedback() {
+    feedbackRequestIdRef.current += 1;
     setCorrectiveFeedback(null);
     setFeedbackLoading(false);
   }
@@ -866,7 +868,18 @@ export function GesturePracticeView() {
     currentPredictionLabelRef.current = nextLabel;
     setPrediction(nextPrediction);
     setStatusMessage("");
-    void requestCorrectiveFeedback(feedbackPrediction, capturedHandCount, "hands-visible", feedbackOverride, feedbackIssueCategory);
+    if (nextPrediction) {
+      clearCorrectiveFeedback();
+      return;
+    }
+
+    void requestCorrectiveFeedback(
+      feedbackPrediction,
+      capturedHandCount,
+      "hands-visible",
+      feedbackOverride,
+      feedbackIssueCategory
+    );
   }
 
   async function requestCorrectiveFeedback(
@@ -875,7 +888,8 @@ export function GesturePracticeView() {
     feedbackTrackingState: GestureFeedbackTrackingState,
     localFeedbackHint?: string,
     localIssueCategory?: GestureFeedbackIssueCategory,
-    selectedTargetLabel?: string
+    selectedTargetLabel?: string,
+    forcedIssueCategory?: GestureFeedbackIssueCategory
   ) {
     if (!selectedGesture && !selectedTargetLabel) return;
 
@@ -883,7 +897,7 @@ export function GesturePracticeView() {
     feedbackRequestIdRef.current = requestId;
     const selectedLabel = selectedTargetLabel ?? selectedGesture?.label ?? "Gesture";
     const feedbackTargetLabel = selectedTargetLabel ?? feedbackPrediction?.label ?? selectedLabel;
-    const feedbackRequest = buildGestureFeedbackRequest({
+    const derivedFeedbackRequest = buildGestureFeedbackRequest({
       selectedGestureLabel: selectedLabel,
       feedbackTargetLabel,
       prediction: feedbackPrediction,
@@ -893,6 +907,11 @@ export function GesturePracticeView() {
       localFeedbackHint,
       localIssueCategory
     });
+    // Guided practice has already made its final outcome decision. Carry that
+    // decision into both feedback surfaces so the learner never sees mixed states.
+    const feedbackRequest = forcedIssueCategory
+      ? { ...derivedFeedbackRequest, issueCategory: forcedIssueCategory }
+      : derivedFeedbackRequest;
     const fallbackFeedback = createTemplateGestureFeedback(feedbackRequest);
     setCorrectiveFeedback(null);
     setFeedbackLoading(true);
@@ -1087,6 +1106,7 @@ export function GesturePracticeView() {
                     feedbackTitle={guidedFeedbackTitle}
                     feedbackDetail={guidedFeedbackDetail}
                     onReady={beginGuidedCountdown}
+                    onFeedbackAction={() => openGuidedCapture(true)}
                     onStartCamera={startCamera}
                     onSkip={skipGuidedGesture}
                     onEnd={() => setEndSessionDialogOpen(true)}
@@ -1101,21 +1121,25 @@ export function GesturePracticeView() {
                   ? guidedPhase === "complete"
                     ? "Session complete"
                     : guidedPhase === "feedback"
-                      ? guidedFeedbackTitle
+                      ? guidedFeedbackCorrect
+                        ? guidedFeedbackTitle
+                        : ""
                       : `Gesture ${Math.min(guidedIndex + 1, guidedQueue.length)} of ${guidedQueue.length}`
                   : recognizedGesture
-                    ? "Good Job"
+                    ? "Great job!"
                     : "Ready"
               }
               detail={
                 practiceMode === "guided"
                   ? guidedPhase === "feedback"
-                    ? guidedFeedbackDetail
+                    ? guidedFeedbackCorrect
+                      ? guidedFeedbackDetail
+                      : ""
                     : guidedTarget
                       ? `Show: ${getLearnerCardLabel(guidedTarget.label)}`
                       : ""
-                  : prediction
-                  ? `Recognized: ${formatRecognizedGestureDetail(prediction.label)}`
+                  : recognizedGesture
+                  ? "You did it."
                   : cameraStarted
                     ? "Keep your hands inside the box."
                     : ""
@@ -1123,7 +1147,8 @@ export function GesturePracticeView() {
               statusMessage={prediction ? "" : statusMessage}
               correctiveFeedback={correctiveFeedback}
               feedbackLoading={feedbackLoading}
-              success={practiceMode === "guided" ? guidedPhase === "feedback" && Boolean(prediction && guidedTarget && labelsMatch(prediction.label, guidedTarget.label)) : recognizedGesture}
+              success={practiceMode === "guided" ? guidedFeedbackCorrect : recognizedGesture}
+              feedbackOnly={practiceMode === "guided" && guidedPhase === "feedback" && !guidedFeedbackCorrect}
               compact={cameraFocusMode}
             />
           </div>
@@ -1380,6 +1405,7 @@ function GuidedCameraOverlay({
   feedbackTitle,
   feedbackDetail,
   onReady,
+  onFeedbackAction,
   onStartCamera,
   onSkip,
   onEnd
@@ -1393,6 +1419,7 @@ function GuidedCameraOverlay({
   feedbackTitle: string;
   feedbackDetail: string;
   onReady: () => void;
+  onFeedbackAction: () => void;
   onStartCamera: () => void;
   onSkip: () => void;
   onEnd: () => void;
@@ -1431,13 +1458,15 @@ function GuidedCameraOverlay({
             {cameraReady ? <ThumbsUp className="h-5 w-5" aria-hidden="true" /> : <Camera className="h-5 w-5" aria-hidden="true" />}
             {cameraReady ? "I’m ready" : "Start camera"}
           </Button>
-          <button
+          <Button
             type="button"
+            variant="danger"
+            size="lg"
             onClick={onEnd}
-            className="mt-3 min-h-11 px-4 text-sm font-bold text-slate-500 underline-offset-4 hover:text-slate-800 hover:underline focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200"
+            className="mt-3 w-full rounded-full"
           >
             End guided practice
-          </button>
+          </Button>
         </motion.div>
       </div>
     );
@@ -1501,7 +1530,7 @@ function GuidedCameraOverlay({
           <button
             type="button"
             onClick={onEnd}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-950/70 px-4 text-sm font-bold text-white backdrop-blur-md hover:bg-slate-900 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-400 bg-red-600 px-4 text-sm font-bold text-white shadow-lg hover:bg-red-700 focus-visible:outline focus-visible:outline-4 focus-visible:outline-red-200"
           >
             <Square className="h-4 w-4 fill-current" aria-hidden="true" />
             <span className="hidden sm:inline">End</span>
@@ -1515,13 +1544,24 @@ function GuidedCameraOverlay({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           className={cn(
             "mx-auto mb-4 max-w-lg rounded-[1.75rem] border-4 px-5 py-4 text-center shadow-2xl backdrop-blur-xl sm:px-7",
-            success ? "border-emerald-200 bg-emerald-50/95 text-emerald-950" : "border-amber-200 bg-amber-50/95 text-amber-950"
+            success ? "border-emerald-200 bg-emerald-50/95 text-emerald-950" : "border-red-300 bg-red-50/95 text-red-950"
           )}
           role="status"
           aria-live="polite"
         >
           <p className="text-2xl font-black sm:text-3xl">{feedbackTitle}</p>
-          <p className="mt-1 text-sm font-semibold leading-6 sm:text-base">{feedbackDetail}</p>
+          {feedbackDetail ? <p className="mt-1 text-sm font-semibold leading-6 sm:text-base">{feedbackDetail}</p> : null}
+          {!success ? (
+            <Button
+              type="button"
+              size="lg"
+              onClick={onFeedbackAction}
+              className="pointer-events-auto mt-4 w-full rounded-full"
+            >
+              <RotateCcw className="h-5 w-5" aria-hidden="true" />
+              Try again
+            </Button>
+          ) : null}
         </motion.div>
       ) : (
         <div className="mx-auto mb-3 rounded-full border border-white/30 bg-slate-950/70 px-5 py-2 text-sm font-black text-white backdrop-blur-md">
@@ -1669,7 +1709,7 @@ function GuidedSessionSummary({
           <RotateCw className="h-5 w-5" aria-hidden="true" />
           Try again
         </Button>
-        <Button type="button" variant="secondary" size="lg" onClick={onFreePractice}>
+        <Button type="button" variant="danger" size="lg" onClick={onFreePractice}>
           <Hand className="h-5 w-5" aria-hidden="true" />
           Free practice
         </Button>
@@ -1887,6 +1927,7 @@ function LearnerFeedbackBar({
   correctiveFeedback,
   feedbackLoading,
   success,
+  feedbackOnly = false,
   compact = false
 }: {
   stateLabel: string;
@@ -1895,8 +1936,29 @@ function LearnerFeedbackBar({
   correctiveFeedback: GestureFeedbackResponse | null;
   feedbackLoading: boolean;
   success: boolean;
+  feedbackOnly?: boolean;
   compact?: boolean;
 }) {
+  if (feedbackOnly) {
+    return (
+      <div
+        className={cn(
+          "border border-blue-100 bg-white/80 shadow-[0_14px_32px_rgba(37,99,235,0.09)]",
+          compact ? "mt-2 rounded-2xl p-3" : "mt-4 rounded-[1.75rem] p-4"
+        )}
+        role="status"
+        aria-live="polite"
+      >
+        <CorrectiveFeedbackPanel
+          feedback={correctiveFeedback}
+          loading={feedbackLoading}
+          compact={compact}
+          flush
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -1929,19 +1991,24 @@ function LearnerFeedbackBar({
 function CorrectiveFeedbackPanel({
   feedback,
   loading,
-  compact = false
+  compact = false,
+  flush = false
 }: {
   feedback: GestureFeedbackResponse | null;
   loading: boolean;
   compact?: boolean;
+  flush?: boolean;
 }) {
   if (!feedback && !loading) return null;
+
+  const learnerSuccess = feedback?.issueCategory === "correct";
 
   if (loading && !feedback) {
     return (
       <div
         className={cn(
-          "mt-3 grid place-items-center rounded-xl border border-blue-100 bg-white/85 shadow-sm",
+          "grid place-items-center rounded-xl border border-blue-100 bg-white/85 shadow-sm",
+          !flush && "mt-3",
           compact ? "min-h-16 p-3" : "min-h-20 p-4"
         )}
         role="status"
@@ -1954,11 +2021,17 @@ function CorrectiveFeedbackPanel({
   }
 
   return (
-    <div className={cn("mt-3 overflow-hidden rounded-xl border border-blue-100 bg-white/85 text-left shadow-sm", compact ? "text-sm" : "text-base")}>
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border border-blue-100 bg-white/85 text-left shadow-sm",
+        !flush && "mt-3",
+        compact ? "text-sm" : "text-base"
+      )}
+    >
       <div className="grid divide-y divide-blue-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <div className={compact ? "p-3" : "p-4"}>
-          <p className="text-[0.7rem] font-black uppercase tracking-wide text-blue-700">For learner</p>
-          <p className="mt-1 font-semibold leading-6 text-ink">
+        <div className={cn(compact ? "p-3" : "p-4", learnerSuccess ? "bg-emerald-50" : "bg-red-50")}>
+          <p className={cn("text-[0.7rem] font-black uppercase tracking-wide", learnerSuccess ? "text-emerald-700" : "text-red-700")}>For learner</p>
+          <p className={cn("mt-1 text-xl font-black leading-7", learnerSuccess ? "text-emerald-900" : "text-red-900")}>
             {feedback?.learnerMessage ?? "Preparing feedback..."}
           </p>
         </div>
@@ -2015,12 +2088,6 @@ function getLearnerCardLabel(label: string) {
   if (/sit/i.test(label)) return "Sit";
 
   return label.replace(/^I want to /i, "").trim().replace(/^./, (character) => character.toUpperCase());
-}
-
-function formatRecognizedGestureDetail(label: string) {
-  const trimmed = label.trim();
-  if (!trimmed) return "";
-  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
 function getGestureReferenceImageSrc(item: LearningItem) {

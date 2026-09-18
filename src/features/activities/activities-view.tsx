@@ -35,7 +35,8 @@ import { activityTypeLabels } from "@/utils/activity-labels";
 import {
   findLearningItemForActivityValue,
   isEmbeddableActivityMediaUrl,
-  normalizeActivitySymbolQuestions
+  normalizeActivitySymbolQuestions,
+  resolveCanonicalLearningItemId
 } from "@/utils/activity-symbol-options";
 import {
   getSavedFillBlankPromptForLabel,
@@ -243,13 +244,22 @@ export function ActivitiesView({ initialActivityType, initialActivityId }: { ini
       try {
         const data = await fetchMakaLearnData();
         if (!active) return;
-        const nextLearningItems = getActivityItems(upgradeStarterLearningItemPrompts(data.learningItems));
+        const sourceLearningItems = upgradeStarterLearningItemPrompts(data.learningItems);
+        const nextLearningItems = getActivityItems(sourceLearningItems);
         const nextActivities = upgradeStarterActivityPrompts(data.activities)
-          .map((activity) => normalizeActivitySymbolQuestions(activity, nextLearningItems));
+          .map((activity) => normalizeActivitySymbolQuestions(activity, nextLearningItems, sourceLearningItems));
         setActivities(nextActivities);
         setLearningItems(nextLearningItems);
         setActivityPromptStore(
-          Object.fromEntries(data.promptTemplates.map((template) => [getPromptStoreKey(template.activityType, template.learningItemId), template.prompt]))
+          Object.fromEntries(
+            data.promptTemplates.map((template) => [
+              getPromptStoreKey(
+                template.activityType,
+                resolveCanonicalLearningItemId(template.learningItemId, nextLearningItems, sourceLearningItems)
+              ),
+              template.prompt
+            ])
+          )
         );
         setSelectedActivityId((current) => {
           const requestedActivity = initialActivityId ? getInitialActivity(nextActivities, initialActivityId, requestedActivityType) : undefined;

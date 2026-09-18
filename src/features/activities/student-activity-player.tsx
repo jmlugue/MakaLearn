@@ -150,7 +150,7 @@ function getCorrectResultListenItems(
 }
 
 function getSymbolOptionValue(item: LearningItem) {
-  return item.symbolImageUrl ?? item.label;
+  return item.id;
 }
 
 function seededRandom(seed: number) {

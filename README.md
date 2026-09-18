@@ -25,6 +25,7 @@ Useful checks:
 ```bash
 npm run lint
 npm run build
+npm run validate:materials
 ```
 
 ## Folder structure
@@ -128,6 +129,8 @@ npm run supabase:migrate-learning-media
 ```
 
 The media migration uploads PECS card PNGs, PECS audio, fixed gesture reference images, and fixed gesture audio to the correct buckets, upserts matching `media_assets` rows, and updates `learning_items.symbol_image_url`, `learning_items.gesture_media_url`, and `learning_items.audio_url` with Supabase Storage public URLs.
+
+Run `npm run validate:materials` to perform a read-only check of manifest image files and every Supabase material reference used by activities, lessons, reusable prompts, practice attempts, and media records.
 
 Planned updates before production:
 
