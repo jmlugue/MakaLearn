@@ -1,8 +1,8 @@
 # MakaLearn session notes
 
 Handoff for the next session. `AGENTS.md` holds the long-standing coding rules and `AGENT_HANDOFF.md`
-the older project history. This file covers the Content module finish and Guide mode, and briefs the
-Activities redesign that comes next.
+the older project history. This file covers the Content module finish, Guide mode, and the Activities
+redesign (section 6).
 
 ---
 
@@ -142,45 +142,54 @@ Passing: `npx tsc --noEmit`, `npx next lint --dir src`, `npm run build` (clean `
 - The activity player end to end
 - AI activity draft (needs live Hugging Face and Gemini calls)
 
+Do not run `npm run build` or clear `.next` while a dev server is running: it breaks that server with
+"Cannot find module './NNN.js'". Stop the dev server first, or only run tsc and lint.
+
 Highest-value manual check: delete a material with "also delete its media" ticked and confirm the file
 disappears from the Media tab.
 
 ---
 
-## 6. Next session: redesign Activities
+## 6. Activities redesign (shipped, not yet verified signed in)
 
-Same treatment Content just had. **Plan first, ask questions, suggest options, then build.**
+### Lesson vs activity, settled
 
-### Current state
+**Lesson = the plan** (goal, instructions, cards). **Activity = one practice step** the learner plays.
+One PECS lesson links to at most one activity; activities can also stand alone. Gesture lessons use
+Gesture practice. Based on Julian's Jun 22 wording ("It can include an activity as one practice step"),
+his Jun 28 auto-create, and the timetable's "Open related activity or practice action".
 
-| File | Lines | Problem |
-|---|---|---|
-| `src/features/activities/activities-view.tsx` | 1,380 | Monolith: library, creator, and player controls in one file |
-| `src/features/activities/student-activity-player.tsx` | 2,084 | Monolith |
+- Lesson pop-up step 3 is now **Practice**: format picker, demo, and a **Create activity for this lesson**
+  tick (on for new and generated lessons, off when editing). A linked lesson shows "Linked: (title)".
+- No untick-to-unlink: `lessons.related_activity_id` is still missing on the live DB (section 3), so an
+  unlink would come back on reload. The link falls back to the id `activity-${lesson.id}`.
+- Lesson preview shows a Practice row and **Play activity** / **Create activity** / **Practice gesture**.
+- Shared helpers: `src/utils/lesson-activity.ts` (`findLessonActivity`, `findActivityLesson`,
+  `lessonActivityId`, `activityPlayHref`).
 
-It uses **none** of the shared UI built for Content: zero uses of `glassBoxClass`, `PopupTitle`,
-`UnderlineTabs`, or `SectionLabel`, and 17 places still use the old flat
-`rounded-lg border border-blue-100 bg-white` styling. Visually it is a generation behind Content.
+### Activities page
 
-The page opens on two large tiles, Workspace and Library, then a numbered form: step 1 choose activity
-type, step 2 pick learning items, and so on. `activityTypes` lists six values including `simple-quiz`,
-which may be legacy and is worth confirming.
+| Piece | File |
+|---|---|
+| Shell: data, URL, save, delete | `activities-view.tsx` |
+| Library: tabs All / From lessons / Mine, search, sort | `activity-library.tsx` |
+| Card with picture collage cover | `activity-card.tsx` |
+| Preview pop-up with hover demo | `activity-preview-dialog.tsx` |
+| Creator: Type, Cards (or start from a lesson), Review | `activity-form-dialog.tsx` |
+| Types, prompt helpers | `activity-helpers.ts` |
+| Full-screen teacher player + left bar (Exit, Restart, Edit) | `player/activity-player-screen.tsx` |
+| Student player, split from 2,084 lines, logic unchanged | `student-activity-player.tsx` + `player/*` |
 
-### Worth raising when planning
+- Player opens at `/activities?play=<id>` (old `?activityId=` still works). Teachers use the same game
+  player as Student mode, portaled above the sidebar. Student mode is unchanged.
+- The card picker is `MaterialsStep`, now exported from `lesson-form-dialog.tsx` with `kinds` and `max`.
+- `simple-quiz` stays. It is not in the thesis, but it does play (text choices via the generic layout).
+  The user does not want existing features removed; hide rather than delete.
 
-- Split both monoliths into a shell plus tabs and dialogs, the way Content was split.
-- Reuse `UnderlineTabs`, `glassBoxClass`, `PopupTitle`, `SectionLabel`, `CategoryPills`, and the blue
-  glass `Dialog` rather than inventing new patterns.
-- The creator is a long inline form. Content moved its equivalent into a stepped pop-up, which the user
-  preferred.
-- Connect lessons to activities properly. `lessonActivityHref` in `content-library-view.tsx` currently
-  leaves Content for `/activities?activityId=...`, which the user accepted only as a stopgap and
-  explicitly wanted revisited in this session.
-- Confirm whether `simple-quiz` is still a real type.
-- Consider a preview of what an activity does, like the hover demo in
-  `src/features/content/activity-sample.tsx`, which the user liked.
-- Guide mode: `activities.types` already has a tip and the page has a banner. Add tips for whatever new
-  controls appear, with the copy in `guide-content.ts`.
+### Not verified
+
+Never checked signed in. Worth clicking: create from a lesson, lesson tick on and off, Play from Content,
+Exit and Restart in the player, Edit from the player, delete a lesson-owned activity.
 
 ---
 

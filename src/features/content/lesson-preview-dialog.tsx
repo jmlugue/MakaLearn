@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import Link from "next/link";
-import { Clock, Hand, Pencil, PlayCircle, Trash2, User } from "lucide-react";
+import { Clock, Hand, Link2, Pencil, PlayCircle, Plus, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,35 @@ import { ActivitySample } from "@/features/content/activity-sample";
 import { AudioButton, CardImage } from "@/features/content/content-media";
 import { KindBadge, PopupTitle, SectionLabel, deleteButtonClass, glassBoxClass, kindTone } from "@/features/content/content-shared";
 import { SourceBadge } from "@/features/content/lesson-card";
-import type { ActivityType, LearningItem, Lesson } from "@/types";
+import { getActivityTypeLabel } from "@/utils/activity-labels";
+import { activityPlayHref } from "@/utils/lesson-activity";
+import type { Activity, ActivityType, LearningItem, Lesson } from "@/types";
+
+const primaryLinkClass =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-400/30 bg-gradient-to-br from-blue-600 to-indigo-600 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition hover:shadow-[0_14px_30px_rgba(37,99,235,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300";
+
+/** The lesson's practice step: its linked activity, the gesture camera, or a prompt to make one. */
+function PracticeRow({ hasPecs, activity }: { hasPecs: boolean; activity?: Activity }) {
+  const Icon = !hasPecs ? Hand : activity ? Link2 : PlayCircle;
+  return (
+    <div className={cn("flex items-center gap-3 p-3", glassBoxClass)}>
+      <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", hasPecs ? "bg-blue-100 text-blue-700" : "bg-sky-100 text-sky-700")}>
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <SectionLabel>Practice</SectionLabel>
+        <p className="truncate text-sm font-semibold text-ink">
+          {!hasPecs ? "Gesture practice" : activity ? activity.title : "No activity yet"}
+        </p>
+      </div>
+      {hasPecs && activity ? (
+        <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-blue-800">
+          {getActivityTypeLabel(activity.type)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 /** What a lesson does: materials (tap to hear), instructions, and a try-it sample of the activity. Shared by view and Review. */
 export function LessonPreviewBody({
@@ -102,8 +130,9 @@ export function LessonPreviewDialog({
   items,
   pool,
   creator,
-  activityHref,
+  activity,
   onClose,
+  onCreateActivity,
   onEdit,
   onDelete
 }: {
@@ -111,8 +140,10 @@ export function LessonPreviewDialog({
   items: LearningItem[];
   pool: LearningItem[];
   creator: string;
-  activityHref: string;
+  /** The lesson's linked activity, if it has one. */
+  activity?: Activity;
   onClose: () => void;
+  onCreateActivity: (lesson: Lesson) => void;
   onEdit: (lesson: Lesson) => void;
   onDelete: (lesson: Lesson) => void;
 }) {
@@ -137,13 +168,22 @@ export function LessonPreviewDialog({
               <Pencil className="h-4 w-4" aria-hidden="true" />
               Edit
             </Button>
-            <Link
-              href={activityHref}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-400/30 bg-gradient-to-br from-blue-600 to-indigo-600 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition hover:shadow-[0_14px_30px_rgba(37,99,235,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
-            >
-              <PlayCircle className="h-4 w-4" aria-hidden="true" />
-              {hasPecs ? "Open activity" : "Practice gesture"}
-            </Link>
+            {!hasPecs ? (
+              <Link href="/gesture-practice" className={primaryLinkClass}>
+                <Hand className="h-4 w-4" aria-hidden="true" />
+                Practice gesture
+              </Link>
+            ) : activity ? (
+              <Link href={activityPlayHref(activity.id)} className={primaryLinkClass}>
+                <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                Play activity
+              </Link>
+            ) : (
+              <Button type="button" onClick={() => onCreateActivity(lesson)}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Create activity
+              </Button>
+            )}
           </>
         ) : null
       }
@@ -154,7 +194,8 @@ export function LessonPreviewDialog({
             <LessonMeta lesson={lesson} creator={creator} />
           </PopupTitle>
           {lesson.objective ? <p className="-mt-2 text-sm leading-6 text-slate-600">{lesson.objective}</p> : null}
-          <LessonPreviewBody instructions={lesson.instructions} items={items} pool={pool} activityType={lesson.activityType} />
+          <PracticeRow hasPecs={hasPecs} activity={activity} />
+          <LessonPreviewBody instructions={lesson.instructions} items={items} pool={pool} activityType={activity?.type ?? lesson.activityType} />
         </div>
       ) : null}
     </Dialog>

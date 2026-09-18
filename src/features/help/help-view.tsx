@@ -24,13 +24,13 @@ const manualSections = [
       "Choose Generate lesson on a PECS or gesture card, or open Lessons and choose Create manual lesson.",
       "Add a clear lesson title, objective, and teaching sequence.",
       "Use Search learning items in the lesson form to find the PECS cards or gestures to include.",
-      "Save the lesson. PECS lessons create a related activity. Gesture lessons link to Gesture Practice instead."
+      "On the Practice step, pick a format and keep Create activity ticked to add the lesson's activity. Gesture lessons use Gesture Practice instead."
     ]
   },
   {
     title: "Run practice",
     steps: [
-      "For PECS lessons, choose Open activity from the saved lesson or open Activities directly.",
+      "For PECS lessons, choose Play activity from the saved lesson, or press Play on a card in Activities. The player opens full screen. The buttons on the left exit, restart, or edit.",
       "For gesture lessons, choose Practice gesture from the saved lesson. In Student Mode, use Free practice for open recognition or Guided 7 for a shuffled seven-gesture session.",
       "Guided 7 waits for a thumbs-up, counts down before each new gesture, and retries the same prompt until it is recognized or skipped.",
       "Use Playground when the learner needs to build a PECS/AAC sentence from cards.",
@@ -53,12 +53,12 @@ const faqs = [
     answer: "Gesture lessons are practised in Gesture Practice, so they do not create Activity Library records."
   },
   {
-    question: "Why does a PECS lesson create an activity automatically?",
-    answer: "PECS lessons create a related activity so the teacher can open the practice step directly from the saved lesson."
+    question: "What is the difference between a lesson and an activity?",
+    answer: "A lesson is the plan: a goal, instructions, and the cards. An activity is the practice step the learner plays. Each PECS lesson can link to one activity, and activities can also stand alone."
   },
   {
     question: "Where do I find an activity after creating it?",
-    answer: "Open Activities, then choose Activity library. New PECS lesson activities and manually created activities appear there."
+    answer: "Open Activities. Every activity is in the library. From lessons shows the ones that belong to a lesson, and Mine shows the ones you made."
   },
   {
     question: "Why is some media shown as placeholder content?",

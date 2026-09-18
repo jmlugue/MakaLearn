@@ -10,6 +10,7 @@ import { Avatar, describeActivity, formatDateTime } from "@/features/admin/admin
 import type { ContentView } from "@/features/admin/content-section";
 import { cn, formatDate } from "@/lib/utils";
 import { activityTypeLabels } from "@/utils/activity-labels";
+import { activityPlayHref } from "@/utils/lesson-activity";
 import type {
   Activity as ActivityRecord,
   ActivityResult,
@@ -776,7 +777,7 @@ export function OverviewSection({
             {topActivities.map((entry, index) => (
               <li key={entry.activity?.id}>
                 <Link
-                  href={`/activities?activityId=${entry.activity?.id}`}
+                  href={entry.activity ? activityPlayHref(entry.activity.id) : "/activities"}
                   className="group flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-blue-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
                 >
                   <span

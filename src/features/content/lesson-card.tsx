@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { getActivityTypeLabel } from "@/utils/activity-labels";
 import { CardImage } from "@/features/content/content-media";
 import { kindTone } from "@/features/content/content-shared";
-import type { LearningItem, Lesson } from "@/types";
+import type { Activity, LearningItem, Lesson } from "@/types";
 
 export function SourceBadge({ source }: { source: Lesson["source"] }) {
   return (
@@ -20,18 +20,24 @@ export function SourceBadge({ source }: { source: Lesson["source"] }) {
   );
 }
 
-/** Practice line for a lesson: its activity type when it has PECS cards, otherwise gesture practice. */
-export function PracticeLabel({ hasPecs, activityType, className }: { hasPecs: boolean; activityType: Lesson["activityType"]; className?: string }) {
+/** Practice line for a lesson: its activity's type, "No activity yet", or gesture practice. */
+export function PracticeLabel({ hasPecs, activity, className }: { hasPecs: boolean; activity?: Activity; className?: string }) {
   const Icon = hasPecs ? PlayCircle : Hand;
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-xs font-semibold", hasPecs ? "text-blue-700" : "text-sky-700", className)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-xs font-semibold",
+        !hasPecs ? "text-sky-700" : activity ? "text-blue-700" : "text-slate-400",
+        className
+      )}
+    >
       <Icon className="h-4 w-4" aria-hidden="true" />
-      {hasPecs ? getActivityTypeLabel(activityType) : "Gesture practice"}
+      {!hasPecs ? "Gesture practice" : activity ? getActivityTypeLabel(activity.type) : "No activity yet"}
     </span>
   );
 }
 
-export function LessonCard({ lesson, items, onOpen }: { lesson: Lesson; items: LearningItem[]; onOpen: () => void }) {
+export function LessonCard({ lesson, items, activity, onOpen }: { lesson: Lesson; items: LearningItem[]; activity?: Activity; onOpen: () => void }) {
   const shown = items.slice(0, 4);
   const extra = items.length - shown.length;
   const hasPecs = items.some((item) => item.contentType === "pecs");
@@ -62,7 +68,7 @@ export function LessonCard({ lesson, items, onOpen }: { lesson: Lesson; items: L
         {extra > 0 ? <span className="grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">+{extra}</span> : null}
       </span>
       <span className="mt-auto flex items-center justify-between gap-2 border-t border-blue-50 pt-3">
-        <PracticeLabel hasPecs={hasPecs} activityType={lesson.activityType} />
+        <PracticeLabel hasPecs={hasPecs} activity={activity} />
         <span className="text-xs font-semibold text-slate-400">
           {items.length} {items.length === 1 ? "material" : "materials"}
         </span>

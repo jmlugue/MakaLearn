@@ -1,0 +1,199 @@
+"use client";
+
+import { type ReactNode } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/layout/brand-logo";
+import { cn } from "@/lib/utils";
+import { activityTypeLabels } from "@/utils/activity-labels";
+import { type ActivityScore, getDisplayLabel, getPagedSymbolChoiceGridClass, getActivityBackground } from "@/features/activities/player/player-utils";
+import { StepProgress, ActivityGameTopBar, SymbolOption } from "@/features/activities/player/player-parts";
+import { ActivityResultModal } from "@/features/activities/player/activity-result";
+import type { Activity, ActivityQuestion, LearningItem } from "@/types";
+
+export function ChooseCorrectSymbolStudentLayout({
+  activity,
+  learningItems,
+  answers,
+  currentQuestionIndex,
+  hintedQuestionId,
+  isListening,
+  highlightedListenQuestionId,
+  result,
+  resultQuestionIds,
+  resultPrimaryActionLabel,
+  onResultPrimaryAction,
+  isResultListening,
+  onResultListen,
+  onHint,
+  onListen,
+  onReset,
+  onBack,
+  onNext,
+  onChooseAnswer,
+  activityNavigator
+}: {
+  activity: Activity;
+  learningItems: LearningItem[];
+  answers: Record<string, string>;
+  currentQuestionIndex: number;
+  hintedQuestionId: string;
+  isListening: boolean;
+  highlightedListenQuestionId: string;
+  result: ActivityScore | null;
+  resultQuestionIds: string[];
+  resultPrimaryActionLabel: string;
+  onResultPrimaryAction: () => void;
+  isResultListening: boolean;
+  onResultListen: () => void;
+  onHint: () => void;
+  onListen: () => void;
+  onReset: () => void;
+  onBack: () => void;
+  onNext: () => void;
+  onChooseAnswer: (question: ActivityQuestion, option: string) => void;
+  activityNavigator?: ReactNode;
+}) {
+  const totalSteps = Math.min(activity.questions.length, 5);
+  const safeQuestionIndex = Math.min(currentQuestionIndex, Math.max(totalSteps - 1, 0));
+  const currentQuestion = activity.questions[safeQuestionIndex];
+  const currentOptions = currentQuestion?.options ?? [];
+  const currentStep = safeQuestionIndex + 1;
+  const selectedAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
+  const canMoveBack = totalSteps > 1 && safeQuestionIndex > 0;
+  const canMoveNext = totalSteps > 1 && safeQuestionIndex + 1 < totalSteps;
+  const activelyRead = highlightedListenQuestionId === currentQuestion?.id;
+  const feedbackText = selectedAnswer
+    ? "Nice choice."
+    : hintedQuestionId === currentQuestion?.id
+      ? "Look for the highlighted picture."
+      : "Choose the picture that answers the question.";
+
+  return (
+    <section
+      className="fixed inset-0 z-40 grid h-screen w-screen overflow-hidden bg-[#dff5ff] p-3 sm:p-4 lg:p-5"
+      style={{
+        backgroundImage:
+          `linear-gradient(180deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), url('${getActivityBackground(activity.id)}')`,
+        backgroundPosition: "center",
+        backgroundSize: "cover"
+      }}
+    >
+      <div className="absolute right-4 top-4 z-30 sm:right-6 sm:top-5">
+        <ActivityGameTopBar
+          stacked
+          isListening={isListening}
+          onHint={onHint}
+          onListen={onListen}
+          activityNavigator={activityNavigator}
+        />
+      </div>
+      <div className="grid h-full min-h-0 grid-rows-[5rem_minmax(0,1fr)_5.5rem] gap-3 rounded-[2rem] border border-white/80 bg-white/28 p-3 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[5.5rem_minmax(0,1fr)_5.75rem] sm:gap-4 sm:p-4">
+        <header className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3 pl-16 sm:pl-20">
+            <div className="min-w-0 rounded-2xl border border-blue-100 bg-white/90 px-4 py-2 shadow-sm">
+              <p className="truncate text-base font-black text-[#10285e] sm:text-lg">{activityTypeLabels[activity.type]}</p>
+            </div>
+          </div>
+
+          <div className="hidden min-w-0 justify-center sm:flex">
+            <StepProgress currentStep={currentStep} totalSteps={totalSteps} />
+          </div>
+
+          <div aria-hidden="true" />
+        </header>
+
+        <main className="grid min-h-0 grid-rows-[minmax(5.5rem,0.48fr)_minmax(0,1.52fr)] gap-3 sm:grid-rows-[minmax(6rem,0.52fr)_minmax(0,1.48fr)] sm:gap-4">
+          <div className="flex min-h-0 items-center justify-center">
+            <div
+              className={cn(
+                "grid h-full max-h-40 w-full max-w-5xl place-items-center rounded-[2rem] border-4 border-white bg-white/92 px-5 text-center shadow-[0_12px_0_rgba(147,197,253,0.26),0_26px_48px_rgba(37,99,235,0.14)] sm:max-h-48 lg:max-h-52",
+                hintedQuestionId === currentQuestion?.id && "ring-8 ring-amber-100",
+                activelyRead && "border-sky-400 ring-8 ring-sky-100"
+              )}
+            >
+              <h1 className="text-2xl font-black leading-tight text-[#10285e] sm:text-4xl lg:text-5xl">
+                {currentQuestion?.prompt ?? activity.prompt}
+              </h1>
+            </div>
+          </div>
+
+          <div className={cn(
+            "mx-auto grid min-h-0 w-full grid-cols-1 items-stretch gap-3 sm:gap-3 lg:gap-4",
+            getPagedSymbolChoiceGridClass(currentOptions.length)
+          )}>
+            {currentOptions.map((option) => {
+              const selected = selectedAnswer === option;
+              const shouldShowHint = hintedQuestionId === currentQuestion?.id && option === currentQuestion?.answer;
+              return (
+                <button
+                  key={`${currentQuestion?.id}-${option}`}
+                  type="button"
+                  onClick={() => currentQuestion && onChooseAnswer(currentQuestion, option)}
+                  aria-pressed={selected}
+                  className={cn(
+                    "grid h-full min-h-0 overflow-hidden rounded-[1.75rem] border-4 bg-white/92 p-2 text-center shadow-[0_12px_0_rgba(147,197,253,0.22),0_24px_40px_rgba(37,99,235,0.12)] transition hover:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:p-3",
+                    shouldShowHint
+                      ? "border-amber-400 ring-8 ring-amber-100"
+                      : selected
+                        ? "border-blue-500 ring-8 ring-blue-100"
+                        : "border-white hover:border-blue-200"
+                  )}
+                >
+                  <span className="grid h-full min-h-0 place-items-center overflow-hidden rounded-[1.2rem] bg-white/85 p-1 sm:p-2">
+                    <SymbolOption value={option} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
+                    <span className="sr-only">{getDisplayLabel(option, learningItems)}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </main>
+
+        <footer className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-14 rounded-2xl border-2 border-blue-200 bg-white/90 px-4 text-base font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.12)] hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 sm:px-6"
+            onClick={onBack}
+            disabled={!canMoveBack}
+          >
+            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+            Back
+          </Button>
+
+          <div className="mx-auto flex min-h-14 w-full max-w-xl items-center justify-center gap-3 rounded-2xl border border-blue-100 bg-white/90 px-4 text-center shadow-sm">
+            <BrandLogo markClassName="h-11 w-11 rounded-xl" />
+            <p className="text-base font-black text-[#10285e] sm:text-lg">{feedbackText}</p>
+          </div>
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-14 rounded-2xl border-2 border-blue-200 bg-blue-100 px-4 text-base font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.14)] hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-45 sm:px-6"
+            onClick={onNext}
+            disabled={!canMoveNext}
+          >
+            Next
+            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          </Button>
+        </footer>
+      </div>
+
+      {result ? (
+        <ActivityResultModal
+          activity={activity}
+          learningItems={learningItems}
+          answers={answers}
+          result={result}
+          questionIds={resultQuestionIds}
+          primaryActionLabel={resultPrimaryActionLabel}
+          onPrimaryAction={onResultPrimaryAction}
+          isListening={isResultListening}
+          onListen={onResultListen}
+          highlightedQuestionId={highlightedListenQuestionId}
+        />
+      ) : null}
+    </section>
+  );
+}

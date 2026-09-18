@@ -104,19 +104,25 @@ export const pageGuides: Record<string, PageGuide> = {
   },
   activities: {
     title: "Around Activities",
-    line: "Run a lesson as an activity, or build your own from your cards.",
+    line: "Your practice library. Play a lesson's activity, or build your own from your cards.",
     steps: [
       {
-        title: "Choose a format",
-        text: "Match a word, choose a card, fill a blank, or drag a card onto its word.",
+        title: "Your library",
+        text: "Every activity, with its own pictures. From lessons shows the ones that belong to a lesson.",
+        icon: Layers,
+        scene: "cards"
+      },
+      {
+        title: "Create in three steps",
+        text: "Choose a format, pick up to five cards or a lesson, then check the questions.",
         icon: Activity,
         scene: "activity"
       },
       {
-        title: "Pick the cards",
-        text: "Use the materials you built in Content, or the ones a lesson already groups together.",
-        icon: Layers,
-        scene: "cards"
+        title: "Play full screen",
+        text: "Play opens the learner's view. Use the buttons on the left to exit, restart, or edit.",
+        icon: GraduationCap,
+        scene: "student"
       }
     ]
   },
@@ -177,12 +183,15 @@ export const guideTips: Record<string, string> = {
   "content.types": "PECS cards are pictures a learner points at. Gestures are signs they copy from a video.",
   "content.categories": "Show only one category. Extra categories sit in the +N more menu.",
   "content.addMaterial": "Create a new card or gesture, with its picture, video, and audio.",
-  "content.addLesson": "Build a lesson: a goal, a set of materials, and the activity to practise.",
+  "content.addLesson": "Build a lesson: a goal, a set of materials, and an activity to practise them.",
   "content.addCategory": "Make a new colour-coded group for your materials.",
   "content.mediaTypes": "Filter the files by kind. All shows everything that has been uploaded.",
 
   // Activities and gesture practice
   "activities.types": "Each format asks the learner to do something different with the same cards.",
+  "activities.create": "Build an activity: pick a format, choose the cards, then check the questions.",
+  "activities.filter": "From lessons shows each lesson's activity. Mine shows the ones you made.",
+  "activities.teacherBar": "Only you see these. Exit to the library, restart from the first question, or edit.",
   "gesture.camera": "Your camera stays on this device. It reads your hand shape and tells you if the sign matches.",
 
   // Admin

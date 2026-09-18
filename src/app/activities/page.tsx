@@ -1,14 +1,14 @@
+import { Suspense } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ActivitiesView } from "@/features/activities/activities-view";
 
-export default function ActivitiesPage({
-  searchParams
-}: {
-  searchParams?: { type?: string; activityId?: string };
-}) {
+// The view reads `?play=` and friends itself, so moving between the library and the player stays client-side.
+export default function ActivitiesPage() {
   return (
     <AppShell>
-      <ActivitiesView initialActivityType={searchParams?.type} initialActivityId={searchParams?.activityId} />
+      <Suspense>
+        <ActivitiesView />
+      </Suspense>
     </AppShell>
   );
 }

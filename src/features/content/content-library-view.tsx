@@ -28,6 +28,7 @@ import {
 } from "@/lib/supabase/app-data";
 import { deleteMediaAssetFromSupabase, uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import { createLessonDraftFromItem } from "@/utils/lesson-template";
+import { findLessonActivity as findActivityForLesson, lessonActivityId } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories, ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
 import { CardDetailDialog, type CardTextValues } from "@/features/content/card-detail-dialog";
@@ -158,19 +159,8 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     return lesson.learningItemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
   }
 
-  /** Lessons do not store their activity id, so find it by the id pattern used on save, then by title. */
   function findLessonActivity(lesson: Lesson) {
-    return (
-      activities.find((activity) => activity.id === lesson.relatedActivityId) ??
-      activities.find((activity) => activity.id === `activity-${lesson.id}`) ??
-      activities.find((activity) => activity.id.startsWith("activity-lesson-") && activity.title === `${lesson.title} activity`)
-    );
-  }
-
-  function lessonActivityHref(lesson: Lesson) {
-    if (!itemsOf(lesson).some((item) => item.contentType === "pecs")) return "/gesture-practice";
-    const activity = findLessonActivity(lesson);
-    return activity ? `/activities?activityId=${activity.id}` : `/activities?type=${lesson.activityType}`;
+    return findActivityForLesson(lesson, activities);
   }
 
   function log(action: "upload" | "create" | "edit" | "delete", targetType: string, targetTitle: string, detail: string, targetId?: string) {
@@ -377,19 +367,26 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   }
 
   /**
-   * Creates or updates the PECS activity that belongs to a lesson, and stores its id on the lesson so
-   * "Open activity" does not have to guess later. Gesture-only lessons have no activity.
+   * Keeps a lesson's practice step in step with the lesson. An existing activity is always updated; a new
+   * one is only made when the teacher ticked "Create activity". Gesture-only lessons have no activity.
    */
-  async function syncLessonActivity(lesson: Lesson, previous: Lesson | null, pecsItems: LearningItem[], activityType: ActivityType) {
+  async function syncLessonActivity(
+    lesson: Lesson,
+    previous: Lesson | null,
+    pecsItems: LearningItem[],
+    activityType: ActivityType,
+    createActivity: boolean
+  ) {
     if (!pecsItems.length) return;
-    const existing = previous ? findLessonActivity(previous) : undefined;
+    const existing = findLessonActivity(previous ?? lesson);
+    if (!existing && !createActivity) return;
     const pecsIds = pecsItems.map((item) => item.id);
     const title = `${lesson.title} activity`;
     const prompt = lesson.instructions || "Complete each activity step with teacher guidance.";
 
     if (!existing) {
       const created = await insertActivity({
-        id: `activity-${lesson.id}`,
+        id: lessonActivityId(lesson),
         title,
         type: activityType,
         prompt,
@@ -474,7 +471,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     );
 
     try {
-      await syncLessonActivity(saved, previous, pecsItems, activityType);
+      await syncLessonActivity(saved, previous, pecsItems, activityType, values.createActivity);
       notify({ title: previous ? "Lesson updated" : "Lesson saved", tone: "success" });
     } catch (error) {
       notify({ title: "Lesson saved, activity not updated", description: errorText(error, "The activity could not be saved."), tone: "error" });
@@ -589,6 +586,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
           <LessonsTab
             lessons={lessons}
             itemById={itemById}
+            activityFor={findLessonActivity}
             onOpenLesson={(lesson) => setOpenLessonId(lesson.id)}
             onNewLesson={() => setLessonMode({ kind: "new" })}
           />
@@ -655,15 +653,26 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         </label>
       </Dialog>
 
-      <LessonFormDialog mode={lessonMode} items={items} categories={categories} onClose={() => setLessonMode(null)} onSave={saveLesson} />
+      <LessonFormDialog
+        mode={lessonMode}
+        items={items}
+        categories={categories}
+        linkedActivity={lessonMode?.kind === "edit" ? findLessonActivity(lessonMode.lesson) : undefined}
+        onClose={() => setLessonMode(null)}
+        onSave={saveLesson}
+      />
 
       <LessonPreviewDialog
         lesson={openLesson}
         items={openLesson ? itemsOf(openLesson) : []}
         pool={items}
         creator={openLesson ? nameFor(userNames, openLesson.createdBy) : ""}
-        activityHref={openLesson ? lessonActivityHref(openLesson) : "/activities"}
+        activity={openLesson ? findLessonActivity(openLesson) : undefined}
         onClose={() => setOpenLessonId("")}
+        onCreateActivity={(lesson) => {
+          setOpenLessonId("");
+          setLessonMode({ kind: "edit", lesson, step: 2, createActivity: true });
+        }}
         onEdit={(lesson) => {
           setOpenLessonId("");
           setLessonMode({ kind: "edit", lesson });
