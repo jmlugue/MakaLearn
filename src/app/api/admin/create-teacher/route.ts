@@ -13,7 +13,7 @@ type CreateAccountRequest = {
   password?: unknown;
 };
 
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 
 function isUserRole(value: unknown): value is UserRole {
   return value === "admin" || value === "teacher";

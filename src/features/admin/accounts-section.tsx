@@ -18,7 +18,7 @@ type PendingAction =
 
 type RoleFilter = "all" | UserRole;
 
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 export type StatusFilter = "all" | AppUser["status"];
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {

@@ -79,8 +79,8 @@ export function ProfileView() {
     const nextErrors: PasswordErrors = {
       currentPassword: currentPassword ? undefined : "Enter your current password.",
       newPassword:
-        newPassword.length < 6
-          ? "Use at least 6 characters."
+        newPassword.length < 8
+          ? "Use at least 8 characters."
           : newPassword === currentPassword
             ? "Choose a password different from your current one."
             : undefined,
@@ -208,13 +208,9 @@ export function ProfileView() {
                   id="profile-email"
                   value={user.email}
                   readOnly
-                  aria-describedby="profile-email-hint"
                   className="cursor-default border-slate-200 bg-slate-50 pl-9 text-slate-500 hover:border-slate-200 focus:border-slate-300 focus:bg-slate-50 focus:shadow-none focus:ring-0"
                 />
               </div>
-              <p id="profile-email-hint" className="mt-1 text-xs leading-5 text-slate-500">
-                Ask an administrator to change your email.
-              </p>
             </div>
           </div>
         </Card>
@@ -224,7 +220,7 @@ export function ProfileView() {
             <Lock className="h-5 w-5 text-blue-600" aria-hidden="true" />
             <CardTitle>Password</CardTitle>
           </div>
-          <CardDescription className="mt-1">Use at least 6 characters.</CardDescription>
+          <CardDescription className="mt-1">Use at least 8 characters.</CardDescription>
           {/* flex-1 + mt-auto keeps the button pinned to the bottom when the cards stretch to equal height. */}
           <form className="mt-4 flex flex-1 flex-col gap-4" onSubmit={updatePassword}>
             <PasswordField
