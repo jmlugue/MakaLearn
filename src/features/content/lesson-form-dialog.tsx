@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Hand, Link2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
@@ -12,11 +12,12 @@ import { CardImage } from "@/features/content/content-media";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { CategoryPills, PopupTitle, fieldClass, glassBoxClass, kindMeta, kindTone, type ContentKind } from "@/features/content/content-shared";
 import { LessonMeta, LessonPreviewBody } from "@/features/content/lesson-preview-dialog";
-import type { ActivityType, Category, LearningItem, Lesson } from "@/types";
+import type { Activity, ActivityType, Category, LearningItem, Lesson } from "@/types";
 
 export type LessonFormMode =
   | { kind: "new" }
-  | { kind: "edit"; lesson: Lesson }
+  /** `step` and `createActivity` let "Create activity" on a saved lesson open straight on Practice, ticked. */
+  | { kind: "edit"; lesson: Lesson; step?: number; createActivity?: boolean }
   | { kind: "draft"; draft: Omit<Lesson, "id" | "createdBy"> };
 
 export type LessonFormValues = {
@@ -25,23 +26,28 @@ export type LessonFormValues = {
   instructions: string;
   itemIds: string[];
   activityType: ActivityType;
+  /** Make the lesson's activity on save. Ignored when the lesson already has one (it is kept in step). */
+  createActivity: boolean;
 };
 
 export const pecsActivityTypes: ActivityType[] = ["match-word-symbol", "choose-correct-symbol", "fill-blank", "drag-drop-symbol"];
 
 const defaultInstructions = "Show each material and model it. Practise together, then review the learner's answers.";
-const stepLabels = ["Details", "Materials", "Review"];
+const stepLabels = ["Details", "Materials", "Practice"];
 
 export function LessonFormDialog({
   mode,
   items,
   categories,
+  linkedActivity,
   onClose,
   onSave
 }: {
   mode: LessonFormMode | null;
   items: LearningItem[];
   categories: Category[];
+  /** The activity an edited lesson already practises with. */
+  linkedActivity?: Activity;
   onClose: () => void;
   /** Resolves true when saved. */
   onSave: (mode: LessonFormMode, values: LessonFormValues) => Promise<boolean>;
@@ -57,6 +63,7 @@ export function LessonFormDialog({
           mode={mode}
           items={items}
           categories={categories}
+          linkedActivity={linkedActivity}
           saving={saving}
           onClose={onClose}
           onSave={async (values) => {
@@ -73,7 +80,7 @@ export function LessonFormDialog({
 
 function initialValues(mode: LessonFormMode): LessonFormValues {
   if (mode.kind === "new") {
-    return { title: "", objective: "", instructions: defaultInstructions, itemIds: [], activityType: "choose-correct-symbol" };
+    return { title: "", objective: "", instructions: defaultInstructions, itemIds: [], activityType: "choose-correct-symbol", createActivity: true };
   }
   const source = mode.kind === "edit" ? mode.lesson : mode.draft;
   return {
@@ -81,7 +88,9 @@ function initialValues(mode: LessonFormMode): LessonFormValues {
     objective: source.objective,
     instructions: source.instructions,
     itemIds: source.learningItemIds,
-    activityType: source.activityType === "gesture-practice" ? "choose-correct-symbol" : source.activityType
+    activityType: source.activityType === "gesture-practice" ? "choose-correct-symbol" : source.activityType,
+    // New and generated lessons make their activity by default. Editing never adds one unless asked.
+    createActivity: mode.kind === "edit" ? Boolean(mode.createActivity) : true
   };
 }
 
@@ -90,6 +99,7 @@ function LessonForm({
   mode,
   items,
   categories,
+  linkedActivity,
   saving,
   onClose,
   onSave
@@ -98,13 +108,14 @@ function LessonForm({
   mode: LessonFormMode;
   items: LearningItem[];
   categories: Category[];
+  linkedActivity?: Activity;
   saving: boolean;
   onClose: () => void;
   onSave: (values: LessonFormValues) => void;
 }) {
   const [values, setValues] = useState<LessonFormValues>(() => initialValues(mode));
-  // Generated drafts are already filled in, so they open on Review.
-  const [step, setStep] = useState(mode.kind === "draft" ? 2 : 0);
+  // Generated drafts are already filled in, so they open on Practice.
+  const [step, setStep] = useState(mode.kind === "draft" ? 2 : mode.kind === "edit" ? mode.step ?? 0 : 0);
   const [error, setError] = useState("");
 
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -211,11 +222,18 @@ function LessonForm({
                         </option>
                       ))}
                     </Select>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {mode.kind === "edit" ? "Changes also update the lesson's activity." : "Saving also creates this activity."}
-                    </p>
+                    <ActivityLinkControl
+                      linkedActivity={linkedActivity}
+                      checked={values.createActivity}
+                      onChange={(createActivity) => update({ createActivity })}
+                    />
                   </div>
-                ) : null
+                ) : (
+                  <p className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700">
+                    <Hand className="h-4 w-4" aria-hidden="true" />
+                    Practises in Gesture practice.
+                  </p>
+                )
               }
             />
           </div>
@@ -252,6 +270,43 @@ function LessonForm({
   );
 }
 
+/** The lesson's practice step: a tick that makes its activity, or the activity it is already linked to. */
+function ActivityLinkControl({
+  linkedActivity,
+  checked,
+  onChange
+}: {
+  linkedActivity?: Activity;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  if (linkedActivity) {
+    return (
+      <p className="mt-2 flex items-start gap-2 rounded-xl bg-white/80 p-2.5 text-xs text-slate-600 ring-1 ring-blue-100">
+        <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
+        <span>
+          <span className="font-semibold text-ink">Linked: {linkedActivity.title}.</span> Changes here update it.
+        </span>
+      </p>
+    );
+  }
+
+  return (
+    <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl bg-white/80 p-2.5 ring-1 ring-blue-100">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-0.5 h-4 w-4 rounded border-blue-200 text-blue-600"
+      />
+      <span>
+        <span className="block text-sm font-semibold text-ink">Create activity for this lesson</span>
+        <span className="block text-xs text-slate-500">Adds it to Activities, ready to play.</span>
+      </span>
+    </label>
+  );
+}
+
 function Stepper({ step, onStep }: { step: number; onStep: (step: number) => void }) {
   return (
     <ol className="flex items-center gap-2">
@@ -284,18 +339,30 @@ function Stepper({ step, onStep }: { step: number; onStep: (step: number) => voi
   );
 }
 
-function MaterialsStep({
+/** Card picker with type tabs, category pills, and search. Also used by the activity creator. */
+export function MaterialsStep({
   items,
   categories,
   selectedIds,
-  onChange
+  onChange,
+  kinds = ["pecs", "gesture"],
+  max,
+  emptyText = "Nothing matches."
 }: {
   items: LearningItem[];
   categories: Category[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  /** Material types offered. One type hides the tabs. */
+  kinds?: ContentKind[];
+  /** Most cards that can be picked. */
+  max?: number;
+  emptyText?: string;
 }) {
-  const [kind, setKind] = useState<ContentKind>(() => items.find((item) => item.id === selectedIds[0])?.contentType ?? "pecs");
+  const [kind, setKind] = useState<ContentKind>(() => {
+    const first = items.find((item) => item.id === selectedIds[0])?.contentType;
+    return first && kinds.includes(first) ? first : kinds[0];
+  });
   const [categoryId, setCategoryId] = useState("all");
   const [search, setSearch] = useState("");
 
@@ -307,22 +374,31 @@ function MaterialsStep({
   const selectedItems = selectedIds.map((id) => items.find((item) => item.id === id)).filter((item): item is LearningItem => Boolean(item));
   const tone = kindTone(kind);
 
+  const full = max !== undefined && selectedIds.length >= max;
+
   function toggle(id: string) {
-    onChange(selectedIds.includes(id) ? selectedIds.filter((value) => value !== id) : [...selectedIds, id]);
+    if (selectedIds.includes(id)) {
+      onChange(selectedIds.filter((value) => value !== id));
+      return;
+    }
+    if (full) return;
+    onChange([...selectedIds, id]);
   }
 
   return (
     <div className="space-y-3">
-      <UnderlineTabs
-        id="lesson-material-type"
-        label="Material type"
-        value={kind}
-        onChange={(option) => {
-          setKind(option);
-          setCategoryId("all");
-        }}
-        options={(["pecs", "gesture"] as ContentKind[]).map((option) => ({ value: option, label: kindMeta[option].plural, icon: kindMeta[option].icon }))}
-      />
+      {kinds.length > 1 ? (
+        <UnderlineTabs
+          id="lesson-material-type"
+          label="Material type"
+          value={kind}
+          onChange={(option) => {
+            setKind(option);
+            setCategoryId("all");
+          }}
+          options={kinds.map((option) => ({ value: option, label: kindMeta[option].plural, icon: kindMeta[option].icon }))}
+        />
+      ) : null}
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="min-w-0 flex-1">
           {usedCategories.length > 1 ? <CategoryPills categories={usedCategories} value={categoryId} onChange={setCategoryId} /> : null}
@@ -338,9 +414,10 @@ function MaterialsStep({
               key={item.id}
               type="button"
               aria-pressed={selected}
+              disabled={!selected && full}
               onClick={() => toggle(item.id)}
               className={cn(
-                "relative flex flex-col overflow-hidden rounded-xl border-2 bg-[#fff] p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                "relative flex flex-col overflow-hidden rounded-xl border-2 bg-[#fff] p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-40",
                 selected ? "border-blue-600 shadow-sm" : "border-transparent hover:border-blue-200"
               )}
             >
@@ -356,7 +433,7 @@ function MaterialsStep({
             </button>
           );
         })}
-        {!visible.length ? <p className="col-span-full py-8 text-center text-sm text-slate-500">Nothing matches.</p> : null}
+        {!visible.length ? <p className="col-span-full py-8 text-center text-sm text-slate-500">{emptyText}</p> : null}
       </div>
 
       <div className="flex min-h-9 flex-wrap items-center gap-1.5">

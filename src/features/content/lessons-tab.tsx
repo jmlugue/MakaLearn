@@ -9,18 +9,21 @@ import { SearchInput } from "@/features/admin/admin-shared";
 import { sortLabels, sortRecords, type SortOrder } from "@/features/content/content-shared";
 import { GuideTip } from "@/features/guide/guide-tip";
 import { LessonCard } from "@/features/content/lesson-card";
-import type { LearningItem, Lesson } from "@/types";
+import type { Activity, LearningItem, Lesson } from "@/types";
 
 type SourceFilter = "all" | Lesson["source"];
 
 export function LessonsTab({
   lessons,
   itemById,
+  activityFor,
   onOpenLesson,
   onNewLesson
 }: {
   lessons: Lesson[];
   itemById: Map<string, LearningItem>;
+  /** The lesson's linked activity, shown on its card. */
+  activityFor: (lesson: Lesson) => Activity | undefined;
   onOpenLesson: (lesson: Lesson) => void;
   onNewLesson: () => void;
 }) {
@@ -76,6 +79,7 @@ export function LessonsTab({
               key={lesson.id}
               lesson={lesson}
               items={lesson.learningItemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item))}
+              activity={activityFor(lesson)}
               onOpen={() => onOpenLesson(lesson)}
             />
           ))}
