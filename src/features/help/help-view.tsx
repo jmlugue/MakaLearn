@@ -30,7 +30,7 @@ const manualSections = [
   {
     title: "Run practice",
     steps: [
-      "For PECS lessons, choose Play activity from the saved lesson, or press Play on a card in Activities. The player opens full screen. The buttons on the left exit, restart, or edit.",
+      "For PECS lessons, choose Play activity from the saved lesson, or press Play on a card in Activities. The player opens full screen. The top bar exits, restarts, or edits.",
       "For gesture lessons, choose Practice gesture from the saved lesson. In Student Mode, use Free practice for open recognition or Guided 7 for a shuffled seven-gesture session.",
       "Guided 7 waits for a thumbs-up, counts down before each new gesture, and retries the same prompt until it is recognized or skipped.",
       "Use Playground when the learner needs to build a PECS/AAC sentence from cards.",
@@ -54,11 +54,11 @@ const faqs = [
   },
   {
     question: "What is the difference between a lesson and an activity?",
-    answer: "A lesson is the plan: a goal, instructions, and the cards. An activity is the practice step the learner plays. Each PECS lesson can link to one activity, and activities can also stand alone."
+    answer: "A lesson is the plan: a goal, instructions, and the cards. An activity is the practice step the learner plays. Each PECS lesson has one activity, made from the lesson in Content. Activities created in Activities are not tied to a lesson."
   },
   {
     question: "Where do I find an activity after creating it?",
-    answer: "Open Activities. Every activity is in the library. From lessons shows the ones that belong to a lesson, and Mine shows the ones you made."
+    answer: "Open Activities. Every activity is in the library. From lessons shows each lesson's activity, Private shows the ones only you can see, and the type filter shows one format."
   },
   {
     question: "Why is some media shown as placeholder content?",

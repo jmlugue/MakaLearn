@@ -3,24 +3,28 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, RotateCcw, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { GuideTip } from "@/features/guide/guide-tip";
-
-const barButtonClass =
-  "grid h-12 w-12 place-items-center rounded-2xl border-4 border-white bg-white/90 text-blue-700 shadow-[0_10px_24px_rgba(37,99,235,0.18)] backdrop-blur transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200";
+import { ActivityTypeBadge } from "@/features/activities/activity-type-badge";
+import type { ActivityType } from "@/types";
 
 /**
- * Full-screen stage for the teacher's player. It sits above the sidebar through a portal, so the page
- * transition's transform cannot trap the player's own `fixed` layouts. The teacher bar takes the top-left
- * slot that Student mode gives to its logo button.
+ * Full-screen stage for the teacher's player: plain blue glass with a top bar, above the sidebar. It is
+ * rendered through a portal so the page transition's transform cannot trap it.
  */
 export function ActivityPlayerScreen({
   title,
+  type,
+  progress,
   children,
   onExit,
   onReset,
   onEdit
 }: {
   title: string;
+  type: ActivityType;
+  /** Short progress text, for example "2 / 5". */
+  progress?: string;
   children: ReactNode;
   onExit: () => void;
   onReset: () => void;
@@ -38,7 +42,7 @@ export function ActivityPlayerScreen({
     };
   }, []);
 
-  // Esc leaves the player, unless a pop-up (result or editor) is open and should take it first.
+  // Esc leaves the player, unless a pop-up (the editor) is open and should take it first.
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
       if (event.key !== "Escape" || document.querySelector("[role='dialog']")) return;
@@ -51,23 +55,37 @@ export function ActivityPlayerScreen({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] overflow-y-auto bg-[#dff5ff] p-2" role="region" aria-label={`${title} player`}>
-      {children}
+    <div
+      className="fixed inset-0 z-[80] flex flex-col overflow-hidden bg-gradient-to-br from-[#eef6ff] via-[#f8fbff] to-[#e3eeff]"
+      role="region"
+      aria-label={`${title} player`}
+    >
       <GuideTip id="activities.teacherBar">
-        <nav aria-label="Teacher controls" className="fixed left-3 top-3 z-[55] flex flex-col gap-2 sm:left-4">
-          <button type="button" onClick={onExit} className={barButtonClass} aria-label="Exit to library" title="Exit to library">
-            <X className="h-6 w-6" aria-hidden="true" />
-          </button>
-          <button type="button" onClick={onReset} className={barButtonClass} aria-label="Restart activity" title="Restart activity">
-            <RotateCcw className="h-5 w-5" aria-hidden="true" />
-          </button>
+        <header className="flex flex-wrap items-center gap-3 border-b border-white/80 bg-white/70 px-4 py-3 shadow-[0_8px_24px_rgba(37,99,235,0.08)] backdrop-blur-xl sm:px-6">
+          <Button type="button" variant="outline" onClick={onExit}>
+            <X className="h-4 w-4" aria-hidden="true" />
+            Exit
+          </Button>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <p className="truncate text-lg font-extrabold tracking-[-0.02em] text-ink">{title}</p>
+            <ActivityTypeBadge type={type} className="hidden shrink-0 sm:inline-flex" />
+          </div>
+          {progress ? <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700 ring-1 ring-blue-100">{progress}</span> : null}
+          <Button type="button" variant="ghost" onClick={onReset} aria-label="Restart">
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Restart</span>
+          </Button>
           {onEdit ? (
-            <button type="button" onClick={onEdit} className={barButtonClass} aria-label="Edit activity" title="Edit activity">
-              <Pencil className="h-5 w-5" aria-hidden="true" />
-            </button>
+            <Button type="button" variant="ghost" onClick={onEdit} aria-label="Edit">
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Edit</span>
+            </Button>
           ) : null}
-        </nav>
+        </header>
       </GuideTip>
+      <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+        <div className="mx-auto w-full max-w-4xl">{children}</div>
+      </main>
     </div>,
     document.body
   );

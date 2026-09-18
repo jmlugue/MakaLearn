@@ -4,10 +4,10 @@ import { BookOpen, Hand, Lock, Pencil, Play, Trash2, Users } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { getActivityTypeLabel } from "@/utils/activity-labels";
 import { ActivitySample } from "@/features/content/activity-sample";
 import { AudioButton, CardImage } from "@/features/content/content-media";
 import { PopupTitle, SectionLabel, deleteButtonClass, glassBoxClass, kindTone } from "@/features/content/content-shared";
+import { ActivityTypeBadge } from "@/features/activities/activity-type-badge";
 import type { Activity, LearningItem, Lesson } from "@/types";
 
 const chipClass = "inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-blue-100";
@@ -69,17 +69,17 @@ export function ActivityPreviewDialog({
       {activity ? (
         <div className="space-y-4">
           <PopupTitle title={activity.title}>
-            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-blue-800">
-              {getActivityTypeLabel(activity.type)}
-            </span>
+            <ActivityTypeBadge type={activity.type} />
             <span className={chipClass}>
               {activity.visibility === "private" ? <Lock className="h-3 w-3" aria-hidden="true" /> : <Users className="h-3 w-3" aria-hidden="true" />}
               {activity.visibility === "private" ? "Private" : "Shared"}
             </span>
-            <span className={cn(chipClass, lesson ? "text-blue-700" : "")}>
-              <BookOpen className="h-3 w-3" aria-hidden="true" />
-              {lesson ? `From ${lesson.title}` : "Standalone"}
-            </span>
+            {lesson ? (
+              <span className={cn(chipClass, "text-blue-700")}>
+                <BookOpen className="h-3 w-3" aria-hidden="true" />
+                From {lesson.title}
+              </span>
+            ) : null}
           </PopupTitle>
 
           <div className={cn("p-4", glassBoxClass)}>

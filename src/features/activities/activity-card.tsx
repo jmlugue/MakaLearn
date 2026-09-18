@@ -2,20 +2,19 @@
 
 import { BookOpen, Lock, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getActivityTypeLabel } from "@/utils/activity-labels";
 import { CardImage } from "@/features/content/content-media";
-import { kindTone } from "@/features/content/content-shared";
+import { activityTypeTones } from "@/features/activities/activity-helpers";
+import { ActivityTypeBadge } from "@/features/activities/activity-type-badge";
 import type { Activity, LearningItem, Lesson } from "@/types";
 
 /** Up to four of the activity's own pictures, with "+N" when there are more. */
 export function ActivityCover({ activity, items, className }: { activity: Activity; items: LearningItem[]; className?: string }) {
-  const tone = kindTone(activity.type === "gesture-practice" ? "gesture" : "pecs");
   const shown = items.length > 4 ? items.slice(0, 3) : items.slice(0, 4);
   const extra = items.length - shown.length;
   const single = items.length === 1;
 
   return (
-    <div className={cn("grid gap-1.5 p-2", tone.soft, single ? "grid-cols-1" : "grid-cols-2", className)}>
+    <div className={cn("grid gap-1.5 p-2", activityTypeTones[activity.type].soft, single ? "grid-cols-1" : "grid-cols-2", className)}>
       {shown.map((item) => (
         <span key={item.id} className={cn("grid place-items-center overflow-hidden rounded-xl bg-white/90 shadow-sm", single ? "aspect-[2/1]" : "aspect-[4/3]")}>
           <CardImage value={item.symbolImageUrl} label={item.label} className="p-1.5 text-sm leading-tight" />
@@ -51,12 +50,11 @@ export function ActivityCard({
       <button type="button" onClick={onOpen} className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
         <span className="sr-only">Open {activity.title}</span>
       </button>
+      <span className={cn("pointer-events-none h-1.5 w-full", activityTypeTones[activity.type].stripe)} aria-hidden="true" />
       <ActivityCover activity={activity} items={items} className="pointer-events-none" />
       <div className="pointer-events-none flex flex-1 flex-col p-4">
         <span className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-blue-800">
-            {getActivityTypeLabel(activity.type)}
-          </span>
+          <ActivityTypeBadge type={activity.type} />
           {activity.visibility === "private" ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600">
               <Lock className="h-3 w-3" aria-hidden="true" />
@@ -69,10 +67,14 @@ export function ActivityCard({
           {items.length} {items.length === 1 ? "card" : "cards"}
         </span>
         <span className="mt-auto flex items-center justify-between gap-2 border-t border-blue-50 pt-3">
-          <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-xs font-semibold", lesson ? "text-blue-700" : "text-slate-400")}>
-            <BookOpen className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="truncate">{lesson ? `From ${lesson.title}` : "Standalone"}</span>
-          </span>
+          {lesson ? (
+            <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-semibold text-blue-700">
+              <BookOpen className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">From {lesson.title}</span>
+            </span>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
             onClick={onPlay}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Layers, Library, Search, User } from "lucide-react";
+import { BookOpen, Layers, Library, Lock, Search } from "lucide-react";
 import { EmptyState } from "@/components/common/empty-state";
 import { Select } from "@/components/ui/form";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
@@ -9,36 +9,36 @@ import { SearchInput } from "@/features/admin/admin-shared";
 import { sortLabels, sortRecords, type SortOrder } from "@/features/content/content-shared";
 import { GuideTip } from "@/features/guide/guide-tip";
 import { ActivityCard } from "@/features/activities/activity-card";
-import { itemsOfActivity } from "@/features/activities/activity-helpers";
+import { activityTypes, itemsOfActivity } from "@/features/activities/activity-helpers";
 import { activityTypeLabels } from "@/utils/activity-labels";
-import type { Activity, LearningItem, Lesson } from "@/types";
+import type { Activity, ActivityType, LearningItem, Lesson } from "@/types";
 
-type LibraryFilter = "all" | "lessons" | "mine";
+type LibraryFilter = "all" | "lessons" | "private";
 
 export function ActivityLibrary({
   activities,
   itemById,
   lessonOf,
-  userId,
   onOpen,
   onPlay
 }: {
   activities: Activity[];
   itemById: Map<string, LearningItem>;
   lessonOf: (activity: Activity) => Lesson | undefined;
-  userId: string;
   onOpen: (activity: Activity) => void;
   onPlay: (activity: Activity) => void;
 }) {
   const [filter, setFilter] = useState<LibraryFilter>("all");
+  const [type, setType] = useState<ActivityType | "all">("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOrder>("name-asc");
 
   const fromLessons = useMemo(() => activities.filter((activity) => lessonOf(activity)), [activities, lessonOf]);
-  const mine = useMemo(() => activities.filter((activity) => activity.createdBy === userId), [activities, userId]);
+  const privateOnes = useMemo(() => activities.filter((activity) => activity.visibility === "private"), [activities]);
 
   const visible = useMemo(() => {
-    const pool = filter === "lessons" ? fromLessons : filter === "mine" ? mine : activities;
+    const tabbed = filter === "lessons" ? fromLessons : filter === "private" ? privateOnes : activities;
+    const pool = type === "all" ? tabbed : tabbed.filter((activity) => activity.type === type);
     const query = search.trim().toLowerCase();
     const matches = query
       ? pool.filter((activity) => {
@@ -48,7 +48,7 @@ export function ActivityLibrary({
       : pool;
     // Activities have no created date, so "newest" keeps the saved order (newest first from the database).
     return sort === "newest" ? matches : sort === "oldest" ? [...matches].reverse() : sortRecords(matches, sort, (activity) => activity.title, () => "");
-  }, [activities, filter, fromLessons, itemById, lessonOf, mine, search, sort]);
+  }, [activities, filter, fromLessons, itemById, lessonOf, privateOnes, search, sort, type]);
 
   return (
     <section className="space-y-4">
@@ -61,13 +61,25 @@ export function ActivityLibrary({
           options={[
             { value: "all", label: "All", count: activities.length, icon: Layers },
             { value: "lessons", label: "From lessons", count: fromLessons.length, icon: BookOpen },
-            { value: "mine", label: "Mine", count: mine.length, icon: User }
+            { value: "private", label: "Private", count: privateOnes.length, icon: Lock }
           ]}
         />
       </GuideTip>
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchInput label="Search activities" placeholder="Search activities or cards" value={search} onChange={setSearch} />
+        <GuideTip id="activities.typeFilter">
+          <div className="w-52">
+            <Select aria-label="Filter by type" value={type} onChange={(event) => setType(event.target.value as ActivityType | "all")}>
+              <option value="all">All types</option>
+              {activityTypes.map((option) => (
+                <option key={option} value={option}>
+                  {activityTypeLabels[option]}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </GuideTip>
         <div className="w-44">
           <Select aria-label="Sort activities" value={sort} onChange={(event) => setSort(event.target.value as SortOrder)}>
             {(Object.keys(sortLabels) as SortOrder[]).map((key) => (

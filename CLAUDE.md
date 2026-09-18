@@ -150,46 +150,55 @@ disappears from the Media tab.
 
 ---
 
-## 6. Activities redesign (shipped, not yet verified signed in)
+## 6. Activities redesign (shipped in 5bddd45, follow-up after; not yet verified signed in)
 
-### Lesson vs activity, settled
+### Lesson vs activity, settled: strictly one-to-one
 
-**Lesson = the plan** (goal, instructions, cards). **Activity = one practice step** the learner plays.
-One PECS lesson links to at most one activity; activities can also stand alone. Gesture lessons use
-Gesture practice. Based on Julian's Jun 22 wording ("It can include an activity as one practice step"),
-his Jun 28 auto-create, and the timetable's "Open related activity or practice action".
+**Lesson = the plan** (goal, instructions, cards). **Activity = its practice step.** Based on Julian's
+Jun 22 wording, his Jun 28 auto-create, and the timetable's "Open related activity or practice action".
 
-- Lesson pop-up step 3 is now **Practice**: format picker, demo, and a **Create activity for this lesson**
-  tick (on for new and generated lessons, off when editing). A linked lesson shows "Linked: (title)".
-- No untick-to-unlink: `lessons.related_activity_id` is still missing on the live DB (section 3), so an
-  unlink would come back on reload. The link falls back to the id `activity-${lesson.id}`.
-- Lesson preview shows a Practice row and **Play activity** / **Create activity** / **Practice gesture**.
-- Shared helpers: `src/utils/lesson-activity.ts` (`findLessonActivity`, `findActivityLesson`,
-  `lessonActivityId`, `activityPlayHref`).
+- A lesson's activity is only made from Content: lesson pop-up step 3 **Practice** has a
+  **Create activity for this lesson** tick (on for new and generated lessons, off when editing), and the
+  lesson preview has **Create activity** when there is none. Linked lessons show "Linked: (title)".
+- **Create activity** in Activities makes activities that are not tied to a lesson. The creator has no
+  "start from a lesson" (removed on request: it blurred the one-to-one rule).
+- Editing a lesson's activity in Activities: **cards are locked** ("Change cards in the lesson."), all of
+  the lesson's cards are kept (no five-card cap), and only formats every card can use are offered. Name,
+  format, and questions stay editable.
+- Sync both ways: a format changed in Activities is written to `lesson.activityType`, the lesson form
+  starts from the linked activity's format, and a lesson save keeps the activity's own name.
+- No untick-to-unlink: `lessons.related_activity_id` is still missing on the live DB (section 3). The link
+  falls back to the id `activity-${lesson.id}`.
+- Helpers: `src/utils/lesson-activity.ts` (`findLessonActivity`, `findActivityLesson`, `lessonActivityId`,
+  `activityPlayHref`).
 
 ### Activities page
 
 | Piece | File |
 |---|---|
 | Shell: data, URL, save, delete | `activities-view.tsx` |
-| Library: tabs All / From lessons / Mine, search, sort | `activity-library.tsx` |
-| Card with picture collage cover | `activity-card.tsx` |
+| Library: tabs All / From lessons / Private, Type dropdown, search, sort | `activity-library.tsx` |
+| Card: type-colored stripe and badge, picture collage cover | `activity-card.tsx`, `activity-type-badge.tsx` |
 | Preview pop-up with hover demo | `activity-preview-dialog.tsx` |
-| Creator: Type, Cards (or start from a lesson), Review | `activity-form-dialog.tsx` |
-| Types, prompt helpers | `activity-helpers.ts` |
-| Full-screen teacher player + left bar (Exit, Restart, Edit) | `player/activity-player-screen.tsx` |
-| Student player, split from 2,084 lines, logic unchanged | `student-activity-player.tsx` + `player/*` |
+| Creator: Type, Cards, Review | `activity-form-dialog.tsx` |
+| Types, colors (`activityTypeTones`), prompt helpers | `activity-helpers.ts` |
+| Teacher player: plain glass, Check then Next, score card | `player/teacher-player.tsx` |
+| Full-screen frame with top bar (Exit, title, n / total, Restart, Edit) | `player/activity-player-screen.tsx` |
+| Student game player, split from 2,084 lines, logic unchanged | `student-activity-player.tsx` + `player/*` |
 
-- Player opens at `/activities?play=<id>` (old `?activityId=` still works). Teachers use the same game
-  player as Student mode, portaled above the sidebar. Student mode is unchanged.
-- The card picker is `MaterialsStep`, now exported from `lesson-form-dialog.tsx` with `kinds` and `max`.
-- `simple-quiz` stays. It is not in the thesis, but it does play (text choices via the generic layout).
-  The user does not want existing features removed; hide rather than delete.
+- Player opens at `/activities?play=<id>` (old `?activityId=` still works). Teachers get the plain player;
+  Student mode keeps the game player with backgrounds.
+- Type colors are an agreed exception to the blue-first palette, accents only: Match blue, Choose teal,
+  Fill yellow, Drag violet, Gesture sky, Quiz pink.
+- No "Standalone" label anywhere; only "From (lesson)" shows.
+- `simple-quiz` stays (it plays as text choices). The user does not want existing features removed.
+- The card picker is `MaterialsStep`, exported from `lesson-form-dialog.tsx` with `kinds` and `max`.
 
 ### Not verified
 
-Never checked signed in. Worth clicking: create from a lesson, lesson tick on and off, Play from Content,
-Exit and Restart in the player, Edit from the player, delete a lesson-owned activity.
+Never checked signed in. Worth clicking: lesson tick on and off, Create activity from a lesson preview,
+locked cards when editing a lesson's activity, rename in Activities then save the lesson, type filter and
+colors, teacher player for a choice type and for drag and drop, Student mode still showing the game player.
 
 ---
 

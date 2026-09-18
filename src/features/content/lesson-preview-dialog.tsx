@@ -10,8 +10,8 @@ import { ActivitySample } from "@/features/content/activity-sample";
 import { AudioButton, CardImage } from "@/features/content/content-media";
 import { KindBadge, PopupTitle, SectionLabel, deleteButtonClass, glassBoxClass, kindTone } from "@/features/content/content-shared";
 import { SourceBadge } from "@/features/content/lesson-card";
-import { getActivityTypeLabel } from "@/utils/activity-labels";
 import { activityPlayHref } from "@/utils/lesson-activity";
+import { ActivityTypeBadge } from "@/features/activities/activity-type-badge";
 import type { Activity, ActivityType, LearningItem, Lesson } from "@/types";
 
 const primaryLinkClass =
@@ -32,9 +32,7 @@ function PracticeRow({ hasPecs, activity }: { hasPecs: boolean; activity?: Activ
         </p>
       </div>
       {hasPecs && activity ? (
-        <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-blue-800">
-          {getActivityTypeLabel(activity.type)}
-        </span>
+        <ActivityTypeBadge type={activity.type} className="shrink-0" />
       ) : null}
     </div>
   );

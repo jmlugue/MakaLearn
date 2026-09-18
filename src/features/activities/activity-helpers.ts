@@ -114,3 +114,16 @@ export function getActivityItems(items: LearningItem[]) {
 export function itemsOfActivity(activity: Activity, itemById: Map<string, LearningItem>) {
   return activity.learningItemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
 }
+
+/**
+ * Each type's soft accent. Agreed exception to the blue-first palette: used only as a card's top stripe,
+ * its type badge, and a light cover tint, never as the main look of a surface.
+ */
+export const activityTypeTones: Record<ActivityType, { stripe: string; badge: string; soft: string; dot: string }> = {
+  "match-word-symbol": { stripe: "bg-blue-300", badge: "bg-blue-100 text-blue-800", soft: "bg-blue-50", dot: "bg-blue-400" },
+  "choose-correct-symbol": { stripe: "bg-teal-300", badge: "bg-teal-100 text-teal-800", soft: "bg-teal-50", dot: "bg-teal-400" },
+  "fill-blank": { stripe: "bg-yellow-300", badge: "bg-yellow-100 text-yellow-800", soft: "bg-yellow-50", dot: "bg-yellow-400" },
+  "drag-drop-symbol": { stripe: "bg-violet-300", badge: "bg-violet-100 text-violet-800", soft: "bg-violet-50", dot: "bg-violet-400" },
+  "gesture-practice": { stripe: "bg-sky-300", badge: "bg-sky-100 text-sky-800", soft: "bg-sky-50", dot: "bg-sky-400" },
+  "simple-quiz": { stripe: "bg-pink-300", badge: "bg-pink-100 text-pink-800", soft: "bg-pink-50", dot: "bg-pink-400" }
+};

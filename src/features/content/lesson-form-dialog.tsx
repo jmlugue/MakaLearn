@@ -78,17 +78,19 @@ export function LessonFormDialog({
   );
 }
 
-function initialValues(mode: LessonFormMode): LessonFormValues {
+function initialValues(mode: LessonFormMode, linkedActivity?: Activity): LessonFormValues {
   if (mode.kind === "new") {
     return { title: "", objective: "", instructions: defaultInstructions, itemIds: [], activityType: "choose-correct-symbol", createActivity: true };
   }
   const source = mode.kind === "edit" ? mode.lesson : mode.draft;
+  // A linked activity may have had its format changed in Activities; that is the one to keep.
+  const format = linkedActivity?.type ?? source.activityType;
   return {
     title: source.title,
     objective: source.objective,
     instructions: source.instructions,
     itemIds: source.learningItemIds,
-    activityType: source.activityType === "gesture-practice" ? "choose-correct-symbol" : source.activityType,
+    activityType: format === "gesture-practice" ? "choose-correct-symbol" : format,
     // New and generated lessons make their activity by default. Editing never adds one unless asked.
     createActivity: mode.kind === "edit" ? Boolean(mode.createActivity) : true
   };
@@ -113,7 +115,7 @@ function LessonForm({
   onClose: () => void;
   onSave: (values: LessonFormValues) => void;
 }) {
-  const [values, setValues] = useState<LessonFormValues>(() => initialValues(mode));
+  const [values, setValues] = useState<LessonFormValues>(() => initialValues(mode, linkedActivity));
   // Generated drafts are already filled in, so they open on Practice.
   const [step, setStep] = useState(mode.kind === "draft" ? 2 : mode.kind === "edit" ? mode.step ?? 0 : 0);
   const [error, setError] = useState("");
@@ -216,7 +218,7 @@ function LessonForm({
                       value={values.activityType}
                       onChange={(event) => update({ activityType: event.target.value as ActivityType })}
                     >
-                      {pecsActivityTypes.map((type) => (
+                      {(pecsActivityTypes.includes(values.activityType) ? pecsActivityTypes : [...pecsActivityTypes, values.activityType]).map((type) => (
                         <option key={type} value={type}>
                           {getActivityTypeLabel(type)}
                         </option>

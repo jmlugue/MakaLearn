@@ -381,13 +381,12 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     const existing = findLessonActivity(previous ?? lesson);
     if (!existing && !createActivity) return;
     const pecsIds = pecsItems.map((item) => item.id);
-    const title = `${lesson.title} activity`;
     const prompt = lesson.instructions || "Complete each activity step with teacher guidance.";
 
     if (!existing) {
       const created = await insertActivity({
         id: lessonActivityId(lesson),
-        title,
+        title: `${lesson.title} activity`,
         type: activityType,
         prompt,
         learningItemIds: pecsIds,
@@ -401,11 +400,11 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     }
 
     const cardsOrTypeChanged = existing.type !== activityType || !sameIds(existing.learningItemIds, pecsIds);
-    if (!cardsOrTypeChanged && existing.title === title && existing.prompt === prompt) return;
+    // The name belongs to the activity once made, so a rename in Activities survives a lesson save.
+    if (!cardsOrTypeChanged && existing.prompt === prompt) return;
     const updated = await updateActivity(
       {
         ...existing,
-        title,
         prompt,
         type: activityType,
         learningItemIds: pecsIds,

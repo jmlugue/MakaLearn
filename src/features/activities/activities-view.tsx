@@ -15,6 +15,7 @@ import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { StudentActivityPlayer } from "@/features/activities/student-activity-player";
 import { ActivityPlayerScreen } from "@/features/activities/player/activity-player-screen";
+import { TeacherPlayer } from "@/features/activities/player/teacher-player";
 import { ActivityLibrary } from "@/features/activities/activity-library";
 import { ActivityPreviewDialog } from "@/features/activities/activity-preview-dialog";
 import { ActivityFormDialog, type ActivityFormMode, type ActivityFormValues } from "@/features/activities/activity-form-dialog";
@@ -40,7 +41,7 @@ import {
 } from "@/lib/supabase/app-data";
 import { buildDefaultActivityPrompt, canDraftQuestionPrompts } from "@/utils/activity-ai-draft";
 import { normalizeActivitySymbolQuestions } from "@/utils/activity-symbol-options";
-import { activityPlayHref, findLessonActivity, lessonActivityId } from "@/utils/lesson-activity";
+import { activityPlayHref, findLessonActivity } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories } from "@/utils/pecs-content-library";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
 import type { Activity, ActivityType, Category, LearningItem, Lesson } from "@/types";
@@ -91,6 +92,7 @@ export function ActivitiesView() {
   const [result, setResult] = useState<Score | null>(null);
   // Bumped by the teacher's Restart so the player also goes back to its first question.
   const [playerRound, setPlayerRound] = useState(0);
+  const [progress, setProgress] = useState("");
   // True when the player was opened from the library, so Exit can go back instead of stacking history.
   const openedFromLibrary = useRef(false);
 
@@ -128,7 +130,7 @@ export function ActivitiesView() {
     return map;
   }, [activities, lessons]);
   const lessonOf = useCallback((activity: Activity) => lessonByActivityId.get(activity.id), [lessonByActivityId]);
-  const lessonActivity = useCallback((lesson: Lesson) => findLessonActivity(lesson, activities), [activities]);
+  const reportProgress = useCallback((current: number, total: number) => setProgress(`${current} / ${total}`), []);
 
   const playingActivity = isStudentMode
     ? activities.find((activity) => activity.id === studentActivityId) ?? getInitialActivity(activities, playId, requestedType)
@@ -190,6 +192,11 @@ export function ActivitiesView() {
     setResult(null);
   }
 
+  function restartPlayer() {
+    resetPlayer();
+    setPlayerRound((round) => round + 1);
+  }
+
   function chooseAnswer(questionId: string, value: string) {
     setAnswers((current) => ({ ...current, [questionId]: value }));
     setResult(null);
@@ -238,11 +245,8 @@ export function ActivitiesView() {
     }
 
     const previous = mode.kind === "edit" ? mode.activity : null;
-    // Cards taken from a lesson without an activity make this its practice step.
-    const lesson = !previous && values.lessonId ? lessons.find((candidate) => candidate.id === values.lessonId) : undefined;
-    const linksLesson = lesson && !findLessonActivity(lesson, activities) ? lesson : undefined;
     const next: Activity = {
-      id: previous?.id ?? (linksLesson ? lessonActivityId(linksLesson) : `activity-${Date.now()}`),
+      id: previous?.id ?? `activity-${Date.now()}`,
       title: values.title,
       type,
       prompt: buildDefaultActivityPrompt(type),
@@ -264,20 +268,19 @@ export function ActivitiesView() {
     log(previous ? "edit" : "create", saved, previous ? "Updated an activity." : "Created an activity.");
     if (previous && playingActivity?.id === saved.id) resetPlayer();
 
-    if (linksLesson) {
+    // One lesson, one activity: a format changed here is also the lesson's format, so saving the lesson
+    // later does not switch it back.
+    const lesson = previous ? lessonOf(previous) : undefined;
+    if (lesson && lesson.activityType !== saved.type) {
       try {
-        const updatedLesson = await updateLesson({ ...linksLesson, relatedActivityId: saved.id }, linksLesson);
+        const updatedLesson = await updateLesson({ ...lesson, activityType: saved.type }, lesson);
         setLessons((current) => current.map((candidate) => (candidate.id === updatedLesson.id ? updatedLesson : candidate)));
       } catch {
-        // The activity id already follows the lesson pattern, so the link still shows without this write.
+        // The lesson form also starts from the linked activity's format, so a failed write is harmless.
       }
     }
 
-    notify({
-      title: previous ? "Activity updated" : "Activity created",
-      description: linksLesson ? `It is now the practice step of ${linksLesson.title}.` : undefined,
-      tone: "success"
-    });
+    notify({ title: previous ? "Activity updated" : "Activity created", tone: "success" });
     return true;
   }
 
@@ -303,7 +306,6 @@ export function ActivitiesView() {
 
   const player = playingActivity ? (
     <StudentActivityPlayer
-      key={`${playingActivity.id}-${playerRound}`}
       activity={playingActivity}
       activities={activities}
       learningItems={learningItems}
@@ -340,10 +342,8 @@ export function ActivitiesView() {
         mode={formMode}
         items={learningItems}
         categories={categories}
-        lessons={lessons}
         promptStore={promptStore}
         lessonOfActivity={editingActivity ? lessonOf(editingActivity) : undefined}
-        lessonActivity={lessonActivity}
         onPromptStoreChange={(patch) => setPromptStore((current) => ({ ...current, ...patch }))}
         onClose={() => setFormMode(null)}
         onSave={saveActivity}
@@ -393,23 +393,34 @@ export function ActivitiesView() {
           activities={activities}
           itemById={itemById}
           lessonOf={lessonOf}
-          userId={user.id}
           onOpen={(activity) => setOpenActivityId(activity.id)}
           onPlay={play}
         />
       )}
 
-      {playingActivity && player ? (
+      {playingActivity ? (
         <ActivityPlayerScreen
           title={playingActivity.title}
+          type={playingActivity.type}
+          progress={progress}
           onExit={exitPlayer}
-          onReset={() => {
-            resetPlayer();
-            setPlayerRound((round) => round + 1);
-          }}
+          onReset={restartPlayer}
           onEdit={canManage(playingActivity) ? () => setFormMode({ kind: "edit", activity: playingActivity }) : undefined}
         >
-          {player}
+          <TeacherPlayer
+            key={`${playingActivity.id}-${playerRound}`}
+            activity={playingActivity}
+            learningItems={learningItems}
+            answers={answers}
+            result={result}
+            dragged={dragged}
+            setDragged={setDragged}
+            chooseAnswer={chooseAnswer}
+            onScore={scoreActivity}
+            onRestart={restartPlayer}
+            onExit={exitPlayer}
+            onProgress={reportProgress}
+          />
         </ActivityPlayerScreen>
       ) : null}
 

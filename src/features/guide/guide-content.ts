@@ -108,19 +108,19 @@ export const pageGuides: Record<string, PageGuide> = {
     steps: [
       {
         title: "Your library",
-        text: "Every activity, with its own pictures. From lessons shows the ones that belong to a lesson.",
+        text: "Every activity, with its own pictures. Each format has its own color, and you can filter by it.",
         icon: Layers,
         scene: "cards"
       },
       {
         title: "Create in three steps",
-        text: "Choose a format, pick up to five cards or a lesson, then check the questions.",
+        text: "Choose a format, pick up to five cards, then check the questions. A lesson's activity is made in Content.",
         icon: Activity,
         scene: "activity"
       },
       {
         title: "Play full screen",
-        text: "Play opens the learner's view. Use the buttons on the left to exit, restart, or edit.",
+        text: "Play opens a simple full-screen view. The top bar exits, restarts, or edits.",
         icon: GraduationCap,
         scene: "student"
       }
@@ -189,9 +189,10 @@ export const guideTips: Record<string, string> = {
 
   // Activities and gesture practice
   "activities.types": "Each format asks the learner to do something different with the same cards.",
-  "activities.create": "Build an activity: pick a format, choose the cards, then check the questions.",
-  "activities.filter": "From lessons shows each lesson's activity. Mine shows the ones you made.",
-  "activities.teacherBar": "Only you see these. Exit to the library, restart from the first question, or edit.",
+  "activities.create": "Build an activity from your own cards. A lesson's activity is made from the lesson in Content.",
+  "activities.filter": "From lessons shows each lesson's activity. Private shows the ones only you can see.",
+  "activities.typeFilter": "Show one format. Each format has its own color on the cards.",
+  "activities.teacherBar": "Exit to the library, start again from the first question, or edit the activity.",
   "gesture.camera": "Your camera stays on this device. It reads your hand shape and tells you if the sign matches.",
 
   // Admin
