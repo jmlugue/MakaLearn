@@ -11,6 +11,7 @@ import type { ContentView } from "@/features/admin/content-section";
 import { cn, formatDate } from "@/lib/utils";
 import { activityTypeLabels } from "@/utils/activity-labels";
 import { activityPlayHref } from "@/utils/lesson-activity";
+import { entityColors, materialColor } from "@/lib/entity-colors";
 import type {
   Activity as ActivityRecord,
   ActivityResult,
@@ -22,7 +23,7 @@ import type {
 } from "@/types";
 
 // Palette: blue is the main color; soft green, yellow and red only carry meaning (see color-palette rules).
-// Kind indicators sit off blue so they stand out on a blue page: PECS and Activities amber, Gestures and Lessons teal.
+// PECS, Gestures, Lessons, and Activities use the same colors as every other page (`src/lib/entity-colors.ts`).
 // Gestures have no attempts, so nothing here charts gesture practice.
 
 export type OverviewJump =
@@ -589,10 +590,10 @@ export function OverviewSection({
         </div>
         <div className="mt-3 flex gap-4">
           <p>
-            <span className="text-xl font-black text-accent-amber">{pecsCount}</span> <span className="text-xs font-semibold text-slate-500">PECS</span>
+            <span className={cn("text-xl font-black", entityColors.pecs.text)}>{pecsCount}</span> <span className="text-xs font-semibold text-slate-500">PECS</span>
           </p>
           <p>
-            <span className="text-xl font-black text-accent-teal">{gestureCount}</span>{" "}
+            <span className={cn("text-xl font-black", entityColors.gesture.text)}>{gestureCount}</span>{" "}
             <span className="text-xs font-semibold text-slate-500">Gestures</span>
           </p>
         </div>
@@ -618,9 +619,14 @@ export function OverviewSection({
         <div className="mt-3 space-y-2">
           <Link
             href="/activities"
-            className="group flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50/40 px-3 py-2.5 transition hover:border-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            className={cn(
+              "group flex items-center gap-3 rounded-xl border px-3 py-2.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+              entityColors.activity.border,
+              entityColors.activity.wash,
+              entityColors.activity.hoverBorder
+            )}
           >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400 text-white shadow-sm">
+            <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white shadow-sm", entityColors.activity.solid)}>
               <Gamepad2 className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
@@ -632,13 +638,18 @@ export function OverviewSection({
             <span className="text-3xl font-black text-ink">
               <CountUp value={activities.length} />
             </span>
-            <ChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-accent-amber" aria-hidden="true" />
+            <ChevronRight className={cn("h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5", entityColors.activity.groupHoverText)} aria-hidden="true" />
           </Link>
           <Link
             href="/content"
-            className="group flex items-center gap-3 rounded-xl border border-teal-100 bg-teal-50/40 px-3 py-2.5 transition hover:border-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            className={cn(
+              "group flex items-center gap-3 rounded-xl border px-3 py-2.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+              entityColors.lesson.border,
+              entityColors.lesson.wash,
+              entityColors.lesson.hoverBorder
+            )}
           >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-500 text-white shadow-sm">
+            <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white shadow-sm", entityColors.lesson.solid)}>
               <BookOpenCheck className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
@@ -650,7 +661,7 @@ export function OverviewSection({
             <span className="text-3xl font-black text-ink">
               <CountUp value={lessons.length} />
             </span>
-            <ChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-accent-teal" aria-hidden="true" />
+            <ChevronRight className={cn("h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5", entityColors.lesson.groupHoverText)} aria-hidden="true" />
           </Link>
         </div>
       </Tile>
@@ -726,14 +737,14 @@ export function OverviewSection({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.symbolImageUrl} alt="" className="h-full w-full object-contain p-1.5" />
                     ) : (
-                      <Hand className="h-6 w-6 text-teal-500" aria-hidden="true" />
+                      <Hand className={cn("h-6 w-6", entityColors.gesture.text)} aria-hidden="true" />
                     )}
                   </span>
                   <span className="w-full truncate text-xs font-semibold text-ink">{item.label}</span>
                   <span
                     className={cn(
                       "rounded-full px-1.5 text-[10px] font-semibold",
-                      item.contentType === "pecs" ? "bg-amber-100 text-accent-amber" : "bg-teal-100 text-accent-teal"
+                      materialColor(item.contentType).badge
                     )}
                   >
                     {item.contentType === "pecs" ? "PECS" : "Gesture"}

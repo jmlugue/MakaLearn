@@ -1051,8 +1051,8 @@ export function GesturePracticeView() {
                   className={cn(
                     "inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-black transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200 sm:px-5",
                     practiceMode === "guided"
-                      ? "bg-indigo-600 text-white shadow-md"
-                      : "text-slate-600 hover:bg-indigo-50"
+                      ? "bg-sky-600 text-white shadow-md"
+                      : "text-slate-600 hover:bg-sky-50"
                   )}
                 >
                   <ListChecks className="h-5 w-5" aria-hidden="true" />
@@ -1500,7 +1500,7 @@ function GuidedCameraOverlay({
   if (phase === "complete") {
     return (
       <div className="pointer-events-none grid h-full place-items-center bg-slate-950/48 p-4 backdrop-blur-sm">
-        <div className="rounded-full border-2 border-white/80 bg-white/95 px-6 py-3 text-center font-black text-indigo-700 shadow-xl">
+        <div className="rounded-full border-2 border-white/80 bg-white/95 px-6 py-3 text-center font-black text-sky-700 shadow-xl">
           <Trophy className="mr-2 inline h-5 w-5" aria-hidden="true" />
           Session complete
         </div>
@@ -1589,10 +1589,10 @@ function GuidedProgressPanel({
     <div className="mt-4 rounded-[1.5rem] border border-white/90 bg-white/85 p-4 shadow-[0_14px_30px_rgba(37,99,235,0.12)] backdrop-blur-xl">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-600">Guided 7</p>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-600">Guided 7</p>
           <p className="mt-1 font-black text-ink">Your gesture journey</p>
         </div>
-        <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-black text-indigo-700">
+        <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-black text-sky-700">
           {Math.min(currentIndex + 1, queue.length)}/{queue.length}
         </span>
       </div>
@@ -1612,7 +1612,7 @@ function GuidedProgressPanel({
                   : skipped
                     ? "border-amber-200 bg-amber-50 text-amber-800"
                     : current
-                      ? "border-indigo-300 bg-indigo-50 text-indigo-800 shadow-sm"
+                      ? "border-sky-300 bg-sky-50 text-sky-800 shadow-sm"
                       : "border-blue-100 bg-white/70 text-slate-500"
               )}
             >
@@ -1655,7 +1655,7 @@ function GuidedSessionSummary({
         <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-[0_14px_28px_rgba(251,146,60,0.3)]">
           <Trophy className="h-10 w-10" aria-hidden="true" />
         </span>
-        <p className="mt-4 text-xs font-black uppercase tracking-[0.2em] text-indigo-600">Session summary</p>
+        <p className="mt-4 text-xs font-black uppercase tracking-[0.2em] text-sky-600">Session summary</p>
         <h2 className="mt-1 text-3xl font-black tracking-tight text-ink">You finished your practice</h2>
       </div>
 
@@ -1720,8 +1720,8 @@ function GuidedSessionSummary({
 
 function SummaryMetric({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 px-2 py-3 text-center">
-      <p className="text-xl font-black text-indigo-700 sm:text-2xl">{value}</p>
+    <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-2 py-3 text-center">
+      <p className="text-xl font-black text-sky-700 sm:text-2xl">{value}</p>
       <p className="mt-1 text-[0.68rem] font-black uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
     </div>
   );

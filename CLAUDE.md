@@ -130,8 +130,8 @@ are separate files beside it.
 - `Dialog` (`src/components/ui/dialog.tsx`) has app-wide blue glass, a `hideHeader` prop for an
   in-content title with a floating close button, and a reference-counted scroll lock so stacked pop-ups
   cannot leave the page unscrollable.
-- Colours: blue first. PECS is soft periwinkle, gestures sky blue, and category colours are user data,
-  not decoration. See the colour rules before changing any of this.
+- Colours: blue first. PECS, Gestures, Lessons, and Activities use the shared map in
+  `src/lib/entity-colors.ts` (section 11); category colours are user data, not decoration. See the colour rules before changing any of this.
 
 ---
 
@@ -253,9 +253,7 @@ Notes:
 - **Admin Home:** Practice results tile removed (gesture attempts). Admin no longer fetches
   `practice_attempts`. Usage trend is full width. The average activity score moved to the foot of
   "Most used activities". `RingGauge` went with the tile.
-- **Admin indicator colors:** off blue so they read on a blue page. PECS and Activities amber, Gestures
-  and Lessons teal (`accent-amber`, `accent-teal`, Tailwind amber/teal). Usage trend keeps blue changes and
-  green sign-ins.
+- **Admin indicator colors:** replaced by the shared color map (section 11).
 - **Landing:** the sign-card experiment (committed in 4a1e4c1) was reverted to the original carousel
   (Hello, Please, Help, Thank you, Drink), and the floating bubbles were then removed entirely on request.
   `signing-kids.tsx` is deleted. Do not add decorative bubbles or drawn figures back.
@@ -325,4 +323,25 @@ card sound on tap, Listen highlight.
   the Sep 2 rule allowed only the owner or an admin. If the live database never ran the Sep 3 migration,
   teachers are refused. Lessons are owner or admin only by design (Make a copy). Needs the user's answer and
   someone with SQL access.
+
+---
+
+## 11. One color per main thing (Sep 19, not verified signed in)
+
+The user found PECS purple in Content, amber on Admin Home, and blue in the Admin Content tab. Now one map,
+`src/lib/entity-colors.ts`, is used everywhere. Never give these a section-specific color.
+
+| Thing | Color | Where it shows |
+|---|---|---|
+| PECS | soft periwinkle (indigo) | Content cards and badges, Activities preview, Admin Home count and badges, Admin Content tab and detail |
+| Gestures | sky blue | same places, plus the Gesture practice page (Guided 7 accents moved from indigo to sky) |
+| Lessons | blue | Admin Home Lessons row, lesson cards |
+| Activities | teal | Admin Home Activities row |
+
+- `kindTone()` and `KindBadge` in `content-shared.tsx` read the map. `materialColor(contentType)` gives a
+  learning item's colors.
+- Categories are exempt (teacher-chosen, may repeat). Activity type pastels stay (they tell types apart).
+- Meaning colors stay as they are: green added or signed in, amber edited or a warning, red deleted.
+- Student mode has no PECS or Gesture labels to recolor; playground category colors are categories.
+- The `accent-amber` and `accent-teal` Tailwind tokens are no longer used for kinds.
 

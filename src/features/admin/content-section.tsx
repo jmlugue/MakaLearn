@@ -9,6 +9,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { EmptyRow, Panel, SearchInput } from "@/features/admin/admin-shared";
 import { ItemDetailDialog, MediaDetailDialog } from "@/features/admin/content-detail-dialog";
 import type { AppUser, Category, LearningItem, MediaAsset } from "@/types";
+import { materialColor } from "@/lib/entity-colors";
 
 export type ContentView = "materials" | "media";
 export type ItemsFilter = "all" | "pecs" | "gesture";
@@ -368,7 +369,7 @@ function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: Ap
                     <span
                       className={cn(
                         "rounded-full px-2.5 py-1 text-xs font-semibold",
-                        item.contentType === "pecs" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
+                        materialColor(item.contentType).badge
                       )}
                     >
                       {item.contentType === "pecs" ? "PECS card" : "Gesture"}

@@ -14,6 +14,7 @@ import { deleteLearningItem, updateLearningItemDetails } from "@/lib/supabase/ap
 import { deleteMediaAssetFromSupabase } from "@/lib/supabase/media";
 import { formatDate } from "@/lib/utils";
 import type { AppUser, Category, LearningItem, MediaAsset } from "@/types";
+import { materialColor } from "@/lib/entity-colors";
 
 export const mediaTypeNames: Record<MediaAsset["type"], string> = {
   "symbol-image": "Symbol image",
@@ -245,7 +246,7 @@ export function ItemDetailDialog({
 
             <dl className="divide-y divide-slate-100">
               <DetailRow label="Type">
-                <Badge className={current.contentType === "pecs" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}>
+                <Badge className={materialColor(current.contentType).badge}>
                   {current.contentType === "pecs" ? "PECS card" : "Gesture"}
                 </Badge>
               </DetailRow>

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown, Hand, Image as ImageIcon, Search, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Category, LearningItem } from "@/types";
+import { entityColors } from "@/lib/entity-colors";
 
 export type ContentKind = "pecs" | "gesture";
 
@@ -51,8 +52,9 @@ export const kindMeta: Record<ContentKind, { label: string; plural: string; addL
   gesture: { label: "Gesture", plural: "Gestures", addLabel: "Add gesture", icon: Hand, tone: "sky" }
 };
 
+/** A material's colors. Shared with Activities and Admin (`src/lib/entity-colors.ts`). */
 export function kindTone(kind: ContentKind) {
-  return toneClasses[kindMeta[kind].tone];
+  return entityColors[kind];
 }
 
 /** Soft category presets. Teachers can also pick any custom color. */
@@ -107,7 +109,7 @@ export function KindBadge({ kind, className }: { kind: ContentKind; className?: 
   const meta = kindMeta[kind];
   const Icon = meta.icon;
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide", toneClasses[meta.tone].badge, className)}>
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide", entityColors[kind].badge, className)}>
       <Icon className="h-3 w-3" aria-hidden="true" />
       {meta.label}
     </span>
