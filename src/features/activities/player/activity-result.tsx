@@ -122,7 +122,7 @@ export function ActivityResultModal({
                   )}
                 >
                   <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    <span className="grid min-h-0 w-full place-items-center overflow-hidden p-1">
+                    <span className="grid h-full min-h-0 w-full place-items-center overflow-hidden p-1">
                       <SymbolOption value={value} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
                     </span>
                   </div>

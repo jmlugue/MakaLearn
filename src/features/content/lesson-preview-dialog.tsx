@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Clock, Copy, Hand, Lock, Pencil, Trash2, User, Users } from "lucide-react";
+import { Copy, Hand, Lock, Pencil, Trash2, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -12,8 +12,8 @@ import type { LearningItem, Lesson } from "@/types";
 
 const chipClass = "inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-blue-100";
 
-/** What a lesson holds: materials (tap to hear) and instructions. Shared by the preview and the form's Review. */
-export function LessonPreviewBody({ instructions, items }: { instructions: string; items: LearningItem[] }) {
+/** What a lesson holds: its materials (tap to hear). Shared by the preview and the form's Review. */
+export function LessonPreviewBody({ items }: { items: LearningItem[] }) {
   return (
     <div className="space-y-4">
       <div className={cn("p-4", glassBoxClass)}>
@@ -39,10 +39,6 @@ export function LessonPreviewBody({ instructions, items }: { instructions: strin
         </div>
       </div>
 
-      <div className={cn("p-4", glassBoxClass)}>
-        <SectionLabel>Instructions</SectionLabel>
-        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">{instructions || "No instructions yet."}</p>
-      </div>
     </div>
   );
 }
@@ -51,16 +47,12 @@ export function LessonMeta({
   lesson,
   creator
 }: {
-  lesson: Pick<Lesson, "source" | "estimatedDuration"> & Partial<Pick<Lesson, "visibility">>;
+  lesson: Pick<Lesson, "source"> & Partial<Pick<Lesson, "visibility">>;
   creator?: string;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <SourceBadge source={lesson.source} />
-      <span className={chipClass}>
-        <Clock className="h-3 w-3" aria-hidden="true" />
-        {lesson.estimatedDuration} min
-      </span>
       {lesson.visibility ? (
         <span className={chipClass}>
           {lesson.visibility === "private" ? <Lock className="h-3 w-3" aria-hidden="true" /> : <Users className="h-3 w-3" aria-hidden="true" />}
@@ -145,7 +137,7 @@ export function LessonPreviewDialog({
             <LessonMeta lesson={lesson} creator={creator} />
           </PopupTitle>
           {lesson.objective ? <p className="-mt-2 text-sm leading-6 text-slate-600">{lesson.objective}</p> : null}
-          <LessonPreviewBody instructions={lesson.instructions} items={items} />
+          <LessonPreviewBody items={items} />
         </div>
       ) : null}
     </Dialog>

@@ -1,13 +1,19 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { BrandLogo } from "@/components/layout/brand-logo";
 import { cn } from "@/lib/utils";
 import { activityTypeLabels } from "@/utils/activity-labels";
 import { type ActivityScore, getQuestionTitle, getMatchWordOptions, getActivityBackground } from "@/features/activities/player/player-utils";
-import { StepProgress, ActivityGameTopBar, SymbolOption } from "@/features/activities/player/player-parts";
+import {
+  StepProgress,
+  ActivityGameTopBar,
+  SymbolOption,
+  CheckStepFooter,
+  CheckedOptionBadge,
+  checkStepMessage,
+  checkedOptionClass,
+  checkedOptionState
+} from "@/features/activities/player/player-parts";
 import { ActivityResultModal } from "@/features/activities/player/activity-result";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
@@ -17,7 +23,6 @@ export function MatchWordSymbolStudentLayout({
   answers,
   currentQuestionIndex,
   hintedQuestionId,
-  matchFeedback,
   optionSetVersion,
   isListening,
   highlightedListenQuestionId,
@@ -33,6 +38,8 @@ export function MatchWordSymbolStudentLayout({
   onBack,
   onNext,
   onChooseAnswer,
+  checkedQuestionIds,
+  onCheck,
   activityNavigator
 }: {
   activity: Activity;
@@ -40,7 +47,6 @@ export function MatchWordSymbolStudentLayout({
   answers: Record<string, string>;
   currentQuestionIndex: number;
   hintedQuestionId: string;
-  matchFeedback: "idle" | "correct" | "wrong";
   optionSetVersion: number;
   isListening: boolean;
   highlightedListenQuestionId: string;
@@ -56,6 +62,9 @@ export function MatchWordSymbolStudentLayout({
   onBack: () => void;
   onNext: () => void;
   onChooseAnswer: (question: ActivityQuestion, option: string) => void;
+  /** Questions already checked: their cards are locked and show green or red. */
+  checkedQuestionIds: Record<string, boolean>;
+  onCheck: (question: ActivityQuestion) => void;
   activityNavigator?: ReactNode;
 }) {
   const [optionShuffleSeed, setOptionShuffleSeed] = useState(() => Math.random());
@@ -64,7 +73,8 @@ export function MatchWordSymbolStudentLayout({
   const currentQuestion = activity.questions[safeQuestionIndex];
   const currentStep = safeQuestionIndex + 1;
   const canMoveBack = totalSteps > 1 && safeQuestionIndex > 0;
-  const canMoveNext = totalSteps > 1 && safeQuestionIndex + 1 < totalSteps;
+  const isLast = safeQuestionIndex + 1 >= totalSteps;
+  const isChecked = currentQuestion ? Boolean(checkedQuestionIds[currentQuestion.id]) : false;
   const currentWord = currentQuestion ? getQuestionTitle(activity, currentQuestion, learningItems) : "";
   const selectedAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
   const options = useMemo(
@@ -72,13 +82,14 @@ export function MatchWordSymbolStudentLayout({
     [currentQuestion, learningItems, optionShuffleSeed]
   );
   const shouldShowHint = hintedQuestionId === currentQuestion?.id;
-  const motivationText = hintedQuestionId === currentQuestion?.id
-    ? "Look for the matching picture."
-    : matchFeedback === "wrong"
-      ? "Try again."
-      : matchFeedback === "correct"
-      ? "Nice choice."
-      : "You can do it!";
+  const motivationText = checkStepMessage({
+    isChecked,
+    isRight: Boolean(currentQuestion && selectedAnswer === currentQuestion.answer),
+    hasPick: Boolean(selectedAnswer),
+    hinted: shouldShowHint,
+    words: false,
+    prompt: "Find the matching picture."
+  });
 
   useEffect(() => {
     setOptionShuffleSeed(Math.random());
@@ -135,21 +146,20 @@ export function MatchWordSymbolStudentLayout({
           <div className="grid min-h-0 grid-cols-1 items-stretch gap-3 sm:grid-cols-5 sm:gap-3 lg:gap-4">
             {options.map((option) => {
               const selected = selectedAnswer === option;
+              const state = checkedOptionState(option, currentQuestion?.answer ?? "", selectedAnswer, isChecked);
               return (
                 <button
                   key={`${currentQuestion?.id}-${option}`}
                   type="button"
+                  disabled={isChecked}
                   onClick={() => currentQuestion && onChooseAnswer(currentQuestion, option)}
                   aria-pressed={selected}
                   className={cn(
-                    "grid h-full min-h-0 overflow-hidden rounded-[1.75rem] border-4 bg-white/92 p-2 text-center shadow-[0_12px_0_rgba(147,197,253,0.22),0_24px_40px_rgba(37,99,235,0.12)] transition hover:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:p-3",
-                    shouldShowHint && option === currentQuestion?.answer
-                      ? "border-amber-400 ring-8 ring-amber-100"
-                      : selected
-                        ? "border-blue-500 ring-8 ring-blue-100"
-                        : "border-white hover:border-blue-200"
+                    "relative grid h-full min-h-0 overflow-hidden rounded-[1.75rem] border-4 bg-white/92 p-2 text-center shadow-[0_12px_0_rgba(147,197,253,0.22),0_24px_40px_rgba(37,99,235,0.12)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 disabled:cursor-default sm:p-3",
+                    checkedOptionClass(state, isChecked, shouldShowHint && option === currentQuestion?.answer)
                   )}
                 >
+                  <CheckedOptionBadge state={state} />
                   <span className="grid h-full min-h-0 place-items-center overflow-hidden rounded-[1.2rem] bg-white/85 p-1 sm:p-2">
                     <SymbolOption value={option} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
                   </span>
@@ -159,34 +169,16 @@ export function MatchWordSymbolStudentLayout({
           </div>
         </main>
 
-        <footer className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            className="min-h-14 rounded-2xl border-2 border-blue-200 bg-white/90 px-4 text-base font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.12)] hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 sm:px-6"
-            onClick={onBack}
-            disabled={!canMoveBack}
-          >
-            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-            Back
-          </Button>
-
-          <div className="mx-auto flex min-h-14 w-full max-w-xl items-center justify-center gap-3 rounded-2xl border border-blue-100 bg-white/90 px-4 text-center shadow-sm">
-            <BrandLogo markClassName="h-11 w-11 rounded-xl" />
-            <p className="text-base font-black text-[#10285e] sm:text-lg">{motivationText}</p>
-          </div>
-
-          <Button
-            type="button"
-            variant="secondary"
-            className="min-h-14 rounded-2xl border-2 border-blue-200 bg-blue-100 px-4 text-base font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.14)] hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-45 sm:px-6"
-            onClick={onNext}
-            disabled={!canMoveNext}
-          >
-            Next
-            <ChevronRight className="h-5 w-5" aria-hidden="true" />
-          </Button>
-        </footer>
+        <CheckStepFooter
+          canMoveBack={canMoveBack}
+          onBack={onBack}
+          message={motivationText}
+          isChecked={isChecked}
+          isLast={isLast}
+          canCheck={Boolean(selectedAnswer)}
+          onCheck={() => currentQuestion && onCheck(currentQuestion)}
+          onNext={onNext}
+        />
       </div>
 
       {result ? (

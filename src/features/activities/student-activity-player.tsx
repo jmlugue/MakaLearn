@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
-import { type ActivityScore, getQuestionListenText, getActivityQuestionListenItems, getCorrectResultListenItems, getFirstHintQuestion, getChoiceGridClass, getActivityBackground, speakTextSequence } from "@/features/activities/player/player-utils";
-import { StudentActivityNavigator, ActivityResetAction, ActivityGameTopBar } from "@/features/activities/player/player-parts";
-import { ActivityResultModal } from "@/features/activities/player/activity-result";
+import { useEffect, useRef, useState } from "react";
+import { type ActivityScore, getQuestionListenText, getActivityQuestionListenItems, getCorrectResultListenItems, getFirstHintQuestion, speakTextSequence } from "@/features/activities/player/player-utils";
+import { StudentActivityNavigator } from "@/features/activities/player/player-parts";
 import { MatchWordSymbolStudentLayout } from "@/features/activities/player/match-question";
 import { ChooseCorrectSymbolStudentLayout } from "@/features/activities/player/choose-question";
 import { DragDropSymbolStudentLayout } from "@/features/activities/player/drag-drop-question";
-import { GamePromptCard, QuestionChoicePanel } from "@/features/activities/player/choice-list-question";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
+
+/** Pause after the last Check so the green and red cards show before the score pops up. */
+const SCORE_DELAY_MS = 1200;
 
 type StudentActivityPlayerProps = {
   activity: Activity;
@@ -21,7 +21,6 @@ type StudentActivityPlayerProps = {
   setDragged: (value: string) => void;
   chooseAnswer: (questionId: string, value: string) => void;
   onScore: (questionIds?: string[]) => void;
-  onClearResult: () => void;
   onReset: () => void;
   onSelectActivity?: (activityId: string) => void;
 };
@@ -36,7 +35,6 @@ export function StudentActivityPlayer({
   setDragged,
   chooseAnswer,
   onScore,
-  onClearResult,
   onReset,
   onSelectActivity
 }: StudentActivityPlayerProps) {
@@ -44,13 +42,14 @@ export function StudentActivityPlayer({
   const [isListening, setIsListening] = useState(false);
   const [matchQuestionIndex, setMatchQuestionIndex] = useState(0);
   const [chooseQuestionIndex, setChooseQuestionIndex] = useState(0);
-  const [matchFeedback, setMatchFeedback] = useState<"idle" | "correct" | "wrong">("idle");
+  // Pick, Check, then Next (as in the teacher player). Checked questions are locked and show green or red.
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [matchOptionRound, setMatchOptionRound] = useState(0);
   const [resultQuestionIds, setResultQuestionIds] = useState<string[]>([]);
   const [highlightedListenQuestionId, setHighlightedListenQuestionId] = useState("");
   const hintTimer = useRef<number | null>(null);
+  const scoreTimer = useRef<number | null>(null);
   const onScoreRef = useRef(onScore);
-  const backgroundUrl = useMemo(() => getActivityBackground(activity.id), [activity.id]);
 
   useEffect(() => {
     onScoreRef.current = onScore;
@@ -60,7 +59,7 @@ export function StudentActivityPlayer({
     setMatchQuestionIndex(0);
     setChooseQuestionIndex(0);
     setHintedQuestionId("");
-    setMatchFeedback("idle");
+    setChecked({});
     setMatchOptionRound((current) => current + 1);
     setResultQuestionIds([]);
     setHighlightedListenQuestionId("");
@@ -71,8 +70,11 @@ export function StudentActivityPlayer({
       if (hintTimer.current) {
         window.clearTimeout(hintTimer.current);
       }
+      if (scoreTimer.current) {
+        window.clearTimeout(scoreTimer.current);
+      }
     };
-  }, []);
+  }, [activity.id]);
 
   function showHint() {
     const hintedQuestion = getFirstHintQuestion(activity, answers);
@@ -139,91 +141,40 @@ export function StudentActivityPlayer({
     window.setTimeout(() => onScoreRef.current(questionIds), 0);
   }
 
-  function clearResultAndKeepAnswers() {
-    setResultQuestionIds([]);
-    onClearResult();
-  }
-
-  function retryResultQuestions() {
-    resultQuestionIds.forEach((questionId) => chooseAnswer(questionId, ""));
-    setResultQuestionIds([]);
-  }
-
-  function chooseAnswerAndScoreQuestion(questionId: string, value: string) {
-    chooseAnswer(questionId, value);
-    scoreQuestions([questionId]);
-  }
-
-  function choosePagedChoiceAnswer(question: ActivityQuestion, value: string) {
-    const totalSteps = Math.min(activity.questions.length, 5);
-    const visibleQuestions = activity.questions.slice(0, totalSteps);
-    const visibleQuestionIds = visibleQuestions.map((visibleQuestion) => visibleQuestion.id);
-    const questionIndex = visibleQuestions.findIndex((visibleQuestion) => visibleQuestion.id === question.id);
-    const nextAnswers = { ...answers, [question.id]: value };
-
-    chooseAnswer(question.id, value);
-
-    if (visibleQuestions.every((visibleQuestion) => nextAnswers[visibleQuestion.id])) {
-      scoreQuestions(visibleQuestionIds);
-      return;
-    }
-
-    if (questionIndex >= 0 && questionIndex + 1 < totalSteps) {
-      window.setTimeout(() => {
-        setChooseQuestionIndex(questionIndex + 1);
-      }, 220);
-    }
-  }
-
-  function chooseMatchAnswer(question: ActivityQuestion, option: string) {
-    const nextAnswers = { ...answers, [question.id]: option };
+  /** Picking only marks the card. It never moves on or scores. */
+  function pickAnswer(question: ActivityQuestion, option: string) {
+    if (checked[question.id]) return;
     chooseAnswer(question.id, option);
+  }
 
-    if (option !== question.answer) {
-      setMatchFeedback("wrong");
-      scoreQuestions([question.id]);
-      return;
+  /** Check shows right or wrong. After the last one, the score pops up by itself. */
+  function checkQuestion(question: ActivityQuestion) {
+    if (!answers[question.id] || checked[question.id]) return;
+    const nextChecked = { ...checked, [question.id]: true };
+    setChecked(nextChecked);
+
+    const visibleQuestionIds = activity.questions.slice(0, 5).map((visibleQuestion) => visibleQuestion.id);
+    if (visibleQuestionIds.every((questionId) => nextChecked[questionId])) {
+      if (scoreTimer.current) window.clearTimeout(scoreTimer.current);
+      scoreTimer.current = window.setTimeout(() => scoreQuestions(visibleQuestionIds), SCORE_DELAY_MS);
     }
+  }
 
-    setMatchFeedback("correct");
-
-    const totalSteps = Math.min(activity.questions.length, 5);
-    const visibleQuestionIds = activity.questions.slice(0, totalSteps).map((visibleQuestion) => visibleQuestion.id);
-    const allVisibleAnswersCorrect = visibleQuestionIds.length > 0 && activity.questions
-      .slice(0, totalSteps)
-      .every((visibleQuestion) => nextAnswers[visibleQuestion.id] === visibleQuestion.answer);
-
-    if (allVisibleAnswersCorrect) {
-      scoreQuestions(visibleQuestionIds);
-      return;
-    }
-
-    window.setTimeout(() => {
-      if (matchQuestionIndex + 1 < totalSteps) {
-        setMatchQuestionIndex(matchQuestionIndex + 1);
-        setMatchFeedback("idle");
-      }
-    }, 280);
+  /** From the score pop-up: a fresh round from question 1. */
+  function restartRound() {
+    if (scoreTimer.current) window.clearTimeout(scoreTimer.current);
+    setChecked({});
+    setChooseQuestionIndex(0);
+    setMatchQuestionIndex(0);
+    setMatchOptionRound((current) => current + 1);
+    setResultQuestionIds([]);
+    onReset();
   }
 
   function getResultPrimaryAction() {
-    if (activity.type === "match-word-symbol") {
-      return {
-        label: result?.incorrect === 0 ? "Practice again" : "Try again",
-        action: result?.incorrect === 0 ? onReset : retryResultQuestions
-      };
-    }
-
-    if (activity.type === "drag-drop-symbol") {
-      return {
-        label: result?.incorrect === 0 ? "Practice again" : "Try again",
-        action: onReset
-      };
-    }
-
     return {
-      label: result?.incorrect === 0 ? "Continue" : "Try again",
-      action: result?.incorrect === 0 ? clearResultAndKeepAnswers : retryResultQuestions
+      label: result?.incorrect === 0 ? "Practice again" : "Try again",
+      action: activity.type === "drag-drop-symbol" ? onReset : restartRound
     };
   }
 
@@ -271,7 +222,6 @@ export function StudentActivityPlayer({
         answers={answers}
         currentQuestionIndex={matchQuestionIndex}
         hintedQuestionId={hintedQuestionId}
-        matchFeedback={matchFeedback}
         optionSetVersion={matchOptionRound}
         isListening={isListening}
         highlightedListenQuestionId={highlightedListenQuestionId}
@@ -293,67 +243,17 @@ export function StudentActivityPlayer({
           hintTimer.current = window.setTimeout(() => setHintedQuestionId(""), 1600);
         }}
         onListen={listenToMatchQuestion}
-        onReset={() => {
-          setMatchQuestionIndex(0);
-          setMatchFeedback("idle");
-          setMatchOptionRound((current) => current + 1);
-          onReset();
-        }}
+        onReset={restartRound}
         onBack={() => {
-          setMatchFeedback("idle");
           setMatchQuestionIndex((current) => (current > 0 ? current - 1 : current));
         }}
         onNext={() => {
           const totalSteps = Math.min(activity.questions.length, 5);
-          setMatchFeedback("idle");
           setMatchQuestionIndex((current) => (current + 1 < totalSteps ? current + 1 : current));
         }}
-        onChooseAnswer={chooseMatchAnswer}
-        activityNavigator={activityNavigator}
-      />
-    );
-  }
-
-  if (activity.type === "choose-correct-symbol") {
-    const totalSteps = Math.min(activity.questions.length, 5);
-
-    return (
-      <ChooseCorrectSymbolStudentLayout
-        activity={activity}
-        learningItems={learningItems}
-        answers={answers}
-        currentQuestionIndex={chooseQuestionIndex}
-        hintedQuestionId={hintedQuestionId}
-        isListening={isListening}
-        highlightedListenQuestionId={highlightedListenQuestionId}
-        result={result}
-        resultQuestionIds={visibleResultQuestionIds}
-        resultPrimaryActionLabel={resultPrimaryAction.label}
-        onResultPrimaryAction={resultPrimaryAction.action}
-        isResultListening={isListening}
-        onResultListen={listenToCorrectResult}
-        onHint={() => {
-          const question = activity.questions[Math.min(chooseQuestionIndex, Math.max(totalSteps - 1, 0))];
-          if (!question) return;
-
-          setHintedQuestionId(question.id);
-          if (hintTimer.current) {
-            window.clearTimeout(hintTimer.current);
-          }
-          hintTimer.current = window.setTimeout(() => setHintedQuestionId(""), 1600);
-        }}
-        onListen={listenToChooseQuestion}
-        onReset={() => {
-          setChooseQuestionIndex(0);
-          onReset();
-        }}
-        onBack={() => {
-          setChooseQuestionIndex((current) => (current > 0 ? current - 1 : current));
-        }}
-        onNext={() => {
-          setChooseQuestionIndex((current) => (current + 1 < totalSteps ? current + 1 : current));
-        }}
-        onChooseAnswer={choosePagedChoiceAnswer}
+        onChooseAnswer={pickAnswer}
+        checkedQuestionIds={checked}
+        onCheck={checkQuestion}
         activityNavigator={activityNavigator}
       />
     );
@@ -382,73 +282,47 @@ export function StudentActivityPlayer({
     );
   }
 
+  // Choose the correct symbol, Fill in the blank, and Choose the word: one question at a time.
+  // (Fill in the blank and Choose the word used to show every question at once, and the cards overlapped.)
+  const totalSteps = Math.min(activity.questions.length, 5);
+
   return (
-    <>
-      <section
-        className="relative h-[calc(100vh-1rem)] overflow-hidden rounded-[2rem] border border-white/90 bg-[#cfeeff] shadow-[0_18px_58px_rgba(37,99,235,0.18)]"
-        style={{
-          backgroundImage:
-            `linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(232,247,255,0.12) 42%, rgba(222,247,210,0.18) 100%), url('${backgroundUrl}')`,
-          backgroundSize: "cover",
-          backgroundPosition: "center"
-        }}
-      >
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24),rgba(255,255,255,0)_28%,rgba(255,255,255,0.1)_100%)]" />
-        <div
-          className="relative grid h-full grid-rows-[minmax(0,1fr)] gap-2 px-4 pb-24 pt-2 sm:px-5 lg:px-7"
-        >
-          <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-5">
-            <ActivityGameTopBar
-              stacked
-              isListening={isListening}
-              onHint={showHint}
-              onListen={listenToActivity}
-              activityNavigator={activityNavigator}
-            />
-          </div>
+    <ChooseCorrectSymbolStudentLayout
+      activity={activity}
+      learningItems={learningItems}
+      answers={answers}
+      currentQuestionIndex={chooseQuestionIndex}
+      hintedQuestionId={hintedQuestionId}
+      isListening={isListening}
+      highlightedListenQuestionId={highlightedListenQuestionId}
+      result={result}
+      resultQuestionIds={visibleResultQuestionIds}
+      resultPrimaryActionLabel={resultPrimaryAction.label}
+      onResultPrimaryAction={resultPrimaryAction.action}
+      isResultListening={isListening}
+      onResultListen={listenToCorrectResult}
+      onHint={() => {
+        const question = activity.questions[Math.min(chooseQuestionIndex, Math.max(totalSteps - 1, 0))];
+        if (!question) return;
 
-          <div className="relative z-10 min-h-0">
-            <div
-              className="mx-auto grid h-full w-full max-w-[90rem] grid-rows-[auto_minmax(0,1fr)] px-1 py-1 sm:px-3"
-            >
-              <GamePromptCard activity={activity} learningItems={learningItems} />
-
-              <div className={cn("mt-5 grid min-h-0 gap-4 overflow-visible px-1 sm:px-4", getChoiceGridClass(activity.questions.length))}>
-                {activity.questions.map((question) => (
-                  <QuestionChoicePanel
-                    key={question.id}
-                    activity={activity}
-                    question={question}
-                    singleQuestion={activity.questions.length === 1}
-                    learningItems={learningItems}
-                    selectedAnswer={answers[question.id]}
-                    scored={Boolean(result)}
-                    hinted={hintedQuestionId === question.id}
-                    chooseAnswer={chooseAnswerAndScoreQuestion}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <ActivityResetAction onReset={onReset} />
-
-        {result ? (
-          <ActivityResultModal
-            activity={activity}
-            learningItems={learningItems}
-            answers={answers}
-            result={result}
-            questionIds={visibleResultQuestionIds}
-            primaryActionLabel={resultPrimaryAction.label}
-            onPrimaryAction={resultPrimaryAction.action}
-            isListening={isListening}
-            onListen={listenToCorrectResult}
-            highlightedQuestionId={highlightedListenQuestionId}
-          />
-        ) : null}
-      </section>
-    </>
+        setHintedQuestionId(question.id);
+        if (hintTimer.current) {
+          window.clearTimeout(hintTimer.current);
+        }
+        hintTimer.current = window.setTimeout(() => setHintedQuestionId(""), 1600);
+      }}
+      onListen={listenToChooseQuestion}
+      onReset={restartRound}
+      onBack={() => {
+        setChooseQuestionIndex((current) => (current > 0 ? current - 1 : current));
+      }}
+      onNext={() => {
+        setChooseQuestionIndex((current) => (current + 1 < totalSteps ? current + 1 : current));
+      }}
+      onChooseAnswer={pickAnswer}
+      checkedQuestionIds={checked}
+      onCheck={checkQuestion}
+      activityNavigator={activityNavigator}
+    />
   );
 }

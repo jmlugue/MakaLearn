@@ -1,12 +1,137 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { GripVertical, Lightbulb, Library, RotateCcw, Volume2 } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, GripVertical, Lightbulb, Library, Volume2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { cn } from "@/lib/utils";
 import { isEmbeddableActivityMediaUrl } from "@/utils/activity-symbol-options";
 import { getLearningItemForValue, getDisplayLabel } from "@/features/activities/player/player-utils";
 import type { Activity, LearningItem } from "@/types";
+
+// Pick, Check, then Next: the same steps as the teacher player. Picking alone never moves on or scores.
+
+export type CheckedOptionState = "idle" | "picked" | "correct" | "wrong";
+
+/** Before Check only the pick shows. After Check the right card is green and a wrong pick is red. */
+export function checkedOptionState(option: string, answer: string, selected: string | undefined, isChecked: boolean): CheckedOptionState {
+  if (!isChecked) return selected === option ? "picked" : "idle";
+  if (option === answer) return "correct";
+  return selected === option ? "wrong" : "idle";
+}
+
+export function checkedOptionClass(state: CheckedOptionState, isChecked: boolean, hinted: boolean) {
+  if (!isChecked && hinted) return "border-amber-400 ring-8 ring-amber-100";
+  if (state === "correct") return "border-emerald-400 ring-8 ring-emerald-100";
+  if (state === "wrong") return "border-rose-400 ring-8 ring-rose-100";
+  if (state === "picked") return "border-blue-500 ring-8 ring-blue-100";
+  return isChecked ? "border-white opacity-60" : "border-white hover:-translate-y-1 hover:border-blue-200";
+}
+
+/** Tick or cross in the corner of a checked card. */
+export function CheckedOptionBadge({ state }: { state: CheckedOptionState }) {
+  if (state !== "correct" && state !== "wrong") return null;
+  return (
+    <span
+      className={cn(
+        "absolute right-2 top-2 z-10 grid h-10 w-10 place-items-center rounded-full border-2 border-white text-white shadow-md sm:h-12 sm:w-12",
+        state === "correct" ? "bg-emerald-500" : "bg-rose-500"
+      )}
+      aria-hidden="true"
+    >
+      {state === "correct" ? <Check className="h-6 w-6" strokeWidth={3} /> : <X className="h-6 w-6" strokeWidth={3} />}
+    </span>
+  );
+}
+
+/**
+ * Back, a short message, and one main button: Check until the question is checked, then Next. After the last
+ * Check there is no button; the score pop-up opens by itself.
+ */
+export function CheckStepFooter({
+  canMoveBack,
+  onBack,
+  message,
+  isChecked,
+  isLast,
+  canCheck,
+  onCheck,
+  onNext
+}: {
+  canMoveBack: boolean;
+  onBack: () => void;
+  message: string;
+  isChecked: boolean;
+  isLast: boolean;
+  canCheck: boolean;
+  onCheck: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <footer className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+      <Button
+        type="button"
+        variant="secondary"
+        className="min-h-14 rounded-2xl border-2 border-blue-200 bg-white/90 px-4 text-base font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.12)] hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 sm:px-6"
+        onClick={onBack}
+        disabled={!canMoveBack}
+      >
+        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+        Back
+      </Button>
+
+      <div className="mx-auto flex min-h-14 w-full max-w-xl items-center justify-center gap-3 rounded-2xl border border-blue-100 bg-white/90 px-4 text-center shadow-sm" role="status">
+        <BrandLogo markClassName="h-11 w-11 rounded-xl" />
+        <p className="text-base font-black text-[#10285e] sm:text-lg">{message}</p>
+      </div>
+
+      {!isChecked ? (
+        <Button
+          type="button"
+          className="min-h-14 rounded-2xl border-4 border-white bg-[#50c819] px-5 text-lg font-black text-white shadow-[0_8px_0_rgba(42,137,19,0.35)] hover:bg-[#48b513] disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-40"
+          onClick={onCheck}
+          disabled={!canCheck}
+        >
+          <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+          Check
+        </Button>
+      ) : isLast ? (
+        <span className="w-24 sm:w-40" aria-hidden="true" />
+      ) : (
+        <Button
+          type="button"
+          className="min-h-14 rounded-2xl border-4 border-white bg-blue-600 px-5 text-lg font-black text-white shadow-[0_8px_0_rgba(30,64,175,0.3)] hover:bg-blue-700 sm:min-w-40"
+          onClick={onNext}
+        >
+          Next
+          <ChevronRight className="h-6 w-6" aria-hidden="true" />
+        </Button>
+      )}
+    </footer>
+  );
+}
+
+/** The footer message for a paged question. */
+export function checkStepMessage({
+  isChecked,
+  isRight,
+  hasPick,
+  hinted,
+  words,
+  prompt
+}: {
+  isChecked: boolean;
+  isRight: boolean;
+  hasPick: boolean;
+  hinted: boolean;
+  words: boolean;
+  prompt: string;
+}) {
+  if (isChecked) return isRight ? "Great job!" : `Good try! The green ${words ? "word" : "card"} is right.`;
+  if (hinted) return `Look for the highlighted ${words ? "word" : "picture"}.`;
+  if (hasPick) return "Press Check.";
+  return prompt;
+}
 
 export function StudentActivityNavigator({
   activities,
@@ -37,10 +162,11 @@ export function StudentActivityNavigator({
         <span className="hidden sm:inline">Activities</span>
       </Button>
 
+      {open ? <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-[1px]" aria-hidden="true" onClick={() => setOpen(false)} /> : null}
       {open ? (
         <div
           id="student-activity-switcher"
-          className="absolute right-0 mt-2 w-[min(18rem,calc(100vw-1.5rem))] rounded-[1.4rem] border-4 border-white bg-white/95 p-3 shadow-[0_18px_45px_rgba(37,99,235,0.22)] backdrop-blur-xl"
+          className="absolute right-0 z-50 mt-2 w-[min(18rem,calc(100vw-1.5rem))] rounded-[1.4rem] border-4 border-white bg-white/95 p-3 shadow-[0_18px_45px_rgba(37,99,235,0.22)] backdrop-blur-xl"
         >
           <div className="mb-3 flex items-center gap-2 px-1 text-sm font-black uppercase text-blue-700">
             <Library className="h-5 w-5" aria-hidden="true" />
@@ -108,19 +234,6 @@ export function StepProgress({ currentStep, totalSteps }: { currentStep: number;
   );
 }
 
-export function ActivityResetAction({ onReset }: { onReset: () => void }) {
-  return (
-    <Button
-      type="button"
-      variant="secondary"
-      className="absolute bottom-4 left-4 z-20 min-h-16 rounded-[1.45rem] border-4 border-white bg-white/88 px-5 text-xl font-black text-blue-700 shadow-[0_10px_0_rgba(147,197,253,0.5)] sm:left-6 sm:min-w-44"
-      onClick={onReset}
-    >
-      <RotateCcw className="h-7 w-7" aria-hidden="true" />
-      Try again
-    </Button>
-  );
-}
 
 export function ActivityGameTopBar({
   stacked = false,
@@ -255,13 +368,15 @@ export function SymbolOption({
   className?: string;
 }) {
   const item = getLearningItemForValue(value, learningItems);
-  const imageValue = item?.symbolImageUrl ?? value;
+  const imageValue = item?.symbolImageUrl || value;
 
   if (isEmbeddableActivityMediaUrl(imageValue)) {
+    // The picture is positioned inside the box and scaled to fit. Sized by its own height, a tall PECS card
+    // grew past the box and lost its word at the bottom.
     return (
       <span
         className={cn(
-          "grid h-20 min-h-0 w-full max-w-full min-w-0 place-items-center sm:h-24",
+          "relative block h-20 min-h-0 w-full max-w-full min-w-0 sm:h-24",
           framed ? "overflow-hidden rounded-xl border border-slate-200 bg-white" : "overflow-hidden rounded-none bg-transparent",
           className
         )}
@@ -271,7 +386,7 @@ export function SymbolOption({
         <img
           src={imageValue}
           alt={item ? `${item.label} symbol` : "Learning item symbol"}
-          className="h-full w-full object-contain"
+          className="absolute inset-0 h-full w-full object-contain"
           draggable={false}
         />
       </span>
@@ -286,7 +401,7 @@ export function SymbolOption({
         className
       )}
     >
-      {imageValue}
+      {item?.symbolImageUrl || getDisplayLabel(value, learningItems)}
       {item ? <span className="sr-only">{item.label} symbol image</span> : null}
     </span>
   );

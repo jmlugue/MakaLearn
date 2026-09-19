@@ -38,7 +38,7 @@ type TeacherPlayerProps = {
 const panelClass =
   "relative overflow-hidden rounded-3xl border border-white/90 bg-gradient-to-br from-white to-blue-50/60 shadow-[0_18px_40px_rgba(37,99,235,0.1)]";
 
-/** Pause on the last answer's feedback before the score opens by itself. */
+/** Pause on the last answer before the score opens by itself. */
 const SCORE_DELAY_MS = 1200;
 
 /**
@@ -64,7 +64,7 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
     onProgress(answeredCount, questions.length);
   }, [answeredCount, onProgress, questions.length]);
 
-  // The score opens on its own once the last answer is checked, after a moment to see the feedback.
+  // The score opens on its own once the last answer is checked, after a moment to see the green and red cards.
   // A ref keeps the timer from restarting each time the parent passes a new onScore.
   const finished = last && isChecked;
   const scoreRef = useRef(onScore);
@@ -78,8 +78,6 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
   }, [finished, result]);
 
   if (!question) return <EmptyNote />;
-
-  const isRight = selected === question.answer;
 
   const showPictures = activityUsesImageOptions(activity.type) || activity.type === "fill-blank";
   const showWords = !activityUsesImageOptions(activity.type);
@@ -128,22 +126,14 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
         })}
       </div>
 
-      {isChecked ? (
-        <AnswerFeedback isRight={isRight} answer={question.answer} showPicture={showPictures} learningItems={learningItems} />
-      ) : null}
-
       <ActionBar status={isChecked ? (last ? "All done. Your score is coming up." : "") : selected ? "Press Check." : "Pick an answer."} tone="neutral">
         {!isChecked ? (
           <Button type="button" disabled={!selected} onClick={() => setChecked((current) => ({ ...current, [question.id]: true }))}>
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             Check
           </Button>
-        ) : last ? (
-          <Button type="button" variant="outline" onClick={onRestart}>
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            Play again
-          </Button>
-        ) : (
+        ) : last ? null : (
+          // After the last Check the score pop-up opens by itself. No button here, so it cannot be skipped by accident.
           <Button type="button" onClick={() => setIndex((current) => current + 1)}>
             Next
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -157,15 +147,12 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
 }
 
 /**
- * "Question 2 of 5" plus one numbered circle per question: green tick when right, red cross when wrong,
- * blue ring on the current one, grey for the ones still to come.
+ * One numbered circle per question: green tick when right, red cross when wrong, blue ring on the current
+ * one, grey for the ones still to come. The count itself is in the top bar.
  */
 function StepTracker({ current, steps }: { current: number; steps: Array<"open" | "right" | "wrong"> }) {
   return (
-    <div className="flex flex-col items-center gap-2.5">
-      <p className="text-sm font-bold text-slate-600">
-        Question <span className="text-lg font-black text-blue-600">{current + 1}</span> of {steps.length}
-      </p>
+    <div className="flex justify-center">
       <ol className="flex items-center" aria-label={`Question ${current + 1} of ${steps.length}`}>
         {steps.map((step, position) => (
           <li key={position} className="flex items-center">
@@ -193,53 +180,6 @@ function StepTracker({ current, steps }: { current: number; steps: Array<"open" 
           </li>
         ))}
       </ol>
-    </div>
-  );
-}
-
-/** After Check: says right or wrong in words, and when wrong, shows the right card by name and picture. */
-function AnswerFeedback({
-  isRight,
-  answer,
-  showPicture,
-  learningItems
-}: {
-  isRight: boolean;
-  answer: string;
-  showPicture: boolean;
-  learningItems: LearningItem[];
-}) {
-  const label = getDisplayLabel(answer, learningItems);
-  return (
-    <div
-      role="status"
-      className={cn(
-        "flex items-center gap-4 rounded-3xl border-2 px-5 py-4",
-        isRight ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
-      )}
-    >
-      <span className={cn("grid h-12 w-12 shrink-0 place-items-center rounded-full text-white", isRight ? "bg-green-500" : "bg-red-500")}>
-        {isRight ? <Check className="h-7 w-7" strokeWidth={3} aria-hidden="true" /> : <X className="h-7 w-7" strokeWidth={3} aria-hidden="true" />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className={cn("text-xl font-black", isRight ? "text-green-700" : "text-red-700")}>{isRight ? "Correct!" : "Not this one."}</p>
-        <p className="mt-0.5 text-base font-semibold text-slate-700">
-          {isRight ? (
-            <>
-              That is <span className="font-black text-ink">{label}</span>.
-            </>
-          ) : (
-            <>
-              The right answer is <span className="font-black text-ink">{label}</span>.
-            </>
-          )}
-        </p>
-      </div>
-      {!isRight && showPicture ? (
-        <span className="w-16 shrink-0 rounded-xl border-2 border-green-400 bg-white p-1 sm:w-20">
-          <PictureWell value={answer} learningItems={learningItems} tone="correct" />
-        </span>
-      ) : null}
     </div>
   );
 }

@@ -193,16 +193,16 @@ disappears from the Media tab.
 | Preview pop-up with hover demo | `activity-preview-dialog.tsx` |
 | Creator: Type, Cards (+ Part of a lesson), Review | `activity-form-dialog.tsx` |
 | Types, colors (`activityTypeTones`), prompt helpers | `activity-helpers.ts` |
-| Teacher player: blue glass, numbered steps, Check then Next, feedback box, auto score pop-up | `player/teacher-player.tsx` |
+| Teacher player: blue glass, numbered circles, Check then Next, auto score pop-up (see section 10) | `player/teacher-player.tsx` |
 | Full-screen frame: top bar and progress bar | `player/activity-player-screen.tsx` |
-| Student game player (teammate code, split only) | `student-activity-player.tsx` + `player/*` |
+| Student game player (teammate code; one question at a time since section 10) | `student-activity-player.tsx` + `player/*` |
 
 - **Scores are view only.** `scoreActivity` no longer calls `insertActivityResult` (kept in `app-data.ts`),
   so the Admin "Most used activities" tile stops updating. Accepted by the user.
 - Student mode: the result pop-up adds a final "Score X / Y" once every question in the round is answered.
   Match word only moves on after a correct answer, so its final score is usually full marks.
 - Type colors are an agreed exception to the blue-first palette, accents only.
-- `simple-quiz` stays (it plays as text choices). The user does not want existing features removed.
+- `simple-quiz` stays, labelled "Choose the word" (words, not pictures). `gesture-practice` is retired (section 10).
 
 ### Fixed after testing
 
@@ -256,10 +256,9 @@ Notes:
 - **Admin indicator colors:** off blue so they read on a blue page. PECS and Activities amber, Gestures
   and Lessons teal (`accent-amber`, `accent-teal`, Tailwind amber/teal). Usage trend keeps blue changes and
   green sign-ins.
-- **Landing:** the four floating signing kids are gone (`signing-kids.tsx` deleted). One "Makaton sign"
-  paper note, taped to the carousel corner, shows the real drawing from `public/gesture-references` for
-  the card in front. The carousel now holds only cards with a sign: Help, Drink, Yes, Eat, Toilet, Sit.
-  Lives in `src/components/motion/learning-scene.tsx`. Hidden below `md`, as the kids were.
+- **Landing:** the sign-card experiment (committed in 4a1e4c1) was reverted to the original carousel
+  (Hello, Please, Help, Thank you, Drink), and the floating bubbles were then removed entirely on request.
+  `signing-kids.tsx` is deleted. Do not add decorative bubbles or drawn figures back.
 - **Playground** (`playground-view.tsx`, logic kept):
   - Adding a card plays its sound. A full board says so instead of silently ignoring the tap.
   - Five numbered slots on the sand board. The next slot is highlighted and grows while dragging.
@@ -286,3 +285,44 @@ it as is. Playground layout (strip on top, side tabs, or polish only) was discus
 
 Worth clicking once signed in: Admin Home layout at xl width, playground on a phone and in Student mode,
 card sound on tap, Listen highlight.
+
+---
+
+## 10. Sep 19, round 5 (built, checked on a temporary page with sample cards, not signed in)
+
+- **Lessons are title and goal only** (plus materials). Instructions are no longer shown or asked for; step
+  chips were tried and removed on request. The `instructions` column stays: new lessons save "", edits keep
+  what an older lesson had. The "10 min" tag is gone from cards and previews (every lesson had the default
+  10; the column stays).
+- **"Auto-made" badge:** a lesson made with **Generate lesson** on a material card. Kept as is.
+- **Teacher player:** no "Question 2 of 5" line (the top bar has "2 of 5 done") and no feedback box after
+  Check. The cards alone show right and wrong (green or red border, tick or cross, the right card green).
+  No "Play again" after the last Check (it was easy to press by accident and skip the score pop-up); the
+  pop-up opens by itself and Restart stays in the top bar.
+- **Gesture practice activity retired:** gestures are practised with the camera on the Gestures page.
+  Removed from the creator, library, and Student mode (`isRetiredActivity` in `activity-helpers.ts`). The
+  enum value and old rows stay in the database. It was in the original MVP list in `AGENTS.md`; the user
+  chose to remove it anyway.
+- **Simple quiz** is labelled "Choose the word". elugs removed it on Jul 1 (ba8cd1b) and re-added it on
+  Sep 3 (aa7d392).
+- **Student mode:** the layout bugs were not from the redesign. Its CSS classes match the version before
+  5bddd45 exactly. Fixed:
+  - Fill in the blank and Choose the word used to show every question at once, so cards overlapped. They now
+    use the one-question-at-a-time layout (`player/choose-question.tsx`). `choice-list-question.tsx` is
+    deleted.
+  - Cards lost their word at the bottom: `SymbolOption` now places the picture absolutely inside its box
+    with `object-contain`, so the box sets the size. A card without a picture shows its name, never its id.
+  - The Activities switcher floats over the game with a backdrop; a tap outside closes it.
+  - **Pick, Check, Next**, as in the teacher player, for Choose, Fill in the blank, Choose the word, and Match.
+    Tapping a card only marks it. Check locks the question and shows green and red; after the last Check the
+    score pop-up opens by itself (1.2s). "Try again" or "Practice again" starts a fresh round. Shared pieces:
+    `CheckStepFooter`, `checkedOptionState`, `checkedOptionClass`, `CheckedOptionBadge` in `player-parts.tsx`.
+    History: elugs' first Student mode (41258f7, Jun 30) had a big green Check; auto-advance came with
+    Lloyd's Match (d14cf96, Jul 1) and the paged Choose (1c494ff, Sep 13). Drag and drop always had Check.
+  - Result pop-up cards were blank after the `SymbolOption` change: the card box needs a set height (`h-full`).
+- **Open question: teachers editing or deleting.** The user says only admins can. Repo rules
+  (`20260903010000_fix_shared_activity_permissions.sql`) let teachers edit and delete shared activities, but
+  the Sep 2 rule allowed only the owner or an admin. If the live database never ran the Sep 3 migration,
+  teachers are refused. Lessons are owner or admin only by design (Make a copy). Needs the user's answer and
+  someone with SQL access.
+

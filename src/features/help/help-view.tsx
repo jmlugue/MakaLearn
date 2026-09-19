@@ -22,7 +22,7 @@ const manualSections = [
     title: "Create lessons",
     steps: [
       "Choose Generate lesson on a PECS or gesture card, or open Lessons and choose Create manual lesson.",
-      "Add a clear lesson title, objective, and teaching sequence.",
+      "Type a title and a goal, then pick the materials.",
       "Use Search learning items in the lesson form to find the PECS cards or gestures to include.",
       "Choose Private to me when you save a new lesson to keep it to yourself. Shared lessons can be opened by every teacher, who can use Make a copy to adapt one."
     ]
@@ -54,7 +54,7 @@ const faqs = [
   },
   {
     question: "What is the difference between a lesson and an activity?",
-    answer: "A lesson is the plan: a goal, instructions, and the cards. Activities are how the learner practises them. A lesson can hold many activities, added from the Activities page, and an activity can also stand on its own. Scores show at the end of an activity but are not saved."
+    answer: "A lesson is the plan: a title, a goal, and the cards. Activities are how the learner practises them. A lesson can hold many activities, added from the Activities page, and an activity can also stand on its own. Scores show at the end of an activity but are not saved."
   },
   {
     question: "Where do I find an activity after creating it?",

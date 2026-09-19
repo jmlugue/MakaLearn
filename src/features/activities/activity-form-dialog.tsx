@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Check, ChevronLeft, ChevronRight, Hand, Link2, Loader2, Sparkles } from "lucide-react";
+import { BookOpen, Check, ChevronLeft, ChevronRight, Link2, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label, Select } from "@/components/ui/form";
@@ -322,7 +322,6 @@ function ActivityForm({
                     >
                       <span className="flex items-center gap-1.5 text-sm font-bold text-ink">
                         <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", activityTypeTones[type].dot)} aria-hidden="true" />
-                        {type === "gesture-practice" ? <Hand className="h-4 w-4 text-sky-600" aria-hidden="true" /> : null}
                         {activityTypeLabels[type]}
                       </span>
                       <span className="mt-1 block text-xs text-slate-500">{activityTypeDescriptions[type]}</span>

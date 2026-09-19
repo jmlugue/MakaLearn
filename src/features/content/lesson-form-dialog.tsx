@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Copy, Lock, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { FieldError, Input, Label, Textarea } from "@/components/ui/form";
+import { FieldError, Input, Label } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { CardImage } from "@/features/content/content-media";
@@ -23,13 +23,13 @@ export type LessonFormMode =
 export type LessonFormValues = {
   title: string;
   objective: string;
+  /** Not shown in the form any more (lessons are title and goal). Kept so older lessons save unchanged. */
   instructions: string;
   itemIds: string[];
   /** Chosen when the lesson is made. Editing keeps the saved value. */
   isPrivate: boolean;
 };
 
-const defaultInstructions = "Show each material and model it. Practise together, then review the learner's answers.";
 const stepLabels = ["Details", "Materials", "Review"];
 
 function formTitle(mode: LessonFormMode | null) {
@@ -84,7 +84,7 @@ export function LessonFormDialog({
 
 function initialValues(mode: LessonFormMode): LessonFormValues {
   if (mode.kind === "new") {
-    return { title: "", objective: "", instructions: defaultInstructions, itemIds: [], isPrivate: false };
+    return { title: "", objective: "", instructions: "", itemIds: [], isPrivate: false };
   }
   const source = mode.kind === "edit" ? mode.lesson : mode.kind === "copy" ? mode.source : mode.draft;
   return {
@@ -130,9 +130,9 @@ function LessonForm({
   }
 
   function validate(target: number) {
-    if (target >= 1 && (!values.title.trim() || !values.objective.trim() || !values.instructions.trim())) {
+    if (target >= 1 && (!values.title.trim() || !values.objective.trim())) {
       setStep(0);
-      setError("Add a title, a goal, and instructions.");
+      setError("Add a title and a goal.");
       return false;
     }
     if (target >= 1 && taken.has(values.title.trim().toLowerCase())) {
@@ -160,8 +160,6 @@ function LessonForm({
   }
 
   const source: Lesson["source"] = mode.kind === "draft" ? "auto-generated" : mode.kind === "edit" ? mode.lesson.source : "manual";
-  const duration =
-    mode.kind === "edit" ? mode.lesson.estimatedDuration : mode.kind === "draft" ? mode.draft.estimatedDuration : mode.kind === "copy" ? mode.source.estimatedDuration : 10;
 
   return (
     <div>
@@ -193,16 +191,6 @@ function LessonForm({
                 placeholder="What should the learner be able to do?"
               />
             </div>
-            <div>
-              <Label htmlFor="lesson-instructions">Instructions</Label>
-              <Textarea
-                id="lesson-instructions"
-                className={cn(fieldClass, "min-h-32")}
-                value={values.instructions}
-                onChange={(event) => update({ instructions: event.target.value })}
-                placeholder="How should a teacher run this lesson?"
-              />
-            </div>
           </div>
         ) : null}
 
@@ -214,10 +202,10 @@ function LessonForm({
               <p className="text-xl font-bold text-ink">{values.title}</p>
               <p className="mt-0.5 text-sm text-slate-600">{values.objective}</p>
               <div className="mt-2">
-                <LessonMeta lesson={{ source, estimatedDuration: duration }} />
+                <LessonMeta lesson={{ source }} />
               </div>
             </div>
-            <LessonPreviewBody instructions={values.instructions} items={selectedItems} />
+            <LessonPreviewBody items={selectedItems} />
             <VisibilityControl editing={mode.kind === "edit"} isPrivate={values.isPrivate} onChange={(isPrivate) => update({ isPrivate })} />
           </div>
         ) : null}

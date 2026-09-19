@@ -6,7 +6,7 @@ export const activityTypeLabels: Record<ActivityType, string> = {
   "fill-blank": "Fill in the blank",
   "drag-drop-symbol": "Drag and drop symbol cards",
   "gesture-practice": "Gesture practice activity",
-  "simple-quiz": "Simple quiz"
+  "simple-quiz": "Choose the word"
 };
 
 export function getActivityTypeLabel(type: ActivityType) {

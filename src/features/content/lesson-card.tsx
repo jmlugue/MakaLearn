@@ -62,7 +62,6 @@ export function LessonCard({
             </span>
           ) : null}
         </span>
-        <span className="text-xs font-semibold text-slate-400">{lesson.estimatedDuration} min</span>
       </span>
       <span className="mt-3 line-clamp-2 text-lg font-bold leading-snug text-ink group-hover:text-blue-700">{lesson.title}</span>
       <span className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{lesson.objective}</span>

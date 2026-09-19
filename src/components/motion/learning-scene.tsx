@@ -2,19 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { AnimatePresence, motion, useReducedMotion, type PanInfo } from "framer-motion";
+import { motion, useReducedMotion, type PanInfo } from "framer-motion";
 
 const AUTOPLAY_MS = 3000;
 
-// Only cards that have a real sign drawing, so the sign card beside the carousel always
-// matches the symbol in front. The drawings are the same ones Gesture practice uses.
 const pecsCards = [
-  { label: "Help", image: "/pecs/generated_cards/help.png", sign: "/gesture-references/help.png" },
-  { label: "Drink", image: "/pecs/generated_cards/drink.png", sign: "/gesture-references/drink-water.png" },
-  { label: "Yes", image: "/pecs/generated_cards/yes.png", sign: "/gesture-references/yes.png" },
-  { label: "Eat", image: "/pecs/generated_cards/eat.png", sign: "/gesture-references/eat-food.png" },
-  { label: "Toilet", image: "/pecs/generated_cards/toilet.png", sign: "/gesture-references/toilet.png" },
-  { label: "Sit", image: "/pecs/generated_cards/sit.png", sign: "/gesture-references/sit-down.png" }
+  { label: "Hello", image: "/pecs/generated_cards/hello.png" },
+  { label: "Please", image: "/pecs/generated_cards/please.png" },
+  { label: "Help", image: "/pecs/generated_cards/help.png" },
+  // "more" was dropped: its symbol is a cluster of red squares that reads as noise
+  // next to the clean figure symbols on the other cards.
+  { label: "Thank you", image: "/pecs/generated_cards/thank_you.png" },
+  { label: "Drink", image: "/pecs/generated_cards/drink.png" }
 ];
 
 function getCardOffset(index: number, activeIndex: number) {
@@ -51,10 +50,7 @@ export function LearningScene() {
     rotate(info.offset.x < 0 ? 1 : -1);
   }
 
-  const activeCard = pecsCards[activeIndex];
-
   return (
-    <div className="relative">
     <div
       className="pecs-carousel-scene relative h-[430px] w-full overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-br from-blue-600/10 via-white/35 to-cyan-300/20 shadow-[0_35px_90px_rgba(30,64,175,0.2)] backdrop-blur-xl sm:h-[520px]"
       onPointerEnter={() => setPaused(true)}
@@ -123,37 +119,6 @@ export function LearningScene() {
           ))}
         </div>
       </div>
-    </div>
-
-      {/*
-        The sign for the card in front, drawn as a plain paper note taped to the corner.
-        It replaces the floating signing-kid bubbles: one real drawing that changes with the
-        carousel says "symbol plus sign" more honestly than four decorative badges.
-      */}
-      <figure
-        className="absolute -bottom-7 -right-5 z-30 hidden w-52 rotate-[3deg] rounded-xl border border-slate-200 bg-white p-2.5 pb-2 shadow-[0_14px_30px_rgba(15,23,42,0.12)] md:block"
-        aria-live="polite"
-      >
-        <span className="absolute -top-2.5 left-1/2 h-5 w-16 -translate-x-1/2 -rotate-2 rounded-sm bg-blue-200/60" aria-hidden="true" />
-        <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-white">
-          <AnimatePresence initial={false} mode="wait">
-            <motion.div
-              key={activeCard.label}
-              className="absolute inset-0"
-              initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
-              <Image src={activeCard.sign} alt={`Makaton sign for ${activeCard.label}`} fill sizes="208px" className="object-contain" />
-            </motion.div>
-          </AnimatePresence>
-        </div>
-        <figcaption className="mt-1.5 flex items-baseline justify-between gap-2 border-t border-dashed border-slate-200 pt-1.5">
-          <span className="text-xs font-semibold text-slate-500">Makaton sign</span>
-          <span className="text-base font-black text-ink">{activeCard.label}</span>
-        </figcaption>
-      </figure>
     </div>
   );
 }

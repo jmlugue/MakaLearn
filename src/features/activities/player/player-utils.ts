@@ -148,25 +148,6 @@ export function getFirstHintQuestion(activity: Activity, answers: Record<string,
   return activity.questions.find((question) => !answers[question.id]) ?? activity.questions[0];
 }
 
-export function getChoiceGridClass(questionCount: number) {
-  if (questionCount <= 1) {
-    return "grid-cols-1 place-items-center [&>article]:w-full [&>article]:max-w-[62rem]";
-  }
-
-  if (questionCount === 2) {
-    return "lg:grid-cols-2";
-  }
-
-  if (questionCount === 3) {
-    return "lg:grid-cols-3";
-  }
-
-  if (questionCount === 4) {
-    return "md:grid-cols-2";
-  }
-
-  return "md:grid-cols-2 xl:grid-cols-3";
-}
 
 export function getCompactSymbolGridClass(itemCount: number) {
   if (itemCount <= 1) {

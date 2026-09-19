@@ -1,13 +1,19 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { BrandLogo } from "@/components/layout/brand-logo";
 import { cn } from "@/lib/utils";
 import { activityTypeLabels } from "@/utils/activity-labels";
 import { type ActivityScore, getDisplayLabel, getPagedSymbolChoiceGridClass, getActivityBackground } from "@/features/activities/player/player-utils";
-import { StepProgress, ActivityGameTopBar, SymbolOption } from "@/features/activities/player/player-parts";
+import {
+  StepProgress,
+  ActivityGameTopBar,
+  SymbolOption,
+  CheckStepFooter,
+  CheckedOptionBadge,
+  checkStepMessage,
+  checkedOptionClass,
+  checkedOptionState
+} from "@/features/activities/player/player-parts";
 import { ActivityResultModal } from "@/features/activities/player/activity-result";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
@@ -31,6 +37,8 @@ export function ChooseCorrectSymbolStudentLayout({
   onBack,
   onNext,
   onChooseAnswer,
+  checkedQuestionIds,
+  onCheck,
   activityNavigator
 }: {
   activity: Activity;
@@ -52,6 +60,9 @@ export function ChooseCorrectSymbolStudentLayout({
   onBack: () => void;
   onNext: () => void;
   onChooseAnswer: (question: ActivityQuestion, option: string) => void;
+  /** Questions already checked: their cards are locked and show green or red. */
+  checkedQuestionIds: Record<string, boolean>;
+  onCheck: (question: ActivityQuestion) => void;
   activityNavigator?: ReactNode;
 }) {
   const totalSteps = Math.min(activity.questions.length, 5);
@@ -61,13 +72,25 @@ export function ChooseCorrectSymbolStudentLayout({
   const currentStep = safeQuestionIndex + 1;
   const selectedAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
   const canMoveBack = totalSteps > 1 && safeQuestionIndex > 0;
-  const canMoveNext = totalSteps > 1 && safeQuestionIndex + 1 < totalSteps;
+  const isLast = safeQuestionIndex + 1 >= totalSteps;
+  const isChecked = currentQuestion ? Boolean(checkedQuestionIds[currentQuestion.id]) : false;
+  const hinted = hintedQuestionId === currentQuestion?.id;
   const activelyRead = highlightedListenQuestionId === currentQuestion?.id;
-  const feedbackText = selectedAnswer
-    ? "Nice choice."
-    : hintedQuestionId === currentQuestion?.id
-      ? "Look for the highlighted picture."
-      : "Choose the picture that answers the question.";
+  const isFillBlank = activity.type === "fill-blank";
+  // Choose the word (simple-quiz) answers with words; the other types answer with cards.
+  const showWords = activity.type === "simple-quiz";
+  const feedbackText = checkStepMessage({
+    isChecked,
+    isRight: Boolean(currentQuestion && selectedAnswer === currentQuestion.answer),
+    hasPick: Boolean(selectedAnswer),
+    hinted,
+    words: showWords,
+    prompt: isFillBlank
+      ? "Choose the card that fills the gap."
+      : showWords
+        ? "Choose the word that answers the question."
+        : "Choose the picture that answers the question."
+  });
 
   return (
     <section
@@ -112,9 +135,16 @@ export function ChooseCorrectSymbolStudentLayout({
                 activelyRead && "border-sky-400 ring-8 ring-sky-100"
               )}
             >
-              <h1 className="text-2xl font-black leading-tight text-[#10285e] sm:text-4xl lg:text-5xl">
-                {currentQuestion?.prompt ?? activity.prompt}
-              </h1>
+              {isFillBlank && currentQuestion ? (
+                <FillBlankSentence
+                  prompt={currentQuestion.prompt}
+                  answer={selectedAnswer ? getDisplayLabel(selectedAnswer, learningItems) : ""}
+                />
+              ) : (
+                <h1 className="text-2xl font-black leading-tight text-[#10285e] sm:text-4xl lg:text-5xl">
+                  {currentQuestion?.prompt ?? activity.prompt}
+                </h1>
+              )}
             </div>
           </div>
 
@@ -124,60 +154,46 @@ export function ChooseCorrectSymbolStudentLayout({
           )}>
             {currentOptions.map((option) => {
               const selected = selectedAnswer === option;
-              const shouldShowHint = hintedQuestionId === currentQuestion?.id && option === currentQuestion?.answer;
+              const state = checkedOptionState(option, currentQuestion?.answer ?? "", selectedAnswer, isChecked);
               return (
                 <button
                   key={`${currentQuestion?.id}-${option}`}
                   type="button"
+                  disabled={isChecked}
                   onClick={() => currentQuestion && onChooseAnswer(currentQuestion, option)}
                   aria-pressed={selected}
                   className={cn(
-                    "grid h-full min-h-0 overflow-hidden rounded-[1.75rem] border-4 bg-white/92 p-2 text-center shadow-[0_12px_0_rgba(147,197,253,0.22),0_24px_40px_rgba(37,99,235,0.12)] transition hover:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:p-3",
-                    shouldShowHint
-                      ? "border-amber-400 ring-8 ring-amber-100"
-                      : selected
-                        ? "border-blue-500 ring-8 ring-blue-100"
-                        : "border-white hover:border-blue-200"
+                    "relative grid h-full min-h-0 overflow-hidden rounded-[1.75rem] border-4 bg-white/92 p-2 text-center shadow-[0_12px_0_rgba(147,197,253,0.22),0_24px_40px_rgba(37,99,235,0.12)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 disabled:cursor-default sm:p-3",
+                    checkedOptionClass(state, isChecked, hinted && option === currentQuestion?.answer)
                   )}
                 >
-                  <span className="grid h-full min-h-0 place-items-center overflow-hidden rounded-[1.2rem] bg-white/85 p-1 sm:p-2">
-                    <SymbolOption value={option} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
-                    <span className="sr-only">{getDisplayLabel(option, learningItems)}</span>
-                  </span>
+                  <CheckedOptionBadge state={state} />
+                  {showWords ? (
+                    <span className="grid h-full min-h-0 place-items-center rounded-[1.2rem] bg-white/85 p-2 text-2xl font-black uppercase leading-tight text-[#10285e] sm:text-4xl">
+                      {getDisplayLabel(option, learningItems)}
+                    </span>
+                  ) : (
+                    <span className="grid h-full min-h-0 place-items-center overflow-hidden rounded-[1.2rem] bg-white/85 p-1 sm:p-2">
+                      <SymbolOption value={option} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
+                      <span className="sr-only">{getDisplayLabel(option, learningItems)}</span>
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
         </main>
 
-        <footer className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            className="min-h-14 rounded-2xl border-2 border-blue-200 bg-white/90 px-4 text-base font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.12)] hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 sm:px-6"
-            onClick={onBack}
-            disabled={!canMoveBack}
-          >
-            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-            Back
-          </Button>
-
-          <div className="mx-auto flex min-h-14 w-full max-w-xl items-center justify-center gap-3 rounded-2xl border border-blue-100 bg-white/90 px-4 text-center shadow-sm">
-            <BrandLogo markClassName="h-11 w-11 rounded-xl" />
-            <p className="text-base font-black text-[#10285e] sm:text-lg">{feedbackText}</p>
-          </div>
-
-          <Button
-            type="button"
-            variant="secondary"
-            className="min-h-14 rounded-2xl border-2 border-blue-200 bg-blue-100 px-4 text-base font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.14)] hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-45 sm:px-6"
-            onClick={onNext}
-            disabled={!canMoveNext}
-          >
-            Next
-            <ChevronRight className="h-5 w-5" aria-hidden="true" />
-          </Button>
-        </footer>
+        <CheckStepFooter
+          canMoveBack={canMoveBack}
+          onBack={onBack}
+          message={feedbackText}
+          isChecked={isChecked}
+          isLast={isLast}
+          canCheck={Boolean(selectedAnswer)}
+          onCheck={() => currentQuestion && onCheck(currentQuestion)}
+          onNext={onNext}
+        />
       </div>
 
       {result ? (
@@ -195,5 +211,22 @@ export function ChooseCorrectSymbolStudentLayout({
         />
       ) : null}
     </section>
+  );
+}
+
+/** The sentence with its gap. The chosen card's word fills the gap. */
+function FillBlankSentence({ prompt, answer }: { prompt: string; answer: string }) {
+  const [before, after] = prompt.split("____");
+  if (after === undefined) {
+    return <h1 className="text-2xl font-black leading-tight text-[#10285e] sm:text-4xl lg:text-5xl">{prompt}</h1>;
+  }
+  return (
+    <h1 className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black leading-tight text-[#10285e] sm:text-4xl lg:text-5xl">
+      <span>{before.trim()}</span>
+      <span className="inline-grid min-h-14 min-w-36 place-items-center rounded-2xl border-4 border-dashed border-blue-300 bg-[#f8fbff] px-4 uppercase text-blue-700">
+        {answer}
+      </span>
+      <span>{after.trim()}</span>
+    </h1>
   );
 }

@@ -24,6 +24,7 @@ import {
   getPromptStoreKey,
   getSavedQuestionPrompt,
   getValidActivityType,
+  isRetiredActivity,
   itemsOfActivity,
   upgradeStarterActivityPrompts,
   type ActivityPromptStore
@@ -140,7 +141,10 @@ export function ActivitiesView() {
 
   const itemById = useMemo(() => new Map(learningItems.map((item) => [item.id, item])), [learningItems]);
   // Others' private activities and lessons stay hidden. The read rules allow them, so this is the only filter.
-  const visibleActivities = useMemo(() => activities.filter((activity) => canSee(activity, user)), [activities, user]);
+  const visibleActivities = useMemo(
+    () => activities.filter((activity) => canSee(activity, user) && !isRetiredActivity(activity)),
+    [activities, user]
+  );
   const visibleLessons = useMemo(() => lessons.filter((lesson) => canSee(lesson, user)), [lessons, user]);
   const lessonByActivityId = useMemo(() => {
     const map = new Map<string, Lesson>();
@@ -340,7 +344,6 @@ export function ActivitiesView() {
       setDragged={setDragged}
       chooseAnswer={chooseAnswer}
       onScore={scoreActivity}
-      onClearResult={() => setResult(null)}
       onReset={resetPlayer}
       onSelectActivity={switchActivity}
     />

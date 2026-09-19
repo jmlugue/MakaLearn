@@ -7,15 +7,22 @@ import {
 } from "@/utils/starter-learning-item-prompts";
 import type { Activity, ActivityType, LearningItem } from "@/types";
 
-/** Every activity type, in the order the creator offers them. */
+/**
+ * The activity types teachers can make and see, in the order the creator offers them. "gesture-practice" is
+ * retired (gestures are practised with the camera on the Gestures page). The type stays in the database enum,
+ * and old gesture activities are hidden (`isRetiredActivity`).
+ */
 export const activityTypes: ActivityType[] = [
   "match-word-symbol",
   "choose-correct-symbol",
   "fill-blank",
   "drag-drop-symbol",
-  "gesture-practice",
   "simple-quiz"
 ];
+
+export function isRetiredActivity(activity: Pick<Activity, "type">) {
+  return activity.type === "gesture-practice";
+}
 
 export const activityTypeDescriptions: Record<ActivityType, string> = {
   "match-word-symbol": "Match words to pictures.",
