@@ -1,18 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Hand, Link2, Loader2, Lock, Sparkles } from "lucide-react";
+import { BookOpen, Check, ChevronLeft, ChevronRight, Hand, Link2, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { FieldError, Input, Label } from "@/components/ui/form";
+import { FieldError, Input, Label, Select } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
 import { cn } from "@/lib/utils";
 import { activityTypeLabels } from "@/utils/activity-labels";
 import { buildActivityTitle, canDraftQuestionPrompts, type ActivityDraftResult } from "@/utils/activity-ai-draft";
 import { ActivitySample } from "@/features/content/activity-sample";
-import { CardImage } from "@/features/content/content-media";
 import { PopupTitle, SectionLabel, fieldClass, glassBoxClass } from "@/features/content/content-shared";
-import { MaterialsStep } from "@/features/content/lesson-form-dialog";
+import { MaterialsStep, VisibilityControl } from "@/features/content/lesson-form-dialog";
 import { GuideTip } from "@/features/guide/guide-tip";
 import {
   MAX_ACTIVITY_LEARNING_ITEMS,
@@ -36,7 +35,10 @@ export type ActivityFormValues = {
   itemIds: string[];
   /** Question text per card, keyed by `getPromptStoreKey(type, itemId)`. */
   promptInputs: Record<string, string>;
+  /** Chosen when the activity is made. Editing keeps the saved value. */
   isPrivate: boolean;
+  /** The lesson this activity belongs to. Set when creating; an activity cannot move lessons later. */
+  lessonId?: string;
 };
 
 const stepLabels = ["Type", "Cards", "Review"];
@@ -45,6 +47,7 @@ export function ActivityFormDialog({
   mode,
   items,
   categories,
+  lessons,
   promptStore,
   lessonOfActivity,
   onPromptStoreChange,
@@ -54,8 +57,10 @@ export function ActivityFormDialog({
   mode: ActivityFormMode | null;
   items: LearningItem[];
   categories: Category[];
+  /** Lessons the teacher can see, offered in "Part of a lesson". */
+  lessons: Lesson[];
   promptStore: ActivityPromptStore;
-  /** The lesson an edited activity belongs to. Its cards are then locked to the lesson's. */
+  /** The lesson an edited activity belongs to. Its cards then come from that lesson. */
   lessonOfActivity?: Lesson;
   onPromptStoreChange: (patch: ActivityPromptStore) => void;
   onClose: () => void;
@@ -74,6 +79,7 @@ export function ActivityFormDialog({
           mode={mode}
           items={items}
           categories={categories}
+          lessons={lessons}
           promptStore={promptStore}
           lessonOfActivity={lessonOfActivity}
           onPromptStoreChange={onPromptStoreChange}
@@ -91,7 +97,7 @@ export function ActivityFormDialog({
   );
 }
 
-function initialValues(mode: ActivityFormMode, cardsLocked: boolean): ActivityFormValues {
+function initialValues(mode: ActivityFormMode, lessonOfActivity?: Lesson): ActivityFormValues {
   if (mode.kind === "new") {
     return { title: "", type: "match-word-symbol", itemIds: [], promptInputs: {}, isPrivate: false };
   }
@@ -99,10 +105,10 @@ function initialValues(mode: ActivityFormMode, cardsLocked: boolean): ActivityFo
   return {
     title: activity.title,
     type: activity.type,
-    // A lesson's activity keeps every lesson card; the five-card limit is for activities made here.
-    itemIds: cardsLocked ? activity.learningItemIds : activity.learningItemIds.slice(0, MAX_ACTIVITY_LEARNING_ITEMS),
+    itemIds: activity.learningItemIds.slice(0, MAX_ACTIVITY_LEARNING_ITEMS),
     promptInputs: Object.fromEntries(activity.questions.map((question) => [getPromptStoreKey(activity.type, question.learningItemId), question.prompt])),
-    isPrivate: activity.visibility === "private"
+    isPrivate: activity.visibility === "private",
+    lessonId: lessonOfActivity?.id
   };
 }
 
@@ -111,6 +117,7 @@ function ActivityForm({
   mode,
   items,
   categories,
+  lessons,
   promptStore,
   lessonOfActivity,
   onPromptStoreChange,
@@ -122,6 +129,7 @@ function ActivityForm({
   mode: ActivityFormMode;
   items: LearningItem[];
   categories: Category[];
+  lessons: Lesson[];
   promptStore: ActivityPromptStore;
   lessonOfActivity?: Lesson;
   onPromptStoreChange: (patch: ActivityPromptStore) => void;
@@ -130,7 +138,7 @@ function ActivityForm({
   onSave: (values: ActivityFormValues) => void;
 }) {
   const { notify } = useToast();
-  const [values, setValues] = useState<ActivityFormValues>(() => initialValues(mode, Boolean(lessonOfActivity)));
+  const [values, setValues] = useState<ActivityFormValues>(() => initialValues(mode, lessonOfActivity));
   const [step, setStep] = useState(mode.kind === "edit" ? 2 : 0);
   const [error, setError] = useState("");
   const [aiNote, setAiNote] = useState("");
@@ -138,12 +146,13 @@ function ActivityForm({
 
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const selectedItems = values.itemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
-  const usableItems = useMemo(() => items.filter((item) => canUseItem(values.type, item)), [items, values.type]);
-  // A lesson's activity keeps the lesson's cards, so only formats every card can use are offered.
-  const cardsLocked = Boolean(lessonOfActivity);
-  const offeredTypes = cardsLocked
-    ? activityTypes.filter((type) => type !== "gesture-practice" && selectedItems.every((item) => canUseItem(type, item)))
-    : activityTypes;
+  const lesson = values.lessonId ? lessonOfActivity ?? lessons.find((candidate) => candidate.id === values.lessonId) : undefined;
+  // Part of a lesson: only that lesson's cards can be picked.
+  const lessonCardIds = useMemo(() => (lesson ? new Set(lesson.learningItemIds) : null), [lesson]);
+  const usableItems = useMemo(
+    () => items.filter((item) => canUseItem(values.type, item) && (!lessonCardIds || lessonCardIds.has(item.id))),
+    [items, lessonCardIds, values.type]
+  );
   const draftable = canDraftQuestionPrompts(values.type);
   const isGesture = values.type === "gesture-practice";
 
@@ -173,12 +182,13 @@ function ActivityForm({
     update({ itemIds: limited, promptInputs: withPrompts(values.type, limited, values.promptInputs) });
   }
 
+  function pickLesson(lessonId: string) {
+    const next = lessons.find((candidate) => candidate.id === lessonId);
+    const kept = next ? values.itemIds.filter((id) => next.learningItemIds.includes(id)) : values.itemIds;
+    update({ lessonId: next?.id, itemIds: kept, promptInputs: withPrompts(values.type, kept, values.promptInputs) });
+  }
+
   function changeType(type: ActivityType) {
-    if (cardsLocked) {
-      update({ type, promptInputs: withPrompts(type, values.itemIds, {}) });
-      setAiNote("");
-      return;
-    }
     const kept = values.itemIds.filter((id) => {
       const item = itemById.get(id);
       return item ? canUseItem(type, item) : false;
@@ -285,7 +295,7 @@ function ActivityForm({
         <p className="-mt-2 mb-4 flex items-start gap-2 rounded-xl bg-blue-50/80 p-2.5 text-xs text-slate-600 ring-1 ring-blue-100">
           <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
           <span>
-            <span className="font-semibold text-ink">Linked to {lessonOfActivity.title}.</span> Its cards come from the lesson.
+            <span className="font-semibold text-ink">Part of {lessonOfActivity.title}.</span> Its cards come from that lesson.
           </span>
         </p>
       ) : null}
@@ -296,7 +306,7 @@ function ActivityForm({
           <div className="space-y-4">
             <GuideTip id="activities.types" className="block">
               <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Activity type">
-                {offeredTypes.map((type) => {
+                {activityTypes.map((type) => {
                   const selected = values.type === type;
                   return (
                     <button
@@ -337,58 +347,54 @@ function ActivityForm({
         ) : null}
 
         {step === 1 ? (
-          cardsLocked ? (
-            <div className={cn("space-y-3 p-4", glassBoxClass)}>
-              <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <Lock className="h-4 w-4 text-blue-600" aria-hidden="true" />
-                Change cards in the lesson.
-              </p>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {selectedItems.map((item) => (
-                  <div key={item.id} className="overflow-hidden rounded-xl border border-blue-100 bg-[#fff] p-1.5">
-                    <span className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-slate-50">
-                      <CardImage value={item.symbolImageUrl} label={item.label} className="text-xs" />
-                    </span>
-                    <span className="mt-1 block truncate text-xs font-semibold text-ink">{item.label}</span>
-                  </div>
-                ))}
+          <div className="space-y-3">
+            {mode.kind === "new" ? (
+              <div className={cn("p-3", glassBoxClass)}>
+                <Label htmlFor="activity-lesson">Part of a lesson (optional)</Label>
+                <Select id="activity-lesson" className={fieldClass} value={values.lessonId ?? ""} onChange={(event) => pickLesson(event.target.value)}>
+                  <option value="">None</option>
+                  {lessons.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.title}
+                    </option>
+                  ))}
+                </Select>
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+                  <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                  {lesson ? "Only this lesson's cards are shown. A lesson can have many activities." : "Leave empty for an activity of your own."}
+                </p>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <MaterialsStep
-                key={values.type}
-                items={usableItems}
-                categories={categories}
-                selectedIds={values.itemIds}
-                onChange={setItems}
-                kinds={[isGesture ? "gesture" : "pecs"]}
-                max={MAX_ACTIVITY_LEARNING_ITEMS}
-                emptyText={isGesture ? "No gestures yet. Add one in Content." : "No cards with pictures match."}
-              />
-              <p className="text-xs text-slate-500">
-                Up to {MAX_ACTIVITY_LEARNING_ITEMS} cards.{!isGesture && values.type !== "fill-blank" && values.type !== "simple-quiz" ? " Only cards with pictures are shown." : ""}
-              </p>
-            </div>
-          )
+            ) : null}
+            <MaterialsStep
+              key={`${values.type}-${values.lessonId ?? "none"}`}
+              items={usableItems}
+              categories={categories}
+              selectedIds={values.itemIds}
+              onChange={setItems}
+              kinds={[isGesture ? "gesture" : "pecs"]}
+              max={MAX_ACTIVITY_LEARNING_ITEMS}
+              emptyText={
+                lesson
+                  ? "This lesson has no cards that fit this format. Try another format."
+                  : isGesture
+                    ? "No gestures yet. Add one in Content."
+                    : "No cards with pictures match."
+              }
+            />
+            <p className="text-xs text-slate-500">
+              Up to {MAX_ACTIVITY_LEARNING_ITEMS} cards.{!isGesture && values.type !== "fill-blank" && values.type !== "simple-quiz" ? " Only cards with pictures are shown." : ""}
+            </p>
+          </div>
         ) : null}
 
         {step === 2 ? (
           <div className="space-y-4">
-            <div className={cn("grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-end", glassBoxClass)}>
+            <div className={cn("space-y-3 p-4", glassBoxClass)}>
               <div>
                 <Label htmlFor="activity-title">Name</Label>
                 <Input id="activity-title" className={fieldClass} value={values.title} onChange={(event) => update({ title: event.target.value })} placeholder="Match greetings" />
               </div>
-              <label className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl bg-white/80 px-3 ring-1 ring-blue-100">
-                <input
-                  type="checkbox"
-                  checked={values.isPrivate}
-                  onChange={(event) => update({ isPrivate: event.target.checked })}
-                  className="h-4 w-4 rounded border-blue-200 text-blue-600"
-                />
-                <span className="text-sm font-semibold text-ink">Private to me</span>
-              </label>
+              <VisibilityControl editing={mode.kind === "edit"} isPrivate={values.isPrivate} onChange={(isPrivate) => update({ isPrivate })} />
             </div>
 
             <div className={cn("space-y-3 p-4", glassBoxClass)}>

@@ -1,8 +1,8 @@
 # MakaLearn session notes
 
 Handoff for the next session. `AGENTS.md` holds the long-standing coding rules and `AGENT_HANDOFF.md`
-the older project history. This file covers the Content module finish, Guide mode, and the Activities
-redesign (section 6).
+the older project history. Where they disagree, this file wins. It covers the Content module finish,
+Guide mode, the Activities redesign (section 6), and teammate changes (section 8).
 
 ---
 
@@ -23,6 +23,12 @@ There is **no Learners page**. `/learners` redirects to `/content` and
 **Admin** is admin-only: Home overview, Accounts, all teachers' Content, and an Activity log. An admin
 also does a teacher's job, so admins see teacher content plus admin content. Teachers never see admin
 content.
+
+**Gestures have no attempts.** Gesture practice is live recognition with feedback. It is never counted,
+charted, or saved. The `practice_attempts` table, its types, and `insertPracticeAttempt` /
+`fetchPracticeAttempts` in `app-data.ts` still exist, but nothing writes to them and nothing new should
+read them. Activity scores are view only too since Sep 19 (see section 6), so Admin's "Most used
+activities" only reflects older `activity_results` rows.
 
 ---
 
@@ -150,27 +156,32 @@ disappears from the Media tab.
 
 ---
 
-## 6. Activities redesign (shipped in 5bddd45, follow-up after; not yet verified signed in)
+## 6. Activities and lessons (round 3; not yet verified signed in)
 
-### Lesson vs activity, settled: strictly one-to-one
+### Lessons hold many activities (one-to-one was dropped on request)
 
-**Lesson = the plan** (goal, instructions, cards). **Activity = its practice step.** Based on Julian's
-Jun 22 wording, his Jun 28 auto-create, and the timetable's "Open related activity or practice action".
+- **Lesson = the plan** (goal, instructions, cards), Shared or Private. **Activities** practise it.
+- Activities are added to a lesson **only from Activities**: creator step 2 has "Part of a lesson"
+  (create only). The card picker then shows only that lesson's cards. The lesson form no longer makes or
+  syncs activities; its step 3 is Review again.
+- Link storage, no database change: new lesson activities get the id `activity-${lesson.id}--${timestamp}`.
+  Older links still count: `related_activity_id`, `activity-${lesson.id}`, and the old title pattern.
+  An activity cannot move to another lesson later. Helpers in `src/utils/lesson-activity.ts`
+  (`findLessonActivities`, `findActivityLesson`, `newLessonActivityId`, `canSee`, `uniqueCopyTitle`).
+- **Make a copy**: lessons you cannot edit (only owner or admin can, by RLS) show Make a copy, which opens the
+  form as a new lesson with a unique name ("X (copy)", "X (copy 2)"). A lesson name you can already see is
+  refused on save.
+- Lessons show nothing about their activities (the list and count were removed on request). Activities show
+  "From (lesson)". **Make a copy** shows on every lesson; Edit and Delete only for the owner or an admin.
 
-- A lesson's activity is only made from Content: lesson pop-up step 3 **Practice** has a
-  **Create activity for this lesson** tick (on for new and generated lessons, off when editing), and the
-  lesson preview has **Create activity** when there is none. Linked lessons show "Linked: (title)".
-- **Create activity** in Activities makes activities that are not tied to a lesson. The creator has no
-  "start from a lesson" (removed on request: it blurred the one-to-one rule).
-- Editing a lesson's activity in Activities: **cards are locked** ("Change cards in the lesson."), all of
-  the lesson's cards are kept (no five-card cap), and only formats every card can use are offered. Name,
-  format, and questions stay editable.
-- Sync both ways: a format changed in Activities is written to `lesson.activityType`, the lesson form
-  starts from the linked activity's format, and a lesson save keeps the activity's own name.
-- No untick-to-unlink: `lessons.related_activity_id` is still missing on the live DB (section 3). The link
-  falls back to the id `activity-${lesson.id}`.
-- Helpers: `src/utils/lesson-activity.ts` (`findLessonActivity`, `findActivityLesson`, `lessonActivityId`,
-  `activityPlayHref`).
+### Visibility and owners
+
+- Private or Shared is picked **only when creating** (activities and lessons). Edit shows it read-only
+  (`VisibilityControl` in `lesson-form-dialog.tsx`). Reason: RLS refuses a visibility change on someone
+  else's activity, which surfaced as "Cannot coerce the result to a single JSON object". `updateActivity`
+  now checks the row count and says who can change it.
+- Others' private activities and lessons are hidden in the UI (`canSee`); read RLS allows everything.
+- Shared items made by someone else show "By (name)".
 
 ### Activities page
 
@@ -178,27 +189,33 @@ Jun 22 wording, his Jun 28 auto-create, and the timetable's "Open related activi
 |---|---|
 | Shell: data, URL, save, delete | `activities-view.tsx` |
 | Library: tabs All / From lessons / Private, Type dropdown, search, sort | `activity-library.tsx` |
-| Card: type-colored stripe and badge, picture collage cover | `activity-card.tsx`, `activity-type-badge.tsx` |
+| Card: type stripe and badge, picture collage, By name | `activity-card.tsx`, `activity-type-badge.tsx` |
 | Preview pop-up with hover demo | `activity-preview-dialog.tsx` |
-| Creator: Type, Cards, Review | `activity-form-dialog.tsx` |
+| Creator: Type, Cards (+ Part of a lesson), Review | `activity-form-dialog.tsx` |
 | Types, colors (`activityTypeTones`), prompt helpers | `activity-helpers.ts` |
-| Teacher player: plain glass, Check then Next, score card | `player/teacher-player.tsx` |
-| Full-screen frame with top bar (Exit, title, n / total, Restart, Edit) | `player/activity-player-screen.tsx` |
-| Student game player, split from 2,084 lines, logic unchanged | `student-activity-player.tsx` + `player/*` |
+| Teacher player: blue glass, numbered steps, Check then Next, feedback box, auto score pop-up | `player/teacher-player.tsx` |
+| Full-screen frame: top bar and progress bar | `player/activity-player-screen.tsx` |
+| Student game player (teammate code, split only) | `student-activity-player.tsx` + `player/*` |
 
-- Player opens at `/activities?play=<id>` (old `?activityId=` still works). Teachers get the plain player;
-  Student mode keeps the game player with backgrounds.
-- Type colors are an agreed exception to the blue-first palette, accents only: Match blue, Choose teal,
-  Fill yellow, Drag violet, Gesture sky, Quiz pink.
-- No "Standalone" label anywhere; only "From (lesson)" shows.
+- **Scores are view only.** `scoreActivity` no longer calls `insertActivityResult` (kept in `app-data.ts`),
+  so the Admin "Most used activities" tile stops updating. Accepted by the user.
+- Student mode: the result pop-up adds a final "Score X / Y" once every question in the round is answered.
+  Match word only moves on after a correct answer, so its final score is usually full marks.
+- Type colors are an agreed exception to the blue-first palette, accents only.
 - `simple-quiz` stays (it plays as text choices). The user does not want existing features removed.
-- The card picker is `MaterialsStep`, exported from `lesson-form-dialog.tsx` with `kinds` and `max`.
 
-### Not verified
+### Fixed after testing
 
-Never checked signed in. Worth clicking: lesson tick on and off, Create activity from a lesson preview,
-locked cards when editing a lesson's activity, rename in Activities then save the lesson, type filter and
-colors, teacher player for a choice type and for drag and drop, Student mode still showing the game player.
+- Cut cards: PECS cards are 3:4 with the word at the bottom; the player's wells are now 3:4 with the image
+  absolutely placed and `object-contain`. Question text is blue.
+- Library could not scroll after closing the player from the score pop-up: the player saved its own
+  `overflow` value while the pop-up used the counted lock. The player now uses `lockScroll`/`unlockScroll`
+  exported from `src/components/ui/dialog.tsx`. Anything else that locks scroll must use them too.
+
+### Pending
+
+- The user asked what changed in Student mode Activities. The game player code is unchanged from before the
+  redesign; teammates changed the student nav button and answer matching (card ids). Waiting on a screenshot.
 
 ---
 
@@ -210,3 +227,62 @@ colors, teacher player for a choice type and for drag and drop, Student mode sti
 - Secrets go in `.env.local`, which is git-ignored, pasted by the user. Never ask for them in chat.
 - Commit messages end with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
 - Redesigns are incremental, not overhauls, and the look is blue-toned glassmorphism.
+- Ask before removing or reworking a teammate's feature (Julian: gesture recognition and Guided 7;
+  Lloyd: accounts and passwords). Prefer hiding over deleting.
+
+---
+
+## 8. Teammate changes since section 6 (Sep 18 to 19)
+
+| Who | Commit | What changed |
+|---|---|---|
+| Lloyd | 1f6d5c1 | Password minimum is now **8** in create-teacher, reset-password, Accounts, Profile, and `supabase/config.toml`. "Forgot password" on sign-in now says "Contact your administrator" (no email reset). Profile dropped the "ask an admin to change your email" hint. |
+| Julian | 64b37ca | Guided gesture recognition fixes and better corrective feedback (`gesture-practice-view.tsx`, `gesture-feedback.ts`). Student nav open state moved into `student-mode-context.tsx` so it survives page changes. Symbol-option activities now store the **card id** as answer and options, not the image URL (`createActivityQuestions`). New `npm run validate:materials` (read-only check of image files and material references). |
+
+Notes:
+
+- `tmp/timetable-monitoring/` and two timetable `.xlsx` files were committed in 64b37ca. They are
+  Julian's scratch scripts for the Proposed Timetable sheet, not app code. Leave them unless asked.
+- The email-based forgot-password plan (kept in memory) is probably superseded by Lloyd's
+  contact-an-admin flow. Ask before building it.
+
+---
+
+## 9. Sep 19 changes (built, not verified signed in)
+
+- **Admin Home:** Practice results tile removed (gesture attempts). Admin no longer fetches
+  `practice_attempts`. Usage trend is full width. The average activity score moved to the foot of
+  "Most used activities". `RingGauge` went with the tile.
+- **Admin indicator colors:** off blue so they read on a blue page. PECS and Activities amber, Gestures
+  and Lessons teal (`accent-amber`, `accent-teal`, Tailwind amber/teal). Usage trend keeps blue changes and
+  green sign-ins.
+- **Landing:** the four floating signing kids are gone (`signing-kids.tsx` deleted). One "Makaton sign"
+  paper note, taped to the carousel corner, shows the real drawing from `public/gesture-references` for
+  the card in front. The carousel now holds only cards with a sign: Help, Drink, Yes, Eat, Toilet, Sit.
+  Lives in `src/components/motion/learning-scene.tsx`. Hidden below `md`, as the kids were.
+- **Playground** (`playground-view.tsx`, logic kept):
+  - Adding a card plays its sound. A full board says so instead of silently ignoring the tap.
+  - Five numbered slots on the sand board. The next slot is highlighted and grows while dragging.
+  - Listen highlights each card as it is read (per card, or by word boundary for a valid sentence,
+    also in the success pop-up).
+  - Tap a card on the board to remove it (no X badge). Dragging still reorders.
+  - Solid, child-friendly buttons: Check green, Listen blue, Clear red. Disabled on an empty board.
+  - Each category has its own color and icon (`categoryStyles`). Student screens may be colorful; the
+    blue-first rule is for teacher and admin UI.
+  - The feedback strip appears only after Check. "Mix up" sits beside the Categories title.
+  - The drop zone glows while a library card is dragged.
+- **Teacher player** (`player/teacher-player.tsx`, `player/activity-player-screen.tsx`):
+  - Plain app blue (#2563eb) everywhere, no blue-to-sky gradients.
+  - The score pop-up opens by itself 1.2s after the last Check (no "See score" button).
+  - After Check, a feedback box says "Correct! That is X." or "Not this one. The right answer is X.",
+    with the right card's picture when wrong.
+  - Progress: "Question 2 of 5" plus numbered circles (green tick, red cross, blue current), and a
+    solid "2 of 5 done" pill and thicker bar in the top bar.
+  - Restart and Edit are one joined white control in the top bar.
+- **Help FAQ:** no longer mentions gesture attempts.
+
+Guided 7 (Julian's gesture summary) keeps its session-only "Attempts" wording: the user decided to leave
+it as is. Playground layout (strip on top, side tabs, or polish only) was discussed and put on hold.
+
+Worth clicking once signed in: Admin Home layout at xl width, playground on a phone and in Student mode,
+card sound on tap, Listen highlight.

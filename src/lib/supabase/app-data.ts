@@ -608,7 +608,9 @@ export async function updateActivity(activity: Activity, previousActivity: Activ
   const previousQuestionIdSet = new Set(previousQuestionIds);
 
   try {
-    const row = (await expectData(
+    // RLS refuses by matching zero rows rather than erroring, which `.single()` reported as
+    // "Cannot coerce the result to a single JSON object". Check the count and say what happened.
+    const rows = (await expectData(
       supabase
         .from("activities")
         .update({
@@ -621,8 +623,11 @@ export async function updateActivity(activity: Activity, previousActivity: Activ
         })
         .eq("id", activity.id)
         .select()
-        .single()
-    )) as ActivityRow;
+    )) as ActivityRow[];
+    const row = rows[0];
+    if (!row) {
+      throw new Error("You can't change this activity. Only the person who made it, or an admin, can.");
+    }
 
     if (newQuestionRows.length) {
       await expectData(supabase.from("activity_items").upsert(newQuestionRows));

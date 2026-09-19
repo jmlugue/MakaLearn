@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { animate, motion, useReducedMotion } from "framer-motion";
-import { Activity, BookOpenCheck, ChevronRight, Gamepad2, GraduationCap, Hand, History, Layers, Target, Trophy, Users, UserX } from "lucide-react";
+import { Activity, BookOpenCheck, ChevronRight, Gamepad2, GraduationCap, Hand, History, Layers, Trophy, Users, UserX } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Select } from "@/components/ui/form";
 import { Avatar, describeActivity, formatDateTime } from "@/features/admin/admin-shared";
@@ -18,11 +18,12 @@ import type {
   AuditLog,
   LearningItem,
   Lesson,
-  MediaAsset,
-  PracticeAttempt
+  MediaAsset
 } from "@/types";
 
 // Palette: blue is the main color; soft green, yellow and red only carry meaning (see color-palette rules).
+// Kind indicators sit off blue so they stand out on a blue page: PECS and Activities amber, Gestures and Lessons teal.
+// Gestures have no attempts, so nothing here charts gesture practice.
 
 export type OverviewJump =
   | { section: "accounts"; status?: "deactivated" }
@@ -127,41 +128,6 @@ function Chip({ children, tone = "blue" }: { children: ReactNode; tone?: "blue" 
 
 function EmptyNote({ children }: { children: ReactNode }) {
   return <p className="my-auto py-6 text-center text-sm font-semibold text-slate-400">{children}</p>;
-}
-
-/** Circular gauge (0-100) with the value in the middle. */
-function RingGauge({ value, label, size = 104 }: { value: number; label: string; size?: number }) {
-  const reduceMotion = useReducedMotion();
-  const circumference = 2 * Math.PI * 15.9;
-  const color = value >= 80 ? "#34d399" : value >= 60 ? "#2563eb" : "#fcd34d";
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg viewBox="0 0 42 42" className="h-full w-full -rotate-90" aria-hidden="true">
-        <circle cx="21" cy="21" r="15.9" fill="none" stroke="#e8eef7" strokeWidth="4.5" />
-        <motion.circle
-          cx="21"
-          cy="21"
-          r="15.9"
-          fill="none"
-          stroke={color}
-          strokeWidth="4.5"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          initial={{ strokeDashoffset: reduceMotion ? circumference * (1 - value / 100) : circumference }}
-          animate={{ strokeDashoffset: circumference * (1 - value / 100) }}
-          transition={{ duration: 1, ease: "easeOut", delay: 0.3 }}
-        />
-      </svg>
-      <div className="absolute inset-0 grid place-items-center text-center">
-        <div>
-          <p className="text-2xl font-extrabold text-ink">
-            <CountUp value={value} suffix="%" />
-          </p>
-          <p className="text-[10px] font-semibold leading-tight text-slate-500">{label}</p>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 /** Greeting tile: information only, with a gently waving hand and drifting circles. */
@@ -441,78 +407,6 @@ function UsageTrend({ logs }: { logs: AuditLog[] }) {
   );
 }
 
-const practiceSegments: { status: PracticeAttempt["status"]; label: string; bar: string; dot: string }[] = [
-  { status: "correct", label: "Correct", bar: "bg-emerald-400", dot: "bg-emerald-400" },
-  { status: "good-attempt", label: "Good attempt", bar: "bg-blue-500", dot: "bg-blue-500" },
-  { status: "needs-practice", label: "Needs practice", bar: "bg-amber-300", dot: "bg-amber-300" },
-  { status: "no-hand-detected", label: "No hand detected", bar: "bg-slate-300", dot: "bg-slate-300" }
-];
-
-function PracticeResults({ attempts, results }: { attempts: PracticeAttempt[]; results: ActivityResult[] }) {
-  const reduceMotion = useReducedMotion();
-  const total = attempts.length;
-  const segments = practiceSegments.map((segment) => ({ ...segment, count: attempts.filter((attempt) => attempt.status === segment.status).length }));
-  const averageScore = results.length ? Math.round(results.reduce((sum, result) => sum + result.score, 0) / results.length) : 0;
-
-  return (
-    <>
-      <TileHeader icon={Target} title="Practice results" />
-      <div className="mt-4">
-        <div className="flex items-baseline justify-between">
-          <p className="text-sm font-semibold text-slate-600">Gesture practice</p>
-          <p className="text-xs font-semibold text-slate-500">
-            <span className="text-lg font-extrabold text-ink">{total}</span> attempts
-          </p>
-        </div>
-        {total === 0 ? (
-          <p className="mt-3 rounded-xl bg-slate-50 px-3 py-4 text-center text-sm font-semibold text-slate-400">No practice attempts yet.</p>
-        ) : (
-          <>
-            <div className="mt-2 flex h-4 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={segments.map((segment) => `${segment.label} ${segment.count}`).join(", ")}>
-              {segments.map((segment, index) =>
-                segment.count ? (
-                  <motion.div
-                    key={segment.status}
-                    className={cn("h-full", segment.bar)}
-                    initial={{ width: reduceMotion ? `${(segment.count / total) * 100}%` : "0%" }}
-                    animate={{ width: `${(segment.count / total) * 100}%` }}
-                    transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 + index * 0.1 }}
-                  />
-                ) : null
-              )}
-            </div>
-            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-              {segments.map((segment) => (
-                <li key={segment.status} className="flex items-center gap-2">
-                  <span className={cn("h-2.5 w-2.5 rounded-full", segment.dot)} aria-hidden="true" />
-                  <span className="flex-1 text-slate-600">{segment.label}</span>
-                  <span className="font-bold text-ink">{Math.round((segment.count / total) * 100)}%</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
-
-      <div className="mt-auto flex items-center gap-4 border-t border-slate-100 pt-4">
-        {results.length ? (
-          <>
-            <RingGauge value={averageScore} label="avg score" size={92} />
-            <div>
-              <p className="text-sm font-semibold text-ink">Activity scores</p>
-              <p className="text-xs text-slate-500">
-                Average across {results.length} {results.length === 1 ? "play" : "plays"}
-              </p>
-            </div>
-          </>
-        ) : (
-          <p className="w-full rounded-xl bg-slate-50 px-3 py-4 text-center text-sm font-semibold text-slate-400">No activity scores yet.</p>
-        )}
-      </div>
-    </>
-  );
-}
-
 function scoreTone(score: number) {
   if (score >= 80) return "bg-emerald-100 text-emerald-700";
   if (score >= 60) return "bg-blue-100 text-blue-700";
@@ -527,7 +421,6 @@ export function OverviewSection({
   activities,
   lessons,
   logs,
-  practiceAttempts,
   activityResults,
   onJump
 }: {
@@ -538,7 +431,6 @@ export function OverviewSection({
   activities: ActivityRecord[];
   lessons: Lesson[];
   logs: AuditLog[];
-  practiceAttempts: PracticeAttempt[];
   activityResults: ActivityResult[];
   onJump: (jump: OverviewJump) => void;
 }) {
@@ -581,6 +473,10 @@ export function OverviewSection({
       .sort((a, b) => b.plays - a.plays || b.average - a.average)
       .slice(0, 5);
   }, [activities, activityResults]);
+
+  const averageScore = activityResults.length
+    ? Math.round(activityResults.reduce((sum, result) => sum + result.score, 0) / activityResults.length)
+    : 0;
 
   const latestMaterials = useMemo(() => [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5), [items]);
 
@@ -671,13 +567,13 @@ export function OverviewSection({
         <TileHeader icon={Layers} title="Materials & media" onSeeAll={() => onJump({ section: "content", view: "materials" })} />
         <div className="mt-3 flex items-center gap-4">
           <svg viewBox="0 0 42 42" className="h-16 w-16 shrink-0 -rotate-90" aria-hidden="true">
-            <circle cx="21" cy="21" r="15.9" fill="none" stroke="#a7f3d0" strokeWidth="6" />
+            <circle cx="21" cy="21" r="15.9" fill="none" stroke="#5eead4" strokeWidth="6" />
             <motion.circle
               cx="21"
               cy="21"
               r="15.9"
               fill="none"
-              stroke="#2563eb"
+              stroke="#fbbf24"
               strokeWidth="6"
               initial={{ strokeDasharray: reduceMotion ? `${pecsLength} ${ringLength}` : `0 ${ringLength}` }}
               animate={{ strokeDasharray: `${pecsLength} ${ringLength}` }}
@@ -693,10 +589,10 @@ export function OverviewSection({
         </div>
         <div className="mt-3 flex gap-4">
           <p>
-            <span className="text-xl font-black text-blue-700">{pecsCount}</span> <span className="text-xs font-semibold text-slate-500">PECS</span>
+            <span className="text-xl font-black text-accent-amber">{pecsCount}</span> <span className="text-xs font-semibold text-slate-500">PECS</span>
           </p>
           <p>
-            <span className="text-xl font-black text-emerald-600">{gestureCount}</span>{" "}
+            <span className="text-xl font-black text-accent-teal">{gestureCount}</span>{" "}
             <span className="text-xs font-semibold text-slate-500">Gestures</span>
           </p>
         </div>
@@ -722,9 +618,9 @@ export function OverviewSection({
         <div className="mt-3 space-y-2">
           <Link
             href="/activities"
-            className="group flex items-center gap-3 rounded-xl border border-blue-100 bg-[#f8fbff] px-3 py-2.5 transition hover:border-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            className="group flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50/40 px-3 py-2.5 transition hover:border-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
           >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-600 text-white shadow-sm">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400 text-white shadow-sm">
               <Gamepad2 className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
@@ -736,13 +632,13 @@ export function OverviewSection({
             <span className="text-3xl font-black text-ink">
               <CountUp value={activities.length} />
             </span>
-            <ChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-600" aria-hidden="true" />
+            <ChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-accent-amber" aria-hidden="true" />
           </Link>
           <Link
             href="/content"
-            className="group flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-3 py-2.5 transition hover:border-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            className="group flex items-center gap-3 rounded-xl border border-teal-100 bg-teal-50/40 px-3 py-2.5 transition hover:border-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
           >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500 text-white shadow-sm">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-500 text-white shadow-sm">
               <BookOpenCheck className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
@@ -754,21 +650,17 @@ export function OverviewSection({
             <span className="text-3xl font-black text-ink">
               <CountUp value={lessons.length} />
             </span>
-            <ChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-600" aria-hidden="true" />
+            <ChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-accent-teal" aria-hidden="true" />
           </Link>
         </div>
       </Tile>
 
-      <Tile index={4} className="min-h-[20rem] sm:col-span-2 xl:col-span-7">
+      <Tile index={4} className="min-h-[20rem] sm:col-span-2 xl:col-span-12">
         <UsageTrend logs={logs} />
       </Tile>
 
-      <Tile index={5} className="min-h-[20rem] sm:col-span-2 xl:col-span-5">
-        <PracticeResults attempts={practiceAttempts} results={activityResults} />
-      </Tile>
-
       {/* Most used activities: ranked list + score pill; each row opens that activity */}
-      <Tile index={6} className="xl:col-span-4">
+      <Tile index={5} className="xl:col-span-4">
         <TileHeader icon={Trophy} title="Most used activities" href="/activities" />
         {topActivities.length === 0 ? (
           <EmptyNote>No activities played yet.</EmptyNote>
@@ -800,10 +692,16 @@ export function OverviewSection({
             ))}
           </ol>
         )}
+        {activityResults.length ? (
+          <p className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500">
+            Average score, {activityResults.length} {activityResults.length === 1 ? "play" : "plays"}
+            <span className={cn("rounded-full px-2 py-0.5 text-xs font-bold", scoreTone(averageScore))}>{averageScore}%</span>
+          </p>
+        ) : null}
       </Tile>
 
       {/* Latest materials: thumbnail cards that open the material pop-up */}
-      <Tile index={7} className="xl:col-span-4">
+      <Tile index={6} className="xl:col-span-4">
         <TileHeader icon={History} title="Latest materials" onSeeAll={() => onJump({ section: "content", view: "materials" })} />
         {latestMaterials.length === 0 ? (
           <EmptyNote>No materials yet.</EmptyNote>
@@ -828,14 +726,14 @@ export function OverviewSection({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.symbolImageUrl} alt="" className="h-full w-full object-contain p-1.5" />
                     ) : (
-                      <Hand className="h-6 w-6 text-emerald-500" aria-hidden="true" />
+                      <Hand className="h-6 w-6 text-teal-500" aria-hidden="true" />
                     )}
                   </span>
                   <span className="w-full truncate text-xs font-semibold text-ink">{item.label}</span>
                   <span
                     className={cn(
                       "rounded-full px-1.5 text-[10px] font-semibold",
-                      item.contentType === "pecs" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
+                      item.contentType === "pecs" ? "bg-amber-100 text-accent-amber" : "bg-teal-100 text-accent-teal"
                     )}
                   >
                     {item.contentType === "pecs" ? "PECS" : "Gesture"}
@@ -848,7 +746,7 @@ export function OverviewSection({
       </Tile>
 
       {/* Recent activity feed */}
-      <Tile index={8} className="sm:col-span-2 xl:col-span-4">
+      <Tile index={7} className="sm:col-span-2 xl:col-span-4">
         <TileHeader icon={Activity} title="Recent activity" onSeeAll={() => onJump({ section: "activity" })} />
         {logs.length === 0 ? (
           <EmptyNote>No activity yet.</EmptyNote>

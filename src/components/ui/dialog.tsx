@@ -7,22 +7,36 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// Shared scroll lock. Stacked dialogs (a confirm over a detail pop-up) can close in the same render, and
-// restoring a per-dialog saved value in the wrong order used to leave the page unable to scroll.
-let scrollLocks = 0;
-let savedOverflow = "";
+// Shared scroll lock for pop-ups and the full-screen player. Rules that keep the page from getting stuck:
+// - Unlocking always restores scrolling (""). Saving the old value used to save "hidden" when a lock had
+//   leaked, and every later pop-up then put "hidden" back.
+// - The count lives on `window`, so a hot reload of this module cannot forget a lock that is applied.
+// - Anything holding the lock carries `data-scroll-lock`; `releaseStrayScrollLock` clears the lock when
+//   nothing like that is on screen.
+type ScrollLockState = { count: number };
 
-function lockScroll() {
-  if (scrollLocks === 0) {
-    savedOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-  }
-  scrollLocks += 1;
+function lockState(): ScrollLockState {
+  const holder = window as unknown as { __makalearnScrollLock?: ScrollLockState };
+  holder.__makalearnScrollLock ??= { count: 0 };
+  return holder.__makalearnScrollLock;
 }
 
-function unlockScroll() {
-  scrollLocks = Math.max(0, scrollLocks - 1);
-  if (scrollLocks === 0) document.body.style.overflow = savedOverflow;
+export function lockScroll() {
+  lockState().count += 1;
+  document.body.style.overflow = "hidden";
+}
+
+export function unlockScroll() {
+  const state = lockState();
+  state.count = Math.max(0, state.count - 1);
+  if (state.count === 0) document.body.style.overflow = "";
+}
+
+/** Restores scrolling when no pop-up or player is showing. Called on page changes and when the player closes. */
+export function releaseStrayScrollLock() {
+  if (document.querySelector("[data-scroll-lock]")) return;
+  lockState().count = 0;
+  if (document.body.style.overflow === "hidden") document.body.style.overflow = "";
 }
 
 /**
@@ -98,6 +112,7 @@ export function Dialog({
   return createPortal(
     open ? (
       <motion.div
+        data-scroll-lock=""
         className="fixed inset-0 z-[150] flex overflow-y-auto bg-slate-900/40 px-4 py-6 backdrop-blur-[2px]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

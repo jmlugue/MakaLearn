@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Hand, Lock, Pencil, Play, Trash2, Users } from "lucide-react";
+import { BookOpen, Hand, Lock, Pencil, Play, Trash2, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ export function ActivityPreviewDialog({
   items,
   pool,
   lesson,
+  creator,
   canManage,
   onClose,
   onPlay,
@@ -28,6 +29,8 @@ export function ActivityPreviewDialog({
   items: LearningItem[];
   pool: LearningItem[];
   lesson?: Lesson;
+  /** Owner name, for shared activities made by someone else. */
+  creator?: string;
   canManage: boolean;
   onClose: () => void;
   onPlay: (activity: Activity) => void;
@@ -74,6 +77,12 @@ export function ActivityPreviewDialog({
               {activity.visibility === "private" ? <Lock className="h-3 w-3" aria-hidden="true" /> : <Users className="h-3 w-3" aria-hidden="true" />}
               {activity.visibility === "private" ? "Private" : "Shared"}
             </span>
+            {creator ? (
+              <span className={chipClass}>
+                <User className="h-3 w-3" aria-hidden="true" />
+                By {creator}
+              </span>
+            ) : null}
             {lesson ? (
               <span className={cn(chipClass, "text-blue-700")}>
                 <BookOpen className="h-3 w-3" aria-hidden="true" />

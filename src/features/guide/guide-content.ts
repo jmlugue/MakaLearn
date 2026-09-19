@@ -84,7 +84,7 @@ export const pageGuides: Record<string, PageGuide> = {
       },
       {
         title: "Lessons",
-        text: "A goal, a set of materials, and the activity the learner will practise.",
+        text: "A goal and a set of materials. Shared or private, and it can hold many activities.",
         icon: BookOpen,
         scene: "lesson"
       },
@@ -114,13 +114,13 @@ export const pageGuides: Record<string, PageGuide> = {
       },
       {
         title: "Create in three steps",
-        text: "Choose a format, pick up to five cards, then check the questions. A lesson's activity is made in Content.",
+        text: "Choose a format, pick up to five cards, then check the questions. Add it to a lesson if you like.",
         icon: Activity,
         scene: "activity"
       },
       {
         title: "Play full screen",
-        text: "Play opens a simple full-screen view. The top bar exits, restarts, or edits.",
+        text: "Play opens a simple full-screen view with a score at the end. The top bar exits, restarts, or edits.",
         icon: GraduationCap,
         scene: "student"
       }
@@ -183,13 +183,13 @@ export const guideTips: Record<string, string> = {
   "content.types": "PECS cards are pictures a learner points at. Gestures are signs they copy from a video.",
   "content.categories": "Show only one category. Extra categories sit in the +N more menu.",
   "content.addMaterial": "Create a new card or gesture, with its picture, video, and audio.",
-  "content.addLesson": "Build a lesson: a goal, a set of materials, and an activity to practise them.",
+  "content.addLesson": "Build a lesson: a goal and a set of materials. Add its activities in Activities.",
   "content.addCategory": "Make a new colour-coded group for your materials.",
   "content.mediaTypes": "Filter the files by kind. All shows everything that has been uploaded.",
 
   // Activities and gesture practice
   "activities.types": "Each format asks the learner to do something different with the same cards.",
-  "activities.create": "Build an activity from your own cards. A lesson's activity is made from the lesson in Content.",
+  "activities.create": "Build an activity. Pick a lesson in step 2 to add it there; a lesson can hold many.",
   "activities.filter": "From lessons shows each lesson's activity. Private shows the ones only you can see.",
   "activities.typeFilter": "Show one format. Each format has its own color on the cards.",
   "activities.teacherBar": "Exit to the library, start again from the first question, or edit the activity.",

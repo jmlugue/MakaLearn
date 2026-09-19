@@ -1,5 +1,9 @@
 # MakaLearn Coding Agent Instructions
 
+> This is the original brief. Parts are out of date: there is no Learners page, gesture recognition is
+> real (MediaPipe plus a trained model), gesture attempts are never saved or shown, and activity results
+> are saved to `activity_results`. `CLAUDE.md` has the current state and wins where they disagree.
+
 ## Project identity
 
 This project is **MakaLearn**, a web app for teacher-guided Makaton learning support.
@@ -229,6 +233,9 @@ Admin can reassign learners.
 Use a split layout where camera, reference/sign information, and feedback are all visible.
 
 Use real webcam preview for the UI, but keep recognition fake for now.
+
+> Superseded: recognition is real now, and gesture attempts are not recorded. The fake controls and
+> saved statuses below are historical.
 
 Flow:
 - Select learning item

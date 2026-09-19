@@ -24,13 +24,13 @@ const manualSections = [
       "Choose Generate lesson on a PECS or gesture card, or open Lessons and choose Create manual lesson.",
       "Add a clear lesson title, objective, and teaching sequence.",
       "Use Search learning items in the lesson form to find the PECS cards or gestures to include.",
-      "On the Practice step, pick a format and keep Create activity ticked to add the lesson's activity. Gesture lessons use Gesture Practice instead."
+      "Choose Private to me when you save a new lesson to keep it to yourself. Shared lessons can be opened by every teacher, who can use Make a copy to adapt one."
     ]
   },
   {
     title: "Run practice",
     steps: [
-      "For PECS lessons, choose Play activity from the saved lesson, or press Play on a card in Activities. The player opens full screen. The top bar exits, restarts, or edits.",
+      "Add activities to a lesson from Activities: choose Create activity, then pick the lesson under Part of a lesson. A lesson can hold many activities. Find and play them in Activities, where they show From (lesson).",
       "For gesture lessons, choose Practice gesture from the saved lesson. In Student Mode, use Free practice for open recognition or Guided 7 for a shuffled seven-gesture session.",
       "Guided 7 waits for a thumbs-up, counts down before each new gesture, and retries the same prompt until it is recognized or skipped.",
       "Use Playground when the learner needs to build a PECS/AAC sentence from cards.",
@@ -54,7 +54,7 @@ const faqs = [
   },
   {
     question: "What is the difference between a lesson and an activity?",
-    answer: "A lesson is the plan: a goal, instructions, and the cards. An activity is the practice step the learner plays. Each PECS lesson has one activity, made from the lesson in Content. Activities created in Activities are not tied to a lesson."
+    answer: "A lesson is the plan: a goal, instructions, and the cards. Activities are how the learner practises them. A lesson can hold many activities, added from the Activities page, and an activity can also stand on its own. Scores show at the end of an activity but are not saved."
   },
   {
     question: "Where do I find an activity after creating it?",
@@ -74,7 +74,7 @@ const faqs = [
   },
   {
     question: "Are Guided 7 gesture results saved?",
-    answer: "No. Guided 7 shows first-try results and attempts in the completion summary, but gesture scoring remains session-only in this MVP."
+    answer: "No. Gesture practice is never saved. Guided 7 shows a short summary at the end of the session, then it is gone."
   },
   {
     question: "Why does MakaLearn use Supabase?",

@@ -10,17 +10,14 @@ import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { insertAuditLog } from "@/lib/audit-logs";
 import {
-  createActivityQuestions,
   deleteCategory,
   deleteLearningItem,
   deleteLesson,
   detachLearningItemMedia,
   fetchMakaLearnData,
-  insertActivity,
   insertCategory,
   insertLearningItem,
   insertLesson,
-  updateActivity,
   updateCategoryDetails,
   updateLearningItemDetails,
   updateLearningItemMedia,
@@ -28,7 +25,7 @@ import {
 } from "@/lib/supabase/app-data";
 import { deleteMediaAssetFromSupabase, uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import { createLessonDraftFromItem } from "@/utils/lesson-template";
-import { findLessonActivity as findActivityForLesson, lessonActivityId } from "@/utils/lesson-activity";
+import { canSee, uniqueCopyTitle } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories, ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
 import { CardDetailDialog, type CardTextValues } from "@/features/content/card-detail-dialog";
@@ -45,7 +42,7 @@ import { LessonPreviewDialog } from "@/features/content/lesson-preview-dialog";
 import { LessonsTab } from "@/features/content/lessons-tab";
 import { MediaPreviewDialog } from "@/features/content/media-preview-dialog";
 import { MediaTab } from "@/features/content/media-tab";
-import type { Activity, ActivityType, AppUser, Category, LearningItem, Lesson, MediaAsset } from "@/types";
+import type { ActivityType, AppUser, Category, LearningItem, Lesson, MediaAsset } from "@/types";
 
 type Tab = "materials" | "lessons" | "categories" | "media";
 type UploadConfig = Pick<MediaAsset, "bucket" | "type">;
@@ -69,10 +66,6 @@ function mediaTypeText(type: MediaAsset["type"]) {
   return "audio";
 }
 
-function sameIds(a: string[], b: string[]) {
-  return a.length === b.length && a.every((id, index) => id === b[index]);
-}
-
 export function ContentLibraryView({ initialItemId }: { initialItemId?: string } = {}) {
   const { notify } = useToast();
   const { user } = useAuthUser();
@@ -82,7 +75,6 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [media, setMedia] = useState<MediaAsset[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
 
   // Materials filters live here so a deep link can open the right type.
@@ -118,7 +110,6 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         setLessons(data.lessons);
         setCategories(ensurePecsManifestCategories(data.categories));
         setMedia(data.mediaAssets);
-        setActivities(data.activities);
       })
       .catch(() => {
         if (!active) return;
@@ -159,9 +150,24 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     return lesson.learningItemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
   }
 
-  function findLessonActivity(lesson: Lesson) {
-    return findActivityForLesson(lesson, activities);
+  // Others' private lessons stay hidden. The read rules allow them, so this is the only filter.
+  const visibleLessons = useMemo(() => lessons.filter((lesson) => canSee(lesson, user)), [lessons, user]);
+
+  /** Only the owner or an admin can change a lesson; the database refuses anyone else. */
+  function canEditLesson(lesson: Lesson) {
+    return user.role === "admin" || lesson.createdBy === user.id;
   }
+
+  /** Owner name, shown on shared lessons made by someone else. */
+  function sharedCreator(lesson: Lesson) {
+    return lesson.createdBy !== user.id && lesson.visibility === "shared" ? nameFor(userNames, lesson.createdBy) : undefined;
+  }
+
+  /** Other lesson names the teacher can see, so a new or renamed lesson does not repeat one. */
+  const takenLessonTitles = useMemo(() => {
+    const editingId = lessonMode?.kind === "edit" ? lessonMode.lesson.id : "";
+    return visibleLessons.filter((lesson) => lesson.id !== editingId).map((lesson) => lesson.title);
+  }, [lessonMode, visibleLessons]);
 
   function log(action: "upload" | "create" | "edit" | "delete", targetType: string, targetTitle: string, detail: string, targetId?: string) {
     insertAuditLog({ category: "content", action, actor: user, targetType, targetId, targetTitle, detail }).catch(() => undefined);
@@ -366,83 +372,26 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     setLessonMode({ kind: "draft", draft: createLessonDraftFromItem(item) });
   }
 
-  /**
-   * Keeps a lesson's practice step in step with the lesson. An existing activity is always updated; a new
-   * one is only made when the teacher ticked "Create activity". Gesture-only lessons have no activity.
-   */
-  async function syncLessonActivity(
-    lesson: Lesson,
-    previous: Lesson | null,
-    pecsItems: LearningItem[],
-    activityType: ActivityType,
-    createActivity: boolean
-  ) {
-    if (!pecsItems.length) return;
-    const existing = findLessonActivity(previous ?? lesson);
-    if (!existing && !createActivity) return;
-    const pecsIds = pecsItems.map((item) => item.id);
-    const prompt = lesson.instructions || "Complete each activity step with teacher guidance.";
-
-    if (!existing) {
-      const created = await insertActivity({
-        id: lessonActivityId(lesson),
-        title: `${lesson.title} activity`,
-        type: activityType,
-        prompt,
-        learningItemIds: pecsIds,
-        questions: createActivityQuestions(activityType, pecsItems, items),
-        visibility: "shared",
-        createdBy: user.id
-      });
-      setActivities((current) => [created, ...current]);
-      await rememberLessonActivity(lesson, created.id);
-      return;
-    }
-
-    const cardsOrTypeChanged = existing.type !== activityType || !sameIds(existing.learningItemIds, pecsIds);
-    // The name belongs to the activity once made, so a rename in Activities survives a lesson save.
-    if (!cardsOrTypeChanged && existing.prompt === prompt) return;
-    const updated = await updateActivity(
-      {
-        ...existing,
-        prompt,
-        type: activityType,
-        learningItemIds: pecsIds,
-        // Keep questions a teacher may have edited unless the cards or format changed.
-        questions: cardsOrTypeChanged ? createActivityQuestions(activityType, pecsItems, items) : existing.questions
-      },
-      existing
-    );
-    setActivities((current) => current.map((activity) => (activity.id === updated.id ? updated : activity)));
-    await rememberLessonActivity(lesson, updated.id);
-  }
-
-  /** Saves the activity id onto the lesson row, so the link survives a reload and an activity rename. */
-  async function rememberLessonActivity(lesson: Lesson, activityId: string) {
-    if (lesson.relatedActivityId === activityId) return;
-    const next = { ...lesson, relatedActivityId: activityId };
-    const saved = await updateLesson(next, lesson);
-    setLessons((current) => current.map((candidate) => (candidate.id === saved.id ? saved : candidate)));
-  }
-
   async function saveLesson(mode: LessonFormMode, values: LessonFormValues) {
     const selected = values.itemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
-    const pecsItems = selected.filter((item) => item.contentType === "pecs");
-    const activityType: ActivityType = pecsItems.length ? values.activityType : "gesture-practice";
+    const hasPecs = selected.some((item) => item.contentType === "pecs");
     const previous = mode.kind === "edit" ? mode.lesson : null;
-    const base =
+    // Lessons no longer pick a format (activities do), but the column is kept filled for older code.
+    const activityType: ActivityType = previous?.activityType ?? (hasPecs ? "choose-correct-symbol" : "gesture-practice");
+    const newRecord = {
+      id: `lesson-${Date.now()}`,
+      createdBy: user.id,
+      relatedActivityId: undefined,
+      visibility: values.isPrivate ? ("private" as const) : ("shared" as const)
+    };
+    const base: Omit<Lesson, "title" | "objective" | "instructions" | "learningItemIds" | "activityType"> =
       mode.kind === "edit"
         ? mode.lesson
         : mode.kind === "draft"
-          ? { ...mode.draft, id: `lesson-${Date.now()}`, createdBy: user.id }
-          : {
-              id: `lesson-${Date.now()}`,
-              createdBy: user.id,
-              estimatedDuration: 10,
-              notes: "",
-              source: "manual" as const,
-              visibility: "shared" as const
-            };
+          ? { ...mode.draft, ...newRecord }
+          : mode.kind === "copy"
+            ? { ...mode.source, ...newRecord, source: "manual" as const }
+            : { ...newRecord, estimatedDuration: 10, notes: "", source: "manual" as const };
     const next: Lesson = {
       ...base,
       title: values.title,
@@ -465,16 +414,16 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       previous ? "edit" : "create",
       "lesson",
       saved.title,
-      previous ? "Updated a lesson." : mode.kind === "draft" ? "Saved a generated lesson." : "Created a manual lesson.",
+      previous
+        ? "Updated a lesson."
+        : mode.kind === "draft"
+          ? "Saved a generated lesson."
+          : mode.kind === "copy"
+            ? `Copied the lesson "${mode.source.title}".`
+            : "Created a manual lesson.",
       saved.id
     );
-
-    try {
-      await syncLessonActivity(saved, previous, pecsItems, activityType, values.createActivity);
-      notify({ title: previous ? "Lesson updated" : "Lesson saved", tone: "success" });
-    } catch (error) {
-      notify({ title: "Lesson saved, activity not updated", description: errorText(error, "The activity could not be saved."), tone: "error" });
-    }
+    notify({ title: previous ? "Lesson updated" : mode.kind === "copy" ? "Copy saved" : "Lesson saved", tone: "success" });
     return true;
   }
 
@@ -583,9 +532,9 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
           />
         ) : tab === "lessons" ? (
           <LessonsTab
-            lessons={lessons}
+            lessons={visibleLessons}
             itemById={itemById}
-            activityFor={findLessonActivity}
+            creatorFor={sharedCreator}
             onOpenLesson={(lesson) => setOpenLessonId(lesson.id)}
             onNewLesson={() => setLessonMode({ kind: "new" })}
           />
@@ -656,7 +605,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         mode={lessonMode}
         items={items}
         categories={categories}
-        linkedActivity={lessonMode?.kind === "edit" ? findLessonActivity(lessonMode.lesson) : undefined}
+        takenTitles={takenLessonTitles}
         onClose={() => setLessonMode(null)}
         onSave={saveLesson}
       />
@@ -664,13 +613,12 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       <LessonPreviewDialog
         lesson={openLesson}
         items={openLesson ? itemsOf(openLesson) : []}
-        pool={items}
         creator={openLesson ? nameFor(userNames, openLesson.createdBy) : ""}
-        activity={openLesson ? findLessonActivity(openLesson) : undefined}
+        canEdit={Boolean(openLesson && canEditLesson(openLesson))}
         onClose={() => setOpenLessonId("")}
-        onCreateActivity={(lesson) => {
+        onCopy={(lesson) => {
           setOpenLessonId("");
-          setLessonMode({ kind: "edit", lesson, step: 2, createActivity: true });
+          setLessonMode({ kind: "copy", source: lesson, title: uniqueCopyTitle(lesson.title, visibleLessons.map((candidate) => candidate.title)) });
         }}
         onEdit={(lesson) => {
           setOpenLessonId("");
@@ -682,7 +630,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       <ConfirmDialog
         open={Boolean(lessonToDelete)}
         title={`Delete ${lessonToDelete?.title ?? "lesson"}?`}
-        description="The lesson is removed. Its materials and activity stay."
+        description="The lesson is removed. Its materials and activities stay."
         confirmLabel="Delete lesson"
         tone="danger"
         loading={deleting}

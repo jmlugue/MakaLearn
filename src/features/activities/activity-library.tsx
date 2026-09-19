@@ -19,12 +19,15 @@ export function ActivityLibrary({
   activities,
   itemById,
   lessonOf,
+  creatorOf,
   onOpen,
   onPlay
 }: {
   activities: Activity[];
   itemById: Map<string, LearningItem>;
   lessonOf: (activity: Activity) => Lesson | undefined;
+  /** Owner name for shared activities made by someone else. */
+  creatorOf: (activity: Activity) => string | undefined;
   onOpen: (activity: Activity) => void;
   onPlay: (activity: Activity) => void;
 }) {
@@ -99,6 +102,7 @@ export function ActivityLibrary({
               activity={activity}
               items={itemsOfActivity(activity, itemById)}
               lesson={lessonOf(activity)}
+              creator={creatorOf(activity)}
               onOpen={() => onOpen(activity)}
               onPlay={() => onPlay(activity)}
             />

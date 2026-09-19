@@ -12,7 +12,7 @@ import { GuideTip } from "@/features/guide/guide-tip";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { fetchAuditLogs } from "@/lib/audit-logs";
-import { fetchActivityResults, fetchMakaLearnData, fetchPracticeAttempts } from "@/lib/supabase/app-data";
+import { fetchActivityResults, fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { AccountsSection, type StatusFilter } from "@/features/admin/accounts-section";
 import { ActivitySection } from "@/features/admin/activity-section";
 import { type LogFilter, type LogRange, rangeStart } from "@/features/admin/admin-shared";
@@ -26,8 +26,7 @@ import type {
   Category,
   LearningItem,
   Lesson,
-  MediaAsset,
-  PracticeAttempt
+  MediaAsset
 } from "@/types";
 
 type Section = "home" | "accounts" | "content" | "activity";
@@ -64,7 +63,6 @@ export function AdminPanelView() {
   const [logFilter, setLogFilter] = useState<LogFilter>("all");
   const [logRange, setLogRange] = useState<LogRange>("all");
   const [dashboardLogs, setDashboardLogs] = useState<AuditLog[]>([]);
-  const [practiceAttempts, setPracticeAttempts] = useState<PracticeAttempt[]>([]);
   const [activityResults, setActivityResults] = useState<ActivityResult[]>([]);
   // Set when a Home tile asks the Content section to open a material's pop-up; `at` makes repeat clicks re-trigger.
   const [openItemRequest, setOpenItemRequest] = useState<{ id: string; at: number } | null>(null);
@@ -142,10 +140,10 @@ export function AdminPanelView() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchPracticeAttempts(), fetchActivityResults()])
-      .then(([attempts, results]) => {
+    // Gesture attempts are never recorded, so only activity results are loaded here.
+    fetchActivityResults()
+      .then((results) => {
         if (!active) return;
-        setPracticeAttempts(attempts);
         setActivityResults(results);
       })
       .catch(() => undefined);
@@ -208,7 +206,6 @@ export function AdminPanelView() {
           activities={activities}
           lessons={lessons}
           logs={dashboardLogs}
-          practiceAttempts={practiceAttempts}
           activityResults={activityResults}
           onJump={handleJump}
         />

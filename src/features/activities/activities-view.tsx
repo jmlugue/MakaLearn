@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Activity as ActivityIcon, PlayCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/dialog";
+import { ConfirmDialog, releaseStrayScrollLock } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingState } from "@/components/common/loading-state";
 import { PageHeader } from "@/components/layout/page-header";
@@ -34,9 +34,7 @@ import {
   deleteActivity,
   fetchMakaLearnData,
   insertActivity,
-  insertActivityResult,
   updateActivity,
-  updateLesson,
   upsertActivityPromptTemplates
 } from "@/lib/supabase/app-data";
 import { buildDefaultActivityPrompt, canDraftQuestionPrompts } from "@/utils/activity-ai-draft";
@@ -44,10 +42,10 @@ import {
   normalizeActivitySymbolQuestions,
   resolveCanonicalLearningItemId
 } from "@/utils/activity-symbol-options";
-import { activityPlayHref, findLessonActivity } from "@/utils/lesson-activity";
+import { activityPlayHref, canSee, findActivityLesson, newLessonActivityId } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories } from "@/utils/pecs-content-library";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
-import type { Activity, ActivityType, Category, LearningItem, Lesson } from "@/types";
+import type { Activity, ActivityType, AppUser, Category, LearningItem, Lesson } from "@/types";
 
 type Score = { score: number; correct: number; incorrect: number };
 
@@ -82,6 +80,7 @@ export function ActivitiesView() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [promptStore, setPromptStore] = useState<ActivityPromptStore>({});
+  const [users, setUsers] = useState<AppUser[]>([]);
 
   const [openActivityId, setOpenActivityId] = useState("");
   const [formMode, setFormMode] = useState<ActivityFormMode | null>(null);
@@ -95,7 +94,7 @@ export function ActivitiesView() {
   const [result, setResult] = useState<Score | null>(null);
   // Bumped by the teacher's Restart so the player also goes back to its first question.
   const [playerRound, setPlayerRound] = useState(0);
-  const [progress, setProgress] = useState("");
+  const [progress, setProgress] = useState<{ current: number; total: number } | undefined>(undefined);
   // True when the player was opened from the library, so Exit can go back instead of stacking history.
   const openedFromLibrary = useRef(false);
 
@@ -113,6 +112,7 @@ export function ActivitiesView() {
           )
         );
         setLessons(data.lessons);
+        setUsers(data.users);
         setCategories(ensurePecsManifestCategories(data.categories));
         setPromptStore(
           Object.fromEntries(
@@ -139,21 +139,31 @@ export function ActivitiesView() {
   }, [notify]);
 
   const itemById = useMemo(() => new Map(learningItems.map((item) => [item.id, item])), [learningItems]);
+  // Others' private activities and lessons stay hidden. The read rules allow them, so this is the only filter.
+  const visibleActivities = useMemo(() => activities.filter((activity) => canSee(activity, user)), [activities, user]);
+  const visibleLessons = useMemo(() => lessons.filter((lesson) => canSee(lesson, user)), [lessons, user]);
   const lessonByActivityId = useMemo(() => {
     const map = new Map<string, Lesson>();
-    lessons.forEach((lesson) => {
-      const activity = findLessonActivity(lesson, activities);
-      if (activity && !map.has(activity.id)) map.set(activity.id, lesson);
+    visibleActivities.forEach((activity) => {
+      const lesson = findActivityLesson(activity, visibleLessons);
+      if (lesson) map.set(activity.id, lesson);
     });
     return map;
-  }, [activities, lessons]);
+  }, [visibleActivities, visibleLessons]);
   const lessonOf = useCallback((activity: Activity) => lessonByActivityId.get(activity.id), [lessonByActivityId]);
-  const reportProgress = useCallback((current: number, total: number) => setProgress(`${current} / ${total}`), []);
+  const userNames = useMemo(() => new Map(users.map((candidate) => [candidate.id, candidate.name])), [users]);
+  /** Owner name, shown on shared activities made by someone else. */
+  const creatorOf = useCallback(
+    (activity: Activity) =>
+      activity.visibility === "shared" && activity.createdBy !== user.id ? userNames.get(activity.createdBy) ?? "MakaLearn user" : undefined,
+    [user.id, userNames]
+  );
+  const reportProgress = useCallback((current: number, total: number) => setProgress({ current, total }), []);
 
   const playingActivity = isStudentMode
-    ? activities.find((activity) => activity.id === studentActivityId) ?? getInitialActivity(activities, playId, requestedType)
-    : activities.find((activity) => activity.id === playId);
-  const openActivity = activities.find((activity) => activity.id === openActivityId) ?? null;
+    ? visibleActivities.find((activity) => activity.id === studentActivityId) ?? getInitialActivity(visibleActivities, playId, requestedType)
+    : visibleActivities.find((activity) => activity.id === playId);
+  const openActivity = visibleActivities.find((activity) => activity.id === openActivityId) ?? null;
   const editingActivity = formMode?.kind === "edit" ? formMode.activity : null;
 
   // A fresh start whenever a different activity is played.
@@ -163,6 +173,11 @@ export function ActivitiesView() {
     setDragged("");
     setResult(null);
   }, [playingId]);
+
+  // Back in the library (same page, so the shell's page-change check does not run): make sure it scrolls.
+  useEffect(() => {
+    if (!playId) releaseStrayScrollLock();
+  }, [playId]);
 
   // A player link to an activity that no longer exists falls back to the library.
   useEffect(() => {
@@ -220,7 +235,7 @@ export function ActivitiesView() {
     setResult(null);
   }
 
-  async function scoreActivity(questionIds?: string[]) {
+  function scoreActivity(questionIds?: string[]) {
     if (!playingActivity) return;
     const scored = questionIds?.length
       ? playingActivity.questions.filter((question) => questionIds.includes(question.id))
@@ -228,12 +243,8 @@ export function ActivitiesView() {
     const correct = scored.reduce((sum, question) => sum + (answers[question.id] === question.answer ? 1 : 0), 0);
     const incorrect = scored.length - correct;
     const score = scored.length ? Math.round((correct / scored.length) * 100) : 0;
+    // View only: scores are shown, not saved (`insertActivityResult` is kept for when tracking returns).
     setResult({ score, correct, incorrect });
-    try {
-      await insertActivityResult({ activityId: playingActivity.id, teacherId: user.id, score, correctCount: correct, incorrectCount: incorrect, answers });
-    } catch (error) {
-      notify({ title: "Result not saved", description: errorText(error, "The activity result could not be saved."), tone: "error" });
-    }
   }
 
   async function saveActivity(mode: ActivityFormMode, values: ActivityFormValues) {
@@ -263,14 +274,17 @@ export function ActivitiesView() {
     }
 
     const previous = mode.kind === "edit" ? mode.activity : null;
+    // An activity made for a lesson carries the lesson in its id, so no extra database column is needed.
+    const lesson = !previous && values.lessonId ? visibleLessons.find((candidate) => candidate.id === values.lessonId) : undefined;
     const next: Activity = {
-      id: previous?.id ?? `activity-${Date.now()}`,
+      id: previous?.id ?? (lesson ? newLessonActivityId(lesson) : `activity-${Date.now()}`),
       title: values.title,
       type,
       prompt: buildDefaultActivityPrompt(type),
       learningItemIds: selected.map((item) => item.id),
       questions: createActivityQuestions(type, selected, learningItems, promptOverrides),
-      visibility: values.isPrivate ? "private" : "shared",
+      // Visibility is chosen once, when the activity is made.
+      visibility: previous ? previous.visibility : values.isPrivate ? "private" : "shared",
       createdBy: previous?.createdBy ?? user.id
     };
 
@@ -284,21 +298,14 @@ export function ActivitiesView() {
 
     setActivities((current) => (previous ? current.map((activity) => (activity.id === saved.id ? saved : activity)) : [saved, ...current]));
     log(previous ? "edit" : "create", saved, previous ? "Updated an activity." : "Created an activity.");
-    if (previous && playingActivity?.id === saved.id) resetPlayer();
+    // Saving makes new question ids, so the player starts over on the edited version.
+    if (previous && playingActivity?.id === saved.id) restartPlayer();
 
-    // One lesson, one activity: a format changed here is also the lesson's format, so saving the lesson
-    // later does not switch it back.
-    const lesson = previous ? lessonOf(previous) : undefined;
-    if (lesson && lesson.activityType !== saved.type) {
-      try {
-        const updatedLesson = await updateLesson({ ...lesson, activityType: saved.type }, lesson);
-        setLessons((current) => current.map((candidate) => (candidate.id === updatedLesson.id ? updatedLesson : candidate)));
-      } catch {
-        // The lesson form also starts from the linked activity's format, so a failed write is harmless.
-      }
-    }
-
-    notify({ title: previous ? "Activity updated" : "Activity created", tone: "success" });
+    notify({
+      title: previous ? "Activity updated" : "Activity created",
+      description: lesson ? `Added to ${lesson.title}.` : undefined,
+      tone: "success"
+    });
     return true;
   }
 
@@ -325,7 +332,7 @@ export function ActivitiesView() {
   const player = playingActivity ? (
     <StudentActivityPlayer
       activity={playingActivity}
-      activities={activities}
+      activities={visibleActivities}
       learningItems={learningItems}
       answers={answers}
       result={result}
@@ -347,6 +354,7 @@ export function ActivitiesView() {
         items={openActivity ? itemsOfActivity(openActivity, itemById) : []}
         pool={learningItems}
         lesson={openActivity ? lessonOf(openActivity) : undefined}
+        creator={openActivity ? creatorOf(openActivity) : undefined}
         canManage={Boolean(openActivity && canManage(openActivity))}
         onClose={() => setOpenActivityId("")}
         onPlay={play}
@@ -360,6 +368,7 @@ export function ActivitiesView() {
         mode={formMode}
         items={learningItems}
         categories={categories}
+        lessons={visibleLessons}
         promptStore={promptStore}
         lessonOfActivity={editingActivity ? lessonOf(editingActivity) : undefined}
         onPromptStoreChange={(patch) => setPromptStore((current) => ({ ...current, ...patch }))}
@@ -371,7 +380,7 @@ export function ActivitiesView() {
         title={`Delete ${activityToDelete?.title ?? "activity"}?`}
         description={
           deleteLesson
-            ? `It is the practice step of ${deleteLesson.title}. The lesson stays and can make a new one.`
+            ? `It is one of the activities of ${deleteLesson.title}. The lesson stays.`
             : "This removes the activity and its questions."
         }
         confirmLabel="Delete activity"
@@ -408,9 +417,10 @@ export function ActivitiesView() {
         <LoadingState label="Loading activities" />
       ) : (
         <ActivityLibrary
-          activities={activities}
+          activities={visibleActivities}
           itemById={itemById}
           lessonOf={lessonOf}
+          creatorOf={creatorOf}
           onOpen={(activity) => setOpenActivityId(activity.id)}
           onPlay={play}
         />

@@ -8,7 +8,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AmbientShapes } from "@/components/motion/ambient-shapes";
-import { SigningKids } from "@/components/landing/signing-kids";
 import { UnderlineDoodle } from "@/components/landing/landing-doodles";
 import { HowItWorksOverlay } from "@/components/landing/how-it-works-overlay";
 
@@ -104,7 +103,6 @@ export default function LandingPage() {
           transition={{ duration: 0.75, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
         >
           <LearningScene />
-          <SigningKids />
         </motion.div>
       </section>
 

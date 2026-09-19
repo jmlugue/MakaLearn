@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2, Library, RotateCcw, Volume2, XCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Check, CheckCircle2, Library, RotateCcw, Volume2, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { SectionLabel, glassBoxClass } from "@/features/content/content-shared";
-import { SymbolOption } from "@/features/activities/player/player-parts";
+import { SectionLabel } from "@/features/content/content-shared";
 import {
   type ActivityScore,
   activityUsesImageOptions,
@@ -15,6 +15,7 @@ import {
   shuffleOptions,
   speakText
 } from "@/features/activities/player/player-utils";
+import { findLearningItemForActivityValue, isEmbeddableActivityMediaUrl } from "@/utils/activity-symbol-options";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 type TeacherPlayerProps = {
@@ -25,16 +26,23 @@ type TeacherPlayerProps = {
   dragged: string;
   setDragged: (value: string) => void;
   chooseAnswer: (questionId: string, value: string) => void;
-  /** Scores and saves the result, like the student player. */
+  /** Works out the score to show. Nothing is saved. */
   onScore: (questionIds?: string[]) => void;
   onRestart: () => void;
   onExit: () => void;
-  /** Reports "question n of total" to the top bar. */
+  /** Reports progress to the top bar. */
   onProgress: (current: number, total: number) => void;
 };
 
+/** Blue glass panel used across the player. Plain app blue (#2563eb), no sky tints. */
+const panelClass =
+  "relative overflow-hidden rounded-3xl border border-white/90 bg-gradient-to-br from-white to-blue-50/60 shadow-[0_18px_40px_rgba(37,99,235,0.1)]";
+
+/** Pause on the last answer's feedback before the score opens by itself. */
+const SCORE_DELAY_MS = 1200;
+
 /**
- * The teacher's player: plain blue glass, one question at a time, Check then Next, and a score card at the
+ * The teacher's player: plain blue glass, one question at a time, Check then Next, and a score pop-up at the
  * end. Student mode keeps the game-style player; this one is for running and checking an activity quickly.
  */
 export function TeacherPlayer(props: TeacherPlayerProps) {
@@ -50,22 +58,43 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
   const selected = question ? answers[question.id] : undefined;
   const isChecked = question ? Boolean(checked[question.id]) : false;
   const last = index >= questions.length - 1;
+  const answeredCount = Object.keys(checked).length;
 
   useEffect(() => {
-    onProgress(Math.min(index + 1, questions.length), questions.length);
-  }, [index, onProgress, questions.length]);
+    onProgress(answeredCount, questions.length);
+  }, [answeredCount, onProgress, questions.length]);
 
-  if (result) return <ScoreCard result={result} onRestart={onRestart} onExit={onExit} />;
+  // The score opens on its own once the last answer is checked, after a moment to see the feedback.
+  // A ref keeps the timer from restarting each time the parent passes a new onScore.
+  const finished = last && isChecked;
+  const scoreRef = useRef(onScore);
+  useEffect(() => {
+    scoreRef.current = onScore;
+  });
+  useEffect(() => {
+    if (!finished || result) return undefined;
+    const timer = window.setTimeout(() => scoreRef.current(), SCORE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [finished, result]);
+
   if (!question) return <EmptyNote />;
+
+  const isRight = selected === question.answer;
 
   const showPictures = activityUsesImageOptions(activity.type) || activity.type === "fill-blank";
   const showWords = !activityUsesImageOptions(activity.type);
 
   return (
     <div className="space-y-5">
+      <StepTracker
+        current={index}
+        steps={questions.map((candidate) =>
+          !checked[candidate.id] ? "open" : answers[candidate.id] === candidate.answer ? "right" : "wrong"
+        )}
+      />
       <QuestionPrompt activity={activity} question={question} learningItems={learningItems} selected={selected} />
 
-      <div className={cn("grid gap-3", question.options.length <= 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
+      <div className={cn("grid gap-4", question.options.length <= 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
         {question.options.map((option) => {
           const picked = selected === option;
           const correct = option === question.answer;
@@ -78,36 +107,41 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
               aria-pressed={picked}
               onClick={() => chooseAnswer(question.id, option)}
               className={cn(
-                "relative flex flex-col items-center gap-2 rounded-2xl border-2 bg-white/90 p-3 text-center shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-                state === "idle" && "border-blue-100 hover:border-blue-300",
+                "group relative flex min-w-0 flex-col gap-2 rounded-3xl border-2 bg-white p-2.5 text-center shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
+                state === "idle" && "border-white hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_16px_32px_rgba(37,99,235,0.16)]",
                 state === "picked" && "border-blue-600 ring-4 ring-blue-100",
-                state === "correct" && "border-green-500 bg-green-50 ring-4 ring-green-100",
-                state === "wrong" && "border-red-400 bg-red-50 ring-4 ring-red-100",
+                state === "correct" && "border-green-500 ring-4 ring-green-100",
+                state === "wrong" && "border-red-400 ring-4 ring-red-100",
                 isChecked && "cursor-default"
               )}
             >
-              {showPictures ? <SymbolOption value={option} learningItems={learningItems} framed={false} className="h-28 sm:h-32" /> : null}
-              {showWords ? <span className="text-lg font-bold text-ink">{getDisplayLabel(option, learningItems)}</span> : null}
-              {state === "correct" ? <CheckCircle2 className="absolute right-2 top-2 h-5 w-5 text-green-600" aria-hidden="true" /> : null}
-              {state === "wrong" ? <XCircle className="absolute right-2 top-2 h-5 w-5 text-red-500" aria-hidden="true" /> : null}
+              {showPictures ? <PictureWell value={option} learningItems={learningItems} tone={state} /> : null}
+              {showWords ? (
+                <span className={cn("break-words px-1 font-bold leading-tight text-ink", showPictures ? "text-base" : "grid min-h-24 place-items-center text-xl")}>
+                  {getDisplayLabel(option, learningItems)}
+                </span>
+              ) : null}
+              {state === "correct" ? <CheckCircle2 className="absolute right-3 top-3 h-6 w-6 rounded-full bg-white text-green-600" aria-hidden="true" /> : null}
+              {state === "wrong" ? <XCircle className="absolute right-3 top-3 h-6 w-6 rounded-full bg-white text-red-500" aria-hidden="true" /> : null}
             </button>
           );
         })}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-slate-500" role="status">
-          {isChecked ? (selected === question.answer ? "Correct." : "Not quite. The green card is the answer.") : selected ? "Press Check." : "Pick an answer."}
-        </p>
+      {isChecked ? (
+        <AnswerFeedback isRight={isRight} answer={question.answer} showPicture={showPictures} learningItems={learningItems} />
+      ) : null}
+
+      <ActionBar status={isChecked ? (last ? "All done. Your score is coming up." : "") : selected ? "Press Check." : "Pick an answer."} tone="neutral">
         {!isChecked ? (
           <Button type="button" disabled={!selected} onClick={() => setChecked((current) => ({ ...current, [question.id]: true }))}>
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             Check
           </Button>
         ) : last ? (
-          <Button type="button" onClick={() => onScore()}>
-            See score
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          <Button type="button" variant="outline" onClick={onRestart}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Play again
           </Button>
         ) : (
           <Button type="button" onClick={() => setIndex((current) => current + 1)}>
@@ -115,7 +149,97 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         )}
+      </ActionBar>
+
+      <ScoreDialog result={result} onRestart={onRestart} onExit={onExit} />
+    </div>
+  );
+}
+
+/**
+ * "Question 2 of 5" plus one numbered circle per question: green tick when right, red cross when wrong,
+ * blue ring on the current one, grey for the ones still to come.
+ */
+function StepTracker({ current, steps }: { current: number; steps: Array<"open" | "right" | "wrong"> }) {
+  return (
+    <div className="flex flex-col items-center gap-2.5">
+      <p className="text-sm font-bold text-slate-600">
+        Question <span className="text-lg font-black text-blue-600">{current + 1}</span> of {steps.length}
+      </p>
+      <ol className="flex items-center" aria-label={`Question ${current + 1} of ${steps.length}`}>
+        {steps.map((step, position) => (
+          <li key={position} className="flex items-center">
+            {position > 0 ? (
+              <span className={cn("h-0.5 w-5 sm:w-8", steps[position - 1] === "open" ? "bg-slate-200" : "bg-blue-200")} aria-hidden="true" />
+            ) : null}
+            <span
+              className={cn(
+                "grid h-8 w-8 place-items-center rounded-full border-2 text-sm font-black transition",
+                step === "right" && "border-green-500 bg-green-500 text-white",
+                step === "wrong" && "border-red-500 bg-red-500 text-white",
+                step === "open" && position === current && "border-blue-600 bg-white text-blue-600 ring-4 ring-blue-100",
+                step === "open" && position !== current && "border-slate-200 bg-white text-slate-400"
+              )}
+              aria-label={`Question ${position + 1}: ${step === "right" ? "right" : step === "wrong" ? "wrong" : position === current ? "now" : "to do"}`}
+            >
+              {step === "right" ? (
+                <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+              ) : step === "wrong" ? (
+                <X className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+              ) : (
+                position + 1
+              )}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** After Check: says right or wrong in words, and when wrong, shows the right card by name and picture. */
+function AnswerFeedback({
+  isRight,
+  answer,
+  showPicture,
+  learningItems
+}: {
+  isRight: boolean;
+  answer: string;
+  showPicture: boolean;
+  learningItems: LearningItem[];
+}) {
+  const label = getDisplayLabel(answer, learningItems);
+  return (
+    <div
+      role="status"
+      className={cn(
+        "flex items-center gap-4 rounded-3xl border-2 px-5 py-4",
+        isRight ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
+      )}
+    >
+      <span className={cn("grid h-12 w-12 shrink-0 place-items-center rounded-full text-white", isRight ? "bg-green-500" : "bg-red-500")}>
+        {isRight ? <Check className="h-7 w-7" strokeWidth={3} aria-hidden="true" /> : <X className="h-7 w-7" strokeWidth={3} aria-hidden="true" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className={cn("text-xl font-black", isRight ? "text-green-700" : "text-red-700")}>{isRight ? "Correct!" : "Not this one."}</p>
+        <p className="mt-0.5 text-base font-semibold text-slate-700">
+          {isRight ? (
+            <>
+              That is <span className="font-black text-ink">{label}</span>.
+            </>
+          ) : (
+            <>
+              The right answer is <span className="font-black text-ink">{label}</span>.
+            </>
+          )}
+        </p>
       </div>
+      {!isRight && showPicture ? (
+        <span className="w-16 shrink-0 rounded-xl border-2 border-green-400 bg-white p-1 sm:w-20">
+          <PictureWell value={answer} learningItems={learningItems} tone="correct" />
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -135,24 +259,64 @@ function QuestionPrompt({
   const parts = activity.type === "fill-blank" ? question.prompt.split("____") : null;
 
   return (
-    <div className={cn("flex items-start gap-3 p-5", glassBoxClass)}>
+    <div className={cn(panelClass, "flex items-start gap-3 p-5 pl-7")}>
+      <span className="absolute inset-y-0 left-0 w-1.5 bg-blue-600" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <SectionLabel>{isMatch ? "Find the card for" : "Question"}</SectionLabel>
         {parts && parts.length > 1 ? (
-          <p className="mt-2 flex flex-wrap items-center gap-2 text-2xl font-bold leading-snug text-ink">
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-2xl font-bold leading-snug text-blue-600">
             <span>{parts[0].trim()}</span>
-            <span className="inline-grid min-h-10 min-w-24 place-items-center rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/60 px-3 text-blue-700">
+            <span className="inline-grid min-h-11 min-w-28 place-items-center rounded-2xl border-2 border-dashed border-blue-300 bg-white/80 px-3 text-blue-600">
               {selected ? getDisplayLabel(selected, learningItems) : ""}
             </span>
             <span>{parts[1].trim()}</span>
           </p>
         ) : (
-          <p className={cn("mt-2 font-bold leading-snug text-ink", isMatch ? "text-4xl" : "text-2xl")}>
+          <p className={cn("mt-2 break-words font-bold leading-snug text-blue-600", isMatch ? "text-4xl" : "text-2xl")}>
             {getQuestionTitle(activity, question, learningItems)}
           </p>
         )}
       </div>
       <ListenButton text={getQuestionListenText(activity, question, learningItems)} />
+    </div>
+  );
+}
+
+/**
+ * A card's picture in a tall well matching the PECS cards (3:4). The image is placed inside the well and
+ * scaled to fit, so the whole card, including its word, always shows.
+ */
+function PictureWell({ value, learningItems, tone = "idle" }: { value: string; learningItems: LearningItem[]; tone?: string }) {
+  const item = findLearningItemForActivityValue(value, learningItems);
+  const source = item?.symbolImageUrl ?? value;
+  const label = item?.label ?? getDisplayLabel(value, learningItems);
+  return (
+    <span
+      className={cn(
+        "relative mx-auto block aspect-[3/4] w-full max-w-[13rem] overflow-hidden rounded-2xl",
+        tone === "correct" ? "bg-green-50" : tone === "wrong" ? "bg-red-50" : "bg-blue-50/60"
+      )}
+    >
+      {isEmbeddableActivityMediaUrl(source) ? (
+        // eslint-disable-next-line @next/next/no-img-element -- card pictures come from Content uploads and the PECS set.
+        <img src={source} alt={`${label} card`} draggable={false} className="absolute inset-0 h-full w-full object-contain p-1.5" />
+      ) : (
+        <span className="absolute inset-0 grid place-items-center break-words p-3 text-center text-xl font-black text-blue-600">{label}</span>
+      )}
+    </span>
+  );
+}
+
+function ActionBar({ status, tone, children }: { status: string; tone: "neutral" | "good" | "bad"; children: React.ReactNode }) {
+  return (
+    <div className={cn(panelClass, "flex flex-wrap items-center justify-between gap-3 px-4 py-3")}>
+      <p
+        role="status"
+        className={cn("text-sm font-semibold", tone === "good" ? "text-green-700" : tone === "bad" ? "text-red-600" : "text-slate-600")}
+      >
+        {status}
+      </p>
+      {children}
     </div>
   );
 }
@@ -181,7 +345,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
 
   return (
     <div className="space-y-5">
-      <div className={cn("p-4", glassBoxClass)}>
+      <div className={cn(panelClass, "p-4")}>
         <SectionLabel>Put each card on its word</SectionLabel>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {questions.map((question) => {
@@ -199,17 +363,19 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
                 }}
                 aria-label={answer ? `Remove card from ${question.prompt}` : `Place card on ${question.prompt}`}
                 className={cn(
-                  "flex min-h-40 flex-col items-center gap-2 rounded-2xl border-2 p-2 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-                  tone === "idle" && (dragged ? "border-dashed border-blue-400 bg-blue-50/60" : "border-dashed border-blue-200 bg-white/70"),
+                  "flex min-w-0 flex-col items-center gap-2 rounded-3xl border-2 p-2 text-center transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
+                  tone === "idle" && (dragged ? "border-dashed border-blue-400 bg-blue-50/70" : "border-dashed border-blue-200 bg-white/80"),
                   tone === "correct" && "border-green-500 bg-green-50",
                   tone === "wrong" && "border-red-400 bg-red-50"
                 )}
               >
-                <span className="rounded-lg bg-white px-2 py-1 text-sm font-bold uppercase text-ink ring-1 ring-blue-100">{question.prompt}</span>
+                <span className="max-w-full break-words rounded-xl bg-blue-600 px-2.5 py-1 text-sm font-bold uppercase leading-tight text-white">
+                  {question.prompt}
+                </span>
                 {answer ? (
-                  <SymbolOption value={answer} learningItems={learningItems} framed={false} className="h-24" />
+                  <PictureWell value={answer} learningItems={learningItems} tone={tone} />
                 ) : (
-                  <span className="grid flex-1 place-items-center text-xs font-semibold text-slate-400">Drop here</span>
+                  <span className="grid aspect-[3/4] w-full max-w-[13rem] place-items-center rounded-2xl text-xs font-semibold text-blue-300">Drop here</span>
                 )}
               </button>
             );
@@ -218,10 +384,10 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
       </div>
 
       {!result ? (
-        <div className={cn("p-4", glassBoxClass)}>
+        <div className={cn(panelClass, "p-4")}>
           <SectionLabel>Cards</SectionLabel>
           {tray.length ? (
-            <div className="mt-3 flex flex-wrap gap-3">
+            <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
               {tray.map((card) => (
                 <button
                   key={card}
@@ -232,11 +398,11 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
                   aria-pressed={dragged === card}
                   aria-label={`Pick ${getDisplayLabel(card, learningItems)} card`}
                   className={cn(
-                    "w-28 rounded-2xl border-2 bg-white p-2 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-                    dragged === card ? "border-blue-600 ring-4 ring-blue-100" : "border-blue-100 hover:border-blue-300"
+                    "rounded-3xl border-2 bg-white p-2 shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
+                    dragged === card ? "border-blue-600 ring-4 ring-blue-100" : "border-white hover:-translate-y-0.5 hover:border-blue-300"
                   )}
                 >
-                  <SymbolOption value={card} learningItems={learningItems} framed={false} className="h-20" />
+                  <PictureWell value={card} learningItems={learningItems} />
                 </button>
               ))}
             </div>
@@ -246,54 +412,69 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
         </div>
       ) : null}
 
-      {result ? (
-        <ScoreCard result={result} onRestart={onRestart} onExit={onExit} />
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-slate-500" role="status">
-            {dragged ? "Now pick its word." : "Click a card, then its word. Or drag it."}
-          </p>
-          <Button type="button" disabled={placedCount === 0} onClick={() => onScore()}>
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            Check
-          </Button>
-        </div>
-      )}
+      <ActionBar status={dragged ? "Now pick its word." : "Click a card, then its word. Or drag it."} tone="neutral">
+        <Button type="button" disabled={placedCount === 0 || Boolean(result)} onClick={() => onScore()}>
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          Check
+        </Button>
+      </ActionBar>
+
+      <ScoreDialog result={result} onRestart={onRestart} onExit={onExit} />
     </div>
   );
 }
 
-function ScoreCard({ result, onRestart, onExit }: { result: ActivityScore; onRestart: () => void; onExit: () => void }) {
-  // Green, yellow, red carry their usual meaning: all correct, some to review, needs more practice.
-  const tone = result.score === 100 ? "green" : result.score >= 50 ? "yellow" : "red";
+/** The final score, view only. A blue ring fills to the percentage. */
+function ScoreDialog({ result, onRestart, onExit }: { result: ActivityScore | null; onRestart: () => void; onExit: () => void }) {
+  // Closing leaves the checked answers on screen; a new score opens it again.
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => setDismissed(false), [result]);
+  const total = result ? result.correct + result.incorrect : 0;
+  const score = result?.score ?? 0;
+  // Green, yellow, red keep their usual meaning in the message: all correct, some to review, more practice.
+  const tone = score === 100 ? "green" : score >= 50 ? "yellow" : "red";
+  const radius = 52;
+  const circumference = 2 * Math.PI * radius;
+
   return (
-    <div
-      role="status"
-      className={cn(
-        "rounded-2xl border p-6 text-center shadow-sm",
-        tone === "green" && "border-green-200 bg-green-50",
-        tone === "yellow" && "border-yellow-200 bg-yellow-50",
-        tone === "red" && "border-red-200 bg-red-50"
-      )}
-    >
-      <p className="text-5xl font-extrabold text-ink">{result.score}%</p>
-      <p className="mt-2 text-sm font-semibold text-slate-600">
-        {result.correct} correct, {result.incorrect} to review
-      </p>
-      <p className="mt-1 text-sm text-slate-500">
-        {tone === "green" ? "All correct." : tone === "yellow" ? "Go over the missed ones together." : "Practise the cards again, then retry."}
-      </p>
-      <div className="mt-5 flex flex-wrap justify-center gap-2">
-        <Button type="button" variant="outline" onClick={onExit}>
-          <Library className="h-4 w-4" aria-hidden="true" />
-          Back to library
-        </Button>
-        <Button type="button" onClick={onRestart}>
-          <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          Play again
-        </Button>
+    <Dialog open={Boolean(result) && !dismissed} onClose={() => setDismissed(true)} title="Activity score" description="Shown only. Scores are not saved." hideHeader className="max-w-sm">
+      <div className="text-center">
+        <SectionLabel>Activity score</SectionLabel>
+        <div className="relative mx-auto mt-3 h-36 w-36">
+          <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden="true">
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="#dbeafe" strokeWidth="10" />
+            <circle
+              cx="60"
+              cy="60"
+              r={radius}
+              fill="none"
+              stroke="#2563eb"
+              strokeWidth="10"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - score / 100)}
+            />
+          </svg>
+          <span className="absolute inset-0 grid place-items-center text-4xl font-extrabold text-ink">{score}%</span>
+        </div>
+        <p className="mt-3 text-lg font-bold text-ink">
+          {result?.correct ?? 0} of {total} correct
+        </p>
+        <p className={cn("mt-1 text-sm font-semibold", tone === "green" ? "text-green-700" : tone === "yellow" ? "text-yellow-700" : "text-red-600")}>
+          {tone === "green" ? "All correct." : tone === "yellow" ? "Go over the missed ones together." : "Practise the cards again, then retry."}
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <Button type="button" variant="outline" onClick={onExit}>
+            <Library className="h-4 w-4" aria-hidden="true" />
+            Back to library
+          </Button>
+          <Button type="button" onClick={onRestart}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Play again
+          </Button>
+        </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -311,8 +492,8 @@ function ListenButton({ text }: { text: string }) {
       aria-label="Listen"
       title="Listen"
       className={cn(
-        "grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-blue-100 bg-white text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-        speaking && "ring-4 ring-blue-100"
+        "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-600 text-white shadow-[0_10px_22px_rgba(37,99,235,0.25)] transition hover:bg-blue-700 hover:shadow-[0_14px_28px_rgba(37,99,235,0.32)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
+        speaking && "ring-4 ring-blue-200"
       )}
     >
       <Volume2 className="h-5 w-5" aria-hidden="true" />
@@ -321,5 +502,5 @@ function ListenButton({ text }: { text: string }) {
 }
 
 function EmptyNote() {
-  return <p className={cn("p-6 text-center text-sm font-semibold text-slate-500", glassBoxClass)}>This activity has no questions yet.</p>;
+  return <p className={cn(panelClass, "p-6 text-center text-sm font-semibold text-slate-500")}>This activity has no questions yet.</p>;
 }

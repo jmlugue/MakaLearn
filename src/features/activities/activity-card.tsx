@@ -34,6 +34,7 @@ export function ActivityCard({
   activity,
   items,
   lesson,
+  creator,
   onOpen,
   onPlay
 }: {
@@ -41,6 +42,8 @@ export function ActivityCard({
   items: LearningItem[];
   /** The lesson this activity is the practice step of. */
   lesson?: Lesson;
+  /** Owner name, for shared activities made by someone else. */
+  creator?: string;
   onOpen: () => void;
   onPlay: () => void;
 }) {
@@ -65,6 +68,7 @@ export function ActivityCard({
         <span className="mt-2 line-clamp-2 text-lg font-bold leading-snug text-ink group-hover:text-blue-700">{activity.title}</span>
         <span className="mt-1 text-sm text-slate-500">
           {items.length} {items.length === 1 ? "card" : "cards"}
+          {creator ? <span className="text-slate-400"> · By {creator}</span> : null}
         </span>
         <span className="mt-auto flex items-center justify-between gap-2 border-t border-blue-50 pt-3">
           {lesson ? (

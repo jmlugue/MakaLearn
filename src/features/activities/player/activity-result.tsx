@@ -34,6 +34,10 @@ export function ActivityResultModal({
     ? activity.questions.filter((question) => questionIds.includes(question.id))
     : activity.questions.slice(0, 5);
   const isCorrect = result.incorrect === 0;
+  // Once every question in the round has an answer, show the final score too. View only, nothing is saved.
+  const roundQuestions = activity.questions.slice(0, 5);
+  const roundDone = roundQuestions.length > 0 && roundQuestions.every((question) => answers[question.id]);
+  const finalCorrect = roundQuestions.filter((question) => answers[question.id] === question.answer).length;
   const totalCompleted = result.correct + result.incorrect;
   const summaryText = activity.type === "match-word-symbol" || activity.type === "drag-drop-symbol"
     ? isCorrect
@@ -89,6 +93,22 @@ export function ActivityResultModal({
           <p className="mt-2 text-base font-semibold text-slate-700">
             {summaryText}
           </p>
+          {roundDone ? (
+            <div className="mx-auto mt-4 inline-flex items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50 px-5 py-2.5 shadow-sm">
+              <span className="text-sm font-black uppercase tracking-wide text-blue-700">Score</span>
+              <span className="text-3xl font-black text-[#10285e]">
+                {finalCorrect} / {roundQuestions.length}
+              </span>
+              <span className="flex gap-0.5" aria-hidden="true">
+                {roundQuestions.map((question, index) => (
+                  <Star
+                    key={question.id}
+                    className={cn("h-5 w-5", index < finalCorrect ? "fill-yellow-300 text-yellow-400" : "fill-white text-yellow-200")}
+                  />
+                ))}
+              </span>
+            </div>
+          ) : null}
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             {completedQuestions.map((question, index) => {
               const value = answers[question.id] || question.answer;

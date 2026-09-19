@@ -13,6 +13,7 @@ import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { studentNavItems, studentRouteHrefs } from "@/components/layout/nav-items";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { releaseStrayScrollLock } from "@/components/ui/dialog";
 import { LoadingState } from "@/components/common/loading-state";
 import { PageTransition } from "@/components/motion/page-transition";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 function AuthenticatedShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  // A page change never keeps the scroll lock unless a pop-up or player is still on screen.
+  useEffect(() => {
+    releaseStrayScrollLock();
+  }, [pathname]);
   const { user, loading, error } = useAuthState();
   const { isStudentMode, isStudentNavOpen, exitStudentMode, openStudentNav, closeStudentNav } = useStudentMode();
   useEffect(() => {

@@ -1,59 +1,63 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Hand, Link2, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Lock, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
+import { FieldError, Input, Label, Textarea } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
-import { getActivityTypeLabel } from "@/utils/activity-labels";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { CardImage } from "@/features/content/content-media";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { CategoryPills, PopupTitle, fieldClass, glassBoxClass, kindMeta, kindTone, type ContentKind } from "@/features/content/content-shared";
 import { LessonMeta, LessonPreviewBody } from "@/features/content/lesson-preview-dialog";
-import type { Activity, ActivityType, Category, LearningItem, Lesson } from "@/types";
+import type { Category, LearningItem, Lesson } from "@/types";
 
 export type LessonFormMode =
   | { kind: "new" }
-  /** `step` and `createActivity` let "Create activity" on a saved lesson open straight on Practice, ticked. */
-  | { kind: "edit"; lesson: Lesson; step?: number; createActivity?: boolean }
-  | { kind: "draft"; draft: Omit<Lesson, "id" | "createdBy"> };
+  | { kind: "edit"; lesson: Lesson }
+  | { kind: "draft"; draft: Omit<Lesson, "id" | "createdBy"> }
+  /** "Make a copy" of a lesson the teacher cannot edit. `title` is already unique. */
+  | { kind: "copy"; source: Lesson; title: string };
 
 export type LessonFormValues = {
   title: string;
   objective: string;
   instructions: string;
   itemIds: string[];
-  activityType: ActivityType;
-  /** Make the lesson's activity on save. Ignored when the lesson already has one (it is kept in step). */
-  createActivity: boolean;
+  /** Chosen when the lesson is made. Editing keeps the saved value. */
+  isPrivate: boolean;
 };
 
-export const pecsActivityTypes: ActivityType[] = ["match-word-symbol", "choose-correct-symbol", "fill-blank", "drag-drop-symbol"];
-
 const defaultInstructions = "Show each material and model it. Practise together, then review the learner's answers.";
-const stepLabels = ["Details", "Materials", "Practice"];
+const stepLabels = ["Details", "Materials", "Review"];
+
+function formTitle(mode: LessonFormMode | null) {
+  if (mode?.kind === "edit") return "Edit lesson";
+  if (mode?.kind === "draft") return "Review generated lesson";
+  if (mode?.kind === "copy") return "Make a copy";
+  return "New lesson";
+}
 
 export function LessonFormDialog({
   mode,
   items,
   categories,
-  linkedActivity,
+  takenTitles,
   onClose,
   onSave
 }: {
   mode: LessonFormMode | null;
   items: LearningItem[];
   categories: Category[];
-  /** The activity an edited lesson already practises with. */
-  linkedActivity?: Activity;
+  /** Names of the other lessons this teacher can see. A new name must not match one. */
+  takenTitles: string[];
   onClose: () => void;
   /** Resolves true when saved. */
   onSave: (mode: LessonFormMode, values: LessonFormValues) => Promise<boolean>;
 }) {
   const [saving, setSaving] = useState(false);
-  const title = mode?.kind === "edit" ? "Edit lesson" : mode?.kind === "draft" ? "Review generated lesson" : "New lesson";
+  const title = formTitle(mode);
 
   return (
     <Dialog open={Boolean(mode)} onClose={saving ? () => undefined : onClose} title={title} className="max-w-3xl" hideHeader>
@@ -63,7 +67,7 @@ export function LessonFormDialog({
           mode={mode}
           items={items}
           categories={categories}
-          linkedActivity={linkedActivity}
+          takenTitles={takenTitles}
           saving={saving}
           onClose={onClose}
           onSave={async (values) => {
@@ -78,21 +82,17 @@ export function LessonFormDialog({
   );
 }
 
-function initialValues(mode: LessonFormMode, linkedActivity?: Activity): LessonFormValues {
+function initialValues(mode: LessonFormMode): LessonFormValues {
   if (mode.kind === "new") {
-    return { title: "", objective: "", instructions: defaultInstructions, itemIds: [], activityType: "choose-correct-symbol", createActivity: true };
+    return { title: "", objective: "", instructions: defaultInstructions, itemIds: [], isPrivate: false };
   }
-  const source = mode.kind === "edit" ? mode.lesson : mode.draft;
-  // A linked activity may have had its format changed in Activities; that is the one to keep.
-  const format = linkedActivity?.type ?? source.activityType;
+  const source = mode.kind === "edit" ? mode.lesson : mode.kind === "copy" ? mode.source : mode.draft;
   return {
-    title: source.title,
+    title: mode.kind === "copy" ? mode.title : source.title,
     objective: source.objective,
     instructions: source.instructions,
     itemIds: source.learningItemIds,
-    activityType: format === "gesture-practice" ? "choose-correct-symbol" : format,
-    // New and generated lessons make their activity by default. Editing never adds one unless asked.
-    createActivity: mode.kind === "edit" ? Boolean(mode.createActivity) : true
+    isPrivate: mode.kind === "edit" ? mode.lesson.visibility === "private" : false
   };
 }
 
@@ -101,7 +101,7 @@ function LessonForm({
   mode,
   items,
   categories,
-  linkedActivity,
+  takenTitles,
   saving,
   onClose,
   onSave
@@ -110,19 +110,19 @@ function LessonForm({
   mode: LessonFormMode;
   items: LearningItem[];
   categories: Category[];
-  linkedActivity?: Activity;
+  takenTitles: string[];
   saving: boolean;
   onClose: () => void;
   onSave: (values: LessonFormValues) => void;
 }) {
-  const [values, setValues] = useState<LessonFormValues>(() => initialValues(mode, linkedActivity));
-  // Generated drafts are already filled in, so they open on Practice.
-  const [step, setStep] = useState(mode.kind === "draft" ? 2 : mode.kind === "edit" ? mode.step ?? 0 : 0);
+  const [values, setValues] = useState<LessonFormValues>(() => initialValues(mode));
+  // Generated drafts are already filled in, so they open on Review.
+  const [step, setStep] = useState(mode.kind === "draft" ? 2 : 0);
   const [error, setError] = useState("");
 
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const selectedItems = values.itemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
-  const hasPecs = selectedItems.some((item) => item.contentType === "pecs");
+  const taken = useMemo(() => new Set(takenTitles.map((name) => name.trim().toLowerCase())), [takenTitles]);
 
   function update(patch: Partial<LessonFormValues>) {
     setValues((current) => ({ ...current, ...patch }));
@@ -133,6 +133,11 @@ function LessonForm({
     if (target >= 1 && (!values.title.trim() || !values.objective.trim() || !values.instructions.trim())) {
       setStep(0);
       setError("Add a title, a goal, and instructions.");
+      return false;
+    }
+    if (target >= 1 && taken.has(values.title.trim().toLowerCase())) {
+      setStep(0);
+      setError("A lesson with this name already exists. Pick another name.");
       return false;
     }
     if (target >= 2 && !selectedItems.length) {
@@ -155,11 +160,20 @@ function LessonForm({
   }
 
   const source: Lesson["source"] = mode.kind === "draft" ? "auto-generated" : mode.kind === "edit" ? mode.lesson.source : "manual";
-  const duration = mode.kind === "edit" ? mode.lesson.estimatedDuration : mode.kind === "draft" ? mode.draft.estimatedDuration : 10;
+  const duration =
+    mode.kind === "edit" ? mode.lesson.estimatedDuration : mode.kind === "draft" ? mode.draft.estimatedDuration : mode.kind === "copy" ? mode.source.estimatedDuration : 10;
 
   return (
     <div>
       <PopupTitle title={title} className="mb-4" />
+      {mode.kind === "copy" ? (
+        <p className="-mt-2 mb-4 flex items-start gap-2 rounded-xl bg-blue-50/80 p-2.5 text-xs text-slate-600 ring-1 ring-blue-100">
+          <Copy className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
+          <span>
+            <span className="font-semibold text-ink">Your own copy of {mode.source.title}.</span> The original stays as it is.
+          </span>
+        </p>
+      ) : null}
       <Stepper step={step} onStep={goTo} />
 
       <div className="mt-5 min-h-[22rem]">
@@ -203,41 +217,8 @@ function LessonForm({
                 <LessonMeta lesson={{ source, estimatedDuration: duration }} />
               </div>
             </div>
-            <LessonPreviewBody
-              instructions={values.instructions}
-              items={selectedItems}
-              pool={items}
-              activityType={hasPecs ? values.activityType : "gesture-practice"}
-              practiceControl={
-                hasPecs ? (
-                  <div className="mb-3">
-                    <Label htmlFor="lesson-practice">Activity format</Label>
-                    <Select
-                      id="lesson-practice"
-                      className={fieldClass}
-                      value={values.activityType}
-                      onChange={(event) => update({ activityType: event.target.value as ActivityType })}
-                    >
-                      {(pecsActivityTypes.includes(values.activityType) ? pecsActivityTypes : [...pecsActivityTypes, values.activityType]).map((type) => (
-                        <option key={type} value={type}>
-                          {getActivityTypeLabel(type)}
-                        </option>
-                      ))}
-                    </Select>
-                    <ActivityLinkControl
-                      linkedActivity={linkedActivity}
-                      checked={values.createActivity}
-                      onChange={(createActivity) => update({ createActivity })}
-                    />
-                  </div>
-                ) : (
-                  <p className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700">
-                    <Hand className="h-4 w-4" aria-hidden="true" />
-                    Practises in Gesture practice.
-                  </p>
-                )
-              }
-            />
+            <LessonPreviewBody instructions={values.instructions} items={selectedItems} />
+            <VisibilityControl editing={mode.kind === "edit"} isPrivate={values.isPrivate} onChange={(isPrivate) => update({ isPrivate })} />
           </div>
         ) : null}
       </div>
@@ -272,38 +253,31 @@ function LessonForm({
   );
 }
 
-/** The lesson's practice step: a tick that makes its activity, or the activity it is already linked to. */
-function ActivityLinkControl({
-  linkedActivity,
-  checked,
-  onChange
-}: {
-  linkedActivity?: Activity;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  if (linkedActivity) {
+/** Shared or private is picked when a lesson is made; afterwards it is only shown. */
+export function VisibilityControl({ editing, isPrivate, onChange }: { editing: boolean; isPrivate: boolean; onChange: (isPrivate: boolean) => void }) {
+  if (editing) {
+    const Icon = isPrivate ? Lock : Users;
     return (
-      <p className="mt-2 flex items-start gap-2 rounded-xl bg-white/80 p-2.5 text-xs text-slate-600 ring-1 ring-blue-100">
-        <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
+      <p className="flex items-center gap-2 rounded-xl bg-white/80 p-2.5 text-sm text-slate-600 ring-1 ring-blue-100">
+        <Icon className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
         <span>
-          <span className="font-semibold text-ink">Linked: {linkedActivity.title}.</span> Changes here update it.
+          <span className="font-semibold text-ink">{isPrivate ? "Private to you." : "Shared with teachers."}</span> Set when it was made.
         </span>
       </p>
     );
   }
 
   return (
-    <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl bg-white/80 p-2.5 ring-1 ring-blue-100">
+    <label className="flex cursor-pointer items-start gap-2.5 rounded-xl bg-white/80 p-2.5 ring-1 ring-blue-100">
       <input
         type="checkbox"
-        checked={checked}
+        checked={isPrivate}
         onChange={(event) => onChange(event.target.checked)}
         className="mt-0.5 h-4 w-4 rounded border-blue-200 text-blue-600"
       />
       <span>
-        <span className="block text-sm font-semibold text-ink">Create activity for this lesson</span>
-        <span className="block text-xs text-slate-500">Adds it to Activities, ready to play.</span>
+        <span className="block text-sm font-semibold text-ink">Private to me</span>
+        {isPrivate ? <span className="block text-xs text-slate-500">Only you can see it.</span> : null}
       </span>
     </label>
   );

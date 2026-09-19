@@ -3,14 +3,21 @@
 import { DragEvent, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Apple,
   CheckCircle2,
+  Hand,
+  Heart,
+  LayoutGrid,
   Library,
-  MessageSquareText,
   RotateCcw,
+  School,
+  ShieldAlert,
   Shuffle,
+  Smile,
   Star,
+  Sun,
   Volume2,
-  X
+  type LucideIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
@@ -37,6 +44,54 @@ type PlaygroundCard = PecsManifestCard & {
 };
 
 const allCategoriesLabel = "All cards";
+const maxSentenceCards = 5;
+
+// Student mode is for children, so each category gets its own color and icon to find it by.
+// Full class strings are kept literal so Tailwind keeps them.
+const categoryStyles: Record<PecsCardCategory | typeof allCategoriesLabel, { icon: LucideIcon; idle: string; active: string }> = {
+  "All cards": {
+    icon: LayoutGrid,
+    idle: "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100",
+    active: "border-blue-600 bg-blue-600 text-white"
+  },
+  Greetings: {
+    icon: Hand,
+    idle: "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100",
+    active: "border-amber-400 bg-amber-400 text-amber-950"
+  },
+  Emotions: {
+    icon: Smile,
+    idle: "border-pink-200 bg-pink-50 text-pink-800 hover:bg-pink-100",
+    active: "border-pink-600 bg-pink-600 text-white"
+  },
+  Family: {
+    icon: Heart,
+    idle: "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100",
+    active: "border-violet-600 bg-violet-600 text-white"
+  },
+  Food: {
+    icon: Apple,
+    idle: "border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100",
+    active: "border-orange-400 bg-orange-400 text-orange-950"
+  },
+  "Classroom Commands": {
+    icon: School,
+    idle: "border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100",
+    active: "border-teal-600 bg-teal-600 text-white"
+  },
+  "Daily Needs": {
+    icon: Sun,
+    idle: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100",
+    active: "border-emerald-600 bg-emerald-600 text-white"
+  },
+  "Safety Words": {
+    icon: ShieldAlert,
+    idle: "border-red-200 bg-red-50 text-red-800 hover:bg-red-100",
+    active: "border-red-600 bg-red-600 text-white"
+  }
+};
+// Each board slot is a fifth of the board wide, but never taller than the board allows.
+const slotStyle = { width: "min(calc((100cqw - 3rem) / 5), calc(100cqh * 0.7))" };
 const filterCategories: Array<PecsCardCategory | typeof allCategoriesLabel> = [
   allCategoriesLabel,
   ...pecsCardCategories
@@ -89,14 +144,6 @@ function getSpeechLabel(label: string) {
   return normalizePecsLabel(label) === "am" ? "am" : label;
 }
 
-function getDropAreaCardClass(cardCount: number) {
-  if (cardCount <= 1) return "w-[42%] max-w-64";
-  if (cardCount === 2) return "w-[34%] max-w-52";
-  if (cardCount === 3) return "w-[27%] max-w-44";
-  if (cardCount === 4) return "w-[21%] max-w-36";
-  return "w-[17%] max-w-32";
-}
-
 function shuffleValues<T>(values: T[]) {
   const shuffled = [...values];
 
@@ -120,6 +167,8 @@ export function PlaygroundView() {
   const [draggedSentenceIndex, setDraggedSentenceIndex] = useState<number | null>(null);
   const [result, setResult] = useState<PecsSentenceValidationResult | null>(null);
   const [speaking, setSpeaking] = useState(false);
+  // The card being read aloud, so Listen can highlight each card in turn.
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [toolbarReady, setToolbarReady] = useState(false);
 
@@ -182,9 +231,16 @@ export function PlaygroundView() {
   }, [cards]);
 
   function addCard(card: PlaygroundCard) {
-    setSentenceCards((current) => (current.length >= 5 ? current : [...current, card]));
+    if (sentenceCards.length >= maxSentenceCards) {
+      notify({ title: "The board is full", description: "Remove a card to add another.", tone: "info" });
+      return;
+    }
+
+    setSentenceCards((current) => (current.length >= maxSentenceCards ? current : [...current, card]));
     setResult(null);
     setShowSuccessModal(false);
+    // Hearing the card as it lands ties the picture to the word.
+    if (!speaking) void sayCard(card);
   }
 
   function removeCard(index: number) {
@@ -248,17 +304,13 @@ export function PlaygroundView() {
 
     setSpeaking(true);
     try {
-      for (const card of sentenceCards) {
-        if (normalizePecsLabel(card.label) === "am" && "speechSynthesis" in window) {
-          await speakText(getSpeechLabel(card.label));
-        } else if (canUseAudioUrl(card.audioUrl)) {
-          await playAudio(card.audioUrl as string);
-        } else if ("speechSynthesis" in window) {
-          await speakText(getSpeechLabel(card.label));
-        }
+      for (const [index, card] of sentenceCards.entries()) {
+        setSpeakingIndex(index);
+        await sayCard(card);
       }
     } finally {
       setSpeaking(false);
+      setSpeakingIndex(null);
     }
   }
 
@@ -266,10 +318,20 @@ export function PlaygroundView() {
     if (!sentenceCards.length || speaking || !("speechSynthesis" in window)) return;
 
     setSpeaking(true);
+    const words = sentenceCards.map((card) => getSpeechLabel(card.label));
+    const wordStarts = words.map((_, index) => (index ? words.slice(0, index).join(" ").length + 1 : 0));
     try {
-      await speakText(sentenceCards.map((card) => getSpeechLabel(card.label)).join(" "));
+      // Word boundaries move the highlight. Voices that do not report them simply show no highlight.
+      await speakText(words.join(" "), (charIndex) => {
+        let index = 0;
+        wordStarts.forEach((start, position) => {
+          if (charIndex >= start) index = position;
+        });
+        setSpeakingIndex(index);
+      });
     } finally {
       setSpeaking(false);
+      setSpeakingIndex(null);
     }
   }
 
@@ -286,7 +348,10 @@ export function PlaygroundView() {
     });
   }
 
-  const dropZoneClass = "relative min-h-72 flex-1 overflow-hidden rounded-2xl border border-blue-100 bg-[#f8fbff] shadow-inner";
+  const isDraggingCard = Boolean(draggedLibraryCardId);
+  const dropZoneClass = `relative min-h-72 flex-1 overflow-hidden rounded-2xl border bg-[#f8fbff] shadow-inner transition ${
+    isDraggingCard ? "border-blue-400 ring-4 ring-blue-200" : "border-blue-100"
+  }`;
   const sentenceCanvasClass = "absolute bottom-[9%] left-[5%] right-[5%] top-[24%] overflow-hidden p-2 sm:left-[6%] sm:right-[6%] sm:top-[23%] sm:p-3";
 
   return (
@@ -317,27 +382,33 @@ export function PlaygroundView() {
                 <section className={`flex min-h-0 flex-col ${isStudentMode ? "bg-[#f8fbff]/80 p-3 sm:p-4 lg:p-5" : "bg-[#f8fbff] p-3 sm:p-4"}`}>
                   <div className="shrink-0 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
                     <div>
-                      <p className="text-sm font-bold text-ink">Categories</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {filterCategories.map((category) => (
-                          <button
-                            key={category}
-                            type="button"
-                            onClick={() => setActiveCategory(category)}
-                            className={`inline-flex min-h-10 shrink-0 items-center rounded-xl border px-3 text-sm font-bold transition ${
-                              activeCategory === category
-                                ? "border-blue-500 bg-blue-600 text-white shadow-soft"
-                                : "border-blue-100 bg-white text-slate-700 hover:border-blue-300 hover:bg-skywash"
-                            }`}
-                            aria-pressed={activeCategory === category}
-                          >
-                            {category}
-                          </button>
-                        ))}
-                        <Button type="button" className="min-h-10 shrink-0" onClick={mixUpCards}>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-ink">Categories</p>
+                        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={mixUpCards}>
                           <Shuffle className="h-4 w-4" aria-hidden="true" />
-                          Mix Up
+                          Mix up
                         </Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {filterCategories.map((category) => {
+                          const style = categoryStyles[category];
+                          const CategoryIcon = style.icon;
+                          const isActive = activeCategory === category;
+                          return (
+                            <button
+                              key={category}
+                              type="button"
+                              onClick={() => setActiveCategory(category)}
+                              className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border-2 px-3 text-sm font-bold transition ${
+                                isActive ? `${style.active} shadow-soft` : style.idle
+                              }`}
+                              aria-pressed={isActive}
+                            >
+                              <CategoryIcon className="h-4 w-4" aria-hidden="true" />
+                              {category}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -389,82 +460,111 @@ export function PlaygroundView() {
                       className="pointer-events-none absolute inset-0 h-full w-full select-none object-fill"
                       draggable={false}
                     />
-                    {sentenceCards.length ? (
-                      <div className={`${sentenceCanvasClass} flex flex-wrap items-center justify-center ${isStudentMode ? "gap-2 sm:gap-3" : "gap-2"}`}>
-                        {sentenceCards.map((card, index) => (
-                          <div
+                    <ol className={`${sentenceCanvasClass} flex items-center justify-center gap-2 sm:gap-3`} style={{ containerType: "size" }}>
+                      {Array.from({ length: maxSentenceCards }, (_, index) => {
+                        const card = sentenceCards[index];
+
+                        if (!card) {
+                          const isNext = index === sentenceCards.length;
+                          return (
+                            <li
+                              key={`slot-${index}`}
+                              style={slotStyle}
+                              className={`grid aspect-[3/4] place-items-center rounded-lg border-2 border-dashed text-xl font-black transition ${
+                                isNext
+                                  ? `border-blue-400 bg-white/80 text-blue-500 ${isDraggingCard ? "scale-105" : ""}`
+                                  : "border-blue-200/80 bg-white/45 text-blue-200"
+                              }`}
+                              aria-label={isNext ? `Place ${index + 1}, the next card goes here` : `Place ${index + 1}, empty`}
+                            >
+                              {index + 1}
+                            </li>
+                          );
+                        }
+
+                        const isSpeaking = speakingIndex === index;
+                        return (
+                          <li
                             key={`${card.id}-${index}`}
+                            style={slotStyle}
                             draggable
                             onDragStart={() => setDraggedSentenceIndex(index)}
                             onDragEnd={() => setDraggedSentenceIndex(null)}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleSentenceDrop(event, index)}
-                            className={`${getDropAreaCardClass(sentenceCards.length)} relative grid min-w-14 cursor-grab place-items-center rounded-lg border border-blue-100 bg-white p-1.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft active:cursor-grabbing sm:min-w-20`}
+                            className={`relative rounded-lg border bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-red-300 hover:shadow-soft ${
+                              isSpeaking ? "-translate-y-1.5 border-blue-500 ring-4 ring-blue-200" : "border-blue-100"
+                            }`}
                           >
+                            {/* Tapping a placed card takes it off the board; dragging it still reorders. */}
                             <button
                               type="button"
                               onClick={() => removeCard(index)}
                               aria-label={`Remove ${card.label} from sentence`}
-                              title={`Remove ${card.label}`}
-                              className="absolute right-1.5 top-1.5 z-10 grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-red-600 text-white shadow-md transition hover:scale-105 hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-200"
+                              title={`Tap to remove ${card.label}`}
+                              className="grid w-full cursor-pointer place-items-center rounded-lg p-1.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-red-200"
                             >
-                              <X className="h-5 w-5" strokeWidth={3} aria-hidden="true" />
+                              <span className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-md bg-white">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={card.imageUrl} alt="" className="pointer-events-none h-full w-full object-contain" draggable={false} />
+                              </span>
                             </button>
-                            <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={card.imageUrl} alt={`${card.label} selected card`} className="h-full w-full object-contain" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="sr-only">Drop selected cards here.</span>
-                    )}
+                          </li>
+                        );
+                      })}
+                    </ol>
                   </div>
 
                   <div className="mt-3 grid shrink-0 gap-3">
-                    <div className={`rounded-xl border p-3 shadow-sm ${result ? (result.isValid ? "border-emerald-200 bg-emerald-50/90" : "border-amber-200 bg-amber-50/90") : "border-blue-100 bg-[#f8fbff]"}`}>
-                      {result ? (
-                        <div className="space-y-3">
-                          <div className="flex items-start gap-3">
-                            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${result.isValid ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                              {result.isValid ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : <RotateCcw className="h-5 w-5" aria-hidden="true" />}
-                            </span>
-                            <div>
-                              <p className={`text-lg font-bold ${result.isValid ? "text-emerald-800" : "text-amber-900"}`}>
-                                {getFeedbackTitle(result)}
-                              </p>
-                            </div>
-                          </div>
+                    {result ? (
+                      <div
+                        className={`flex items-start gap-3 rounded-xl border p-3 shadow-sm ${
+                          result.isValid ? "border-emerald-200 bg-emerald-50/90" : "border-amber-200 bg-amber-50/90"
+                        }`}
+                        role="status"
+                      >
+                        <span
+                          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${
+                            result.isValid ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {result.isValid ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : <RotateCcw className="h-5 w-5" aria-hidden="true" />}
+                        </span>
+                        <div>
+                          <p className={`text-lg font-bold ${result.isValid ? "text-emerald-800" : "text-amber-900"}`}>{getFeedbackTitle(result)}</p>
+                          {!result.isValid && result.feedback ? <p className="text-sm text-amber-900/80">{result.feedback}</p> : null}
                         </div>
-                      ) : (
-                        <div className="flex items-start gap-3">
-                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-700">
-                            <MessageSquareText className="h-5 w-5" aria-hidden="true" />
-                          </span>
-                          <div>
-                            <p className="text-lg font-bold text-ink">Sentence feedback</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    ) : null}
 
-                    <CardFooter className="mt-0 grid gap-2 border-t-0 pt-0 sm:grid-cols-3">
-                      <Button type="button" className="min-h-10 bg-blue-600 text-white hover:bg-blue-700" onClick={checkSentence}>
+                    <CardFooter className="mt-0 grid grid-cols-3 gap-2 border-t-0 pt-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="min-h-11 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                        onClick={checkSentence}
+                        disabled={!sentenceCards.length}
+                      >
                         <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                         Check
                       </Button>
                       <Button
                         type="button"
-                        variant="secondary"
-                        className="min-h-10 border-emerald-500/40 bg-emerald-600 text-white hover:bg-emerald-700"
+                        variant="ghost"
+                        className="min-h-11 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
                         onClick={speakSentence}
                         disabled={!sentenceCards.length || speaking}
                       >
                         <Volume2 className="h-4 w-4" aria-hidden="true" />
                         {speaking ? "Listening..." : "Listen"}
                       </Button>
-                      <Button type="button" variant="outline" className="min-h-10 border-red-500/40 bg-red-600 text-white hover:bg-red-700" onClick={resetSentence}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="min-h-11 bg-red-600 text-white shadow-sm hover:bg-red-700"
+                        onClick={resetSentence}
+                        disabled={!sentenceCards.length}
+                      >
                         <RotateCcw className="h-4 w-4" aria-hidden="true" />
                         Clear
                       </Button>
@@ -493,7 +593,12 @@ export function PlaygroundView() {
                         <p className="mt-2 text-base font-semibold text-slate-700">You built a nice sentence.</p>
                         <div className="mt-5 flex flex-wrap justify-center gap-3">
                           {sentenceCards.map((card, index) => (
-                            <div key={`success-${card.id}-${index}`} className="w-24 rounded-xl border border-blue-100 bg-white p-2 shadow-sm sm:w-28 md:w-32">
+                            <div
+                              key={`success-${card.id}-${index}`}
+                              className={`w-24 rounded-xl border bg-white p-2 shadow-sm transition sm:w-28 md:w-32 ${
+                                speakingIndex === index ? "-translate-y-1.5 border-blue-500 ring-4 ring-blue-200" : "border-blue-100"
+                              }`}
+                            >
                               <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={card.imageUrl} alt={`${card.label} correct sentence card`} className="h-full w-full object-contain" />
@@ -526,10 +631,18 @@ function playAudio(url: string) {
   });
 }
 
-function speakText(text: string) {
+/** One card's sound: its recorded audio when there is one, otherwise the browser voice. */
+function sayCard(card: PlaygroundCard) {
+  if (normalizePecsLabel(card.label) !== "am" && canUseAudioUrl(card.audioUrl)) return playAudio(card.audioUrl as string);
+  if ("speechSynthesis" in window) return speakText(getSpeechLabel(card.label));
+  return Promise.resolve();
+}
+
+function speakText(text: string, onWord?: (charIndex: number) => void) {
   return new Promise<void>((resolve) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.85;
+    if (onWord) utterance.onboundary = (event) => onWord(event.charIndex);
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
     window.speechSynthesis.speak(utterance);

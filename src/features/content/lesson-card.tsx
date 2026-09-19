@@ -1,11 +1,10 @@
 "use client";
 
-import { Hand, PlayCircle } from "lucide-react";
+import { Hand, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getActivityTypeLabel } from "@/utils/activity-labels";
 import { CardImage } from "@/features/content/content-media";
 import { kindTone } from "@/features/content/content-shared";
-import type { Activity, LearningItem, Lesson } from "@/types";
+import type { LearningItem, Lesson } from "@/types";
 
 export function SourceBadge({ source }: { source: Lesson["source"] }) {
   return (
@@ -20,24 +19,28 @@ export function SourceBadge({ source }: { source: Lesson["source"] }) {
   );
 }
 
-/** Practice line for a lesson: its activity's type, "No activity yet", or gesture practice. */
-export function PracticeLabel({ hasPecs, activity, className }: { hasPecs: boolean; activity?: Activity; className?: string }) {
-  const Icon = hasPecs ? PlayCircle : Hand;
+/** Gesture lessons are practised in Gesture practice; the label says so on the card. */
+export function PracticeLabel({ className }: { className?: string }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-xs font-semibold",
-        !hasPecs ? "text-sky-700" : activity ? "text-blue-700" : "text-slate-400",
-        className
-      )}
-    >
-      <Icon className="h-4 w-4" aria-hidden="true" />
-      {!hasPecs ? "Gesture practice" : activity ? getActivityTypeLabel(activity.type) : "No activity yet"}
+    <span className={cn("inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700", className)}>
+      <Hand className="h-4 w-4" aria-hidden="true" />
+      Gesture practice
     </span>
   );
 }
 
-export function LessonCard({ lesson, items, activity, onOpen }: { lesson: Lesson; items: LearningItem[]; activity?: Activity; onOpen: () => void }) {
+export function LessonCard({
+  lesson,
+  items,
+  creator,
+  onOpen
+}: {
+  lesson: Lesson;
+  items: LearningItem[];
+  /** Shown for shared lessons made by someone else. */
+  creator?: string;
+  onOpen: () => void;
+}) {
   const shown = items.slice(0, 4);
   const extra = items.length - shown.length;
   const hasPecs = items.some((item) => item.contentType === "pecs");
@@ -50,11 +53,20 @@ export function LessonCard({ lesson, items, activity, onOpen }: { lesson: Lesson
     >
       <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-blue-600 via-blue-400 to-sky-300" aria-hidden="true" />
       <span className="flex items-center justify-between gap-2">
-        <SourceBadge source={lesson.source} />
+        <span className="flex flex-wrap items-center gap-1.5">
+          <SourceBadge source={lesson.source} />
+          {lesson.visibility === "private" ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600">
+              <Lock className="h-3 w-3" aria-hidden="true" />
+              Private
+            </span>
+          ) : null}
+        </span>
         <span className="text-xs font-semibold text-slate-400">{lesson.estimatedDuration} min</span>
       </span>
       <span className="mt-3 line-clamp-2 text-lg font-bold leading-snug text-ink group-hover:text-blue-700">{lesson.title}</span>
       <span className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{lesson.objective}</span>
+      {creator ? <span className="mt-1 text-xs font-semibold text-slate-400">By {creator}</span> : null}
       <span className="mb-4 mt-4 flex items-center gap-2">
         {shown.map((item) => (
           <span
@@ -68,7 +80,7 @@ export function LessonCard({ lesson, items, activity, onOpen }: { lesson: Lesson
         {extra > 0 ? <span className="grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">+{extra}</span> : null}
       </span>
       <span className="mt-auto flex items-center justify-between gap-2 border-t border-blue-50 pt-3">
-        <PracticeLabel hasPecs={hasPecs} activity={activity} />
+        {hasPecs ? <span /> : <PracticeLabel />}
         <span className="text-xs font-semibold text-slate-400">
           {items.length} {items.length === 1 ? "material" : "materials"}
         </span>
