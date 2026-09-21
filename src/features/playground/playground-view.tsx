@@ -17,6 +17,7 @@ import {
   Star,
   Sun,
   Volume2,
+  X,
   type LucideIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import {
   type PecsManifestCard
 } from "@/data/pecs-card-manifest";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
+import { placeLibraryItem, swapBoardItems } from "@/utils/playground-board";
 import { validatePecsSentence, type PecsSentenceValidationResult } from "@/utils/pecs-sentence-validation";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import type { LearningItem } from "@/types";
@@ -249,30 +251,39 @@ export function PlaygroundView() {
     setShowSuccessModal(false);
   }
 
-  function moveCard(fromIndex: number, toIndex: number) {
-    setSentenceCards((current) => {
-      if (toIndex < 0 || toIndex >= current.length) return current;
-      const next = [...current];
-      const [card] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, card);
-      return next;
-    });
+  function swapCards(fromIndex: number, toIndex: number) {
+    setSentenceCards((current) => swapBoardItems(current, fromIndex, toIndex));
     setResult(null);
     setShowSuccessModal(false);
   }
 
+  function placeLibraryCard(card: PlaygroundCard, targetIndex?: number) {
+    if (targetIndex === undefined && sentenceCards.length >= maxSentenceCards) {
+      notify({ title: "The board is full", description: "Remove a card to add another.", tone: "info" });
+      return;
+    }
+
+    setSentenceCards((current) => placeLibraryItem(current, card, targetIndex, maxSentenceCards));
+    setResult(null);
+    setShowSuccessModal(false);
+    if (!speaking) void sayCard(card);
+  }
+
   function handleSentenceDrop(event: DragEvent<HTMLElement>, targetIndex?: number) {
     event.preventDefault();
+    // Occupied slots have their own drop handler. Stop the event here so the
+    // board background cannot process the same library card a second time.
+    if (targetIndex !== undefined) event.stopPropagation();
 
     if (draggedSentenceIndex !== null && targetIndex !== undefined) {
-      moveCard(draggedSentenceIndex, targetIndex);
+      swapCards(draggedSentenceIndex, targetIndex);
       setDraggedSentenceIndex(null);
       return;
     }
 
     if (!draggedLibraryCardId) return;
     const card = cards.find((candidate) => candidate.id === draggedLibraryCardId);
-    if (card) addCard(card);
+    if (card) placeLibraryCard(card, targetIndex);
     setDraggedLibraryCardId("");
   }
 
@@ -426,7 +437,10 @@ export function PlaygroundView() {
                               type="button"
                               draggable
                               onClick={() => addCard(card)}
-                              onDragStart={() => setDraggedLibraryCardId(card.id)}
+                              onDragStart={() => {
+                                setDraggedSentenceIndex(null);
+                                setDraggedLibraryCardId(card.id);
+                              }}
                               onDragEnd={() => setDraggedLibraryCardId("")}
                               aria-label={`Add ${card.label} to sentence`}
                               className="group rounded-lg border border-blue-100 bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft focus:outline-none focus:ring-4 focus:ring-blue-100"
@@ -488,7 +502,10 @@ export function PlaygroundView() {
                             key={`${card.id}-${index}`}
                             style={slotStyle}
                             draggable
-                            onDragStart={() => setDraggedSentenceIndex(index)}
+                            onDragStart={() => {
+                              setDraggedLibraryCardId("");
+                              setDraggedSentenceIndex(index);
+                            }}
                             onDragEnd={() => setDraggedSentenceIndex(null)}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleSentenceDrop(event, index)}
@@ -496,18 +513,22 @@ export function PlaygroundView() {
                               isSpeaking ? "-translate-y-1.5 border-blue-500 ring-4 ring-blue-200" : "border-blue-100"
                             }`}
                           >
-                            {/* Tapping a placed card takes it off the board; dragging it still reorders. */}
-                            <button
-                              type="button"
-                              onClick={() => removeCard(index)}
-                              aria-label={`Remove ${card.label} from sentence`}
-                              title={`Tap to remove ${card.label}`}
-                              className="grid w-full cursor-pointer place-items-center rounded-lg p-1.5 focus:outline-none focus-visible:ring-4 focus-visible:ring-red-200"
-                            >
+                            <span className="grid w-full place-items-center rounded-lg p-1.5">
                               <span className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-md bg-white">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={card.imageUrl} alt="" className="pointer-events-none h-full w-full object-contain" draggable={false} />
+                                <img src={card.imageUrl} alt={card.label} className="pointer-events-none h-full w-full object-contain" draggable={false} />
                               </span>
+                            </span>
+                            <button
+                              type="button"
+                              draggable={false}
+                              onClick={() => removeCard(index)}
+                              onDragStart={(event) => event.preventDefault()}
+                              aria-label={`Remove ${card.label} from board`}
+                              title={`Remove ${card.label}`}
+                              className="absolute right-0 top-0 z-10 grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-red-200 sm:h-9 sm:w-9"
+                            >
+                              <X className="h-5 w-5" aria-hidden="true" />
                             </button>
                           </li>
                         );
@@ -532,7 +553,7 @@ export function PlaygroundView() {
                         </span>
                         <div>
                           <p className={`text-lg font-bold ${result.isValid ? "text-emerald-800" : "text-amber-900"}`}>{getFeedbackTitle(result)}</p>
-                          {!result.isValid && result.feedback ? <p className="text-sm text-amber-900/80">{result.feedback}</p> : null}
+                          {result.feedback ? <p className={`text-sm ${result.isValid ? "text-emerald-900/80" : "text-amber-900/80"}`}>{result.feedback}</p> : null}
                         </div>
                       </div>
                     ) : null}
@@ -590,7 +611,7 @@ export function PlaygroundView() {
                           <span>GOOD JOB</span>
                           <Star className="h-8 w-8 fill-yellow-300 text-yellow-400 sm:h-10 sm:w-10" aria-hidden="true" />
                         </h2>
-                        <p className="mt-2 text-base font-semibold text-slate-700">You built a nice sentence.</p>
+                        <p className="mt-2 text-base font-semibold text-slate-700">{result?.feedback}</p>
                         <div className="mt-5 flex flex-wrap justify-center gap-3">
                           {sentenceCards.map((card, index) => (
                             <div
@@ -601,7 +622,7 @@ export function PlaygroundView() {
                             >
                               <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={card.imageUrl} alt={`${card.label} correct sentence card`} className="h-full w-full object-contain" />
+                                <img src={card.imageUrl} alt={`${card.label} completed board card`} className="h-full w-full object-contain" />
                               </div>
                             </div>
                           ))}

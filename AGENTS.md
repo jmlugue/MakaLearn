@@ -1,5 +1,9 @@
 # MakaLearn Coding Agent Instructions
 
+## Shared session coordination
+
+Read `SESSION_BOARD.md` at the start of each session. Add an **Active sessions** entry with the goal and likely files before editing. Keep your entry current, check for overlaps, and move it to **Recently completed** with the outcome when finished.
+
 > This is the original brief. Parts are out of date: there is no Learners page, gesture recognition is
 > real (MediaPipe plus a trained model), gesture attempts are never saved or shown, and activity results
 > are saved to `activity_results`. `CLAUDE.md` has the current state and wins where they disagree.
@@ -428,3 +432,4 @@ Common commands:
 Do not start the dev server automatically. The user will run `npm run dev` manually when they want the app served locally.
 
 After implementation, run build/lint checks and fix errors where possible.
+

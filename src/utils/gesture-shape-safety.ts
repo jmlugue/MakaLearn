@@ -48,6 +48,7 @@ export function applyBasicGesturePredictionGuards(
   if (prediction.label === YES_LABEL) return validateYesClosedFist(prediction, capturedFrames);
   if (prediction.label === NO_LABEL) return validateNoPalmFacing(prediction, capturedFrames);
   if (prediction.label === HELP_LABEL) return validateHelpTwoHandShape(prediction, capturedFrames);
+  if (prediction.label === SIT_LABEL) return validateSitHandOrder(prediction, capturedFrames);
   if (prediction.label === EAT_LABEL) return validateEatPalmNotFacing(prediction, capturedFrames);
   if (prediction.label === DRINK_LABEL) {
     return (
@@ -213,6 +214,30 @@ function validateHelpTwoHandShape(
   return { prediction };
 }
 
+function validateSitHandOrder(
+  prediction: DemoGesturePrediction,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult {
+  const order = summarizeSitHandOrder(capturedFrames);
+  if (order.usableFrames < 6) {
+    return {
+      prediction: null,
+      feedback: "For sit down, keep both hands clearly visible so their positions can be checked.",
+      issueCategory: "hand-shape-mismatch"
+    };
+  }
+
+  if (order.rightAboveRatio < 0.65) {
+    return {
+      prediction: null,
+      feedback: "For sit down, place your right hand above your left hand.",
+      issueCategory: "hand-shape-mismatch"
+    };
+  }
+
+  return { prediction };
+}
+
 function validateEatPalmNotFacing(
   prediction: DemoGesturePrediction,
   capturedFrames: CapturedGestureFrame[]
@@ -311,6 +336,29 @@ function summarizeHandCounts(capturedFrames: CapturedGestureFrame[]) {
     usableFrames,
     oneHandRatio: usableFrames ? oneHandFrames / usableFrames : 0,
     twoHandRatio: usableFrames ? twoHandFrames / usableFrames : 0
+  };
+}
+
+function summarizeSitHandOrder(capturedFrames: CapturedGestureFrame[]) {
+  let usableFrames = 0;
+  let rightAboveFrames = 0;
+
+  capturedFrames.forEach(({ handedness, hands }) => {
+    const leftIndex = handedness.findIndex((label, index) => label === "Left" && hands[index]?.length >= 21);
+    const rightIndex = handedness.findIndex((label, index) => label === "Right" && hands[index]?.length >= 21);
+    if (leftIndex < 0 || rightIndex < 0) return;
+
+    usableFrames += 1;
+    const leftCenter = getCenter(hands[leftIndex]);
+    const rightCenter = getCenter(hands[rightIndex]);
+
+    // MediaPipe's y coordinate increases down the camera frame.
+    if (rightCenter.y < leftCenter.y) rightAboveFrames += 1;
+  });
+
+  return {
+    usableFrames,
+    rightAboveRatio: usableFrames ? rightAboveFrames / usableFrames : 0
   };
 }
 
