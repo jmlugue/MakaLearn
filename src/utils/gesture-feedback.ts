@@ -161,8 +161,15 @@ export function createTemplateGestureFeedback(request: GestureFeedbackRequest): 
       teacherNote: "The gesture movement was not clear enough for a supported local prediction. Cue the start and finish positions."
     },
     "hand-count-mismatch": {
-      learnerMessage: createLearnerGestureMessage("hand-count-mismatch"),
-      teacherNote: `The camera detected ${request.detectedHandCount} hand${request.detectedHandCount === 1 ? "" : "s"}, but this gesture uses ${request.expectedHandCount} hand${request.expectedHandCount === 1 ? "" : "s"}. Ask the learner to match the number of hands shown in the example and try again.`
+      learnerMessage:
+        request.expectedHandCount === 1
+          ? "Use one hand."
+          : request.expectedHandCount === 2
+            ? "Keep both hands visible."
+            : createLearnerGestureMessage("hand-count-mismatch"),
+      teacherNote:
+        request.localFeedbackHint ??
+        `The camera detected ${request.detectedHandCount} hand${request.detectedHandCount === 1 ? "" : "s"}, but this gesture uses ${request.expectedHandCount} hand${request.expectedHandCount === 1 ? "" : "s"}. Ask the learner to match the number of hands shown in the example and try again.`
     },
     "hand-shape-mismatch": {
       learnerMessage: createLearnerGestureMessage("hand-shape-mismatch"),

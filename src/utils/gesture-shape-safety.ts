@@ -60,6 +60,28 @@ export function applyBasicGesturePredictionGuards(
   return { prediction };
 }
 
+/**
+ * Applies the normal guards to background capture candidates. Sit down and
+ * Help have similar two-hand model features, so a Help candidate that fails
+ * Help's shape check gets one guarded chance to resolve as Sit down.
+ */
+export function applyGestureCandidateGuards(
+  prediction: DemoGesturePrediction | null,
+  capturedFrames: CapturedGestureFrame[]
+): EatToiletSafetyResult {
+  const guarded = applyBasicGesturePredictionGuards(prediction, capturedFrames);
+  if (guarded.prediction || prediction?.label !== HELP_LABEL) return guarded;
+
+  const sitCandidate: DemoGesturePrediction = {
+    ...prediction,
+    label: SIT_LABEL,
+    pose: "Sit gesture",
+    matchPercent: Math.max(55, prediction.matchPercent - 5)
+  };
+  const sitResult = applyBasicGesturePredictionGuards(sitCandidate, capturedFrames);
+  return sitResult.prediction ? sitResult : guarded;
+}
+
 export function applyEatToiletFingerSafety(
   prediction: DemoGesturePrediction | null,
   capturedFrames: CapturedGestureFrame[]
@@ -124,10 +146,15 @@ function validateExpectedHandCount(
   const expectedRatio = expectedHandCount === 1 ? summary.oneHandRatio : summary.twoHandRatio;
   if (expectedRatio >= 0.65) return { prediction };
 
+  const handCountChanged = summary.oneHandRatio > 0 && summary.twoHandRatio > 0;
   return {
     prediction: null,
     feedback:
-      expectedHandCount === 1
+      handCountChanged
+        ? expectedHandCount === 1
+          ? "The number of visible hands changed during the gesture. Keep one hand visible from start to finish."
+          : "The number of visible hands changed during the gesture. Keep both hands visible from start to finish."
+        : expectedHandCount === 1
         ? "That gesture uses one hand. Try again with only one hand visible."
         : "That gesture uses both hands. Try again with both hands visible.",
     issueCategory: "hand-count-mismatch"

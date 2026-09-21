@@ -48,6 +48,15 @@ import {
   type GestureFeedbackTrackingState
 } from "@/utils/gesture-feedback";
 import {
+  completeGestureCapture,
+  createGestureCaptureState,
+  getGestureCandidateCheckStep,
+  observeGestureCandidate,
+  shouldUseReservedGesture,
+  takeRecentGestureWindow,
+  type GestureCaptureState
+} from "@/utils/gesture-capture-state";
+import {
   getExpectedGestureHandCount,
   type DemoGesturePrediction,
   type HandLandmarkPoint
@@ -61,6 +70,7 @@ import {
 import {
   applyBasicGesturePredictionGuards,
   applyEatToiletFingerSafety,
+  applyGestureCandidateGuards,
   type CapturedGestureFrame
 } from "@/utils/gesture-shape-safety";
 import {
@@ -85,12 +95,26 @@ import type { Category, LearningItem } from "@/types";
 
 type TrackingState = "idle" | "hands-visible" | "no-hands" | "too-many-hands" | "multiple-people";
 type HandConnection = { start: number; end: number };
+type GestureCaptureSnapshot = {
+  frames: Float32Array[];
+  handFrames: CapturedGestureFrame[];
+  prediction: DemoGesturePrediction;
+};
+type PendingGestureCompletion = {
+  trigger: "stable-pose" | "hands-removed";
+  frames: Float32Array[];
+  handFrames: CapturedGestureFrame[];
+  heldHands: HandLandmarkPoint[][] | null;
+};
 
 const NO_HANDS_AUTO_PREDICT_DELAY_MS = 1000;
 const STABLE_POSE_AUTO_PREDICT_DELAY_MS = 2000;
 const MIN_CONFIDENT_PREDICTION_PERCENT = 70;
 const READY_GESTURE_HOLD_MS = 600;
 const GUIDED_SUCCESS_DELAY_MS = 2200;
+const HAND_DETECTION_CONFIDENCE = 0.7;
+const HAND_PRESENCE_CONFIDENCE = 0.7;
+const HAND_TRACKING_CONFIDENCE = 0.65;
 
 const fixedGestureLabels = new Set([
   "I want to go to toilet",
@@ -159,6 +183,14 @@ export function GesturePracticeView() {
   const currentPredictionLabelRef = useRef<string | null>(null);
   const liveGestureFramesRef = useRef<Float32Array[]>([]);
   const liveGestureHandFramesRef = useRef<CapturedGestureFrame[]>([]);
+  const captureStateRef = useRef<GestureCaptureState<GestureCaptureSnapshot>>(
+    createGestureCaptureState()
+  );
+  const candidateCheckPendingRef = useRef(false);
+  const candidateCheckGenerationRef = useRef(0);
+  const lastCandidateCheckFrameCountRef = useRef(0);
+  const pendingGestureCompletionRef = useRef<PendingGestureCompletion | null>(null);
+  const consecutiveGestureLockRef = useRef(false);
   const pendingModelPredictionRef = useRef(false);
   const gestureCaptureActiveRef = useRef(false);
   const lastHandsSeenAtRef = useRef(0);
@@ -309,9 +341,19 @@ export function GesturePracticeView() {
     guidedTimeoutsRef.current.push(timeoutId);
   }
 
+  function resetConsecutiveGestureCapture({ clearLock = false }: { clearLock?: boolean } = {}) {
+    candidateCheckGenerationRef.current += 1;
+    candidateCheckPendingRef.current = false;
+    lastCandidateCheckFrameCountRef.current = 0;
+    pendingGestureCompletionRef.current = null;
+    captureStateRef.current = createGestureCaptureState();
+    if (clearLock) consecutiveGestureLockRef.current = false;
+  }
+
   function resetGuidedCapture({ keepPoseGate = false }: { keepPoseGate?: boolean } = {}) {
     pendingModelPredictionRef.current = false;
     gestureCaptureActiveRef.current = false;
+    resetConsecutiveGestureCapture({ clearLock: true });
     resetStablePoseTracking();
     resetLiveGestureBuffer(liveGestureFramesRef.current);
     liveGestureHandFramesRef.current = [];
@@ -526,9 +568,11 @@ export function GesturePracticeView() {
         baseOptions: { modelAssetPath: "/models/hand_landmarker.task" },
         runningMode: "VIDEO",
         numHands: 2,
-        minHandDetectionConfidence: 0.5,
-        minHandPresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5
+        // Stricter presence checks prevent faces, clothing, and background
+        // shapes from being drawn and captured as phantom hands.
+        minHandDetectionConfidence: HAND_DETECTION_CONFIDENCE,
+        minHandPresenceConfidence: HAND_PRESENCE_CONFIDENCE,
+        minTrackingConfidence: HAND_TRACKING_CONFIDENCE
       });
       handLandmarkerRef.current = handLandmarker;
       handConnectionsRef.current = vision.HandLandmarker.HAND_CONNECTIONS;
@@ -577,6 +621,10 @@ export function GesturePracticeView() {
         // Re-arm success audio only after hands are fully out of frame for several frames.
         if (noHandsFrameCountRef.current >= 6) {
           lastAutoAudioKeyRef.current = null;
+          if (consecutiveGestureLockRef.current) {
+            resetConsecutiveGestureCapture({ clearLock: true });
+            setStatusMessage("Hands are clear. Hold a supported gesture in frame when ready.");
+          }
         }
       } else {
         noHandsFrameCountRef.current = 0;
@@ -609,6 +657,7 @@ export function GesturePracticeView() {
     lastAutoAudioKeyRef.current = null;
     pendingModelPredictionRef.current = false;
     gestureCaptureActiveRef.current = false;
+    resetConsecutiveGestureCapture({ clearLock: true });
     lastHandsSeenAtRef.current = 0;
     resetStablePoseTracking();
     predictedPoseAnchorRef.current = null;
@@ -621,7 +670,15 @@ export function GesturePracticeView() {
     setStatusMessage("");
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 }
+        },
+        audio: false
+      });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -666,6 +723,7 @@ export function GesturePracticeView() {
     lastAutoAudioKeyRef.current = null;
     pendingModelPredictionRef.current = false;
     gestureCaptureActiveRef.current = false;
+    resetConsecutiveGestureCapture({ clearLock: true });
     lastHandsSeenAtRef.current = 0;
     resetStablePoseTracking();
     predictedPoseAnchorRef.current = null;
@@ -706,6 +764,11 @@ export function GesturePracticeView() {
       const currentHands = copyHands(hands);
       lastHandsSeenAtRef.current = now;
 
+      if (consecutiveGestureLockRef.current) {
+        setStatusMessage("Move your hands out of view to start again.");
+        return;
+      }
+
       if (pendingModelPredictionRef.current) return;
 
       // Keep the completed result visible while the learner holds the same pose.
@@ -720,6 +783,7 @@ export function GesturePracticeView() {
 
       if (!gestureCaptureActiveRef.current) {
         clearPrediction();
+        resetConsecutiveGestureCapture();
         resetLiveGestureBuffer(liveGestureFramesRef.current);
         liveGestureHandFramesRef.current = [];
         gestureCaptureActiveRef.current = true;
@@ -734,6 +798,7 @@ export function GesturePracticeView() {
       if (liveGestureHandFramesRef.current.length > 192) {
         liveGestureHandFramesRef.current.splice(0, liveGestureHandFramesRef.current.length - 192);
       }
+      checkLiveGestureCandidate();
       setModelStatus((current) => (current === "ready" ? current : "idle"));
 
       const movementFromStableAnchor = getHandPoseDistance(stablePoseAnchorRef.current, currentHands);
@@ -770,20 +835,121 @@ export function GesturePracticeView() {
     completeLiveGestureCapture("hands-removed");
   }
 
+  function checkLiveGestureCandidate() {
+    const frameCount = liveGestureFramesRef.current.length;
+    if (
+      frameCount < MIN_LIVE_GESTURE_FRAMES ||
+      frameCount - lastCandidateCheckFrameCountRef.current <
+        getGestureCandidateCheckStep(MIN_LIVE_GESTURE_FRAMES) ||
+      candidateCheckPendingRef.current ||
+      captureStateRef.current.phase === "ignoring-b"
+    ) {
+      return;
+    }
+
+    const generation = candidateCheckGenerationRef.current;
+    const candidateFrames = takeRecentGestureWindow(
+      liveGestureFramesRef.current,
+      MIN_LIVE_GESTURE_FRAMES
+    );
+    const candidateHandFrames = takeRecentGestureWindow(
+      liveGestureHandFramesRef.current,
+      MIN_LIVE_GESTURE_FRAMES
+    );
+    lastCandidateCheckFrameCountRef.current = frameCount;
+    candidateCheckPendingRef.current = true;
+
+    // Candidate checks look only at the newest minimum-sized window so a
+    // following gesture can be distinguished without changing the full buffer
+    // used by ordinary single-gesture completion.
+    void predictMakaLearnGesture(candidateFrames)
+      .then((nextPrediction) => {
+        if (
+          generation !== candidateCheckGenerationRef.current ||
+          (!gestureCaptureActiveRef.current && !pendingGestureCompletionRef.current)
+        ) {
+          return;
+        }
+
+        const guardResult = applyGestureCandidateGuards(
+          nextPrediction,
+          candidateHandFrames
+        );
+        const safetyResult = guardResult.prediction
+          ? applyEatToiletFingerSafety(
+              guardResult.prediction,
+              candidateHandFrames
+            )
+          : guardResult;
+        const candidatePrediction = safetyResult.prediction;
+        captureStateRef.current = observeGestureCandidate(
+          captureStateRef.current,
+          candidatePrediction
+            ? {
+                label: candidatePrediction.label,
+                confidence: candidatePrediction.matchPercent,
+                payload: {
+                  frames: candidateFrames,
+                  handFrames: candidateHandFrames,
+                  prediction: candidatePrediction
+                }
+              }
+            : null
+        );
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (generation !== candidateCheckGenerationRef.current) return;
+        candidateCheckPendingRef.current = false;
+        const pendingCompletion = pendingGestureCompletionRef.current;
+        if (!pendingCompletion) return;
+        pendingGestureCompletionRef.current = null;
+        processCompletedGestureCapture(pendingCompletion);
+      });
+  }
+
   function completeLiveGestureCapture(
     trigger: "stable-pose" | "hands-removed",
     heldHands: HandLandmarkPoint[][] | null = null
   ) {
     if (!gestureCaptureActiveRef.current || pendingModelPredictionRef.current) return;
 
-    const capturedFrames = liveGestureFramesRef.current.slice();
-    const capturedHandFrames = liveGestureHandFramesRef.current.slice();
+    const completion: PendingGestureCompletion = {
+      trigger,
+      frames: liveGestureFramesRef.current.slice(),
+      handFrames: liveGestureHandFramesRef.current.slice(),
+      heldHands
+    };
     gestureCaptureActiveRef.current = false;
     resetStablePoseTracking();
     waitingForPoseChangeRef.current = trigger === "stable-pose";
     predictedPoseAnchorRef.current = trigger === "stable-pose" ? heldHands : null;
     resetLiveGestureBuffer(liveGestureFramesRef.current);
     liveGestureHandFramesRef.current = [];
+
+    if (candidateCheckPendingRef.current) {
+      pendingGestureCompletionRef.current = completion;
+      setModelStatus("loading");
+      setStatusMessage(
+        trigger === "stable-pose"
+          ? "Gesture held still. Checking prediction..."
+          : "Checking gesture..."
+      );
+      return;
+    }
+
+    processCompletedGestureCapture(completion);
+  }
+
+  function processCompletedGestureCapture(completion: PendingGestureCompletion) {
+    captureStateRef.current = completeGestureCapture(captureStateRef.current);
+    const reservedGesture = shouldUseReservedGesture(captureStateRef.current)
+      ? captureStateRef.current.reservedA
+      : null;
+    const capturedFrames = reservedGesture?.payload.frames ?? completion.frames;
+    const capturedHandFrames =
+      reservedGesture?.payload.handFrames ?? completion.handFrames;
+    const trigger = completion.trigger;
 
     if (capturedFrames.length < MIN_LIVE_GESTURE_FRAMES) {
       updateCompletedGesturePrediction(
@@ -800,7 +966,11 @@ export function GesturePracticeView() {
     setModelStatus("loading");
     setStatusMessage(trigger === "stable-pose" ? "Gesture held still. Checking prediction..." : "Checking gesture...");
 
-    void predictMakaLearnGesture(capturedFrames)
+    const predictionPromise = reservedGesture
+      ? Promise.resolve(reservedGesture.payload.prediction)
+      : predictMakaLearnGesture(capturedFrames);
+
+    void predictionPromise
       .then((nextPrediction) => {
         setModelStatus("ready");
         const guardResult = applyBasicGesturePredictionGuards(nextPrediction, capturedHandFrames);
@@ -820,6 +990,16 @@ export function GesturePracticeView() {
           summarizeCapturedHandCount(capturedHandFrames),
           feedbackResult.issueCategory
         );
+        if (
+          reservedGesture &&
+          trigger === "stable-pose" &&
+          confidenceResult.prediction
+        ) {
+          consecutiveGestureLockRef.current = true;
+          waitingForPoseChangeRef.current = false;
+          predictedPoseAnchorRef.current = null;
+          setStatusMessage("Move your hands out of view to start again.");
+        }
       })
       .catch(() => {
         setModelStatus("error");
@@ -1009,24 +1189,19 @@ export function GesturePracticeView() {
     return (
       <>
       <section
-        className={cn(
-          "relative isolate overflow-hidden rounded-[2rem] border border-white/90 bg-[#f4fbff] shadow-[0_24px_70px_rgba(37,99,235,0.14)]",
-          cameraFocusMode
-            ? "h-[calc(100svh-1rem)] p-2 sm:h-[calc(100svh-1.5rem)] sm:p-3"
-            : "p-3 sm:p-5 xl:min-h-[calc(100vh-5.25rem)]"
-        )}
+        className="absolute inset-2 isolate overflow-hidden rounded-[2rem] border border-white/90 bg-[#f4fbff] p-2 shadow-[0_24px_70px_rgba(37,99,235,0.14)] sm:inset-3 sm:p-3 lg:inset-4 lg:p-4"
       >
         <StudentGestureImageBackground />
         <div
           className={cn(
-            "relative z-10 grid gap-4",
+            "relative z-10 grid h-full min-h-0 gap-2 sm:gap-3 lg:gap-4",
             cameraFocusMode
-              ? "h-full min-h-0 pb-0"
-              : "pb-16 sm:pb-20 xl:grid-cols-[1.13fr_0.87fr] xl:items-start xl:pb-24"
+              ? "grid-rows-[minmax(0,1fr)]"
+              : "grid-rows-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[1.13fr_0.87fr] xl:grid-rows-1"
           )}
         >
-          <div className={cn("min-w-0", cameraFocusMode && "flex min-h-0 flex-col")}>
-            <div className={cn("flex flex-wrap items-center justify-center gap-3", cameraFocusMode ? "mb-2" : "mb-4")}>
+          <div className="flex min-h-0 min-w-0 flex-col">
+            <div className={cn("flex shrink-0 flex-wrap items-center justify-center gap-2 sm:gap-3", cameraFocusMode ? "mb-2" : "mb-3")}>
               <div
                 className="flex rounded-full border border-white/90 bg-white/80 p-1.5 shadow-[0_10px_22px_rgba(37,99,235,0.12)] backdrop-blur-xl"
                 role="group"
@@ -1091,7 +1266,7 @@ export function GesturePracticeView() {
               trackerStatus={trackerStatus}
               detectedHandCount={detectedHandCount}
               playful
-              focusMode={cameraFocusMode}
+              fillAvailable
               onStartCamera={startCamera}
               onStopCamera={stopCamera}
               overlay={
@@ -1153,7 +1328,7 @@ export function GesturePracticeView() {
             />
           </div>
 
-          <div className={cameraFocusMode ? "hidden" : "min-w-0 xl:pt-10"}>
+          <div className={cameraFocusMode ? "hidden" : "flex min-h-0 min-w-0 flex-col overflow-hidden xl:pt-10"}>
             {practiceMode === "guided" && guidedPhase === "complete" ? (
               <GuidedSessionSummary
                 results={guidedResults}
@@ -1165,6 +1340,7 @@ export function GesturePracticeView() {
               <AnimatePresence custom={carouselDirection} mode="wait">
                 <motion.div
                   key={selectedGesture.id}
+                  className="min-h-0 flex-1"
                   custom={carouselDirection}
                   initial={{ opacity: 0, x: carouselDirection * 80, scale: 0.96, rotate: carouselDirection * 2 }}
                   animate={{ opacity: 1, x: 0, scale: 1, rotate: 0 }}
@@ -1190,7 +1366,7 @@ export function GesturePracticeView() {
                 onEnd={() => setEndSessionDialogOpen(true)}
               />
             ) : (
-            <div className="mt-4 flex items-center justify-center gap-5 sm:gap-8">
+            <div className="mt-2 flex shrink-0 items-center justify-center gap-5 sm:mt-3 sm:gap-8">
               <Button type="button" variant="secondary" size="icon" aria-label="Previous card" onClick={() => moveGesture(-1)} className="h-16 w-16 rounded-full border-4 border-white bg-white/95 text-[#19294d] shadow-[0_16px_28px_rgba(37,99,235,0.16),inset_0_2px_0_rgba(255,255,255,0.95)] sm:h-20 sm:w-20">
                 <ArrowLeft className="h-9 w-9 stroke-[3.5] sm:h-11 sm:w-11" aria-hidden="true" />
               </Button>
@@ -1510,7 +1686,7 @@ function GuidedCameraOverlay({
 
   const success = phase === "feedback" && feedbackTitle === "Great job!";
   return (
-    <div className="pointer-events-none flex h-full flex-col justify-between bg-gradient-to-b from-slate-950/60 via-transparent to-slate-950/75 p-3 sm:p-5">
+    <div className="pointer-events-none flex h-full flex-col justify-between p-3 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="rounded-2xl border border-white/30 bg-slate-950/70 px-4 py-3 text-white shadow-lg backdrop-blur-md">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
@@ -1799,7 +1975,7 @@ function LearnerReferenceFlipCard({
   const imageSrc = getGestureReferenceImageSrc(item);
 
   return (
-    <div className="mx-auto w-full max-w-[32rem]">
+    <div className="mx-auto h-full min-h-0 w-full max-w-[32rem]">
       <div
         role="button"
         tabIndex={0}
@@ -1810,18 +1986,18 @@ function LearnerReferenceFlipCard({
             onFlip();
           }
         }}
-        className="group block w-full text-left [perspective:1400px]"
+        className="group block h-full min-h-0 w-full text-left [perspective:1400px]"
         aria-pressed={flipped}
         aria-label={flipped ? `Hide ${item.label} media` : `Show ${item.label} video and audio`}
       >
         <div
-          className={`relative min-h-[27rem] rounded-[2rem] transition-transform duration-500 [transform-style:preserve-3d] sm:min-h-[34rem] xl:min-h-[36rem] ${
+          className={`relative h-full min-h-0 rounded-[2rem] transition-transform duration-500 [transform-style:preserve-3d] ${
             flipped ? "[transform:rotateY(180deg)]" : ""
           }`}
         >
           <div className="absolute inset-0 flex flex-col overflow-hidden rounded-[2rem] border border-white/90 bg-white shadow-[0_22px_48px_rgba(37,99,235,0.16)] [backface-visibility:hidden]">
-            <div className="flex flex-1 flex-col items-center justify-between gap-4 px-5 pb-6 pt-7 text-center sm:px-8 sm:pb-7 sm:pt-9">
-              <div className="relative grid aspect-[1.04/1] w-full max-w-[22rem] place-items-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-50 to-sky-100 p-3 sm:max-w-[25rem]">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-between gap-2 px-4 pb-3 pt-4 text-center sm:gap-3 sm:px-6 sm:pb-4 sm:pt-5">
+              <div className="relative grid min-h-0 w-full max-w-[25rem] flex-1 place-items-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-50 to-sky-100 p-2 sm:p-3">
                 {imageSrc ? (
                   <GestureReferenceImage src={imageSrc} alt={`${frontLabel} reference`} />
                 ) : (
@@ -1840,8 +2016,8 @@ function LearnerReferenceFlipCard({
           <div className="absolute inset-0 flex flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-4 shadow-[0_22px_48px_rgba(37,99,235,0.16)] [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-5">
             <h2 className="text-center text-3xl font-black text-ink sm:text-5xl">{frontLabel}</h2>
 
-            <div className="mt-4 flex flex-1 flex-col justify-between gap-4">
-              <div className="grid min-h-[11rem] place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-3 sm:min-h-[14rem]">
+            <div className="mt-3 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:mt-4 sm:gap-3">
+              <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-2 sm:p-3">
                 <GestureVideoPreview value={item.gestureMediaUrl} label={`${item.label} gesture reference`} />
               </div>
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -1954,6 +2130,7 @@ function LearnerFeedbackBar({
           loading={feedbackLoading}
           compact={compact}
           flush
+          prominent
         />
       </div>
     );
@@ -1982,7 +2159,12 @@ function LearnerFeedbackBar({
         <p className={cn("font-black", compact ? "text-2xl" : "text-3xl", success ? "text-green-700" : "text-ink")}>{stateLabel}</p>
         {detail ? <p className={cn("mt-1 font-bold text-slate-700", compact ? "text-sm" : "text-base")}>{detail}</p> : null}
         {statusMessage ? <p className={cn("mt-1 line-clamp-2 text-sm text-slate-600", compact ? "leading-5" : "leading-6")}>{statusMessage}</p> : null}
-        <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} compact={compact} />
+        <CorrectiveFeedbackPanel
+          feedback={correctiveFeedback}
+          loading={feedbackLoading}
+          compact={compact}
+          prominent
+        />
       </div>
     </div>
   );
@@ -1992,12 +2174,14 @@ function CorrectiveFeedbackPanel({
   feedback,
   loading,
   compact = false,
-  flush = false
+  flush = false,
+  prominent = false
 }: {
   feedback: GestureFeedbackResponse | null;
   loading: boolean;
   compact?: boolean;
   flush?: boolean;
+  prominent?: boolean;
 }) {
   if (!feedback && !loading) return null;
 
@@ -2007,15 +2191,21 @@ function CorrectiveFeedbackPanel({
     return (
       <div
         className={cn(
-          "grid place-items-center rounded-xl border border-blue-100 bg-white/85 shadow-sm",
+          "grid place-items-center rounded-xl bg-white/90",
           !flush && "mt-3",
-          compact ? "min-h-16 p-3" : "min-h-20 p-4"
+          prominent
+            ? "min-h-20 border-2 border-blue-200 p-4 shadow-[0_12px_28px_rgba(37,99,235,0.14)]"
+            : "border border-blue-100 shadow-sm",
+          !prominent && (compact ? "min-h-16 p-3" : "min-h-20 p-4")
         )}
         role="status"
         aria-live="polite"
         aria-label="Preparing feedback"
       >
-        <FeedbackWaveDots />
+        <div className="flex items-center gap-4">
+          <FeedbackWaveDots />
+          {prominent ? <p className="text-lg font-black text-blue-900 sm:text-xl">Checking your gesture...</p> : null}
+        </div>
       </div>
     );
   }
@@ -2023,21 +2213,75 @@ function CorrectiveFeedbackPanel({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border border-blue-100 bg-white/85 text-left shadow-sm",
+        "overflow-hidden rounded-xl bg-white/90 text-left",
         !flush && "mt-3",
+        prominent
+          ? cn(
+              "border-2 shadow-[0_14px_32px_rgba(15,23,42,0.14)]",
+              learnerSuccess ? "border-emerald-300" : "border-red-300"
+            )
+          : "border border-blue-100 shadow-sm",
         compact ? "text-sm" : "text-base"
       )}
     >
-      <div className="grid divide-y divide-blue-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <div className={cn(compact ? "p-3" : "p-4", learnerSuccess ? "bg-emerald-50" : "bg-red-50")}>
-          <p className={cn("text-[0.7rem] font-black uppercase tracking-wide", learnerSuccess ? "text-emerald-700" : "text-red-700")}>For learner</p>
-          <p className={cn("mt-1 text-xl font-black leading-7", learnerSuccess ? "text-emerald-900" : "text-red-900")}>
+      <div
+        className={cn(
+          "grid divide-y divide-slate-200",
+          prominent
+            ? "md:grid-cols-[1.05fr_0.95fr] md:divide-x md:divide-y-0"
+            : "sm:grid-cols-2 sm:divide-x sm:divide-y-0"
+        )}
+      >
+        <div
+          className={cn(
+            prominent ? (compact ? "p-4 sm:p-5" : "p-5 sm:p-6") : compact ? "p-3" : "p-4",
+            learnerSuccess ? "bg-emerald-50" : "bg-red-50",
+            prominent && (learnerSuccess ? "border-l-8 border-emerald-500" : "border-l-8 border-red-500")
+          )}
+        >
+          {prominent ? (
+            <div className="flex items-center gap-3">
+              <span
+                className={cn(
+                  "grid h-10 w-10 shrink-0 place-items-center rounded-full text-white shadow-sm",
+                  learnerSuccess ? "bg-emerald-600" : "bg-red-600"
+                )}
+              >
+                {learnerSuccess ? (
+                  <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+                ) : (
+                  <TriangleAlert className="h-6 w-6" aria-hidden="true" />
+                )}
+              </span>
+              <p
+                className={cn(
+                  "text-xs font-black uppercase tracking-[0.12em] sm:text-sm",
+                  learnerSuccess ? "text-emerald-700" : "text-red-700"
+                )}
+              >
+                For learner
+              </p>
+            </div>
+          ) : (
+            <p className={cn("text-[0.7rem] font-black uppercase tracking-wide", learnerSuccess ? "text-emerald-700" : "text-red-700")}>
+              For learner
+            </p>
+          )}
+          <p
+            className={cn(
+              "font-black",
+              prominent ? "mt-3 text-2xl leading-8 sm:text-3xl sm:leading-9" : "mt-1 text-xl leading-7",
+              learnerSuccess ? "text-emerald-950" : "text-red-950"
+            )}
+          >
             {feedback?.learnerMessage ?? "Preparing feedback..."}
           </p>
         </div>
-        <div className={compact ? "p-3" : "p-4"}>
-          <p className="text-[0.7rem] font-black uppercase tracking-wide text-slate-500">Teacher guide</p>
-          <p className="mt-1 text-sm font-medium leading-6 text-slate-600">
+        <div className={prominent ? (compact ? "p-4 sm:p-5" : "p-5 sm:p-6") : compact ? "p-3" : "p-4"}>
+          <p className={cn("font-black uppercase tracking-wide text-slate-500", prominent ? "text-xs sm:text-sm" : "text-[0.7rem]")}>
+            Teacher guide
+          </p>
+          <p className={cn("font-semibold text-slate-700", prominent ? "mt-2 text-base leading-7 sm:text-lg sm:leading-8" : "mt-1 text-sm leading-6")}>
             {feedback?.teacherNote ?? "Checking the attempt details."}
           </p>
         </div>
@@ -2107,7 +2351,7 @@ function CameraPanel({
   trackerStatus,
   detectedHandCount,
   playful = false,
-  focusMode = false,
+  fillAvailable = false,
   onStartCamera,
   onStopCamera,
   overlay
@@ -2118,7 +2362,7 @@ function CameraPanel({
   trackerStatus: "idle" | "loading" | "ready" | "error";
   detectedHandCount: number;
   playful?: boolean;
-  focusMode?: boolean;
+  fillAvailable?: boolean;
   onStartCamera?: () => void;
   onStopCamera?: () => void;
   overlay?: ReactNode;
@@ -2130,7 +2374,7 @@ function CameraPanel({
     <div
       className={cn(
         "relative overflow-hidden border border-slate-700/70 bg-ink shadow-inner",
-        focusMode ? "mt-2 min-h-0 flex-1" : "mt-5",
+        fillAvailable ? "mt-2 min-h-0 flex-1" : "mt-5",
         playful ? "rounded-[1.75rem] p-1 ring-4 ring-white/70" : "rounded-2xl",
         cameraStarted && "camera-live-glow"
       )}
@@ -2143,7 +2387,7 @@ function CameraPanel({
           className={cn(
             playful && "rounded-[1.45rem]",
             "block w-full overflow-hidden focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200",
-            focusMode ? "h-full min-h-0" : "aspect-video",
+            fillAvailable ? "h-full min-h-0" : "aspect-video",
             canStopFromPanel ? "cursor-pointer" : "cursor-default"
           )}
           aria-label="Turn camera off"
@@ -2153,7 +2397,7 @@ function CameraPanel({
             autoPlay
             playsInline
             muted
-            className="h-full w-full -scale-x-100 object-cover"
+            className="block h-full w-full -scale-x-100 object-contain"
           />
         </button>
       ) : (
@@ -2164,7 +2408,7 @@ function CameraPanel({
           className={cn(
             playful && "rounded-[1.45rem] border border-white/10",
             "grid w-full place-items-center text-center text-white transition",
-            focusMode ? "h-full min-h-0" : "aspect-video",
+            fillAvailable ? "h-full min-h-0" : "aspect-video",
             canStartFromPanel ? "cursor-pointer hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200" : "cursor-default"
           )}
           aria-label={playful ? "Turn camera on" : "Camera preview"}
@@ -2180,7 +2424,16 @@ function CameraPanel({
 
       {cameraStarted ? (
         <div className="pointer-events-none absolute inset-0">
-          <canvas ref={canvasRef} className="absolute inset-0 h-full w-full -scale-x-100" aria-hidden="true" />
+          {/*
+            The canvas backing size matches the camera's native frame. Using
+            the same object-fit mode as the video keeps MediaPipe's normalized
+            landmark coordinates aligned in both regular and focus layouts.
+          */}
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 h-full w-full -scale-x-100 object-contain"
+            aria-hidden="true"
+          />
           <div className={`absolute inset-4 border border-dashed border-white/35 ${playful ? "rounded-[1.35rem]" : "rounded-lg"}`} />
           <div className="absolute bottom-3 left-3 rounded-full bg-slate-950/70 px-4 py-2 text-xs font-black text-white">
             {trackerStatus === "loading"

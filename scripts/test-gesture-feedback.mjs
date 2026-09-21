@@ -214,7 +214,10 @@ const gestureShapeSafety = loadTypeScriptModule("../src/utils/gesture-shape-safe
   "@/utils/gesture-feedback": gestureFeedback,
   "@/utils/gesture-prediction": gesturePrediction
 });
-const { applyBasicGesturePredictionGuards } = gestureShapeSafety;
+const {
+  applyBasicGesturePredictionGuards,
+  applyGestureCandidateGuards
+} = gestureShapeSafety;
 
 function makeHand(centerY, palmFacing = false, extendedFingers = []) {
   const hand = Array.from({ length: 21 }, (_, index) => ({
@@ -252,6 +255,58 @@ function makeFrames(ys, palmFacing = false, extendedFingers = []) {
     handedness: ["Right"]
   }));
 }
+
+const sitFrames = Array.from({ length: 8 }, () => ({
+  hands: [makeHand(0.55), makeHand(0.25)],
+  handedness: ["Left", "Right"]
+}));
+const helpShapedModelCandidate = applyGestureCandidateGuards(
+  {
+    label: "Help",
+    pose: "Help gesture",
+    fingers: [],
+    handCount: 2,
+    matchPercent: 91
+  },
+  sitFrames
+);
+assert.equal(helpShapedModelCandidate.prediction?.label, "Sit down");
+
+const changingHandCountResult = applyBasicGesturePredictionGuards(
+  {
+    label: "Sit down",
+    pose: "Sit gesture",
+    fingers: [],
+    handCount: 2,
+    matchPercent: 91
+  },
+  [...sitFrames.slice(0, 5), ...makeFrames([0.3, 0.3, 0.3])]
+);
+assert.equal(changingHandCountResult.prediction, null);
+assert.equal(changingHandCountResult.issueCategory, "hand-count-mismatch");
+assert.match(changingHandCountResult.feedback, /changed during the gesture/i);
+
+const changingHandCountRequest = buildGestureFeedbackRequest({
+  selectedGestureLabel: "Sit down",
+  prediction: {
+    label: "Sit down",
+    pose: "Sit gesture",
+    fingers: [],
+    handCount: 2,
+    matchPercent: 91
+  },
+  detectedHandCount: 2,
+  expectedHandCount: 2,
+  trackingState: "hands-visible",
+  localFeedbackHint: changingHandCountResult.feedback,
+  localIssueCategory: changingHandCountResult.issueCategory
+});
+const changingHandCountFeedback = createTemplateGestureFeedback(
+  changingHandCountRequest
+);
+assert.equal(changingHandCountFeedback.learnerMessage, "Keep both hands visible.");
+assert.match(changingHandCountFeedback.teacherNote, /changed during the gesture/i);
+assert.doesNotMatch(changingHandCountFeedback.teacherNote, /detected 2 hands, but/i);
 
 const eatPalmFacingResult = applyBasicGesturePredictionGuards(
   { label: "I want to eat food", pose: "Eating gesture", fingers: [], handCount: 1, matchPercent: 94 },
