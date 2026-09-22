@@ -11,6 +11,7 @@ import {
   Library,
   RotateCcw,
   School,
+  Search,
   ShieldAlert,
   Shuffle,
   Smile,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/form";
 import { EmptyState } from "@/components/common/empty-state";
 import { useToast } from "@/components/common/toast-provider";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
@@ -164,6 +166,7 @@ export function PlaygroundView() {
   const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
   const [ready, setReady] = useState(false);
   const [activeCategory, setActiveCategory] = useState<PecsCardCategory | typeof allCategoriesLabel>(allCategoriesLabel);
+  const [cardSearch, setCardSearch] = useState("");
   const [cardOrderIds, setCardOrderIds] = useState<string[]>([]);
   const [sentenceCards, setSentenceCards] = useState<PlaygroundCard[]>([]);
   const [draggedLibraryCardId, setDraggedLibraryCardId] = useState("");
@@ -224,10 +227,15 @@ export function PlaygroundView() {
     return [...ordered, ...missingCards];
   }, [cardOrderIds, cards]);
   const filteredCards = useMemo(() => {
-    return activeCategory === allCategoriesLabel
+    const categoryCards = activeCategory === allCategoriesLabel
       ? orderedCards
       : orderedCards.filter((card) => card.category === activeCategory);
-  }, [activeCategory, orderedCards]);
+    const query = cardSearch.trim().toLowerCase();
+
+    if (!query) return categoryCards;
+
+    return categoryCards.filter((card) => card.label.trim().toLowerCase().startsWith(query));
+  }, [activeCategory, cardSearch, orderedCards]);
 
   useEffect(() => {
     setCardOrderIds(cards.map((card) => card.id));
@@ -394,12 +402,20 @@ export function PlaygroundView() {
                 <section className={`flex min-h-0 flex-col ${isStudentMode ? "bg-[#f8fbff]/80 p-3 sm:p-4 lg:p-5" : "bg-[#f8fbff] p-3 sm:p-4"}`}>
                   <div className="shrink-0 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
                     <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-bold text-ink">Categories</p>
-                        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={mixUpCards}>
-                          <Shuffle className="h-4 w-4" aria-hidden="true" />
-                          Mix up
-                        </Button>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="flex min-h-10 items-center text-sm font-bold text-ink">Categories</p>
+                        <label className="relative block h-10 shrink-0 overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm transition focus-within:border-blue-400 focus-within:shadow-[0_10px_24px_rgba(37,99,235,0.12)] sm:min-w-72">
+                          <span className="sr-only">Search cards</span>
+                          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                          <Input
+                            type="search"
+                            aria-label="Search cards"
+                            value={cardSearch}
+                            onChange={(event) => setCardSearch(event.target.value)}
+                            placeholder="Search PECS cards"
+                            className="h-full min-h-0 border-0 bg-white/95 pl-9 pr-3 shadow-none backdrop-blur-none hover:border-0 hover:bg-white/95 focus:border-0 focus:bg-white/95 focus:shadow-none focus:ring-0"
+                          />
+                        </label>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {filterCategories.map((category) => {
@@ -421,6 +437,10 @@ export function PlaygroundView() {
                             </button>
                           );
                         })}
+                        <Button type="button" variant="outline" size="sm" className="min-h-10 shrink-0 rounded-xl border-2" onClick={mixUpCards}>
+                          <Shuffle className="h-4 w-4" aria-hidden="true" />
+                          Mix up
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -455,7 +475,7 @@ export function PlaygroundView() {
                           ))}
                         </div>
                       ) : (
-                        <EmptyState icon={Library} title="No cards found" description="Try another category." />
+                        <EmptyState icon={Library} title="No cards found" description={cardSearch ? "Try another search or category." : "Try another category."} />
                       )}
                   </div>
                 </section>

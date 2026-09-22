@@ -22,6 +22,36 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-09-22-playground-search-hover-height
+- Outcome: Removed the Playground search bar hover styling and aligned the search field and Categories label height with the category buttons.
+- Files/areas: `src/features/playground/playground-view.tsx`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by Next.js worker startup `spawn EPERM`.
+
+### 2026-09-22-playground-search-border
+- Outcome: Added a subtle rounded blue border, white surface, and smooth focus shadow around the Playground search bar.
+- Files/areas: `src/features/playground/playground-view.tsx`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by Next.js worker startup `spawn EPERM`.
+
+### 2026-09-22-playground-search-same-row
+- Outcome: Put the Playground search field in the same row as the Categories label, with category buttons and Mix up underneath in the same control block.
+- Files/areas: `src/features/playground/playground-view.tsx`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by Next.js worker startup `spawn EPERM`.
+
+### 2026-09-22-playground-search-position
+- Outcome: Moved the Playground search field to the right side of the card controls and placed Mix up with the category buttons.
+- Files/areas: `src/features/playground/playground-view.tsx`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by Next.js worker startup `spawn EPERM`.
+
+### 2026-09-22-playground-content-search-match
+- Outcome: Updated the Playground cards search to use the same shared search component and label-prefix filtering logic as the Content materials search.
+- Files/areas: `src/features/playground/playground-view.tsx`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by Next.js worker startup `spawn EPERM`.
+
+### 2026-09-22-playground-card-search
+- Outcome: Added a search bar to the Playground cards section; it filters the visible PECS cards by label, category, or sentence role alongside the category filters.
+- Files/areas: `src/features/playground/playground-view.tsx`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by Next.js worker startup `spawn EPERM`.
+
 ### 2026-09-22-activities-no-text-pecs-assets
 - Outcome: Student Activities now use `public/pecs/generated_cards_no_text` artwork for visible PECS answer cards in Match, Choose, Drag and Drop, dropped previews, and result summaries while keeping prompt text and screen-reader labels.
 - Files/areas: `src/features/activities/player/player-parts.tsx`, `match-question.tsx`, `choose-question.tsx`, `drag-drop-question.tsx`, `activity-result.tsx`.
