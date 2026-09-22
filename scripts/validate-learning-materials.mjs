@@ -28,6 +28,73 @@ function canonicalIdForManifestCard(card) {
   return `pecs-${card.filename.replace(/\.[^.]+$/i, "").replace(/_/g, "-")}`;
 }
 
+function localAudioFileNameForManifestCard(card) {
+  return card.filename.replace(/\.png$/i, ".wav");
+}
+
+function storedAudioFileNameForManifestCard(card) {
+  const normalizedLabel = normalize(card.label);
+  const replacementFileNames = {
+    am: "am-spoken-word.wav",
+    hurt: "hurt-clear.wav"
+  };
+  return replacementFileNames[normalizedLabel] ?? localAudioFileNameForManifestCard(card);
+}
+
+function isWaveAudio(buffer) {
+  return buffer.length >= 44 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WAVE";
+}
+
+async function validateLocalWave(relativePath, label, errors) {
+  try {
+    const audio = await readFile(path.join(root, relativePath));
+    if (!isWaveAudio(audio)) errors.push(`${label} is not a readable WAV file: ${relativePath}`);
+  } catch {
+    errors.push(`${label} audio file is missing: ${relativePath}`);
+  }
+}
+
+async function validateRemoteWave(item, expectedFileName, errors) {
+  if (!item.audio_url) {
+    errors.push(`${item.id} (${item.label}) has no audio URL.`);
+    return;
+  }
+
+  let actualFileName;
+  try {
+    actualFileName = decodeURIComponent(new URL(item.audio_url).pathname.split("/").at(-1));
+  } catch {
+    errors.push(`${item.id} (${item.label}) has an invalid audio URL.`);
+    return;
+  }
+
+  if (actualFileName !== expectedFileName) {
+    errors.push(`${item.id} (${item.label}) points to ${actualFileName}, expected ${expectedFileName}.`);
+  }
+
+  try {
+    const response = await fetch(item.audio_url, { headers: { Range: "bytes=0-43" } });
+    if (!response.ok) {
+      errors.push(`${item.id} (${item.label}) audio returned HTTP ${response.status}.`);
+      return;
+    }
+    const audio = Buffer.from(await response.arrayBuffer());
+    if (!isWaveAudio(audio)) errors.push(`${item.id} (${item.label}) remote audio is not a readable WAV file.`);
+  } catch (error) {
+    errors.push(`${item.id} (${item.label}) audio could not be loaded: ${error instanceof Error ? error.message : "unknown error"}`);
+  }
+}
+
+const gestureMaterials = new Map([
+  ["gesture-toilet", { label: "I want to go to toilet", localAudioFileName: "gesture-toilet.wav", storedAudioFileName: "gesture-toilet.wav" }],
+  ["gesture-eat-food", { label: "I want to eat food", localAudioFileName: "gesture-eat-food.wav", storedAudioFileName: "gesture-eat-food.wav" }],
+  ["gesture-drink-water", { label: "I want to drink", localAudioFileName: "gesture-drink-water.wav", storedAudioFileName: "gesture-drink.wav" }],
+  ["gesture-help", { label: "Help", localAudioFileName: "gesture-help.wav", storedAudioFileName: "gesture-help.wav" }],
+  ["gesture-yes", { label: "Yes", localAudioFileName: "gesture-yes.wav", storedAudioFileName: "gesture-yes.wav" }],
+  ["gesture-no", { label: "No", localAudioFileName: "gesture-no.wav", storedAudioFileName: "gesture-no.wav" }],
+  ["gesture-sit-down", { label: "Sit down", localAudioFileName: "gesture-sit-down.wav", storedAudioFileName: "gesture-sit-down.wav" }]
+]);
+
 function groupDuplicates(items) {
   const grouped = new Map();
   for (const item of items) {
@@ -84,7 +151,7 @@ const [
   practiceAttempts,
   mediaAssets
 ] = await Promise.all([
-  selectAll(supabase, "learning_items", "id,label,content_type,symbol_image_url"),
+  selectAll(supabase, "learning_items", "id,label,content_type,symbol_image_url,audio_url"),
   selectAll(supabase, "activities", "id,title,type,learning_item_ids"),
   selectAll(supabase, "activity_items", "id,activity_id,answer,options,learning_item_id"),
   selectAll(supabase, "lesson_items", "lesson_id,learning_item_id"),
@@ -101,6 +168,7 @@ const imageActivityTypes = new Set(["match-word-symbol", "choose-correct-symbol"
 
 const manifestLabels = new Set();
 const manifestFilenames = new Set();
+const remoteAudioChecks = [];
 for (const card of manifest) {
   const labelKey = normalize(card.label);
   if (manifestLabels.has(labelKey)) errors.push(`Manifest contains duplicate label: ${card.label}`);
@@ -114,14 +182,34 @@ for (const card of manifest) {
     errors.push(`Manifest image file is missing: ${card.filename}`);
   }
 
+  const localAudioFileName = localAudioFileNameForManifestCard(card);
+  await validateLocalWave(path.join("public", "audio", "pecs", localAudioFileName), card.label, errors);
+
   const canonicalId = canonicalIdForManifestCard(card);
   const item = itemById.get(canonicalId);
   if (!item) {
     errors.push(`Supabase is missing canonical material ${canonicalId} (${card.label}).`);
   } else if (!item.symbol_image_url) {
     errors.push(`Canonical material ${canonicalId} has no symbol image.`);
+  } else {
+    remoteAudioChecks.push(validateRemoteWave(item, storedAudioFileNameForManifestCard(card), errors));
   }
 }
+
+for (const [itemId, gesture] of gestureMaterials) {
+  await validateLocalWave(path.join("public", "audio", gesture.localAudioFileName), itemId, errors);
+  const item = itemById.get(itemId);
+  if (!item) {
+    errors.push(`Supabase is missing gesture material ${itemId}.`);
+  } else {
+    if (item.label !== gesture.label) {
+      errors.push(`${itemId} has label "${item.label}", expected "${gesture.label}".`);
+    }
+    remoteAudioChecks.push(validateRemoteWave(item, gesture.storedAudioFileName, errors));
+  }
+}
+
+await Promise.all(remoteAudioChecks);
 
 for (const duplicate of groupDuplicates(learningItems)) {
   warnings.push(`Duplicate material label ${duplicate.key}: ${duplicate.ids.join(", ")}`);

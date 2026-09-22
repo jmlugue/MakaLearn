@@ -320,7 +320,7 @@ export function SectionLabel({ children, className }: { children: React.ReactNod
 /** Visible red outline delete button for pop-up footers. */
 export const deleteButtonClass = "mr-auto border border-red-200 bg-white/80 text-red-600 hover:border-red-300 hover:bg-red-50";
 
-const fixedGestureLabels = new Set(["I want to go to toilet", "I want to eat food", "I want to drink water", "Help", "Yes", "No", "Sit down"]);
+const fixedGestureLabels = new Set(["I want to go to toilet", "I want to eat food", "I want to drink", "Help", "Yes", "No", "Sit down"]);
 
 export function isFixedGesture(item: LearningItem) {
   return item.contentType === "gesture" && (item.tags.includes("fixed") || fixedGestureLabels.has(item.label));

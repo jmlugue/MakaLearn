@@ -6,6 +6,14 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const dryRun = process.argv.includes("--dry-run");
+const onlyPecsArgument = process.argv.find((argument) => argument.startsWith("--only-pecs="));
+const onlyPecsLabel = onlyPecsArgument?.split("=", 2)[1]?.trim().toLowerCase();
+const onlyGestureArgument = process.argv.find((argument) => argument.startsWith("--only-gesture="));
+const onlyGestureValue = onlyGestureArgument?.split("=", 2)[1]?.trim().toLowerCase();
+
+if (onlyPecsLabel && onlyGestureValue) {
+  throw new Error("Use either --only-pecs or --only-gesture, not both.");
+}
 
 function loadEnvFile(fileName) {
   return readFile(path.join(root, fileName), "utf8")
@@ -71,9 +79,10 @@ const gestures = [
   },
   {
     id: "gesture-drink-water",
-    label: "I want to drink water",
+    label: "I want to drink",
     fileName: "drink-water.png",
     audioFileName: "gesture-drink-water.wav",
+    storedAudioFileName: "gesture-drink.wav",
     description: "Use this gesture to ask for a drink.",
     instruction: "Use the hand visibility indicator before giving corrective feedback."
   },
@@ -117,6 +126,16 @@ function slugify(value) {
 
 function normalizeLabel(value) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function audioStorageFileName(label, localAudioFileName) {
+  // New object names prevent browsers/CDNs from reusing replaced recordings.
+  const normalizedLabel = normalizeLabel(label);
+  const replacementFileNames = {
+    am: "am-spoken-word.wav",
+    hurt: "hurt-clear.wav"
+  };
+  return replacementFileNames[normalizedLabel] ?? localAudioFileName;
 }
 
 function unique(values) {
@@ -204,7 +223,8 @@ function matchingRows(existingItems, label, contentType, fallbackId) {
   const matches = existingItems.filter(
     (item) => item.content_type === contentType && normalizeLabel(item.label) === normalized
   );
-  const canonical = matches.find((item) => item.id === fallbackId);
+  // Prefer the stable ID even when a human-facing label is being renamed.
+  const canonical = matches.find((item) => item.id === fallbackId) ?? existingItems.find((item) => item.id === fallbackId);
   const metadataSource = canonical ?? matches[0];
 
   // Upload each manifest entry into one stable record. Older versions updated
@@ -270,12 +290,13 @@ async function updateLearningItem(row) {
   );
 }
 
-async function migratePecs(existingItems, adminId) {
+async function migratePecs(existingItems, adminId, cards = manifest) {
   const summary = { items: 0, images: 0, audio: 0, mediaRows: 0, missingFiles: [] };
 
-  for (const card of manifest) {
+  for (const card of cards) {
     const imageRelativePath = path.join("public", "pecs", "generated_cards", card.filename);
     const audioFileName = card.filename.replace(/\.png$/i, ".wav");
+    const storedAudioFileName = audioStorageFileName(card.label, audioFileName);
     const audioRelativePath = path.join("public", "audio", "pecs", audioFileName);
     const hasImage = await fileExists(imageRelativePath);
     const hasAudio = await fileExists(audioRelativePath);
@@ -284,7 +305,7 @@ async function migratePecs(existingItems, adminId) {
     if (!hasAudio) summary.missingFiles.push(audioRelativePath);
 
     const imageStoragePath = `learning-content/pecs/generated-cards/${card.filename}`;
-    const audioStoragePath = `learning-content/pecs/audio/${audioFileName}`;
+    const audioStoragePath = `learning-content/pecs/audio/${storedAudioFileName}`;
     const imageUrl = hasImage ? await uploadFile("symbol-images", imageStoragePath, imageRelativePath) : null;
     const audioUrl = hasAudio ? await uploadFile("audio-files", audioStoragePath, audioRelativePath) : null;
 
@@ -333,7 +354,7 @@ async function migratePecs(existingItems, adminId) {
           id: `media-${target.id}-audio`,
           title: `${card.label} audio cue`,
           type: "audio-file",
-          file_name: audioFileName,
+          file_name: storedAudioFileName,
           bucket: "audio-files",
           storage_path: audioStoragePath,
           public_url: audioUrl,
@@ -349,10 +370,10 @@ async function migratePecs(existingItems, adminId) {
   return summary;
 }
 
-async function migrateGestures(existingItems, adminId) {
+async function migrateGestures(existingItems, adminId, selectedGestures = gestures) {
   const summary = { items: 0, referenceImages: 0, gestureMedia: 0, audio: 0, mediaRows: 0, missingFiles: [] };
 
-  for (const gesture of gestures) {
+  for (const gesture of selectedGestures) {
     const imageRelativePath = path.join("public", "gesture-references", gesture.fileName);
     const audioRelativePath = path.join("public", "audio", gesture.audioFileName);
     const hasImage = await fileExists(imageRelativePath);
@@ -363,7 +384,7 @@ async function migrateGestures(existingItems, adminId) {
 
     const symbolStoragePath = `learning-content/gesture-references/symbols/${gesture.fileName}`;
     const gestureStoragePath = `learning-content/gesture-references/media/${gesture.fileName}`;
-    const audioStoragePath = `learning-content/gesture-references/audio/${gesture.audioFileName}`;
+    const audioStoragePath = `learning-content/gesture-references/audio/${gesture.storedAudioFileName ?? gesture.audioFileName}`;
     const symbolUrl = hasImage ? await uploadFile("symbol-images", symbolStoragePath, imageRelativePath) : null;
     const gestureUrl = hasImage ? await uploadFile("gesture-media", gestureStoragePath, imageRelativePath) : null;
     const audioUrl = hasAudio ? await uploadFile("audio-files", audioStoragePath, audioRelativePath) : null;
@@ -415,7 +436,7 @@ async function migrateGestures(existingItems, adminId) {
           id: `media-${target.id}-audio`,
           title: `${gesture.label} audio cue`,
           type: "audio-file",
-          file_name: gesture.audioFileName,
+          file_name: gesture.storedAudioFileName ?? gesture.audioFileName,
           bucket: "audio-files",
           storage_path: audioStoragePath,
           public_url: audioUrl
@@ -439,16 +460,35 @@ async function migrateGestures(existingItems, adminId) {
 
 const { adminId } = await getProfileIds();
 const existingItems = await getExistingLearningItems();
-const categoryCount = await upsertCategories(adminId);
-const pecs = await migratePecs(existingItems, adminId);
-const gesturesSummary = await migrateGestures(existingItems, adminId);
+const selectedPecsCards = onlyGestureValue
+  ? []
+  : onlyPecsLabel
+  ? manifest.filter((card) => normalizeLabel(card.label) === onlyPecsLabel)
+  : manifest;
+const selectedGestures = onlyPecsLabel
+  ? []
+  : onlyGestureValue
+  ? gestures.filter((gesture) => gesture.id.toLowerCase() === onlyGestureValue || normalizeLabel(gesture.label) === onlyGestureValue)
+  : gestures;
+
+if (onlyPecsLabel && selectedPecsCards.length === 0) {
+  throw new Error(`No PECS material matches --only-pecs=${onlyPecsLabel}.`);
+}
+
+if (onlyGestureValue && selectedGestures.length === 0) {
+  throw new Error(`No gesture material matches --only-gesture=${onlyGestureValue}.`);
+}
+
+const categoryCount = onlyPecsLabel || onlyGestureValue ? 0 : await upsertCategories(adminId);
+const pecs = await migratePecs(existingItems, adminId, selectedPecsCards);
+const gesturesSummary = await migrateGestures(existingItems, adminId, selectedGestures);
 
 console.log(
   JSON.stringify(
     {
       mode: dryRun ? "dry-run" : "uploaded",
       inventory: {
-        pecsCards: manifest.length,
+        pecsCards: selectedPecsCards.length,
         pecsImageFiles: pecs.images,
         pecsAudioFiles: pecs.audio,
         gestureReferenceImages: gesturesSummary.referenceImages,

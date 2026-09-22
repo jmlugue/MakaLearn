@@ -1,4 +1,5 @@
 import { activityUsesSymbolOptions, findLearningItemForActivityValue, getActivityDisplayLabel } from "@/utils/activity-symbol-options";
+import { normalizeLearningSpeechText } from "@/utils/speech-text";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 export type ActivityScore = {
@@ -42,7 +43,7 @@ export function getQuestionTitle(activity: Activity, question: ActivityQuestion,
 }
 
 export function normalizeSpokenText(text: string) {
-  return text
+  return normalizeLearningSpeechText(text)
     .replace(/\bPECS\b/gi, "pecks")
     .replace(/_{2,}/g, "blank")
     .replace(/\s+/g, " ")

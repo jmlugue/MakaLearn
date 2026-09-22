@@ -77,7 +77,7 @@ const POINTS_PER_HAND = 21;
 const VALUES_PER_POINT = 3;
 
 const labelToPracticeLabel: Record<TrainingGestureLabel, string> = {
-  drink: "I want to drink water",
+  drink: "I want to drink",
   eat: "I want to eat food",
   help: "Help",
   no: "No",

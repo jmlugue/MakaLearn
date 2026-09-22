@@ -20,7 +20,7 @@ export type CapturedGestureFrame = {
 
 const EAT_LABEL = "I want to eat food";
 const TOILET_LABEL = "I want to go to toilet";
-const DRINK_LABEL = "I want to drink water";
+const DRINK_LABEL = "I want to drink";
 const HELP_LABEL = "Help";
 const NO_LABEL = "No";
 const SIT_LABEL = "Sit down";

@@ -36,6 +36,7 @@ import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { placeLibraryItem, swapBoardItems } from "@/utils/playground-board";
 import { validatePecsSentence, type PecsSentenceValidationResult } from "@/utils/pecs-sentence-validation";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
+import { normalizeLearningSpeechText } from "@/utils/speech-text";
 import type { LearningItem } from "@/types";
 
 type PlaygroundCard = PecsManifestCard & {
@@ -143,7 +144,7 @@ function getFeedbackTitle(result: PecsSentenceValidationResult) {
 }
 
 function getSpeechLabel(label: string) {
-  return normalizePecsLabel(label) === "am" ? "am" : label;
+  return normalizeLearningSpeechText(label);
 }
 
 function shuffleValues<T>(values: T[]) {
@@ -654,7 +655,7 @@ function playAudio(url: string) {
 
 /** One card's sound: its recorded audio when there is one, otherwise the browser voice. */
 function sayCard(card: PlaygroundCard) {
-  if (normalizePecsLabel(card.label) !== "am" && canUseAudioUrl(card.audioUrl)) return playAudio(card.audioUrl as string);
+  if (canUseAudioUrl(card.audioUrl)) return playAudio(card.audioUrl as string);
   if ("speechSynthesis" in window) return speakText(getSpeechLabel(card.label));
   return Promise.resolve();
 }

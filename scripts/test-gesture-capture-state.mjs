@@ -82,7 +82,7 @@ test("low-confidence A wins over confident B through completion", () => {
 
 test("all seven labels survive one-hand and two-hand transitions as A", () => {
   const gestures = [
-    ["I want to drink water", 1],
+    ["I want to drink", 1],
     ["I want to eat food", 1],
     ["Help", 2],
     ["No", 1],

@@ -22,6 +22,16 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-09-22-drink-gesture-label
+- Outcome: Renamed the fixed gesture display phrase and spoken clip from I want to drink water to I want to drink, updated the live Supabase row and cache-safe audio URL, and retained the same gesture ID and trained model class/weights.
+- Files/areas: gesture label/model mappings, gesture UI and feedback utilities, gesture tests, learning-media uploader/validator, README, seed data, `public/audio/gesture-drink-water.wav`.
+- Verification: All gesture feedback/capture/stability tests, the seven-clip offline pronunciation audit, live material validation, `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. Build skipped because the user's Next.js dev server is running.
+
+### 2026-09-22-learning-audio-pronunciation
+- Outcome: Re-recorded Am as the spoken word and Hurt more clearly, published both under fresh Supabase Storage URLs, normalized Am in browser speech paths, and expanded live/local audio validation. All 57 bundled material recordings matched their intended labels in the final offline audit.
+- Files/areas: `public/audio/pecs`, shared speech utilities, Content/Playground/Activity audio paths, learning-media uploader and validator, audio regression test.
+- Verification: `npm run test:audio`, `npm run validate:materials`, `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. Build skipped because the user's Next.js dev server is running.
+
 ### 2026-09-21-guided-camera-brightness
 - Outcome: Removed the full-frame dark gradient from guided capture and feedback while retaining the intentional countdown dimming and readable floating labels.
 - Files/areas: `src/features/gesture/gesture-practice-view.tsx`.

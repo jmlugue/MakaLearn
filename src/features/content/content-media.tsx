@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Film, Image as ImageIcon, Pause, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSpeechFallbackLabel, isSpeechFallbackAudio } from "@/utils/pecs-content-library";
+import { normalizeLearningSpeechText } from "@/utils/speech-text";
 
 export function isUrl(value: string) {
   return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/") || value.startsWith("blob:");
@@ -30,7 +31,7 @@ export function getMediaFileName(value: string | undefined) {
 export function speakText(text: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(normalizeLearningSpeechText(text));
   utterance.rate = 0.85;
   window.speechSynthesis.speak(utterance);
 }

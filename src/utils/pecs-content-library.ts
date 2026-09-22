@@ -4,6 +4,7 @@ import {
   type PecsCardCategory
 } from "@/data/pecs-card-manifest";
 import type { Category, LearningItem } from "@/types";
+import { normalizeLearningSpeechText } from "@/utils/speech-text";
 
 const categoryColors: Record<PecsCardCategory, string> = {
   Greetings: "#dbeafe",
@@ -24,7 +25,7 @@ function getPecsCategoryId(category: PecsCardCategory) {
 }
 
 export function createSpeechFallbackAudioUrl(label: string) {
-  return `speech:${encodeURIComponent(label)}`;
+  return `speech:${encodeURIComponent(normalizeLearningSpeechText(label))}`;
 }
 
 export function isSpeechFallbackAudio(value?: string) {

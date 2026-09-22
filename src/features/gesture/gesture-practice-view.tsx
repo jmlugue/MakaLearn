@@ -119,7 +119,7 @@ const HAND_TRACKING_CONFIDENCE = 0.65;
 const fixedGestureLabels = new Set([
   "I want to go to toilet",
   "I want to eat food",
-  "I want to drink water",
+  "I want to drink",
   "Help",
   "Yes",
   "No",
@@ -2328,7 +2328,7 @@ function FeedbackMascot({ success }: { success: boolean }) {
 function getLearnerCardLabel(label: string) {
   if (/toilet/i.test(label)) return "Toilet";
   if (/eat food/i.test(label)) return "Eat";
-  if (/drink water/i.test(label)) return "Drink";
+  if (/drink(?: water)?/i.test(label)) return "Drink";
   if (/sit/i.test(label)) return "Sit";
 
   return label.replace(/^I want to /i, "").trim().replace(/^./, (character) => character.toUpperCase());
