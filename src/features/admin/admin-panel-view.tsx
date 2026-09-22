@@ -12,7 +12,7 @@ import { GuideTip } from "@/features/guide/guide-tip";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { fetchAuditLogs } from "@/lib/audit-logs";
-import { fetchActivityResults, fetchMakaLearnData } from "@/lib/supabase/app-data";
+import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { AccountsSection, type StatusFilter } from "@/features/admin/accounts-section";
 import { ActivitySection } from "@/features/admin/activity-section";
 import { type LogFilter, type LogRange, rangeStart } from "@/features/admin/admin-shared";
@@ -20,7 +20,6 @@ import { ContentSection, type ContentView } from "@/features/admin/content-secti
 import { OverviewSection, type OverviewJump } from "@/features/admin/overview-section";
 import type {
   Activity as ActivityRecord,
-  ActivityResult,
   AppUser,
   AuditLog,
   Category,
@@ -63,7 +62,6 @@ export function AdminPanelView() {
   const [logFilter, setLogFilter] = useState<LogFilter>("all");
   const [logRange, setLogRange] = useState<LogRange>("all");
   const [dashboardLogs, setDashboardLogs] = useState<AuditLog[]>([]);
-  const [activityResults, setActivityResults] = useState<ActivityResult[]>([]);
   // Set when a Home tile asks the Content section to open a material's pop-up; `at` makes repeat clicks re-trigger.
   const [openItemRequest, setOpenItemRequest] = useState<{ id: string; at: number } | null>(null);
 
@@ -138,20 +136,6 @@ export function AdminPanelView() {
     reloadDashboardLogs();
   }, [reloadDashboardLogs]);
 
-  useEffect(() => {
-    let active = true;
-    // Gesture attempts are never recorded, so only activity results are loaded here.
-    fetchActivityResults()
-      .then((results) => {
-        if (!active) return;
-        setActivityResults(results);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
-
   async function loadMoreLogs() {
     const last = logs[logs.length - 1];
     if (!last) return;
@@ -206,7 +190,6 @@ export function AdminPanelView() {
           activities={activities}
           lessons={lessons}
           logs={dashboardLogs}
-          activityResults={activityResults}
           onJump={handleJump}
         />
       ) : null}

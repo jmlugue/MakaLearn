@@ -22,6 +22,11 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-09-22-admin-recent-activity-home
+- Outcome: Replaced the Admin home Accounts card with Recent Activity, removed the lower dashboard cards below Usage Trends, and stopped loading activity results for the Admin home.
+- Files/areas: `src/features/admin/overview-section.tsx`, `src/features/admin/admin-panel-view.tsx`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by local Next.js worker startup `spawn EPERM`.
+
 ### 2026-09-22-content-gesture-all-filter
 - Outcome: The Content page now shows the category pill row for gestures when gesture categories exist, so the shared All button appears like it does for PECS cards.
 - Files/areas: `src/features/content/materials-tab.tsx`.

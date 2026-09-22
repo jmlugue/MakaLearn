@@ -3,18 +3,15 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { animate, motion, useReducedMotion } from "framer-motion";
-import { Activity, BookOpenCheck, ChevronRight, Gamepad2, GraduationCap, Hand, History, Layers, Trophy, Users, UserX } from "lucide-react";
+import { Activity, BookOpenCheck, ChevronRight, Gamepad2, GraduationCap, Hand, Layers } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Select } from "@/components/ui/form";
 import { Avatar, describeActivity, formatDateTime } from "@/features/admin/admin-shared";
 import type { ContentView } from "@/features/admin/content-section";
-import { cn, formatDate } from "@/lib/utils";
-import { activityTypeLabels } from "@/utils/activity-labels";
-import { activityPlayHref } from "@/utils/lesson-activity";
-import { entityColors, materialColor } from "@/lib/entity-colors";
+import { cn } from "@/lib/utils";
+import { entityColors } from "@/lib/entity-colors";
 import type {
   Activity as ActivityRecord,
-  ActivityResult,
   AppUser,
   AuditLog,
   LearningItem,
@@ -408,12 +405,6 @@ function UsageTrend({ logs }: { logs: AuditLog[] }) {
   );
 }
 
-function scoreTone(score: number) {
-  if (score >= 80) return "bg-emerald-100 text-emerald-700";
-  if (score >= 60) return "bg-blue-100 text-blue-700";
-  return "bg-amber-100 text-amber-700";
-}
-
 export function OverviewSection({
   adminName,
   users,
@@ -422,7 +413,6 @@ export function OverviewSection({
   activities,
   lessons,
   logs,
-  activityResults,
   onJump
 }: {
   adminName: string;
@@ -432,19 +422,11 @@ export function OverviewSection({
   activities: ActivityRecord[];
   lessons: Lesson[];
   logs: AuditLog[];
-  activityResults: ActivityResult[];
   onJump: (jump: OverviewJump) => void;
 }) {
   const reduceMotion = useReducedMotion();
-  const teachers = users.filter((account) => account.role === "teacher");
-  const deactivated = users.filter((account) => account.status === "deactivated").length;
-  const activeTeachers = teachers.filter((account) => account.status !== "deactivated").length;
-  const admins = users.filter((account) => account.role === "admin").length;
+  const activeTeachers = users.filter((account) => account.role === "teacher" && account.status !== "deactivated").length;
   const manualLessons = lessons.filter((lesson) => lesson.source === "manual").length;
-  // Active accounts first, then deactivated, so faded avatars sit at the end of the stack.
-  const stackAccounts = [...users]
-    .sort((a, b) => Number(a.status === "deactivated") - Number(b.status === "deactivated"))
-    .slice(0, 6);
   const pecsCount = items.filter((item) => item.contentType === "pecs").length;
   const gestureCount = items.length - pecsCount;
   const adminMedia = media.filter((asset) => asset.type !== "learner-photo");
@@ -455,31 +437,6 @@ export function OverviewSection({
   const signInsToday = logs.filter((log) => log.action === "login" && isToday(log.createdAt)).length;
   const ringLength = 2 * Math.PI * 15.9;
   const pecsLength = items.length ? (pecsCount / items.length) * ringLength : 0;
-
-  const topActivities = useMemo(() => {
-    const byActivity = new Map<string, { plays: number; scoreSum: number }>();
-    activityResults.forEach((result) => {
-      const entry = byActivity.get(result.activityId) ?? { plays: 0, scoreSum: 0 };
-      entry.plays += 1;
-      entry.scoreSum += result.score;
-      byActivity.set(result.activityId, entry);
-    });
-    return Array.from(byActivity.entries())
-      .map(([activityId, entry]) => ({
-        activity: activities.find((candidate) => candidate.id === activityId),
-        plays: entry.plays,
-        average: Math.round(entry.scoreSum / entry.plays)
-      }))
-      .filter((entry) => entry.activity)
-      .sort((a, b) => b.plays - a.plays || b.average - a.average)
-      .slice(0, 5);
-  }, [activities, activityResults]);
-
-  const averageScore = activityResults.length
-    ? Math.round(activityResults.reduce((sum, result) => sum + result.score, 0) / activityResults.length)
-    : 0;
-
-  const latestMaterials = useMemo(() => [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5), [items]);
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-12">
@@ -492,75 +449,31 @@ export function OverviewSection({
         ]}
       />
 
-      {/* Accounts: big numbers, avatar stack (deactivated faded with a red dot) */}
+      {/* Recent activity: action-focused admin summary instead of raw account totals. */}
       <Tile index={1} className="xl:col-span-3 xl:row-span-2">
-        <TileHeader icon={Users} title="Accounts" onSeeAll={() => onJump({ section: "accounts" })} />
-        <div className="mt-3 flex items-end gap-2">
-          <p className="text-5xl font-black leading-none tracking-[-0.04em] text-ink">
-            <CountUp value={users.length} />
-          </p>
-          <p className="pb-1 text-sm font-semibold text-slate-500">accounts</p>
-        </div>
-        <div className="mt-4 flex -space-x-2" aria-hidden="true">
-          {stackAccounts.map((account, index) => {
-            const isDeactivated = account.status === "deactivated";
-            return (
-              <motion.span
-                key={account.id}
-                className="relative"
-                initial={reduceMotion ? false : { opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + index * 0.08 }}
-                title={`${account.name}${isDeactivated ? " (deactivated)" : ""}`}
-              >
-                <Avatar
-                  name={account.name}
-                  className={cn("h-10 w-10 border-2 border-white text-xs", isDeactivated && "bg-slate-300 text-slate-500")}
-                />
-                {isDeactivated ? (
-                  <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-400" />
-                ) : null}
-              </motion.span>
-            );
-          })}
-          {users.length > stackAccounts.length ? (
-            <span className="grid h-10 w-10 place-items-center rounded-full border-2 border-white bg-blue-50 text-xs font-bold text-blue-700">
-              +{users.length - stackAccounts.length}
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-auto space-y-2 pt-5">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-blue-50 px-3 py-2.5">
-              <p className="text-3xl font-black leading-none text-blue-700">
-                <CountUp value={activeTeachers} />
-              </p>
-              <p className="mt-1 text-xs font-semibold text-slate-600">Teachers</p>
-            </div>
-            <div className="rounded-xl bg-blue-50 px-3 py-2.5">
-              <p className="text-3xl font-black leading-none text-blue-700">
-                <CountUp value={admins} />
-              </p>
-              <p className="mt-1 text-xs font-semibold text-slate-600">Admins</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onJump({ section: "accounts", status: "deactivated" })}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-              deactivated ? "bg-red-50 hover:bg-red-100" : "bg-slate-50 hover:bg-slate-100"
-            )}
-          >
-            <span className={cn("grid h-8 w-8 place-items-center rounded-lg bg-[#fff]", deactivated ? "text-red-500" : "text-slate-400")}>
-              <UserX className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <span className="flex-1 text-sm font-semibold text-slate-700">Deactivated</span>
-            <span className={cn("text-2xl font-black", deactivated ? "text-red-600" : "text-slate-400")}>
-              <CountUp value={deactivated} />
-            </span>
-          </button>
-        </div>
+        <TileHeader icon={Activity} title="Recent activity" onSeeAll={() => onJump({ section: "activity" })} />
+        {logs.length === 0 ? (
+          <EmptyNote>No activity yet.</EmptyNote>
+        ) : (
+          <ul className="mt-3 divide-y divide-slate-100">
+            {logs.slice(0, 7).map((log) => {
+              const { sentence } = describeActivity(log);
+              const showTitle = log.action !== "login" && log.action !== "logout";
+              return (
+                <li key={log.id} className="flex items-center gap-3 py-2">
+                  <Avatar name={log.actorName} className="h-7 w-7 text-[10px]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-slate-600">
+                      <span className="font-semibold text-ink">{log.actorName}</span> {sentence.charAt(0).toLowerCase() + sentence.slice(1)}
+                      {showTitle ? <span className="text-ink">: {log.targetTitle}</span> : null}
+                    </p>
+                    <p className="text-[11px] text-slate-400">{formatDateTime(log.createdAt)}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </Tile>
 
       {/* Materials & media: split ring + big numbers + thumbnails */}
@@ -668,119 +581,6 @@ export function OverviewSection({
 
       <Tile index={4} className="min-h-[20rem] sm:col-span-2 xl:col-span-12">
         <UsageTrend logs={logs} />
-      </Tile>
-
-      {/* Most used activities: ranked list + score pill; each row opens that activity */}
-      <Tile index={5} className="xl:col-span-4">
-        <TileHeader icon={Trophy} title="Most used activities" href="/activities" />
-        {topActivities.length === 0 ? (
-          <EmptyNote>No activities played yet.</EmptyNote>
-        ) : (
-          <ol className="mt-3 space-y-1.5">
-            {topActivities.map((entry, index) => (
-              <li key={entry.activity?.id}>
-                <Link
-                  href={entry.activity ? activityPlayHref(entry.activity.id) : "/activities"}
-                  className="group flex items-center gap-3 rounded-xl px-2 py-1.5 transition hover:bg-blue-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
-                >
-                  <span
-                    className={cn(
-                      "grid h-7 w-7 shrink-0 place-items-center rounded-lg text-xs font-extrabold",
-                      index === 0 ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700"
-                    )}
-                  >
-                    {index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-ink group-hover:text-blue-700">{entry.activity?.title}</span>
-                    <span className="block truncate text-xs text-slate-500">
-                      {entry.activity ? activityTypeLabels[entry.activity.type] : ""} · {entry.plays} {entry.plays === 1 ? "play" : "plays"}
-                    </span>
-                  </span>
-                  <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-bold", scoreTone(entry.average))}>{entry.average}%</span>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        )}
-        {activityResults.length ? (
-          <p className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500">
-            Average score, {activityResults.length} {activityResults.length === 1 ? "play" : "plays"}
-            <span className={cn("rounded-full px-2 py-0.5 text-xs font-bold", scoreTone(averageScore))}>{averageScore}%</span>
-          </p>
-        ) : null}
-      </Tile>
-
-      {/* Latest materials: thumbnail cards that open the material pop-up */}
-      <Tile index={6} className="xl:col-span-4">
-        <TileHeader icon={History} title="Latest materials" onSeeAll={() => onJump({ section: "content", view: "materials" })} />
-        {latestMaterials.length === 0 ? (
-          <EmptyNote>No materials yet.</EmptyNote>
-        ) : (
-          <ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5 xl:grid-cols-3">
-            {latestMaterials.map((item, index) => (
-              <motion.li
-                key={item.id}
-                initial={reduceMotion ? false : { opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3 + index * 0.06 }}
-                className={index > 2 ? "xl:hidden" : undefined}
-              >
-                <button
-                  type="button"
-                  onClick={() => onJump({ section: "content", view: "materials", openItemId: item.id })}
-                  title={`${item.label}, updated ${formatDate(item.updatedAt)}`}
-                  className="group flex w-full flex-col items-center gap-1.5 rounded-xl border border-blue-100 bg-[#f8fbff] p-2 text-center transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
-                >
-                  <span className="grid aspect-square w-full place-items-center overflow-hidden rounded-lg bg-[#fff]">
-                    {item.symbolImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.symbolImageUrl} alt="" className="h-full w-full object-contain p-1.5" />
-                    ) : (
-                      <Hand className={cn("h-6 w-6", entityColors.gesture.text)} aria-hidden="true" />
-                    )}
-                  </span>
-                  <span className="w-full truncate text-xs font-semibold text-ink">{item.label}</span>
-                  <span
-                    className={cn(
-                      "rounded-full px-1.5 text-[10px] font-semibold",
-                      materialColor(item.contentType).badge
-                    )}
-                  >
-                    {item.contentType === "pecs" ? "PECS" : "Gesture"}
-                  </span>
-                </button>
-              </motion.li>
-            ))}
-          </ul>
-        )}
-      </Tile>
-
-      {/* Recent activity feed */}
-      <Tile index={7} className="sm:col-span-2 xl:col-span-4">
-        <TileHeader icon={Activity} title="Recent activity" onSeeAll={() => onJump({ section: "activity" })} />
-        {logs.length === 0 ? (
-          <EmptyNote>No activity yet.</EmptyNote>
-        ) : (
-          <ul className="mt-3 divide-y divide-slate-100">
-            {logs.slice(0, 5).map((log) => {
-              const { sentence } = describeActivity(log);
-              const showTitle = log.action !== "login" && log.action !== "logout";
-              return (
-                <li key={log.id} className="flex items-center gap-3 py-2">
-                  <Avatar name={log.actorName} className="h-7 w-7 text-[10px]" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-slate-600">
-                      <span className="font-semibold text-ink">{log.actorName}</span> {sentence.charAt(0).toLowerCase() + sentence.slice(1)}
-                      {showTitle ? <span className="text-ink">: {log.targetTitle}</span> : null}
-                    </p>
-                    <p className="text-[11px] text-slate-400">{formatDateTime(log.createdAt)}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </Tile>
     </div>
   );
