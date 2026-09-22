@@ -22,6 +22,11 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-09-22-gesture-preload
+- Outcome: Added idle-time authenticated preloading for gesture recognition assets: MediaPipe vision runtime, hand landmarker task, and MakaLearn CNN weights. Gesture Practice now reuses the shared cached hand tracker/model while camera startup remains page-only.
+- Files/areas: `src/components/layout/app-shell.tsx`, `src/features/gesture/gesture-practice-view.tsx`, `src/utils/gesture-model.ts`, `src/utils/gesture-hand-tracker.ts`, `src/utils/gesture-preload.ts`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, `npm run test:feedback`, and `git diff --check` passed. `npm run test:gesture-capture`, `npm run test:gesture-stability`, and `npm run build` were blocked by local `spawn EPERM`.
+
 ### 2026-09-22-playground-search-hover-height
 - Outcome: Removed the Playground search bar hover styling and aligned the search field and Categories label height with the category buttons.
 - Files/areas: `src/features/playground/playground-view.tsx`.

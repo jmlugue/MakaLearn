@@ -40,6 +40,7 @@ import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/dialog";
+import { createGestureDrawingUtils, loadGestureHandTracker } from "@/utils/gesture-hand-tracker";
 import {
   buildGestureFeedbackRequest,
   createTemplateGestureFeedback,
@@ -75,7 +76,6 @@ import {
 } from "@/utils/gesture-shape-safety";
 import {
   appendLiveGestureFrame,
-  disposeMakaLearnGestureModel,
   MIN_LIVE_GESTURE_FRAMES,
   predictMakaLearnGesture,
   resetLiveGestureBuffer,
@@ -112,9 +112,6 @@ const STABLE_POSE_AUTO_PREDICT_DELAY_MS = 2000;
 const MIN_CONFIDENT_PREDICTION_PERCENT = 70;
 const READY_GESTURE_HOLD_MS = 600;
 const GUIDED_SUCCESS_DELAY_MS = 2200;
-const HAND_DETECTION_CONFIDENCE = 0.7;
-const HAND_PRESENCE_CONFIDENCE = 0.7;
-const HAND_TRACKING_CONFIDENCE = 0.65;
 
 const fixedGestureLabels = new Set([
   "I want to go to toilet",
@@ -286,8 +283,6 @@ export function GesturePracticeView() {
       guidedTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
       guidedTimeoutsRef.current = [];
       streamRef.current?.getTracks().forEach((track) => track.stop());
-      handLandmarkerRef.current?.close();
-      disposeMakaLearnGestureModel();
     };
   }, [notify]);
 
@@ -559,28 +554,13 @@ export function GesturePracticeView() {
     if (handLandmarkerRef.current && drawingUtilsRef.current) return handLandmarkerRef.current;
 
     setTrackerStatus("loading");
-    const vision = await import("@mediapipe/tasks-vision");
-    let handLandmarker = handLandmarkerRef.current;
+    const { vision, handLandmarker, handConnections } = await loadGestureHandTracker();
+    handLandmarkerRef.current = handLandmarker;
+    handConnectionsRef.current = handConnections;
 
-    if (!handLandmarker) {
-      const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
-      handLandmarker = await vision.HandLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: "/models/hand_landmarker.task" },
-        runningMode: "VIDEO",
-        numHands: 2,
-        // Stricter presence checks prevent faces, clothing, and background
-        // shapes from being drawn and captured as phantom hands.
-        minHandDetectionConfidence: HAND_DETECTION_CONFIDENCE,
-        minHandPresenceConfidence: HAND_PRESENCE_CONFIDENCE,
-        minTrackingConfidence: HAND_TRACKING_CONFIDENCE
-      });
-      handLandmarkerRef.current = handLandmarker;
-      handConnectionsRef.current = vision.HandLandmarker.HAND_CONNECTIONS;
-    }
-
-    const context = canvasRef.current?.getContext("2d");
-    if (!context) throw new Error("The tracking canvas is unavailable.");
-    drawingUtilsRef.current = new vision.DrawingUtils(context);
+    const canvas = canvasRef.current;
+    if (!canvas?.getContext("2d")) throw new Error("The tracking canvas is unavailable.");
+    drawingUtilsRef.current = createGestureDrawingUtils(vision, canvas);
     setTrackerStatus("ready");
     return handLandmarker;
   }

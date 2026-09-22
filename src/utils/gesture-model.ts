@@ -121,6 +121,10 @@ export function disposeMakaLearnGestureModel() {
   loadedModelPromise = null;
 }
 
+export function preloadMakaLearnGestureModel() {
+  return loadMakaLearnGestureModel().then(() => undefined);
+}
+
 async function loadMakaLearnGestureModel() {
   if (!loadedModelPromise) {
     loadedModelPromise = fetch(MODEL_WEIGHTS_URL)

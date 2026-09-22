@@ -33,6 +33,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
     releaseStrayScrollLock();
   }, [pathname]);
   const { user, loading, error } = useAuthState();
+  const preloadUserId = user?.id;
   const { isStudentMode, isStudentNavOpen, exitStudentMode, openStudentNav, closeStudentNav } = useStudentMode();
   const isStudentGestureViewport = isStudentMode && pathname === "/gesture-practice";
   useEffect(() => {
@@ -52,6 +53,38 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
       router.replace(user.role === "admin" ? "/admin" : "/content");
     }
   }, [isStudentMode, loading, pathname, router, user]);
+
+  useEffect(() => {
+    if (loading || !preloadUserId) return;
+
+    let cancelled = false;
+    let timeoutId: number | undefined;
+    let idleId: number | undefined;
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const startPreload = () => {
+      void import("@/utils/gesture-preload")
+        .then(({ preloadGestureRecognitionAssets }) => {
+          if (!cancelled) void preloadGestureRecognitionAssets().catch(() => undefined);
+        })
+        .catch(() => undefined);
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      idleId = idleWindow.requestIdleCallback(startPreload, { timeout: 2500 });
+    } else {
+      timeoutId = window.setTimeout(startPreload, 1200);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [loading, preloadUserId]);
 
   function handleExitStudentMode() {
     exitStudentMode();
