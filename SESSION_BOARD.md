@@ -22,6 +22,16 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-09-22-content-gesture-all-filter
+- Outcome: The Content page now shows the category pill row for gestures when gesture categories exist, so the shared All button appears like it does for PECS cards.
+- Files/areas: `src/features/content/materials-tab.tsx`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by local Next.js worker startup `spawn EPERM`.
+
+### 2026-09-22-admin-content-buttons
+- Outcome: Hid the Add PECS card/Add gesture material button on the Content page for admin users while keeping it visible for teachers.
+- Files/areas: `src/features/content/content-library-view.tsx`, `src/features/content/materials-tab.tsx`.
+- Verification: `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by local Next.js worker startup `spawn EPERM`.
+
 ### 2026-09-22-gesture-preload
 - Outcome: Added idle-time authenticated preloading for gesture recognition assets: MediaPipe vision runtime, hand landmarker task, and MakaLearn CNN weights. Gesture Practice now reuses the shared cached hand tracker/model while camera startup remains page-only.
 - Files/areas: `src/components/layout/app-shell.tsx`, `src/features/gesture/gesture-practice-view.tsx`, `src/utils/gesture-model.ts`, `src/utils/gesture-hand-tracker.ts`, `src/utils/gesture-preload.ts`.

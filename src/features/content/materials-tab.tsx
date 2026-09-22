@@ -23,7 +23,8 @@ export function MaterialsTab({
   search,
   onSearchChange,
   onOpenItem,
-  onAdd
+  onAdd,
+  canAdd = true
 }: {
   items: LearningItem[];
   categories: Category[];
@@ -35,6 +36,7 @@ export function MaterialsTab({
   onSearchChange: (value: string) => void;
   onOpenItem: (item: LearningItem) => void;
   onAdd: () => void;
+  canAdd?: boolean;
 }) {
   const [page, setPage] = useState(1);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
@@ -83,7 +85,7 @@ export function MaterialsTab({
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="min-w-0 flex-1">
-          {usedCategories.length > 1 ? (
+          {usedCategories.length ? (
             <GuideTip id="content.categories">
               <CategoryPills categories={usedCategories} value={categoryId} onChange={onCategoryChange} />
             </GuideTip>
@@ -96,12 +98,14 @@ export function MaterialsTab({
             value={search}
             onChange={onSearchChange}
           />
-          <GuideTip id="content.addMaterial">
-            <Button onClick={onAdd}>
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {kindMeta[kind].addLabel}
-            </Button>
-          </GuideTip>
+          {canAdd ? (
+            <GuideTip id="content.addMaterial">
+              <Button onClick={onAdd}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {kindMeta[kind].addLabel}
+              </Button>
+            </GuideTip>
+          ) : null}
         </div>
       </div>
 
@@ -115,7 +119,7 @@ export function MaterialsTab({
         <EmptyState
           icon={Layers}
           title={kindItems.length ? "Nothing found" : kind === "pecs" ? "No PECS cards yet" : "No gestures yet"}
-          description={kindItems.length ? "Try another search or category." : `Use ${kindMeta[kind].addLabel} to create the first one.`}
+          description={kindItems.length ? "Try another search or category." : canAdd ? `Use ${kindMeta[kind].addLabel} to create the first one.` : "No materials are available yet."}
         />
       )}
 

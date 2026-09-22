@@ -529,6 +529,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
             onSearchChange={setSearch}
             onOpenItem={(item) => setOpenItemId(item.id)}
             onAdd={() => setCardFormOpen(true)}
+            canAdd={user.role === "teacher"}
           />
         ) : tab === "lessons" ? (
           <LessonsTab
