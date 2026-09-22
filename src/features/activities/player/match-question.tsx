@@ -161,7 +161,7 @@ export function MatchWordSymbolStudentLayout({
                 >
                   <CheckedOptionBadge state={state} />
                   <span className="grid h-full min-h-0 place-items-center overflow-hidden rounded-[1.2rem] bg-white/85 p-1 sm:p-2">
-                    <SymbolOption value={option} learningItems={learningItems} framed={false} className="!h-full max-h-full" />
+                    <SymbolOption value={option} learningItems={learningItems} framed={false} preferNoTextPecs className="!h-full max-h-full" />
                   </span>
                 </button>
               );

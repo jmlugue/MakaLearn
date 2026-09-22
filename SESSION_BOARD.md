@@ -22,6 +22,16 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-09-22-activities-no-text-pecs-assets
+- Outcome: Student Activities now use `public/pecs/generated_cards_no_text` artwork for visible PECS answer cards in Match, Choose, Drag and Drop, dropped previews, and result summaries while keeping prompt text and screen-reader labels.
+- Files/areas: `src/features/activities/player/player-parts.tsx`, `match-question.tsx`, `choose-question.tsx`, `drag-drop-question.tsx`, `activity-result.tsx`.
+- Verification: No missing manifest filenames in `public/pecs/generated_cards_no_text`; `npx tsc --noEmit`, `npm run lint`, and `git diff --check` passed. `npm run build` was blocked by Next.js worker startup `spawn EPERM`.
+
+### 2026-09-22-revert-pecs-no-text
+- Outcome: Reverted the prior Activities PECS no-text card change. Student answer cards again render the full symbol artwork.
+- Files/areas: `src/features/activities/player/player-parts.tsx`, `match-question.tsx`, `choose-question.tsx`.
+- Verification: `git diff --check` passed.
+
 ### 2026-09-22-drink-gesture-label
 - Outcome: Renamed the fixed gesture display phrase and spoken clip from I want to drink water to I want to drink, updated the live Supabase row and cache-safe audio URL, and retained the same gesture ID and trained model class/weights.
 - Files/areas: gesture label/model mappings, gesture UI and feedback utilities, gesture tests, learning-media uploader/validator, README, seed data, `public/audio/gesture-drink-water.wav`.

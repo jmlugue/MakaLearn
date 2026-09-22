@@ -188,6 +188,7 @@ export function DragDropSymbolStudentLayout({
                       value={answer}
                       learningItems={learningItems}
                       compact
+                      preferNoTextPecs
                       resultTone={result ? (isCorrect ? "correct" : "wrong") : "neutral"}
                     />
                   ) : (
@@ -213,6 +214,7 @@ export function DragDropSymbolStudentLayout({
                 value={card}
                 learningItems={learningItems}
                 selected={selected}
+                preferNoTextPecs
                 onSelect={() => setDragged(card)}
               />
             );
