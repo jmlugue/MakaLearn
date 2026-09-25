@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, FolderOpen, Image as ImageIcon, Layers, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { PillTabs } from "@/components/ui/pill-tabs";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { LoadingState } from "@/components/common/loading-state";
 import { useToast } from "@/components/common/toast-provider";
@@ -24,7 +25,6 @@ import {
   updateLesson
 } from "@/lib/supabase/app-data";
 import { deleteMediaAssetFromSupabase, uploadMediaAssetToSupabase } from "@/lib/supabase/media";
-import { createLessonDraftFromItem } from "@/utils/lesson-template";
 import { canSee, uniqueCopyTitle } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories, ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
@@ -32,11 +32,10 @@ import { CardDetailDialog, type CardTextValues } from "@/features/content/card-d
 import { CardFormDialog, type NewCardFiles, type NewCardValues } from "@/features/content/card-form-dialog";
 import { CategoriesTab } from "@/features/content/categories-tab";
 import { CategoryDialog, type CategoryFormValues } from "@/features/content/category-dialog";
-import { createLearningItemInstruction, nameFor, type ContentKind } from "@/features/content/content-shared";
+import { createLearningItemInstruction, fileCategoryName, nameFor, visibleCategories, type ContentKind } from "@/features/content/content-shared";
 import { GuideBanner } from "@/features/guide/guide-banner";
 import { GuideTip } from "@/features/guide/guide-tip";
 import { MaterialsTab } from "@/features/content/materials-tab";
-import { cn } from "@/lib/utils";
 import { LessonFormDialog, type LessonFormMode, type LessonFormValues } from "@/features/content/lesson-form-dialog";
 import { LessonPreviewDialog } from "@/features/content/lesson-preview-dialog";
 import { LessonsTab } from "@/features/content/lessons-tab";
@@ -138,6 +137,8 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     setOpenItemId(target.id);
   }, [initialItemId, items, notify, ready]);
 
+  // "Fixed gestures" stays in the data for Guided 7 but is not shown as a category.
+  const shownCategories = useMemo(() => visibleCategories(categories), [categories]);
   const userNames = useMemo(() => new Map(users.map((candidate) => [candidate.id, candidate.name])), [users]);
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const openItem = itemById.get(openItemId) ?? null;
@@ -185,7 +186,8 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       type: config.type,
       title: `${item.label} ${mediaTypeText(config.type)}`,
       uploadedBy: user.id,
-      relatedItemId: item.id
+      relatedItemId: item.id,
+      expectedName: { label: item.label, category: fileCategoryName(categories.find((category) => category.id === item.categoryId)) }
     });
     if (uploaded.publicUrl) {
       try {
@@ -214,7 +216,6 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     };
     const uploads: Array<{ key: keyof NewCardFiles } & UploadConfig> = [
       { key: "symbol", bucket: "symbol-images", type: "symbol-image" },
-      { key: "gesture", bucket: "gesture-media", type: "gesture-media" },
       { key: "audio", bucket: "audio-files", type: "audio-file" }
     ];
 
@@ -256,7 +257,6 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     const next: LearningItem = {
       ...item,
       ...values,
-      tags: values.tags.length ? values.tags : item.tags,
       instruction: createLearningItemInstruction(item.contentType, values.label, values.description),
       updatedAt: new Date().toISOString()
     };
@@ -283,7 +283,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       log("upload", "media", asset.title, `Uploaded ${mediaTypeText(asset.type)} for ${item.label}.`, asset.id);
       notify({ title: "Media uploaded", description: `${file.name} was added to ${item.label}.`, tone: "success" });
     } catch (error) {
-      notify({ title: "Upload failed", description: "The file could not be added. Try again.", tone: "error" });
+      notify({ title: "Upload failed", description: errorText(error, "The file could not be added. Try again."), tone: "error" });
       throw error;
     }
   }
@@ -384,12 +384,6 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
 
   // Lessons
 
-  function generateLesson(item: LearningItem) {
-    setOpenItemId("");
-    setTab("lessons");
-    setLessonMode({ kind: "draft", draft: createLessonDraftFromItem(item) });
-  }
-
   async function saveLesson(mode: LessonFormMode, values: LessonFormValues) {
     const selected = values.itemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
     const hasPecs = selected.some((item) => item.contentType === "pecs");
@@ -405,11 +399,9 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     const base: Omit<Lesson, "title" | "objective" | "instructions" | "learningItemIds" | "activityType"> =
       mode.kind === "edit"
         ? mode.lesson
-        : mode.kind === "draft"
-          ? { ...mode.draft, ...newRecord }
-          : mode.kind === "copy"
-            ? { ...mode.source, ...newRecord, source: "manual" as const }
-            : { ...newRecord, estimatedDuration: 10, notes: "", source: "manual" as const };
+        : mode.kind === "copy"
+          ? { ...mode.source, ...newRecord, source: "manual" as const }
+          : { ...newRecord, estimatedDuration: 10, notes: "", source: "manual" as const };
     const next: Lesson = {
       ...base,
       title: values.title,
@@ -434,11 +426,9 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       saved.title,
       previous
         ? "Updated a lesson."
-        : mode.kind === "draft"
-          ? "Saved a generated lesson."
-          : mode.kind === "copy"
-            ? `Copied the lesson "${mode.source.title}".`
-            : "Created a manual lesson.",
+        : mode.kind === "copy"
+          ? `Copied the lesson "${mode.source.title}".`
+          : "Created a lesson.",
       saved.id
     );
     notify({ title: previous ? "Lesson updated" : mode.kind === "copy" ? "Copy saved" : "Lesson saved", tone: "success" });
@@ -517,7 +507,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   const sections: Array<{ value: Tab; label: string; count: number; icon: LucideIcon }> = [
     { value: "materials", label: "Materials", count: items.length, icon: Layers },
     { value: "lessons", label: "Lessons", count: lessons.length, icon: BookOpen },
-    { value: "categories", label: "Categories", count: categories.length, icon: FolderOpen },
+    { value: "categories", label: "Categories", count: shownCategories.length, icon: FolderOpen },
     { value: "media", label: "Media", count: media.length, icon: ImageIcon }
   ];
 
@@ -526,7 +516,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       <PageHeader title="Content" icon={Layers} />
       <GuideBanner pageKey="content" />
       <GuideTip id="content.sections">
-        <SectionTiles sections={sections} value={tab} onChange={setTab} />
+        <PillTabs id="content-sections" label="Content sections" value={tab} onChange={setTab} options={sections} />
       </GuideTip>
 
       <div className="mt-5">
@@ -560,7 +550,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
           />
         ) : tab === "categories" ? (
           <CategoriesTab
-            categories={categories}
+            categories={shownCategories}
             items={items}
             canCreate={user.role === "teacher"}
             onOpenCategory={(category) => setCategoryDialog({ categoryId: category.id, mode: "view" })}
@@ -585,7 +575,6 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
           setRemoveFile(true);
           setMediaToRemove({ item, type });
         }}
-        onGenerateLesson={generateLesson}
         onDelete={(item) => {
           setDeleteMedia(true);
           setItemToDelete(item);
@@ -744,47 +733,4 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
 
 function kindLabel(kind: ContentKind) {
   return kind === "pecs" ? "PECS card" : "Gesture";
-}
-
-/** Page sections as large glassy tiles. The selected one fills blue. */
-function SectionTiles({
-  sections,
-  value,
-  onChange
-}: {
-  sections: Array<{ value: Tab; label: string; count: number; icon: LucideIcon }>;
-  value: Tab;
-  onChange: (value: Tab) => void;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="tablist" aria-label="Content sections">
-      {sections.map((section) => {
-        const selected = section.value === value;
-        const Icon = section.icon;
-        return (
-          <button
-            key={section.value}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            onClick={() => onChange(section.value)}
-            className={cn(
-              "flex items-center gap-3 rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-              selected
-                ? "border-blue-500 bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_14px_30px_rgba(37,99,235,0.28)]"
-                : "border-white/80 bg-[#fff]/70 text-ink shadow-sm backdrop-blur-xl hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
-            )}
-          >
-            <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl", selected ? "bg-white/20 text-white" : "bg-blue-50 text-blue-600")}>
-              <Icon className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className={cn("block truncate text-sm font-semibold", selected ? "text-blue-50" : "text-slate-500")}>{section.label}</span>
-              <span className="block text-2xl font-black leading-tight">{section.count}</span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
 }

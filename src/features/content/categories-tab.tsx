@@ -96,16 +96,17 @@ export function CategoriesTab({
                     Array.from({ length: 4 }, (_, index) => {
                       const item = covers[index];
                       return (
-                        <span key={item?.id ?? `empty-${index}`} className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-[#fff]/85">
-                          {item ? <CardImage value={item.symbolImageUrl} label={item.label} className="p-0.5 text-[9px] leading-tight" /> : null}
+                        <span key={item?.id ?? `empty-${index}`} className="relative block aspect-square overflow-hidden rounded-lg bg-[#fff]/85">
+                          {item ? (
+                            <span className="absolute inset-0.5">
+                              <CardImage value={item.symbolImageUrl} label={item.label} className="text-[9px] leading-tight" />
+                            </span>
+                          ) : null}
                         </span>
                       );
                     })
                   ) : (
-                    <span className="col-span-4 flex aspect-[4/1] items-center justify-center gap-2 text-sm font-semibold text-slate-500">
-                      <FolderOpen className="h-4 w-4" aria-hidden="true" />
-                      Empty
-                    </span>
+                    <span className="col-span-4 block aspect-[4/1]" aria-hidden="true" />
                   )}
                 </span>
                 <span className="block p-3">
@@ -113,13 +114,14 @@ export function CategoriesTab({
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tintDot(category.color) }} />
                     <span className="truncate font-bold text-ink group-hover:text-blue-700">{category.name}</span>
                   </span>
-                  <span className="mt-1 flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-500">
-                      {count} {count === 1 ? "material" : "materials"}
+                  {count ? (
+                    <span className="mt-1 flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-500">
+                        {count} {count === 1 ? "material" : "materials"}
+                      </span>
+                      {gestureCount ? <KindBadge kind="gesture" className="px-1.5 text-[9px]" /> : null}
                     </span>
-                    {gestureCount ? <KindBadge kind="gesture" className="px-1.5 text-[9px]" /> : null}
-                  </span>
-                  {category.description ? <span className="mt-1 block truncate text-xs text-slate-400">{category.description}</span> : null}
+                  ) : null}
                 </span>
               </button>
             );

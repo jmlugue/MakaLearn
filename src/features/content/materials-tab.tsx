@@ -7,7 +7,7 @@ import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { EmptyState } from "@/components/common/empty-state";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { CardTile } from "@/features/content/card-tile";
-import { CategoryPills, kindMeta, type ContentKind } from "@/features/content/content-shared";
+import { CategoryPills, kindMeta, visibleCategories, type ContentKind } from "@/features/content/content-shared";
 import { GuideTip } from "@/features/guide/guide-tip";
 import type { Category, LearningItem } from "@/types";
 
@@ -43,7 +43,7 @@ export function MaterialsTab({
   const kindItems = useMemo(() => items.filter((item) => item.contentType === kind), [items, kind]);
   const usedCategories = useMemo(() => {
     const used = new Set(kindItems.map((item) => item.categoryId));
-    return categories.filter((category) => used.has(category.id));
+    return visibleCategories(categories).filter((category) => used.has(category.id));
   }, [categories, kindItems]);
 
   const filtered = useMemo(() => {
@@ -68,30 +68,31 @@ export function MaterialsTab({
 
   return (
     <section className="space-y-4">
+      {/* Sub-menu: underline tabs, lighter than the pill menu above, so the two levels read apart. */}
       <GuideTip id="content.types">
         <UnderlineTabs
-        id="material-types"
-        label="Material type"
-        value={kind}
-        onChange={onKindChange}
-        options={(["pecs", "gesture"] as ContentKind[]).map((option) => ({
-          value: option,
-          label: kindMeta[option].plural,
-          icon: kindMeta[option].icon,
-          count: option === "pecs" ? pecsCount : items.length - pecsCount
-        }))}
+          id="material-kind"
+          label="Material type"
+          value={kind}
+          onChange={onKindChange}
+          options={(["pecs", "gesture"] as ContentKind[]).map((option) => ({
+            value: option,
+            label: kindMeta[option].plural,
+            icon: kindMeta[option].icon,
+            count: option === "pecs" ? pecsCount : items.length - pecsCount
+          }))}
         />
       </GuideTip>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1 basis-64">
           {usedCategories.length ? (
             <GuideTip id="content.categories">
               <CategoryPills categories={usedCategories} value={categoryId} onChange={onCategoryChange} />
             </GuideTip>
           ) : null}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <SearchInput
             label="Search materials"
             placeholder={kind === "pecs" ? "Search PECS cards" : "Search gestures"}
@@ -110,7 +111,7 @@ export function MaterialsTab({
       </div>
 
       {filtered.length ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 [&>*]:min-w-0">
           {paged.map((item) => (
             <CardTile key={item.id} item={item} category={categoryById.get(item.categoryId)} onOpen={() => onOpenItem(item)} />
           ))}

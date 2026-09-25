@@ -11,6 +11,26 @@ export type ContentKind = "pecs" | "gesture";
 
 export const GESTURE_CATEGORY_ID = "cat-gestures";
 
+/**
+ * Categories kept in the database but hidden from teachers. "Fixed gestures" holds the built-in gestures
+ * used by Guided 7; they stay in it, it just is not offered as a filter, card, or choice.
+ */
+const hiddenCategoryIds = new Set([GESTURE_CATEGORY_ID]);
+
+export function isHiddenCategory(id: string) {
+  return hiddenCategoryIds.has(id);
+}
+
+export function visibleCategories(categories: Category[]) {
+  return categories.filter((category) => !hiddenCategoryIds.has(category.id));
+}
+
+/** Category part of an upload file name. A gesture still in the hidden category uses "gestures". */
+export function fileCategoryName(category?: Category) {
+  if (!category) return "";
+  return hiddenCategoryIds.has(category.id) ? "gestures" : category.name;
+}
+
 /** Inputs inside Content pop-ups: a solid border so fields stand out on the glass dialog. */
 export const fieldClass = "border-blue-100 bg-[#fff] hover:border-blue-300";
 
@@ -97,6 +117,7 @@ export function tintDot(color: string) {
 }
 
 export function CategoryChip({ category, className }: { category?: Category; className?: string }) {
+  if (category && hiddenCategoryIds.has(category.id)) return null;
   return (
     <span className={cn("inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600", className)}>
       <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: category ? tintDot(category.color) : "#cbd5e1" }} />
@@ -186,11 +207,13 @@ export function CategoryPills({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Invisible copy of every pill, used only to measure widths. */}
-      <div ref={measureRef} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 flex gap-2 whitespace-nowrap">
-        {options.map((option) => (
-          <Pill key={option.id} category={option} selected={false} onClick={() => undefined} tabIndex={-1} />
-        ))}
+      {/* Invisible copy of every pill, used only to measure widths. Clipped so it cannot widen the page on phones. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-0 overflow-hidden" aria-hidden="true">
+        <div ref={measureRef} className="invisible absolute left-0 top-0 flex gap-2 whitespace-nowrap">
+          {options.map((option) => (
+            <Pill key={option.id} category={option} selected={false} onClick={() => undefined} tabIndex={-1} />
+          ))}
+        </div>
       </div>
       <div className="flex gap-2" role="group" aria-label="Filter by category">
         {visible.map((option) => (

@@ -6,29 +6,32 @@ import { CardImage } from "@/features/content/content-media";
 import { kindTone } from "@/features/content/content-shared";
 import type { LearningItem, Lesson } from "@/types";
 
-export function SourceBadge({ source }: { source: Lesson["source"] }) {
-  return (
-    <span
-      className={cn(
-        "rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide",
-        source === "manual" ? "bg-blue-100 text-blue-800" : "bg-sky-100 text-sky-800"
-      )}
-    >
-      {source === "manual" ? "Manual" : "Auto-made"}
-    </span>
-  );
-}
+const STRIP_SIZE = 5;
 
-/** Gesture lessons are practised in Gesture practice; the label says so on the card. */
+/** Gesture lessons are practised in Gesture practice; the label says so on the row. */
 export function PracticeLabel({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700", className)}>
-      <Hand className="h-4 w-4" aria-hidden="true" />
+    <span className={cn("inline-flex items-center gap-1 text-xs font-semibold text-sky-700", className)}>
+      <Hand className="h-3.5 w-3.5" aria-hidden="true" />
       Gesture practice
     </span>
   );
 }
 
+/** One small numbered card, in lesson order. */
+export function LessonStep({ item, index, className }: { item: LearningItem; index: number; className?: string }) {
+  const tone = kindTone(item.contentType);
+  return (
+    <span className={cn("relative block aspect-[3/4] overflow-hidden rounded-xl border", tone.soft, tone.border, className)} title={item.label}>
+      <span className="absolute inset-1 rounded-lg bg-[#fff]">
+        <CardImage value={item.symbolImageUrl} label={item.label} className="p-0.5 text-[10px] leading-tight" />
+      </span>
+      <span className="absolute left-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-xs font-bold text-white">{index + 1}</span>
+    </span>
+  );
+}
+
+/** A lesson as one wide plan row: title and description on the left, its cards in order on the right. */
 export function LessonCard({
   lesson,
   items,
@@ -41,7 +44,7 @@ export function LessonCard({
   creator?: string;
   onOpen: () => void;
 }) {
-  const shown = items.slice(0, 4);
+  const shown = items.slice(0, STRIP_SIZE);
   const extra = items.length - shown.length;
   const hasPecs = items.some((item) => item.contentType === "pecs");
 
@@ -49,41 +52,36 @@ export function LessonCard({
     <button
       type="button"
       onClick={onOpen}
-      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-blue-100 bg-[#fff] p-4 pt-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_14px_30px_rgba(37,99,235,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+      className="group relative flex w-full flex-col gap-4 overflow-hidden rounded-2xl border border-blue-100 bg-[#fff] p-4 pl-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_14px_30px_rgba(37,99,235,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 md:flex-row md:items-center"
     >
-      <span className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-blue-600 via-blue-400 to-sky-300" aria-hidden="true" />
-      <span className="flex items-center justify-between gap-2">
-        <span className="flex flex-wrap items-center gap-1.5">
-          <SourceBadge source={lesson.source} />
+      <span className="absolute inset-y-0 left-0 w-1.5 bg-blue-600" aria-hidden="true" />
+      <span className="min-w-0 flex-1">
+        <span className="line-clamp-1 text-lg font-bold leading-snug text-ink group-hover:text-blue-700">{lesson.title}</span>
+        {lesson.objective ? <span className="mt-0.5 line-clamp-1 text-sm leading-6 text-slate-500">{lesson.objective}</span> : null}
+        <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-500">
+          <span>
+            {items.length} {items.length === 1 ? "card" : "cards"}
+          </span>
           {lesson.visibility === "private" ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600">
-              <Lock className="h-3 w-3" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1">
+              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
               Private
             </span>
           ) : null}
+          {creator ? <span>By {creator}</span> : null}
+          {hasPecs ? null : <PracticeLabel />}
         </span>
       </span>
-      <span className="mt-3 line-clamp-2 text-lg font-bold leading-snug text-ink group-hover:text-blue-700">{lesson.title}</span>
-      <span className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{lesson.objective}</span>
-      {creator ? <span className="mt-1 text-xs font-semibold text-slate-400">By {creator}</span> : null}
-      <span className="mb-4 mt-4 flex items-center gap-2">
-        {shown.map((item) => (
-          <span
-            key={item.id}
-            className={cn("grid h-12 w-12 place-items-center overflow-hidden rounded-xl border", kindTone(item.contentType).soft, kindTone(item.contentType).border)}
-            title={item.label}
-          >
-            <CardImage value={item.symbolImageUrl} label={item.label} className="p-1 text-[10px] leading-tight" />
-          </span>
+      <ol className="flex shrink-0 items-center gap-2" aria-label="Cards in order">
+        {shown.map((item, index) => (
+          <li key={item.id} className="w-12">
+            <LessonStep item={item} index={index} />
+          </li>
         ))}
-        {extra > 0 ? <span className="grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">+{extra}</span> : null}
-      </span>
-      <span className="mt-auto flex items-center justify-between gap-2 border-t border-blue-50 pt-3">
-        {hasPecs ? <span /> : <PracticeLabel />}
-        <span className="text-xs font-semibold text-slate-400">
-          {items.length} {items.length === 1 ? "material" : "materials"}
-        </span>
-      </span>
+        {extra > 0 ? (
+          <li className="grid aspect-[3/4] w-12 place-items-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">+{extra}</li>
+        ) : null}
+      </ol>
     </button>
   );
 }

@@ -4,37 +4,36 @@ import { useMemo, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Copy, Lock, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { FieldError, Input, Label } from "@/components/ui/form";
+import { FieldError, Input, Label, Textarea } from "@/components/ui/form";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/utils";
 import { SearchInput } from "@/features/admin/admin-shared";
-import { CardImage } from "@/features/content/content-media";
-import { UnderlineTabs } from "@/components/ui/underline-tabs";
-import { CategoryPills, PopupTitle, fieldClass, glassBoxClass, kindMeta, kindTone, type ContentKind } from "@/features/content/content-shared";
-import { LessonMeta, LessonPreviewBody } from "@/features/content/lesson-preview-dialog";
+import { CardImage, PictureBox } from "@/features/content/content-media";
+import { CategoryPills, PopupTitle, fieldClass, glassBoxClass, kindMeta, kindTone, visibleCategories, type ContentKind } from "@/features/content/content-shared";
+import { LessonPreviewBody } from "@/features/content/lesson-preview-dialog";
 import type { Category, LearningItem, Lesson } from "@/types";
 
 export type LessonFormMode =
   | { kind: "new" }
   | { kind: "edit"; lesson: Lesson }
-  | { kind: "draft"; draft: Omit<Lesson, "id" | "createdBy"> }
   /** "Make a copy" of a lesson the teacher cannot edit. `title` is already unique. */
   | { kind: "copy"; source: Lesson; title: string };
 
 export type LessonFormValues = {
   title: string;
+  /** Shown as "Description". Stored in the `objective` column, optional. */
   objective: string;
-  /** Not shown in the form any more (lessons are title and goal). Kept so older lessons save unchanged. */
+  /** Not shown in the form any more (lessons are title and description). Kept so older lessons save unchanged. */
   instructions: string;
   itemIds: string[];
   /** Chosen when the lesson is made. Editing keeps the saved value. */
   isPrivate: boolean;
 };
 
-const stepLabels = ["Details", "Materials", "Review"];
+const stepLabels = ["Details", "Cards", "Review"];
 
 function formTitle(mode: LessonFormMode | null) {
   if (mode?.kind === "edit") return "Edit lesson";
-  if (mode?.kind === "draft") return "Review generated lesson";
   if (mode?.kind === "copy") return "Make a copy";
   return "New lesson";
 }
@@ -86,7 +85,7 @@ function initialValues(mode: LessonFormMode): LessonFormValues {
   if (mode.kind === "new") {
     return { title: "", objective: "", instructions: "", itemIds: [], isPrivate: false };
   }
-  const source = mode.kind === "edit" ? mode.lesson : mode.kind === "copy" ? mode.source : mode.draft;
+  const source = mode.kind === "edit" ? mode.lesson : mode.source;
   return {
     title: mode.kind === "copy" ? mode.title : source.title,
     objective: source.objective,
@@ -116,8 +115,7 @@ function LessonForm({
   onSave: (values: LessonFormValues) => void;
 }) {
   const [values, setValues] = useState<LessonFormValues>(() => initialValues(mode));
-  // Generated drafts are already filled in, so they open on Review.
-  const [step, setStep] = useState(mode.kind === "draft" ? 2 : 0);
+  const [step, setStep] = useState(0);
   const [error, setError] = useState("");
 
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -130,9 +128,9 @@ function LessonForm({
   }
 
   function validate(target: number) {
-    if (target >= 1 && (!values.title.trim() || !values.objective.trim())) {
+    if (target >= 1 && !values.title.trim()) {
       setStep(0);
-      setError("Add a title and a goal.");
+      setError("Add a title.");
       return false;
     }
     if (target >= 1 && taken.has(values.title.trim().toLowerCase())) {
@@ -142,7 +140,7 @@ function LessonForm({
     }
     if (target >= 2 && !selectedItems.length) {
       setStep(1);
-      setError("Pick at least one material.");
+      setError("Pick at least one card.");
       return false;
     }
     return true;
@@ -158,8 +156,6 @@ function LessonForm({
     if (!validate(2)) return;
     onSave({ ...values, title: values.title.trim(), objective: values.objective.trim(), instructions: values.instructions.trim() });
   }
-
-  const source: Lesson["source"] = mode.kind === "draft" ? "auto-generated" : mode.kind === "edit" ? mode.lesson.source : "manual";
 
   return (
     <div>
@@ -182,28 +178,30 @@ function LessonForm({
               <Input id="lesson-title" className={fieldClass} value={values.title} onChange={(event) => update({ title: event.target.value })} placeholder="Snack time requests" />
             </div>
             <div>
-              <Label htmlFor="lesson-goal">Goal</Label>
-              <Input
-                id="lesson-goal"
-                className={fieldClass}
+              <Label htmlFor="lesson-description">
+                Description <span className="font-normal text-slate-400">(optional)</span>
+              </Label>
+              <Textarea
+                id="lesson-description"
+                rows={2}
+                className={cn(fieldClass, "min-h-20")}
                 value={values.objective}
                 onChange={(event) => update({ objective: event.target.value })}
-                placeholder="What should the learner be able to do?"
+                placeholder="Ask for food at snack time"
               />
             </div>
           </div>
         ) : null}
 
-        {step === 1 ? <MaterialsStep items={items} categories={categories} selectedIds={values.itemIds} onChange={(itemIds) => update({ itemIds })} /> : null}
+        {step === 1 ? (
+          <MaterialsStep items={items} categories={categories} selectedIds={values.itemIds} onChange={(itemIds) => update({ itemIds })} tray="slots" />
+        ) : null}
 
         {step === 2 ? (
           <div className="space-y-4">
             <div>
               <p className="text-xl font-bold text-ink">{values.title}</p>
-              <p className="mt-0.5 text-sm text-slate-600">{values.objective}</p>
-              <div className="mt-2">
-                <LessonMeta lesson={{ source }} />
-              </div>
+              {values.objective.trim() ? <p className="mt-0.5 text-sm text-slate-600">{values.objective}</p> : null}
             </div>
             <LessonPreviewBody items={selectedItems} />
             <VisibilityControl editing={mode.kind === "edit"} isPrivate={values.isPrivate} onChange={(isPrivate) => update({ isPrivate })} />
@@ -224,7 +222,6 @@ function LessonForm({
             Back
           </Button>
         )}
-        {step === 1 ? <span className="text-sm font-semibold text-slate-500">{selectedItems.length} selected</span> : null}
         {step < 2 ? (
           <Button type="button" onClick={() => goTo(step + 1)}>
             Next
@@ -323,7 +320,7 @@ export function MaterialsStep({
   /** Most cards that can be picked. */
   max?: number;
   emptyText?: string;
-  /** "slots": numbered picture slots above the grid (needs `max`). "chips": name chips below it. */
+  /** "slots": numbered picture slots above the grid, in pick order. "chips": name chips below it. */
   tray?: "chips" | "slots";
 }) {
   const [kind, setKind] = useState<ContentKind>(() => {
@@ -335,7 +332,7 @@ export function MaterialsStep({
 
   const kindItems = items.filter((item) => item.contentType === kind);
   const used = new Set(kindItems.map((item) => item.categoryId));
-  const usedCategories = categories.filter((category) => used.has(category.id));
+  const usedCategories = visibleCategories(categories).filter((category) => used.has(category.id));
   const query = search.trim().toLowerCase();
   const visible = kindItems.filter((item) => (categoryId === "all" || item.categoryId === categoryId) && (!query || item.label.toLowerCase().includes(query)));
   const selectedItems = selectedIds.map((id) => items.find((item) => item.id === id)).filter((item): item is LearningItem => Boolean(item));
@@ -352,29 +349,26 @@ export function MaterialsStep({
     onChange([...selectedIds, id]);
   }
 
-  const showSlots = tray === "slots" && max !== undefined;
+  const showSlots = tray === "slots";
 
   return (
     <div className="space-y-3">
-      {showSlots && max !== undefined ? <PickedSlots items={selectedItems} max={max} onRemove={toggle} /> : null}
-      {kinds.length > 1 ? (
-        <UnderlineTabs
-          id="lesson-material-type"
-          label="Material type"
-          value={kind}
-          onChange={(option) => {
-            setKind(option);
-            setCategoryId("all");
-          }}
-          options={kinds.map((option) => ({ value: option, label: kindMeta[option].plural, icon: kindMeta[option].icon }))}
-        />
-      ) : null}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center">
-        <div className="min-w-0 flex-1">
-          {usedCategories.length > 1 ? <CategoryPills categories={usedCategories} value={categoryId} onChange={setCategoryId} /> : null}
-        </div>
+      {showSlots ? <PickedSlots items={selectedItems} max={max} onRemove={toggle} /> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {kinds.length > 1 ? (
+          <SegmentedControl
+            label="Material type"
+            value={kind}
+            onChange={(option) => {
+              setKind(option);
+              setCategoryId("all");
+            }}
+            options={kinds.map((option) => ({ value: option, label: kindMeta[option].plural, icon: kindMeta[option].icon }))}
+          />
+        ) : null}
         <SearchInput label="Search materials" placeholder="Search" value={search} onChange={setSearch} />
       </div>
+      {usedCategories.length > 1 ? <CategoryPills categories={usedCategories} value={categoryId} onChange={setCategoryId} /> : null}
 
       <div className={cn("grid max-h-[16rem] grid-cols-3 gap-2 overflow-y-auto rounded-2xl p-2 clean-scrollbar sm:grid-cols-4 md:grid-cols-6", tone.soft)}>
         {visible.map((item) => {
@@ -391,9 +385,7 @@ export function MaterialsStep({
                 selected ? "border-blue-600 shadow-sm" : "border-transparent hover:border-blue-200"
               )}
             >
-              <span className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-slate-50">
-                <CardImage value={item.symbolImageUrl} label={item.label} className="text-xs" />
-              </span>
+              <PictureBox value={item.symbolImageUrl} label={item.label} className="rounded-lg bg-slate-50" inset="inset-1" textClassName="text-xs" />
               <span className="mt-1 truncate text-xs font-semibold text-ink">{item.label}</span>
               {selected ? (
                 <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-white">
@@ -426,18 +418,28 @@ export function MaterialsStep({
   );
 }
 
-/** Numbered slots that fill in pick order. Tap a filled slot to take the card out. */
-function PickedSlots({ items, max, onRemove }: { items: LearningItem[]; max: number; onRemove: (id: string) => void }) {
+/**
+ * Numbered slots that fill in pick order. Tap a filled slot to take the card out.
+ * With `max` it draws that many slots (activity creator). Without, it shows the picked cards plus one
+ * "next" slot and wraps (lesson order).
+ */
+function PickedSlots({ items, max, onRemove }: { items: LearningItem[]; max?: number; onRemove: (id: string) => void }) {
+  const slotCount = max ?? items.length + 1;
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-blue-100 bg-[#fff] p-3 sm:flex-row sm:items-center">
       <div className="flex items-center justify-between gap-2 sm:w-24 sm:flex-col sm:items-start">
-        <p className="text-sm font-semibold text-slate-700">Picked</p>
+        <p className="text-sm font-semibold text-slate-700">{max === undefined ? "Lesson order" : "Picked"}</p>
         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", items.length ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}>
-          {items.length} of {max}
+          {max === undefined ? `${items.length} ${items.length === 1 ? "card" : "cards"}` : `${items.length} of ${max}`}
         </span>
       </div>
-      <ol className="grid flex-1 grid-cols-5 gap-2 sm:max-w-md">
-        {Array.from({ length: max }, (_, index) => {
+      <ol
+        className={cn(
+          "grid flex-1 gap-2",
+          max === undefined ? "max-h-[13.5rem] grid-cols-4 overflow-y-auto p-0.5 clean-scrollbar sm:grid-cols-6 md:grid-cols-8" : "grid-cols-5 sm:max-w-md"
+        )}
+      >
+        {Array.from({ length: slotCount }, (_, index) => {
           const item = items[index];
           const next = index === items.length;
           return (

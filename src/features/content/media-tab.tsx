@@ -1,31 +1,34 @@
 "use client";
 
 import { ReactNode, useMemo, useState } from "react";
-import { Film, Image as ImageIcon, ImageOff, Layers, PlayCircle, Volume2, type LucideIcon } from "lucide-react";
+import { Film, Image as ImageIcon, ImageOff, Layers, Volume2, type LucideIcon } from "lucide-react";
 import { Select } from "@/components/ui/form";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { EmptyState } from "@/components/common/empty-state";
-import { formatDate } from "@/lib/utils";
-import { SearchInput } from "@/features/admin/admin-shared";
+import { cn, formatDate } from "@/lib/utils";
+import { FilterSelect, SearchInput } from "@/features/admin/admin-shared";
 import { AudioButton, isVideoUrl } from "@/features/content/content-media";
-import { nameFor, sortLabels, sortRecords, type SortOrder, type Tone } from "@/features/content/content-shared";
+import { kindTone, nameFor, sortLabels, sortRecords, type SortOrder, type Tone } from "@/features/content/content-shared";
 import { GuideTip } from "@/features/guide/guide-tip";
 import type { LearningItem, MediaAsset } from "@/types";
 
 export type LibraryMediaType = MediaAsset["type"];
 
+type TypeFilter = "all" | "symbol-image" | "audio-file";
+
 /** Finds files that no material points at any more, so the library can be tidied up. */
 type LinkFilter = "all" | "linked" | "unlinked";
 
 const linkLabels: Record<LinkFilter, string> = {
-  all: "All files",
-  linked: "Linked to a material",
-  unlinked: "Not linked"
+  all: "All",
+  linked: "Yes",
+  unlinked: "No"
 };
 
+/** "gesture-media" is kept only so older video files can still be listed and deleted. */
 export const mediaTypeMeta: Record<LibraryMediaType, { label: string; single: string; icon: LucideIcon; tone: Tone }> = {
   "symbol-image": { label: "Images", single: "Image", icon: ImageIcon, tone: "indigo" },
-  "gesture-media": { label: "Gesture videos", single: "Gesture video", icon: Film, tone: "sky" },
+  "gesture-media": { label: "Old videos", single: "Old video", icon: Film, tone: "sky" },
   "audio-file": { label: "Audio", single: "Audio", icon: Volume2, tone: "blue" }
 };
 
@@ -44,7 +47,7 @@ export function MediaTab({
   userNames: Map<string, string>;
   onOpenAsset: (asset: MediaAsset) => void;
 }) {
-  const [filter, setFilter] = useState<LibraryMediaType | null>(null);
+  const [filter, setFilter] = useState<TypeFilter>("all");
   const [link, setLink] = useState<LinkFilter>("all");
   const [sort, setSort] = useState<SortOrder>("newest");
   const [search, setSearch] = useState("");
@@ -54,7 +57,7 @@ export function MediaTab({
   const sorted = useMemo(() => {
     const query = search.trim().toLowerCase();
     const list = media.filter((asset) => {
-      if (filter && asset.type !== filter) return false;
+      if (filter !== "all" && asset.type !== filter) return false;
       if (link === "linked" && !asset.relatedItemId) return false;
       if (link === "unlinked" && asset.relatedItemId) return false;
       if (!query) return true;
@@ -70,48 +73,38 @@ export function MediaTab({
 
   return (
     <section className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-        <GuideTip id="content.mediaTypes">
-          <UnderlineTabs
-          id="media-types"
+      <GuideTip id="content.mediaTypes">
+        <UnderlineTabs
+          id="media-type"
           label="Media type"
-          className="min-w-0 flex-1"
-          value={filter ?? "all"}
-          onChange={(next) => setFilter(next === "all" ? null : (next as LibraryMediaType))}
+          value={filter}
+          onChange={setFilter}
           options={[
             { value: "all", label: "All", icon: Layers, count: media.length },
-            ...(Object.keys(mediaTypeMeta) as LibraryMediaType[]).map((type) => ({
-              value: type,
-              label: mediaTypeMeta[type].label,
-              icon: mediaTypeMeta[type].icon,
-              count: countOf(type)
-            }))
+            { value: "symbol-image", label: "Images", icon: ImageIcon, count: countOf("symbol-image") },
+            { value: "audio-file", label: "Audio", icon: Volume2, count: countOf("audio-file") }
           ]}
-          />
-        </GuideTip>
-      </div>
-
-      <p className="-mt-1 text-sm text-slate-500">Every file in MakaLearn. Delete files here.</p>
-
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <SearchInput label="Search media" placeholder="Search files, materials, or uploader" value={search} onChange={setSearch} />
-        <div className="w-44">
-          <Select aria-label="Filter by material" value={link} onChange={(event) => setLink(event.target.value as LinkFilter)}>
-            {(Object.keys(linkLabels) as LinkFilter[]).map((key) => (
-              <option key={key} value={key}>
-                {linkLabels[key]}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="w-44">
-          <Select aria-label="Sort media" value={sort} onChange={(event) => setSort(event.target.value as SortOrder)}>
-            {(Object.keys(sortLabels) as SortOrder[]).map((key) => (
-              <option key={key} value={key}>
-                {sortLabels[key]}
-              </option>
-            ))}
-          </Select>
+        />
+      </GuideTip>
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterSelect
+          label="Linked"
+          className="w-48"
+          value={link}
+          onChange={setLink}
+          options={(Object.keys(linkLabels) as LinkFilter[]).map((key) => ({ value: key, label: linkLabels[key] }))}
+        />
+        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+          <SearchInput label="Search media" placeholder="Search files, materials, or uploader" value={search} onChange={setSearch} />
+          <div className="w-44">
+            <Select aria-label="Sort media" value={sort} onChange={(event) => setSort(event.target.value as SortOrder)}>
+              {(Object.keys(sortLabels) as SortOrder[]).map((key) => (
+                <option key={key} value={key}>
+                  {sortLabels[key]}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -119,41 +112,42 @@ export function MediaTab({
         <EmptyState
           icon={ImageOff}
           title={media.length ? "No media found" : "No media yet"}
-          description={media.length ? "Try another search, type, or link filter." : "Files uploaded to materials show up here."}
+          description={media.length ? "Try another search or filter." : "Files uploaded to materials show up here."}
         />
       ) : null}
 
       {visuals.length ? (
-        <MediaPanel icon={ImageIcon} title={filter === "gesture-media" ? "Gesture videos" : filter === "symbol-image" ? "Images" : "Images and videos"} count={visuals.length}>
+        <MediaPanel icon={ImageIcon} title="Images" count={visuals.length}>
           <div className="grid grid-cols-3 gap-3 p-4 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
             {visuals.map((asset) => {
               const url = asset.publicUrl ?? "";
-              const video = isVideoAsset(asset);
+              const linked = asset.relatedItemId ? itemById.get(asset.relatedItemId) : undefined;
+              const tone = kindTone(linked?.contentType ?? "pecs");
               return (
-                <button key={asset.id} type="button" onClick={() => onOpenAsset(asset)} className="group text-left focus-visible:outline-none" aria-label={`Open ${asset.fileName}`}>
-                  <span className="relative grid aspect-square place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 transition group-hover:-translate-y-0.5 group-hover:border-blue-300 group-hover:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-blue-300">
-                    {video ? (
-                      <>
-                        <video src={url} preload="metadata" muted playsInline className="h-full w-full bg-slate-900 object-cover" />
-                        <PlayCircle className="absolute h-8 w-8 text-white drop-shadow" aria-hidden="true" />
-                      </>
+                <button
+                  key={asset.id}
+                  type="button"
+                  onClick={() => onOpenAsset(asset)}
+                  aria-label={`Open ${asset.fileName}`}
+                  title={linked?.label ?? asset.fileName}
+                  className={cn(
+                    "group flex min-w-0 flex-col overflow-hidden rounded-xl border p-1.5 text-left transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                    tone.soft,
+                    tone.border,
+                    tone.hoverBorder
+                  )}
+                >
+                  <span className="relative grid aspect-square place-items-center overflow-hidden rounded-lg bg-[#fff]">
+                    {isVideoAsset(asset) ? (
+                      <Film className="h-6 w-6 text-slate-300" aria-label="Old video file" />
                     ) : url ? (
+                      // Placed absolutely so a tall picture is never cut off at the bottom.
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={url} alt="" loading="lazy" className="h-full w-full object-contain p-1.5" />
+                      <img src={url} alt="" loading="lazy" className="absolute inset-1 h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)] object-contain" />
                     ) : (
                       <ImageOff className="h-6 w-6 text-slate-300" aria-hidden="true" />
                     )}
-                    <span
-                      className={
-                        asset.type === "gesture-media"
-                          ? "absolute left-1.5 top-1.5 rounded-full bg-sky-500 px-1.5 text-[9px] font-bold uppercase text-white"
-                          : "absolute left-1.5 top-1.5 h-2 w-2 rounded-full bg-indigo-300 ring-2 ring-white"
-                      }
-                    >
-                      {asset.type === "gesture-media" ? "Video" : null}
-                    </span>
                   </span>
-                  <span className="mt-1 block truncate text-xs font-semibold text-slate-600 group-hover:text-blue-700">{cardLabel(asset) ?? asset.fileName}</span>
                 </button>
               );
             })}

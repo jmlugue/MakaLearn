@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { sizeError } from "@/utils/media-limits";
+import { fileNameError } from "@/utils/media-filename";
 import type { MediaAsset } from "@/types";
 import type { Database } from "@/types/database";
 
@@ -12,6 +13,8 @@ type UploadMediaAssetInput = {
   title: string;
   uploadedBy: string;
   relatedItemId?: string;
+  /** The material the file belongs to. Its name must then be `<label>_<category>.<ext>`. */
+  expectedName?: { label: string; category: string };
 };
 
 function cleanFileName(fileName: string) {
@@ -52,7 +55,8 @@ export async function uploadMediaAssetToSupabase({
   type,
   title,
   uploadedBy,
-  relatedItemId
+  relatedItemId,
+  expectedName
 }: UploadMediaAssetInput) {
   const supabase = getSupabaseBrowserClient();
 
@@ -64,6 +68,10 @@ export async function uploadMediaAssetToSupabase({
   const tooBig = sizeError(file, bucket);
   if (tooBig) {
     throw new Error(tooBig);
+  }
+  if (expectedName && bucket !== "gesture-media") {
+    const wrongName = fileNameError(file.name, bucket, expectedName.label, expectedName.category);
+    if (wrongName) throw new Error(wrongName);
   }
 
   const storagePath = createStoragePath(file, relatedItemId);

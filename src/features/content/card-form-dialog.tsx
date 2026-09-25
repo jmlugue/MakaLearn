@@ -1,20 +1,23 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { FileAudio, Film, Image as ImageIcon, Plus } from "lucide-react";
+import { FileAudio, Image as ImageIcon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
 import { FileUpload } from "@/components/ui/file-upload";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/utils";
 import { CardTile } from "@/features/content/card-tile";
-import { UnderlineTabs } from "@/components/ui/underline-tabs";
-import { GESTURE_CATEGORY_ID, PopupTitle, SectionLabel, fieldClass, glassBoxClass, kindMeta, kindTone, type ContentKind } from "@/features/content/content-shared";
+import { PopupTitle, SectionLabel, fieldClass, fileCategoryName, glassBoxClass, kindMeta, kindTone, visibleCategories, type ContentKind } from "@/features/content/content-shared";
 import { limitLabel, mediaSizeLimits, sizeError } from "@/utils/media-limits";
+import { acceptFor, expectedFileName, fileNameError, labelFromWord, namePart, parseFileName } from "@/utils/media-filename";
 import type { Category } from "@/types";
 
-export type NewCardFiles = Partial<Record<"symbol" | "gesture" | "audio", File>>;
+export type NewCardFiles = Partial<Record<"symbol" | "audio", File>>;
 export type NewCardValues = { kind: ContentKind; label: string; categoryId: string; description: string; files: NewCardFiles };
+
+const fileBuckets = { symbol: "symbol-images", audio: "audio-files" } as const;
 
 export function CardFormDialog({
   open,
@@ -37,11 +40,6 @@ export function CardFormDialog({
       {open ? <CardForm initialKind={initialKind} categories={categories} saving={saving} setSaving={setSaving} onClose={onClose} onSubmit={onSubmit} /> : null}
     </Dialog>
   );
-}
-
-function defaultCategoryFor(kind: ContentKind, categories: Category[]) {
-  if (kind === "gesture") return categories.find((category) => category.id === GESTURE_CATEGORY_ID)?.id ?? categories[0]?.id ?? "";
-  return categories.find((category) => category.id !== GESTURE_CATEGORY_ID)?.id ?? categories[0]?.id ?? "";
 }
 
 function useObjectUrl(file?: File) {
@@ -76,25 +74,44 @@ function CardForm({
   onClose: () => void;
   onSubmit: (values: NewCardValues) => Promise<boolean>;
 }) {
+  const choices = useMemo(() => visibleCategories(categories), [categories]);
   const [kind, setKind] = useState<ContentKind>(initialKind);
   const [label, setLabel] = useState("");
-  const [categoryId, setCategoryId] = useState(() => defaultCategoryFor(initialKind, categories));
+  const [categoryId, setCategoryId] = useState(() => choices[0]?.id ?? "");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<NewCardFiles>({});
   const [error, setError] = useState("");
 
   const imagePreview = useObjectUrl(files.symbol);
-  const videoPreview = useObjectUrl(files.gesture);
   const tone = kindTone(kind);
+  const category = categories.find((candidate) => candidate.id === categoryId);
+  const categoryName = fileCategoryName(category);
 
-  function changeKind(next: ContentKind) {
-    setKind(next);
-    setCategoryId(defaultCategoryFor(next, categories));
-    setFiles((current) => ({ symbol: current.symbol, audio: current.audio }));
-  }
-
+  /**
+   * Checks a picked file against the name rule. With no label yet, a valid name fills the label and
+   * category instead, so teachers can start from the file.
+   */
   function stage(key: keyof NewCardFiles) {
     return (file: File) => {
+      const bucket = fileBuckets[key];
+      let nextLabel = label.trim();
+      let nextCategory = categoryName;
+      const parsed = parseFileName(file.name);
+      if (!nextLabel && parsed) {
+        const match = choices.find((candidate) => namePart(candidate.name) === parsed.category);
+        if (!match) {
+          return Promise.reject(new Error(`No category is called "${parsed.category}". Pick one, then rename the file.`));
+        }
+        nextLabel = labelFromWord(parsed.word);
+        nextCategory = match.name;
+        setLabel(nextLabel);
+        setCategoryId(match.id);
+      }
+      const wrongName = nextLabel
+        ? fileNameError(file.name, bucket, nextLabel, nextCategory)
+        : `Name it word_category, like ${expectedFileName("eat", nextCategory || "food", "png")}.`;
+      if (wrongName) return Promise.reject(new Error(wrongName));
+      setError("");
       setFiles((current) => ({ ...current, [key]: file }));
       return Promise.resolve();
     };
@@ -115,17 +132,15 @@ function CardForm({
       setError("Add a label, category, and description.");
       return;
     }
-    if (files.gesture && !files.gesture.type.startsWith("video/")) {
-      setError("The gesture video must be a video file.");
-      return;
-    }
-    const oversized =
-      (files.gesture && sizeError(files.gesture, "gesture-media")) ||
-      (files.symbol && sizeError(files.symbol, "symbol-images")) ||
-      (files.audio && sizeError(files.audio, "audio-files"));
-    if (oversized) {
-      setError(oversized);
-      return;
+    // Checked again here: the label or category may have changed after a file was picked.
+    for (const key of Object.keys(fileBuckets) as Array<keyof NewCardFiles>) {
+      const file = files[key];
+      if (!file) continue;
+      const problem = sizeError(file, fileBuckets[key]) || fileNameError(file.name, fileBuckets[key], label.trim(), categoryName);
+      if (problem) {
+        setError(`${file.name}: ${problem}`);
+        return;
+      }
     }
     setSaving(true);
     const saved = await onSubmit({ kind, label: label.trim(), categoryId, description: description.trim(), files });
@@ -133,17 +148,16 @@ function CardForm({
     if (saved) onClose();
   }
 
-  const category = categories.find((candidate) => candidate.id === categoryId);
+  const example = (extension: string) => expectedFileName(label.trim() || "eat", categoryName || "food", extension);
 
   return (
     <form onSubmit={submit} className="grid gap-5 md:grid-cols-[minmax(0,1fr)_13rem]">
       <div className="space-y-4">
         <PopupTitle title="Add material" />
-        <UnderlineTabs
-          id="add-material-type"
+        <SegmentedControl
           label="Material type"
           value={kind}
-          onChange={changeKind}
+          onChange={setKind}
           options={(["pecs", "gesture"] as ContentKind[]).map((option) => ({ value: option, label: kindMeta[option].label, icon: kindMeta[option].icon }))}
         />
 
@@ -165,7 +179,7 @@ function CardForm({
             <div>
               <Label htmlFor="card-category">Category</Label>
               <Select id="card-category" className={fieldClass} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
-                {categories.map((option) => (
+                {choices.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.name}
                   </option>
@@ -189,28 +203,13 @@ function CardForm({
         </Box>
 
         <Box title="Media" tone={tone.soft}>
-          {kind === "gesture" ? (
-            <FileUpload
-              key="gesture"
-              compact
-              icon={Film}
-              label="Gesture video"
-              accept="video/*"
-              hint={`MP4, WebM, or MOV, up to ${limitLabel("gesture-media")}`}
-              maxBytes={mediaSizeLimits["gesture-media"]}
-              storageNote="Shows how to sign it."
-              successMessage="Ready to save."
-              onUpload={stage("gesture")}
-              onRemove={unstage("gesture")}
-            />
-          ) : null}
           <FileUpload
             key="symbol"
             compact
             icon={ImageIcon}
             label={kind === "pecs" ? "Card image" : "Reference image"}
-            accept="image/*"
-            hint={`PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
+            accept={acceptFor["symbol-images"]}
+            hint={`Name it ${example("png")}. PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
             maxBytes={mediaSizeLimits["symbol-images"]}
             storageNote="Saved with the material."
             successMessage="Ready to save."
@@ -222,8 +221,8 @@ function CardForm({
             compact
             icon={FileAudio}
             label="Audio"
-            accept="audio/*"
-            hint={`MP3, WAV, or M4A, up to ${limitLabel("audio-files")}`}
+            accept={acceptFor["audio-files"]}
+            hint={`Name it ${example("mp3")}. MP3, WAV, or M4A, up to ${limitLabel("audio-files")}`}
             maxBytes={mediaSizeLimits["audio-files"]}
             storageNote="Plays the spoken word."
             successMessage="Ready to save."
@@ -235,13 +234,9 @@ function CardForm({
       </div>
 
       <div className="hidden md:block">
-        <div className={cn("sticky top-0 mt-12 rounded-2xl p-3", tone.soft)}>
+        <div className="sticky top-0 mt-12">
           <SectionLabel className="mb-2">Live preview</SectionLabel>
-          <CardTile
-            item={{ label, contentType: kind, symbolImageUrl: imagePreview, audioUrl: files.audio ? "staged" : undefined }}
-            previewVideoUrl={kind === "gesture" ? videoPreview : undefined}
-            category={category}
-          />
+          <CardTile item={{ label, contentType: kind, symbolImageUrl: imagePreview, audioUrl: files.audio ? "staged" : undefined }} category={category} />
         </div>
       </div>
 

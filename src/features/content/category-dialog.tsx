@@ -128,8 +128,10 @@ export function CategoryDialog({
                       className="flex flex-col overflow-hidden rounded-xl border border-blue-100 bg-[#fff] text-left transition hover:-translate-y-0.5 hover:border-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
                     >
                       <span className={cn("block h-1", tone.accent)} aria-hidden="true" />
-                      <span className={cn("m-1.5 grid aspect-square place-items-center overflow-hidden rounded-lg", tone.soft)}>
-                        <CardImage value={item.symbolImageUrl} label={item.label} className="text-xs" />
+                      <span className={cn("relative m-1.5 block aspect-square overflow-hidden rounded-lg", tone.soft)}>
+                        <span className="absolute inset-1">
+                          <CardImage value={item.symbolImageUrl} label={item.label} className="text-xs" />
+                        </span>
                       </span>
                       <span className="flex items-center gap-1 px-2 pb-2">
                         <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">{item.label}</span>

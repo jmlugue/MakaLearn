@@ -5,54 +5,39 @@ import { Copy, Hand, Lock, Pencil, Trash2, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { AudioButton, CardImage } from "@/features/content/content-media";
-import { KindBadge, PopupTitle, SectionLabel, deleteButtonClass, glassBoxClass, kindTone } from "@/features/content/content-shared";
-import { SourceBadge } from "@/features/content/lesson-card";
+import { AudioButton, PictureBox } from "@/features/content/content-media";
+import { PopupTitle, SectionLabel, deleteButtonClass, glassBoxClass, kindTone } from "@/features/content/content-shared";
 import type { LearningItem, Lesson } from "@/types";
 
 const chipClass = "inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-blue-100";
 
-/** What a lesson holds: its materials (tap to hear). Shared by the preview and the form's Review. */
+/** A lesson's cards as numbered steps, in order (tap to hear). Shared by the preview and the form's Review. */
 export function LessonPreviewBody({ items }: { items: LearningItem[] }) {
   return (
-    <div className="space-y-4">
-      <div className={cn("p-4", glassBoxClass)}>
-        <SectionLabel>Materials</SectionLabel>
-        <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-          {items.map((item) => {
-            const tone = kindTone(item.contentType);
-            return (
-              <div key={item.id} className="overflow-hidden rounded-2xl border border-blue-100 bg-[#fff] shadow-sm">
-                <div className={cn("grid aspect-square place-items-center p-2", tone.soft)}>
-                  <CardImage value={item.symbolImageUrl} label={item.label} className="text-sm" />
-                </div>
-                <div className="flex items-center gap-1.5 p-2">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-ink">{item.label}</span>
-                    <KindBadge kind={item.contentType} className="px-1.5 text-[9px]" />
-                  </span>
-                  <AudioButton value={item.audioUrl} label={item.label} className="h-7 w-7" />
-                </div>
+    <div className={cn("p-4", glassBoxClass)}>
+      <SectionLabel>Lesson order</SectionLabel>
+      <ol className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+        {items.map((item, index) => {
+          const tone = kindTone(item.contentType);
+          return (
+            <li key={item.id} className={cn("relative overflow-hidden rounded-2xl border p-1.5", tone.soft, tone.border)}>
+              <PictureBox value={item.symbolImageUrl} label={item.label} className="rounded-xl bg-[#fff]" textClassName="text-sm" />
+              <span className="absolute left-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-blue-600 text-xs font-bold text-white">{index + 1}</span>
+              <div className="flex items-center gap-1.5 px-0.5 pt-1.5">
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{item.label}</span>
+                <AudioButton value={item.audioUrl} label={item.label} className="h-7 w-7" />
               </div>
-            );
-          })}
-        </div>
-      </div>
-
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }
 
-export function LessonMeta({
-  lesson,
-  creator
-}: {
-  lesson: Pick<Lesson, "source"> & Partial<Pick<Lesson, "visibility">>;
-  creator?: string;
-}) {
+export function LessonMeta({ lesson, creator }: { lesson: Partial<Pick<Lesson, "visibility">>; creator?: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <SourceBadge source={lesson.source} />
       {lesson.visibility ? (
         <span className={chipClass}>
           {lesson.visibility === "private" ? <Lock className="h-3 w-3" aria-hidden="true" /> : <Users className="h-3 w-3" aria-hidden="true" />}
