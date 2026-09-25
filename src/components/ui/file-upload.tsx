@@ -51,6 +51,7 @@ export function FileUpload({
       return;
     }
 
+    const previousName = fileName;
     setFileName(file?.name ?? "");
 
     if (!file || !onUpload) {
@@ -63,9 +64,12 @@ export function FileUpload({
       await onUpload(file);
       setStatus("uploaded");
       setMessage(successMessage);
-    } catch {
+    } catch (error) {
+      // A refused file (wrong name or type) is not kept, and the reason is shown as is.
+      event.target.value = "";
+      setFileName(previousName);
       setStatus("error");
-      setMessage("The file could not be attached. Try again.");
+      setMessage(error instanceof Error && error.message ? error.message : "The file could not be attached. Try again.");
     }
   }
 

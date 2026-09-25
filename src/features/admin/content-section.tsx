@@ -1,10 +1,10 @@
 "use client";
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { FileAudio, FileVideo, Image as ImageIcon, ImageOff, Volume2 } from "lucide-react";
+import { FileAudio, FileVideo, Image as ImageIcon, ImageOff, Layers, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/form";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { cn, formatDate } from "@/lib/utils";
 import { EmptyRow, Panel, SearchInput } from "@/features/admin/admin-shared";
 import { ItemDetailDialog, MediaDetailDialog } from "@/features/admin/content-detail-dialog";
@@ -22,7 +22,7 @@ const PAGE_SIZE = 20;
 
 const mediaTypeLabels: Record<AdminMediaType, string> = {
   "symbol-image": "Symbol images",
-  "gesture-media": "Gesture media",
+  "gesture-media": "Old videos",
   "audio-file": "Audio"
 };
 
@@ -159,9 +159,10 @@ export function ContentSection({
   return (
     <div className="grid items-start gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
       <Panel className="space-y-5 p-4 lg:sticky lg:top-7">
-        <SegmentedControl
+        <UnderlineTabs
+          id="admin-content-view"
           label="Content view"
-          className="flex w-full [&>button]:flex-1 [&>button]:justify-center"
+          className="[&>button]:flex-1 [&>button]:justify-center"
           value={view}
           onChange={(next) => {
             setView(next);
@@ -169,8 +170,8 @@ export function ContentSection({
             if (sort === "incomplete") setSort("newest");
           }}
           options={[
-            { value: "materials", label: "Materials" },
-            { value: "media", label: "Media" }
+            { value: "materials", label: "Materials", icon: Layers },
+            { value: "media", label: "Media", icon: ImageIcon }
           ]}
         />
 
@@ -185,7 +186,8 @@ export function ContentSection({
         ) : (
           <FilterGroup title="Type">
             <FilterOption label="All media" count={mediaCounts.all} selected={mediaFilter === "all"} onSelect={() => setMediaFilter("all")} />
-            {(Object.keys(mediaTypeLabels) as AdminMediaType[]).map((type) => (
+            {/* Videos are no longer used; "Old videos" shows only while some are left to clean up. */}
+            {(Object.keys(mediaTypeLabels) as AdminMediaType[]).filter((type) => type !== "gesture-media" || mediaCounts[type] > 0).map((type) => (
               <FilterOption
                 key={type}
                 label={mediaTypeLabels[type]}
@@ -375,7 +377,7 @@ function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: Ap
                   </td>
                   <td className="px-4 py-3">
                     <span className="flex flex-wrap items-center gap-1.5">
-                      <MediaChip present={Boolean(item.symbolImageUrl || item.gestureMediaUrl)} label="Image or video" icon={ImageIcon} />
+                      <MediaChip present={Boolean(item.symbolImageUrl)} label="Image" icon={ImageIcon} />
                       <MediaChip present={Boolean(item.audioUrl)} label="Audio" icon={Volume2} />
                       {missingMediaTags(item).map((tag) => (
                         <span key={tag} className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">

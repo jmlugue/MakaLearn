@@ -137,11 +137,12 @@ export function Dialog({
             className
           )}
         >
-            {/* Soft blue glow in the corner gives the glass a hint of the app's blue. */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.22),transparent_70%)]"
-            />
+            {/* Soft blue glow in the corner gives the glass a hint of the app's blue. It sits in its own clipped
+                layer: poking out of the panel made it scrollable, so focusing a control near the right edge
+                slid the whole pop-up sideways. */}
+            <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+              <span className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.22),transparent_70%)]" />
+            </span>
             {hideHeader ? (
               <>
                 <h2 id={titleId} className="sr-only">

@@ -1,10 +1,11 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type SegmentedOption<T extends string> = { value: T; label: string; count?: number };
+export type SegmentedOption<T extends string> = { value: T; label: string; count?: number; icon?: LucideIcon };
 
-/** Pill switcher (the Text size picker in Settings). Behaves as a radio group. */
+/** Pill switcher (Text size in Settings, filters in Content). Behaves as a radio group. */
 export function SegmentedControl<T extends string>({
   label,
   options,
@@ -43,6 +44,7 @@ export function SegmentedControl<T extends string>({
               selected ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
             )}
           >
+            {option.icon ? <option.icon className="h-4 w-4" aria-hidden="true" /> : null}
             {option.label}
             {option.count !== undefined ? (
               <span

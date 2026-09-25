@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { Check, Hand, Image as ImageIcon, Play, Pointer, Shield, UserRound, Volume2 } from "lucide-react";
+import { Check, Hand, Image as ImageIcon, Play, Pointer, Users, UserRound, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GuideScene as SceneName } from "@/features/guide/guide-content";
 
@@ -163,7 +163,7 @@ function AdminScene({ still }: { still: boolean }) {
   return (
     <div className="w-full max-w-[15rem] overflow-hidden rounded-2xl border border-blue-100 bg-[#fff] shadow-sm">
       <div className="flex items-center gap-2 border-b border-blue-50 bg-blue-50/70 px-3 py-2">
-        <Shield className="h-4 w-4 text-blue-700" aria-hidden="true" />
+        <Users className="h-4 w-4 text-blue-700" aria-hidden="true" />
         <span className="text-xs font-bold uppercase tracking-wide text-blue-700">Accounts</span>
       </div>
       {[0, 1, 2].map((index) => (

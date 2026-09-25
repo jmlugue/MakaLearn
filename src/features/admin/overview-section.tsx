@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { animate, motion, useReducedMotion } from "framer-motion";
-import { Activity, BookOpenCheck, ChevronRight, Gamepad2, GraduationCap, Hand, Layers } from "lucide-react";
+import { Activity, BookOpenCheck, ChevronRight, GraduationCap, Hand, Layers, Shapes } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Select } from "@/components/ui/form";
 import { Avatar, describeActivity, formatDateTime } from "@/features/admin/admin-shared";
@@ -392,7 +392,7 @@ function UsageTrend({ logs }: { logs: AuditLog[] }) {
           </div>
         ) : null}
       </div>
-      <div className="mt-2 flex justify-between gap-1 text-[10px] font-semibold text-slate-400" aria-hidden="true">
+      <div className="mt-2 flex justify-between gap-1 text-xs font-semibold text-slate-500" aria-hidden="true">
         {series
           .filter((_, index) => index % labelEvery === 0 || index === count - 1)
           .map((bucket) => (
@@ -426,7 +426,6 @@ export function OverviewSection({
 }) {
   const reduceMotion = useReducedMotion();
   const activeTeachers = users.filter((account) => account.role === "teacher" && account.status !== "deactivated").length;
-  const manualLessons = lessons.filter((lesson) => lesson.source === "manual").length;
   const pecsCount = items.filter((item) => item.contentType === "pecs").length;
   const gestureCount = items.length - pecsCount;
   const previewMedia = media.filter((asset) => asset.publicUrl && asset.type === "symbol-image").slice(0, 3);
@@ -466,7 +465,7 @@ export function OverviewSection({
                       <span className="font-semibold text-ink">{log.actorName}</span> {sentence.charAt(0).toLowerCase() + sentence.slice(1)}
                       {showTitle ? <span className="text-ink">: {log.targetTitle}</span> : null}
                     </p>
-                    <p className="text-[11px] text-slate-400">{formatDateTime(log.createdAt)}</p>
+                    <p className="text-xs text-slate-500">{formatDateTime(log.createdAt)}</p>
                   </div>
                 </li>
               );
@@ -480,13 +479,13 @@ export function OverviewSection({
         <TileHeader icon={Layers} title="Materials & media" onSeeAll={() => onJump({ section: "content", view: "materials" })} />
         <div className="mt-3 flex items-center gap-4">
           <svg viewBox="0 0 42 42" className="h-16 w-16 shrink-0 -rotate-90" aria-hidden="true">
-            <circle cx="21" cy="21" r="15.9" fill="none" stroke="#5eead4" strokeWidth="6" />
+            <circle cx="21" cy="21" r="15.9" fill="none" className="stroke-sky-400" strokeWidth="6" />
             <motion.circle
               cx="21"
               cy="21"
               r="15.9"
               fill="none"
-              stroke="#fbbf24"
+              className="stroke-indigo-400"
               strokeWidth="6"
               initial={{ strokeDasharray: reduceMotion ? `${pecsLength} ${ringLength}` : `0 ${ringLength}` }}
               animate={{ strokeDasharray: `${pecsLength} ${ringLength}` }}
@@ -494,7 +493,7 @@ export function OverviewSection({
             />
           </svg>
           <div className="min-w-0">
-            <p className="text-4xl font-black leading-none tracking-[-0.03em] text-ink">
+            <p className="text-3xl font-extrabold leading-none tracking-[-0.03em] text-ink">
               <CountUp value={items.length} />
             </p>
             <p className="mt-1 text-xs font-semibold text-slate-500">materials</p>
@@ -502,10 +501,10 @@ export function OverviewSection({
         </div>
         <div className="mt-3 flex gap-4">
           <p>
-            <span className={cn("text-xl font-black", entityColors.pecs.text)}>{pecsCount}</span> <span className="text-xs font-semibold text-slate-500">PECS</span>
+            <span className={cn("text-xl font-extrabold", entityColors.pecs.text)}>{pecsCount}</span> <span className="text-xs font-semibold text-slate-500">PECS</span>
           </p>
           <p>
-            <span className={cn("text-xl font-black", entityColors.gesture.text)}>{gestureCount}</span>{" "}
+            <span className={cn("text-xl font-extrabold", entityColors.gesture.text)}>{gestureCount}</span>{" "}
             <span className="text-xs font-semibold text-slate-500">Gestures</span>
           </p>
         </div>
@@ -520,7 +519,7 @@ export function OverviewSection({
               <img key={asset.id} src={asset.publicUrl} alt="" className="h-7 w-7 rounded-md border-2 border-white bg-[#fff] object-contain" />
             ))}
           </span>
-          <span className="text-lg font-black text-ink">{media.length}</span>
+          <span className="text-lg font-extrabold text-ink">{media.length}</span>
           <span className="text-xs font-semibold text-slate-500">media files</span>
         </button>
       </Tile>
@@ -539,7 +538,7 @@ export function OverviewSection({
             )}
           >
             <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white shadow-sm", entityColors.activity.solid)}>
-              <Gamepad2 className="h-5 w-5" aria-hidden="true" />
+              <Shapes className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-bold text-ink">Activities</span>
@@ -547,7 +546,7 @@ export function OverviewSection({
                 {sharedActivities} shared · {activities.length - sharedActivities} private
               </span>
             </span>
-            <span className="text-3xl font-black text-ink">
+            <span className="text-3xl font-extrabold text-ink">
               <CountUp value={activities.length} />
             </span>
             <ChevronRight className={cn("h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5", entityColors.activity.groupHoverText)} aria-hidden="true" />
@@ -567,10 +566,10 @@ export function OverviewSection({
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-bold text-ink">Lessons</span>
               <span className="block truncate text-xs text-slate-500">
-                {manualLessons} manual · {lessons.length - manualLessons} auto-generated
+                Plans made from cards
               </span>
             </span>
-            <span className="text-3xl font-black text-ink">
+            <span className="text-3xl font-extrabold text-ink">
               <CountUp value={lessons.length} />
             </span>
             <ChevronRight className={cn("h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5", entityColors.lesson.groupHoverText)} aria-hidden="true" />

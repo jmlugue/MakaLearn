@@ -133,13 +133,13 @@ export function DropdownMenu({
                       item.onSelect();
                     }}
                     className={cn(
-                      "flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-sm font-semibold transition focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40",
+                      "flex min-h-10 w-full items-center gap-2.5 rounded-lg px-3 text-left text-sm font-semibold transition focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40",
                       item.tone === "danger"
                         ? "text-red-600 hover:bg-red-50 focus-visible:bg-red-50"
                         : "text-slate-700 hover:bg-blue-50 hover:text-blue-700 focus-visible:bg-blue-50"
                     )}
                   >
-                    {item.icon ? <item.icon className="h-4 w-4" aria-hidden="true" /> : null}
+                    {item.icon ? <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
                     {item.label}
                   </button>
                 )

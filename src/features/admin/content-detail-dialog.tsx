@@ -1,10 +1,9 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { ExternalLink, ImageOff, Pencil, Trash2 } from "lucide-react";
+import { Clock, ExternalLink, FileText, FileVideo, FolderOpen, Hand, Image as ImageIcon, ImageOff, Layers, Pencil, Tag, Trash2, UserRound, Volume2, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
@@ -12,13 +11,14 @@ import { useAuthUser } from "@/features/auth/use-auth-user";
 import { insertAuditLog } from "@/lib/audit-logs";
 import { deleteLearningItem, updateLearningItemDetails } from "@/lib/supabase/app-data";
 import { deleteMediaAssetFromSupabase } from "@/lib/supabase/media";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
+import { DetailList, DetailNote, DetailRow } from "@/features/admin/admin-shared";
 import type { AppUser, Category, LearningItem, MediaAsset } from "@/types";
 import { materialColor } from "@/lib/entity-colors";
 
 export const mediaTypeNames: Record<MediaAsset["type"], string> = {
   "symbol-image": "Symbol image",
-  "gesture-media": "Gesture media",
+  "gesture-media": "Old video",
   "audio-file": "Audio"
 };
 
@@ -34,11 +34,17 @@ function isAudioUrl(url: string) {
   return /\.(mp3|wav|m4a|ogg|aac)(\?|$)/i.test(url);
 }
 
-function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+/** Pop-up header in the Activity log style: colored icon tile, big title, one line under it. */
+function PopupHeader({ icon: Icon, tile, title, subtitle }: { icon: LucideIcon; tile: string; title: string; subtitle: string }) {
   return (
-    <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-2 text-sm">
-      <dt className="font-semibold text-slate-500">{label}</dt>
-      <dd className="min-w-0 break-words text-ink">{children}</dd>
+    <div className="flex items-center gap-3 pr-10">
+      <span className={cn("grid h-12 w-12 shrink-0 place-items-center rounded-2xl", tile)}>
+        <Icon className="h-6 w-6" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-xl font-extrabold tracking-[-0.02em] text-ink">{title}</p>
+        <p className="truncate text-sm text-slate-500">{subtitle}</p>
+      </div>
     </div>
   );
 }
@@ -152,11 +158,9 @@ export function ItemDetailDialog({
     }
   }
 
-  const gestureUrl = current.gestureMediaUrl;
-
   return (
     <>
-      <Dialog open={Boolean(item) && !confirmDelete} onClose={saving ? () => undefined : onClose} title={editing ? `Edit ${current.label}` : current.label} className="max-w-2xl">
+      <Dialog open={Boolean(item) && !confirmDelete} onClose={saving ? () => undefined : onClose} title={editing ? `Edit ${current.label}` : current.label} className="max-w-2xl" hideHeader={!editing}>
         {editing ? (
           <form className="space-y-4" onSubmit={save}>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -193,13 +197,6 @@ export function ItemDetailDialog({
               <Label htmlFor="admin-item-instruction">Instruction</Label>
               <Textarea id="admin-item-instruction" value={instruction} onChange={(event) => setInstruction(event.target.value)} className="min-h-20" />
             </div>
-            <div>
-              <Label htmlFor="admin-item-tags">Tags</Label>
-              <Input id="admin-item-tags" value={tags} onChange={(event) => setTags(event.target.value)} aria-describedby="admin-item-tags-hint" />
-              <p id="admin-item-tags-hint" className="mt-1 text-xs text-slate-500">
-                Separate tags with commas.
-              </p>
-            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
                 Cancel
@@ -210,55 +207,53 @@ export function ItemDetailDialog({
             </div>
           </form>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4">
+            <PopupHeader
+              icon={current.contentType === "pecs" ? ImageIcon : Hand}
+              tile={materialColor(current.contentType).icon}
+              title={current.label}
+              subtitle={`${current.contentType === "pecs" ? "PECS card" : "Gesture"} · ${category?.name ?? "Uncategorized"}`}
+            />
+
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="grid aspect-square place-items-center overflow-hidden rounded-xl border border-blue-100 bg-[#f8fbff]">
+              <div className="grid aspect-square place-items-center overflow-hidden rounded-2xl border border-blue-100 bg-[#fff]">
                 {current.symbolImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={current.symbolImageUrl} alt={`${current.label} symbol`} className="h-full w-full object-contain p-4" />
                 ) : (
-                  <span className="flex flex-col items-center gap-2 text-sm font-semibold text-slate-400">
+                  <span className="flex flex-col items-center gap-2 text-sm font-semibold text-slate-500">
                     <ImageOff className="h-8 w-8" aria-hidden="true" /> No image
                   </span>
                 )}
               </div>
-              <div className="flex flex-col gap-3">
-                {gestureUrl ? (
-                  <div className="overflow-hidden rounded-xl border border-blue-100 bg-[#f8fbff]">
-                    {isVideoUrl(gestureUrl) ? (
-                      <video src={gestureUrl} controls className="aspect-video w-full bg-slate-900" />
-                    ) : (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={gestureUrl} alt={`${current.label} gesture`} className="aspect-video w-full object-contain p-2" />
-                    )}
-                  </div>
-                ) : null}
-                <div className="rounded-xl border border-blue-100 bg-[#f8fbff] p-3">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-400">Audio</p>
-                  {current.audioUrl ? (
-                    <audio src={current.audioUrl} controls className="w-full" />
-                  ) : (
-                    <p className="text-sm font-semibold text-slate-400">No audio</p>
-                  )}
+              <div className="flex min-w-0 flex-col gap-3">
+                <DetailList>
+                  <DetailRow icon={Tag} label="Type">
+                    {current.contentType === "pecs" ? "PECS card" : "Gesture"}
+                  </DetailRow>
+                  <DetailRow icon={FolderOpen} label="Category">
+                    {category?.name ?? "Uncategorized"}
+                  </DetailRow>
+                  <DetailRow icon={UserRound} label="Made by">
+                    {nameFor(users, current.createdBy)}
+                  </DetailRow>
+                  <DetailRow icon={Clock} label="Updated">
+                    {formatDate(current.updatedAt)}
+                  </DetailRow>
+                </DetailList>
+                <div className="rounded-2xl border border-blue-100 bg-[#fff] p-3">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-500">
+                    <Volume2 className="h-4 w-4 text-blue-500" aria-hidden="true" /> Audio
+                  </p>
+                  {current.audioUrl ? <audio src={current.audioUrl} controls className="w-full" /> : <p className="text-sm font-semibold text-slate-500">No audio</p>}
                 </div>
               </div>
             </div>
 
-            <dl className="divide-y divide-slate-100">
-              <DetailRow label="Type">
-                <Badge className={materialColor(current.contentType).badge}>
-                  {current.contentType === "pecs" ? "PECS card" : "Gesture"}
-                </Badge>
-              </DetailRow>
-              <DetailRow label="Category">{category?.name ?? "Uncategorized"}</DetailRow>
-              {current.description ? <DetailRow label="Description">{current.description}</DetailRow> : null}
-              {current.instruction ? <DetailRow label="Instruction">{current.instruction}</DetailRow> : null}
-              <DetailRow label="Tags">{current.tags.length ? current.tags.join(", ") : "None"}</DetailRow>
-              <DetailRow label="Created by">{nameFor(users, current.createdBy)}</DetailRow>
-              <DetailRow label="Updated">{formatDate(current.updatedAt)}</DetailRow>
-            </dl>
+            {current.description ? <DetailNote label="Description">{current.description}</DetailNote> : null}
+            {current.instruction ? <DetailNote label="Instruction">{current.instruction}</DetailNote> : null}
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               {canManage ? (
                 <Button type="button" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
                   <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
@@ -370,25 +365,33 @@ export function MediaDetailDialog({
 
   return (
     <>
-      <Dialog open={!confirmDelete} onClose={onClose} title={current.title || current.fileName} className="max-w-2xl">
-        <div className="space-y-5">
-          <div className="grid min-h-48 place-items-center overflow-hidden rounded-xl border border-blue-100 bg-[#f8fbff]">
+      <Dialog open={!confirmDelete} onClose={onClose} title={current.title || current.fileName} className="max-w-2xl" hideHeader>
+        <div className="space-y-4">
+          <PopupHeader
+            icon={current.type === "audio-file" ? Volume2 : current.type === "gesture-media" ? FileVideo : ImageIcon}
+            tile="bg-blue-100 text-blue-700"
+            title={current.title || current.fileName}
+            subtitle={mediaTypeNames[current.type]}
+          />
+
+          <div className="grid min-h-48 place-items-center overflow-hidden rounded-2xl border border-blue-100 bg-[#fff]">
             {!url ? (
-              <p className="py-10 text-sm font-semibold text-slate-400">No preview available</p>
+              <p className="py-10 text-sm font-semibold text-slate-500">No preview available</p>
             ) : current.type === "audio-file" || isAudioUrl(url) ? (
               <audio src={url} controls className="m-6 w-[calc(100%-3rem)]" />
             ) : isVideoUrl(url) ? (
-              <video src={url} controls className="max-h-80 w-full bg-slate-900" />
+              <p className="py-10 text-sm font-semibold text-slate-500">Old video file. Videos are no longer used.</p>
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={url} alt={current.title} className="max-h-80 w-full object-contain p-4" />
+              <img src={url} alt={current.title} className="max-h-72 w-full object-contain p-4" />
             )}
           </div>
 
-          <dl className="divide-y divide-slate-100">
-            <DetailRow label="Type">{mediaTypeNames[current.type]}</DetailRow>
-            <DetailRow label="File name">{current.fileName}</DetailRow>
-            <DetailRow label="Learning item">
+          <DetailList>
+            <DetailRow icon={FileText} label="File name">
+              {current.fileName}
+            </DetailRow>
+            <DetailRow icon={Layers} label="Material">
               {relatedItem ? (
                 <button type="button" onClick={() => onOpenItem(relatedItem)} className="font-semibold text-blue-700 hover:underline">
                   {relatedItem.label}
@@ -397,11 +400,15 @@ export function MediaDetailDialog({
                 "Not linked"
               )}
             </DetailRow>
-            <DetailRow label="Uploaded by">{nameFor(users, current.uploadedBy)}</DetailRow>
-            <DetailRow label="Uploaded">{formatDate(current.uploadedAt)}</DetailRow>
-          </dl>
+            <DetailRow icon={UserRound} label="Uploaded by">
+              {nameFor(users, current.uploadedBy)}
+            </DetailRow>
+            <DetailRow icon={Clock} label="Uploaded">
+              {formatDate(current.uploadedAt)}
+            </DetailRow>
+          </DetailList>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             {canManage ? (
               <Button type="button" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
                 <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete

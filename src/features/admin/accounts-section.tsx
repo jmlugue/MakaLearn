@@ -1,14 +1,15 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { KeyRound, Power, ShieldCheck, UserPlus, UserRound } from "lucide-react";
+import { Copy, Eye, EyeOff, KeyRound, Mail, Power, ShieldCheck, UserPlus, UserRound, Wand2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { DropdownMenu, type MenuItem } from "@/components/ui/dropdown-menu";
-import { FieldError, Input, Label, Select } from "@/components/ui/form";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { FieldError, FieldHint, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
-import { Avatar, EmptyRow, Panel, RoleBadge, SearchInput, StatusBadge } from "@/features/admin/admin-shared";
+import { Avatar, EmptyRow, FilterSelect, Panel, RoleBadge, SearchInput, StatusBadge } from "@/features/admin/admin-shared";
+import { cn } from "@/lib/utils";
 import type { AppUser, UserRole } from "@/types";
 
 type PendingAction =
@@ -154,21 +155,29 @@ export function AccountsSection({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={search} onChange={setSearch} placeholder="Search name or email" label="Search accounts" />
-        <div className="w-36">
-          <Select aria-label="Filter by role" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}>
-            <option value="all">All roles</option>
-            <option value="teacher">Teachers</option>
-            <option value="admin">Admins</option>
-          </Select>
-        </div>
-        <div className="w-40">
-          <Select aria-label="Filter by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="deactivated">Deactivated</option>
-            <option value="invited">Invited</option>
-          </Select>
-        </div>
+        <FilterSelect
+          label="Role"
+          className="w-40"
+          value={roleFilter}
+          onChange={setRoleFilter}
+          options={[
+            { value: "all", label: "All" },
+            { value: "teacher", label: "Teachers" },
+            { value: "admin", label: "Admins" }
+          ]}
+        />
+        <FilterSelect
+          label="Status"
+          className="w-48"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: "all", label: "All" },
+            { value: "active", label: "Active" },
+            { value: "deactivated", label: "Deactivated" },
+            { value: "invited", label: "Invited" }
+          ]}
+        />
         <Button type="button" className="ml-auto" onClick={() => setAddOpen(true)}>
           <UserPlus className="h-4 w-4" aria-hidden="true" /> Add account
         </Button>
@@ -252,8 +261,8 @@ export function AccountsSection({
           setPending(null);
           setResetPassword("");
         }}
-        title={pending?.kind === "password" ? `Set a temporary password for ${pending.account.name}` : "Set a temporary password"}
-        description="Their current password will stop working. Share the new one privately."
+        title="Temporary password"
+        description="Their old password stops working."
       >
         <form
           className="space-y-4"
@@ -262,20 +271,13 @@ export function AccountsSection({
             if (resetPassword.length >= MIN_PASSWORD_LENGTH) runPending();
           }}
         >
-          <div>
-            <Label htmlFor="reset-temporary-password">Temporary password</Label>
-            <Input
-              id="reset-temporary-password"
-              type="password"
-              autoComplete="new-password"
-              value={resetPassword}
-              onChange={(event) => setResetPassword(event.target.value)}
-              aria-describedby="reset-temporary-password-hint"
-            />
-            <p id="reset-temporary-password-hint" className="mt-1 text-xs text-slate-500">
-              At least {MIN_PASSWORD_LENGTH} characters. They can change it in Profile.
-            </p>
-          </div>
+          {pending?.kind === "password" ? <AccountRow account={pending.account} /> : null}
+          <PasswordField
+            id="reset-temporary-password"
+            value={resetPassword}
+            onChange={setResetPassword}
+            hint={`At least ${MIN_PASSWORD_LENGTH} characters. Share it privately.`}
+          />
           <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
@@ -307,6 +309,112 @@ export function AccountsSection({
     </div>
   );
 }
+
+const PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+
+/** 10 characters without look-alikes (no 0/O, 1/l/I), so it can be read out or copied from paper. */
+function generatePassword(length = 10) {
+  const values = new Uint32Array(length);
+  window.crypto.getRandomValues(values);
+  return Array.from(values, (value) => PASSWORD_CHARS[value % PASSWORD_CHARS.length]).join("");
+}
+
+function AccountRow({ account }: { account: AppUser }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-[#fff] px-3 py-2.5">
+      <Avatar name={account.name} />
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-ink">{account.name}</p>
+        <p className="truncate text-xs text-slate-500">{account.email}</p>
+      </div>
+    </div>
+  );
+}
+
+function FieldIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return <Icon className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-blue-400" aria-hidden="true" />;
+}
+
+/** Password input with show or hide, plus Generate and Copy. Used by both account pop-ups. */
+function PasswordField({
+  id,
+  value,
+  onChange,
+  hint,
+  error
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  hint: string;
+  error?: string;
+}) {
+  const { notify } = useToast();
+  const [visible, setVisible] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      notify({ title: "Password copied", tone: "success" });
+    } catch {
+      notify({ title: "Could not copy", description: "Select the password and copy it.", tone: "error" });
+    }
+  }
+
+  const iconButtonClass =
+    "grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:opacity-40 disabled:hover:bg-transparent";
+
+  return (
+    <div>
+      <div className="flex items-end justify-between gap-2">
+        <Label htmlFor={id}>Temporary password</Label>
+        <button
+          type="button"
+          onClick={() => {
+            onChange(generatePassword());
+            setVisible(true);
+          }}
+          className="inline-flex items-center gap-1 rounded text-xs font-semibold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+        >
+          <Wand2 className="h-3.5 w-3.5" aria-hidden="true" /> Generate
+        </button>
+      </div>
+      <div className="relative mt-1">
+        <FieldIcon icon={KeyRound} />
+        <Input
+          id={id}
+          type={visible ? "text" : "password"}
+          autoComplete="new-password"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="pl-10 pr-20"
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${id}-error` : `${id}-hint`}
+        />
+        <span className="absolute right-1.5 top-1/2 z-10 flex -translate-y-1/2 gap-0.5">
+          <button
+            type="button"
+            onClick={() => setVisible((current) => !current)}
+            aria-label={visible ? "Hide password" : "Show password"}
+            aria-pressed={visible}
+            className={iconButtonClass}
+          >
+            {visible ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+          </button>
+          <button type="button" onClick={copy} disabled={!value} aria-label="Copy password" className={iconButtonClass}>
+            <Copy className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </span>
+      </div>
+      {error ? <FieldError id={`${id}-error`} message={error} /> : <FieldHint><span id={`${id}-hint`}>{hint}</span></FieldHint>}
+    </div>
+  );
+}
+
+const roleChoices: { value: UserRole; label: string; line: string; icon: LucideIcon }[] = [
+  { value: "teacher", label: "Teacher", line: "Content, activities", icon: UserRound },
+  { value: "admin", label: "Admin", line: "Plus accounts, logs", icon: ShieldCheck }
+];
 
 function AddAccountDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (user: AppUser) => void }) {
   const { notify } = useToast();
@@ -364,79 +472,94 @@ function AddAccountDialog({ open, onClose, onCreated }: { open: boolean; onClose
   }
 
   return (
-    <Dialog open={open} onClose={close} title="Add account" description="They sign in with the temporary password, then change it in Profile.">
+    <Dialog open={open} onClose={close} title="Add account" description="They change the password in Profile.">
       <form id="add-account-form" className="space-y-4" onSubmit={submit}>
         <div>
-          <Label>Role</Label>
-          <div className="mt-1">
-            <SegmentedControl
-              label="Account role"
-              value={role}
-              onChange={setRole}
-              options={[
-                { value: "teacher", label: "Teacher" },
-                { value: "admin", label: "Admin" }
-              ]}
-            />
+          <p id="new-account-role" className="text-sm font-semibold text-slate-700">
+            Role
+          </p>
+          <div role="radiogroup" aria-labelledby="new-account-role" className="mt-1 grid grid-cols-2 gap-2">
+            {roleChoices.map((choice) => {
+              const selected = role === choice.value;
+              return (
+                <button
+                  key={choice.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setRole(choice.value)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-2xl border-2 p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                    selected ? "border-blue-500 bg-skywash" : "border-blue-100 bg-[#fff] hover:border-blue-300"
+                  )}
+                >
+                  <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", selected ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600")}>
+                    <choice.icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-ink">{choice.label}</span>
+                    <span className="block text-xs text-slate-500">{choice.line}</span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          {role === "admin" ? <p className="mt-1 text-xs text-slate-500">Admins can manage accounts and see all activity.</p> : null}
         </div>
         <div>
           <Label htmlFor="new-teacher-name">Name</Label>
-          <Input
-            id="new-teacher-name"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value);
-              setErrors((current) => ({ ...current, name: undefined }));
-            }}
-            aria-invalid={Boolean(errors.name)}
-            aria-describedby={errors.name ? "new-teacher-name-error" : undefined}
-          />
+          <div className="relative mt-1">
+            <FieldIcon icon={UserRound} />
+            <Input
+              id="new-teacher-name"
+              value={name}
+              autoComplete="off"
+              onChange={(event) => {
+                setName(event.target.value);
+                setErrors((current) => ({ ...current, name: undefined }));
+              }}
+              className="pl-10"
+              aria-invalid={Boolean(errors.name)}
+              aria-describedby={errors.name ? "new-teacher-name-error" : undefined}
+            />
+          </div>
           <FieldError id="new-teacher-name-error" message={errors.name} />
         </div>
         <div>
           <Label htmlFor="new-teacher-email">School email</Label>
-          <Input
-            id="new-teacher-email"
-            type="email"
-            value={email}
-            onChange={(event) => {
-              setEmail(event.target.value);
-              setErrors((current) => ({ ...current, email: undefined }));
-            }}
-            aria-invalid={Boolean(errors.email)}
-            aria-describedby={errors.email ? "new-teacher-email-error" : undefined}
-          />
+          <div className="relative mt-1">
+            <FieldIcon icon={Mail} />
+            <Input
+              id="new-teacher-email"
+              type="email"
+              value={email}
+              autoComplete="off"
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setErrors((current) => ({ ...current, email: undefined }));
+              }}
+              className="pl-10"
+              aria-invalid={Boolean(errors.email)}
+              aria-describedby={errors.email ? "new-teacher-email-error" : undefined}
+            />
+          </div>
           <FieldError id="new-teacher-email-error" message={errors.email} />
         </div>
-        <div>
-          <Label htmlFor="new-account-password">Temporary password</Label>
-          <Input
-            id="new-account-password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(event) => {
-              setPassword(event.target.value);
-              setErrors((current) => ({ ...current, password: undefined }));
-            }}
-            aria-invalid={Boolean(errors.password)}
-            aria-describedby={errors.password ? "new-account-password-error" : "new-account-password-hint"}
-          />
-          {errors.password ? (
-            <FieldError id="new-account-password-error" message={errors.password} />
-          ) : (
-            <p id="new-account-password-hint" className="mt-1 text-xs text-slate-500">
-              Share it privately. They can change it in Profile.
-            </p>
-          )}
-        </div>
+        <PasswordField
+          id="new-account-password"
+          value={password}
+          onChange={(value) => {
+            setPassword(value);
+            setErrors((current) => ({ ...current, password: undefined }));
+          }}
+          hint={`At least ${MIN_PASSWORD_LENGTH} characters. Share it privately.`}
+          error={errors.password}
+        />
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="ghost" onClick={close} disabled={saving}>
             Cancel
           </Button>
           <Button type="submit" disabled={saving}>
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
             {saving ? "Adding..." : role === "admin" ? "Add admin" : "Add teacher"}
           </Button>
         </div>

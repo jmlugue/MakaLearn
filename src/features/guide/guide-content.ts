@@ -1,4 +1,4 @@
-import { BookOpen, FolderOpen, GraduationCap, Hand, Image as ImageIcon, Layers, ScrollText, Shapes, Shield, Users, type LucideIcon } from "lucide-react";
+import { BookOpen, FolderOpen, GraduationCap, Hand, Image as ImageIcon, Layers, ScrollText, Shapes, LayoutDashboard, Users, type LucideIcon } from "lucide-react";
 import type { AppUser } from "@/types";
 
 /**
@@ -23,7 +23,7 @@ export type GuideStep = {
 const teacherWelcomeSteps: GuideStep[] = [
   {
     title: "Build materials and lessons",
-    text: "Make PECS cards and gestures in Content, then group them into a lesson with a goal.",
+    text: "Make PECS cards and gestures in Content, then put them in order as a lesson.",
     icon: Layers,
     scene: "lesson"
   },
@@ -84,7 +84,7 @@ export const pageGuides: Record<string, PageGuide> = {
       },
       {
         title: "Lessons",
-        text: "A goal and a set of materials. Shared or private, and it can hold many activities.",
+        text: "A title and its cards in order. Shared or private, and it can hold many activities.",
         icon: BookOpen,
         scene: "lesson"
       },
@@ -145,7 +145,7 @@ export const pageGuides: Record<string, PageGuide> = {
       {
         title: "Home",
         text: "Usage at a glance, with tiles that jump straight to what needs attention.",
-        icon: Shield,
+        icon: LayoutDashboard,
         scene: "admin"
       },
       {
@@ -180,10 +180,10 @@ export const guideTips: Record<string, string> = {
 
   // Content
   "content.sections": "Switch between materials, lessons, categories, and files. The number is how many you have.",
-  "content.types": "PECS cards are pictures a learner points at. Gestures are signs they copy from a video.",
+  "content.types": "PECS cards are pictures a learner points at. Gestures are signs they copy.",
   "content.categories": "Show only one category. Extra categories sit in the +N more menu.",
-  "content.addMaterial": "Create a new card or gesture, with its picture, video, and audio.",
-  "content.addLesson": "Build a lesson: a goal and a set of materials. Add its activities in Activities.",
+  "content.addMaterial": "Create a new card or gesture, with its picture and audio. Name files word_category, like eat_food.png.",
+  "content.addLesson": "Plan a lesson: a title and its cards in order. Add its activities in Activities.",
   "content.addCategory": "Make a new colour-coded group for your materials.",
   "content.mediaTypes": "Filter the files by kind. All shows everything that has been uploaded.",
 

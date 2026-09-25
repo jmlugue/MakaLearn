@@ -1,11 +1,27 @@
 "use client";
 
-import { Fragment, ReactNode, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
+import { Clock, FileText, LayoutGrid, Layers, List, LogIn, LogOut, Pencil, Plus, Tag, Trash2, Upload, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Select } from "@/components/ui/form";
-import { Avatar, describeActivity, EmptyRow, logGroup, type LogFilter, type LogRange, Panel, SearchInput } from "@/features/admin/admin-shared";
+import { UnderlineTabs } from "@/components/ui/underline-tabs";
+import {
+  Avatar,
+  describeActivity,
+  DetailList,
+  DetailNote,
+  DetailRow,
+  EmptyRow,
+  FilterSelect,
+  logGroup,
+  logRangeLabels,
+  type LogFilter,
+  type LogRange,
+  Panel,
+  SearchInput
+} from "@/features/admin/admin-shared";
+import { cn } from "@/lib/utils";
 import type { AuditLog } from "@/types";
 
 // Palette roles: green = added/signed in, yellow = edited, red = deleted, slate = signed out.
@@ -20,7 +36,7 @@ const actionDot: Record<AuditLog["action"], string> = {
 
 const tabNames: Record<ReturnType<typeof logGroup>, string> = {
   "sign-ins": "Sign-ins",
-  content: "Materials",
+  content: "Content",
   accounts: "Accounts",
   other: "Other"
 };
@@ -43,11 +59,61 @@ function fullDateTime(value: string) {
   return new Intl.DateTimeFormat("en", { dateStyle: "full", timeStyle: "short" }).format(new Date(value));
 }
 
-function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+// The log pop-up shows the action as a colored icon tile, in the same meaning colors as the dots.
+const actionStyle: Record<AuditLog["action"], { icon: LucideIcon; tile: string }> = {
+  login: { icon: LogIn, tile: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+  create: { icon: Plus, tile: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+  upload: { icon: Upload, tile: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+  edit: { icon: Pencil, tile: "bg-amber-50 text-amber-700 ring-amber-200" },
+  delete: { icon: Trash2, tile: "bg-red-50 text-red-600 ring-red-200" },
+  logout: { icon: LogOut, tile: "bg-slate-100 text-slate-600 ring-slate-200" }
+};
+
+function LogDetails({ log }: { log: AuditLog }) {
+  const { sentence, itemType } = describeActivity(log);
+  const style = actionStyle[log.action];
+  const isSession = log.action === "login" || log.action === "logout";
   return (
-    <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-2.5 text-sm">
-      <dt className="font-semibold text-slate-500">{label}</dt>
-      <dd className="min-w-0 break-words text-ink">{children}</dd>
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 pr-10">
+        <span className={cn("grid h-12 w-12 shrink-0 place-items-center rounded-2xl ring-1", style.tile)}>
+          <style.icon className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xl font-extrabold tracking-[-0.02em] text-ink">{sentence}</p>
+          <p className="text-sm text-slate-500">
+            {dayLabel(log.createdAt)}, {timeLabel(log.createdAt)}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-[#fff] px-3 py-2.5">
+        <Avatar name={log.actorName} />
+        <p className="min-w-0 truncate text-sm font-semibold text-ink">{log.actorName}</p>
+      </div>
+
+      <DetailList>
+        {!isSession ? (
+          <>
+            <DetailRow icon={FileText} label="Record">
+              {log.targetTitle}
+            </DetailRow>
+            {itemType ? (
+              <DetailRow icon={Tag} label="Type">
+                {itemType}
+              </DetailRow>
+            ) : null}
+          </>
+        ) : null}
+        <DetailRow icon={LayoutGrid} label="Area">
+          {tabNames[logGroup(log)]}
+        </DetailRow>
+        <DetailRow icon={Clock} label="When">
+          {fullDateTime(log.createdAt)}
+        </DetailRow>
+      </DetailList>
+
+      {log.detail ? <DetailNote>{log.detail}</DetailNote> : null}
     </div>
   );
 }
@@ -103,26 +169,26 @@ export function ActivitySection({
 
   return (
     <div className="w-full space-y-4">
+      <UnderlineTabs
+        id="log-type"
+        label="Log type"
+        value={filter}
+        onChange={onFilterChange}
+        options={[
+          { value: "all", label: "All", icon: List, count: counts.all },
+          { value: "sign-ins", label: "Sign-ins", icon: LogIn, count: counts["sign-ins"] },
+          { value: "content", label: "Content", icon: Layers, count: counts.content },
+          { value: "accounts", label: "Accounts", icon: Users, count: counts.accounts }
+        ]}
+      />
       <div className="flex flex-wrap items-center gap-2">
-        <SegmentedControl
-          label="Log type"
-          value={filter}
-          onChange={onFilterChange}
-          options={[
-            { value: "all", label: "All", count: counts.all },
-            { value: "sign-ins", label: "Sign-ins", count: counts["sign-ins"] },
-            { value: "content", label: "Materials", count: counts.content },
-            { value: "accounts", label: "Accounts", count: counts.accounts }
-          ]}
+        <FilterSelect
+          label="Date"
+          className="w-48"
+          value={range}
+          onChange={onRangeChange}
+          options={(Object.keys(logRangeLabels) as LogRange[]).map((value) => ({ value, label: logRangeLabels[value] }))}
         />
-        <div className="w-40">
-          <Select aria-label="Date range" value={range} onChange={(event) => onRangeChange(event.target.value as LogRange)}>
-            <option value="all">All time</option>
-            <option value="today">Today</option>
-            <option value="week">This week</option>
-            <option value="month">This month</option>
-          </Select>
-        </div>
         <div className="ml-auto flex min-w-0 flex-1 justify-end">
           <SearchInput value={search} onChange={setSearch} placeholder="Search user, action, or record" label="Search activity" />
         </div>
@@ -220,26 +286,13 @@ export function ActivitySection({
         )}
       </div>
 
-      <Dialog open={Boolean(openLog)} onClose={() => setOpenLogId(null)} title={openLog ? describeActivity(openLog).sentence : "Activity"}>
-        {openLog ? (
-          <dl className="divide-y divide-slate-100">
-            <DetailRow label="User">
-              <span className="flex items-center gap-2">
-                <Avatar name={openLog.actorName} className="h-6 w-6 text-[10px]" />
-                {openLog.actorName}
-              </span>
-            </DetailRow>
-            <DetailRow label="Date & Time">{fullDateTime(openLog.createdAt)}</DetailRow>
-            {openLog.action !== "login" && openLog.action !== "logout" ? (
-              <>
-                <DetailRow label="Record">{openLog.targetTitle}</DetailRow>
-                <DetailRow label="Type">{describeActivity(openLog).itemType || "-"}</DetailRow>
-              </>
-            ) : null}
-            <DetailRow label="Area">{tabNames[logGroup(openLog)]}</DetailRow>
-            <DetailRow label="Details">{openLog.detail || "-"}</DetailRow>
-          </dl>
-        ) : null}
+      <Dialog
+        open={Boolean(openLog)}
+        onClose={() => setOpenLogId(null)}
+        title={openLog ? describeActivity(openLog).sentence : "Activity"}
+        hideHeader
+      >
+        {openLog ? <LogDetails log={openLog} /> : null}
       </Dialog>
     </div>
   );

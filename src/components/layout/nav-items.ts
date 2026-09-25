@@ -4,9 +4,9 @@ import {
   HelpCircle,
   Puzzle,
   Settings,
-  Shapes,
-  Shield
+  Shapes
 } from "lucide-react";
+import { ShieldUser } from "@/components/icons/shield-user";
 
 // Work pages sit at the top of the sidebar (followed by the Student mode button). Help sits at the bottom
 // above the profile menu, and Settings lives inside the profile menu.
@@ -28,4 +28,4 @@ export const studentNavItems = [
 
 export const studentRouteHrefs = studentNavItems.map((item) => item.href);
 
-export const adminNavItem = { href: "/admin", label: "Admin", icon: Shield, tip: "nav.admin" };
+export const adminNavItem = { href: "/admin", label: "Admin", icon: ShieldUser, tip: "nav.admin" };

@@ -1,9 +1,9 @@
 "use client";
 
 import { ReactNode } from "react";
-import { Search } from "lucide-react";
+import { Search, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/form";
+import { Input, Select } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 import type { AppUser, AuditLog } from "@/types";
 
@@ -49,6 +49,62 @@ export function SearchInput({ value, onChange, placeholder, label }: { value: st
   );
 }
 
+/** Select with its name inside the box ("Status  All"), so several filters can each say just "All". */
+export function FilterSelect<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+  className
+}: {
+  label: string;
+  value: T;
+  onChange: (value: T) => void;
+  options: { value: T; label: string }[];
+  className?: string;
+}) {
+  return (
+    <div className={cn("relative", className)}>
+      <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-xs font-semibold text-slate-500" aria-hidden="true">
+        {label}
+      </span>
+      <Select aria-label={label} value={value} onChange={(event) => onChange(event.target.value as T)} style={{ paddingLeft: `${label.length * 0.45 + 1.4}rem` }}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </Select>
+    </div>
+  );
+}
+
+/** One row in a view-only details box: icon, label, value (Activity log and Content pop-ups). */
+export function DetailRow({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 py-2.5 text-sm">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" />
+      <dt className="w-24 shrink-0 font-semibold text-slate-500">{label}</dt>
+      <dd className="min-w-0 flex-1 break-words font-semibold text-ink">{children}</dd>
+    </div>
+  );
+}
+
+/** White rounded box that holds DetailRows. */
+export function DetailList({ children }: { children: ReactNode }) {
+  return <dl className="divide-y divide-slate-100 rounded-2xl border border-blue-100 bg-[#fff] px-3">{children}</dl>;
+}
+
+/** Soft blue box for longer text such as a description. */
+export function DetailNote({ label, children }: { label?: string; children: ReactNode }) {
+  return (
+    <div className="rounded-2xl bg-skywash px-4 py-3 text-sm leading-6 text-slate-600">
+      {label ? <p className="mb-0.5 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">{label}</p> : null}
+      {children}
+    </div>
+  );
+}
+
 /** White rounded surface used for tables and lists in the Admin sections. */
 export function Panel({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn("overflow-hidden rounded-2xl border border-blue-100 bg-[#fff] shadow-sm", className)}>{children}</div>;
@@ -66,21 +122,52 @@ export function EmptyRow({ colSpan, children }: { colSpan: number; children: Rea
 
 export type LogFilter = "all" | "sign-ins" | "content" | "accounts";
 
-export type LogRange = "all" | "today" | "week" | "month";
+export type LogRange = "all" | "today" | "yesterday" | "7d" | "week" | "30d" | "month" | "last-month";
 
-/** Start of a date range as an ISO string (weeks start on Monday), or undefined for all time. */
-export function rangeStart(range: LogRange, now = new Date()) {
-  if (range === "all") return undefined;
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  if (range === "week") {
-    const daysSinceMonday = (start.getDay() + 6) % 7;
-    start.setDate(start.getDate() - daysSinceMonday);
+export const logRangeLabels: Record<LogRange, string> = {
+  all: "All time",
+  today: "Today",
+  yesterday: "Yesterday",
+  "7d": "Last 7 days",
+  week: "This week",
+  "30d": "Last 30 days",
+  month: "This month",
+  "last-month": "Last month"
+};
+
+/**
+ * A date range as ISO strings: `since` is inclusive, `before` exclusive (weeks start on Monday).
+ * Both are undefined for all time; `before` is only set for ranges that end before now.
+ */
+export function rangeBounds(range: LogRange, now = new Date()): { since?: string; before?: string } {
+  if (range === "all") return {};
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const daysAgo = (days: number) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - days);
+    return date;
+  };
+
+  switch (range) {
+    case "today":
+      return { since: today.toISOString() };
+    case "yesterday":
+      return { since: daysAgo(1).toISOString(), before: today.toISOString() };
+    case "7d":
+      return { since: daysAgo(6).toISOString() };
+    case "week":
+      return { since: daysAgo((today.getDay() + 6) % 7).toISOString() };
+    case "30d":
+      return { since: daysAgo(29).toISOString() };
+    case "month":
+      return { since: new Date(today.getFullYear(), today.getMonth(), 1).toISOString() };
+    case "last-month":
+      return {
+        since: new Date(today.getFullYear(), today.getMonth() - 1, 1).toISOString(),
+        before: new Date(today.getFullYear(), today.getMonth(), 1).toISOString()
+      };
   }
-  if (range === "month") {
-    start.setDate(1);
-  }
-  return start.toISOString();
 }
 
 /**

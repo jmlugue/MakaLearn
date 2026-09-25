@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Camera, Check, Hand, Sparkles, Volume2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check, Hand, Volume2, X } from "lucide-react";
 import type { DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -121,7 +121,7 @@ export function HowItWorksOverlay({ open, onClose }: { open: boolean; onClose: (
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-bold text-blue-600">Learn Makaton in just four steps.</p>
+                <p className="text-sm font-bold text-blue-600">Step {step + 1} of {scenes.length}</p>
                 <h2 id="how-it-works-title" className="mt-1 text-2xl font-black tracking-[-0.03em] text-ink sm:text-3xl">
                   {scenes[step].label}
                 </h2>
@@ -174,7 +174,7 @@ export function HowItWorksOverlay({ open, onClose }: { open: boolean; onClose: (
             <div
               onMouseEnter={() => setPaused(true)}
               onMouseLeave={() => setPaused(false)}
-              className="relative mt-4 h-[420px] overflow-hidden rounded-[1.5rem] border border-white/80 bg-gradient-to-br from-blue-50 via-white to-emerald-50/60 sm:h-[360px]">
+              className="relative mt-4 h-[420px] overflow-hidden rounded-[1.5rem] border border-blue-100 bg-[#fff] sm:h-[360px]">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={scenes[step].key}
@@ -332,77 +332,34 @@ function SignScene() {
   );
 }
 
+/** Mirrors the real Gesture practice screen: a "Show Eat" prompt on the camera, then the green result card. */
 function FeedbackScene() {
   const reduceMotion = useReducedMotion();
-  const confidence = 92;
-  const circumference = 2 * Math.PI * 26;
 
   return (
-    <div className="flex w-full flex-col items-center gap-4 sm:flex-row sm:justify-center sm:gap-6">
-      <div className="relative aspect-[455/377] w-[210px] max-w-full overflow-hidden rounded-[1.25rem] bg-slate-900 shadow-[0_24px_60px_rgba(15,23,42,0.3)] sm:w-[340px]">
-        <Image src="/gesture-references/eat-food.png" alt="" fill sizes="340px" className="object-contain opacity-80 invert" />
-        <HandTrace delay={0.1} />
-        {!reduceMotion ? (
-          <motion.div
-            className="absolute inset-x-0 h-12 bg-gradient-to-b from-transparent via-teal-300/25 to-transparent"
-            style={{ top: 0 }}
-            initial={{ y: "-100%" }}
-            animate={{ y: "600%" }}
-            transition={{ duration: 1.6, repeat: 1, ease: "easeInOut" }}
-            aria-hidden="true"
-          />
-        ) : null}
-        <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" /> Live
-        </span>
+    <div className="relative aspect-[455/377] w-[300px] max-w-full overflow-hidden rounded-[1.5rem] border border-blue-100 bg-white shadow-[0_24px_60px_rgba(37,99,235,0.16)] sm:w-[420px]">
+      <Image src="/gesture-references/eat-food.png" alt="" fill sizes="420px" className="object-contain" />
+      <HandTrace delay={0.1} />
+
+      <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-slate-700 shadow-sm ring-1 ring-blue-100">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden="true" /> Live
+      </span>
+      <div className="absolute left-3 top-3 rounded-2xl border border-blue-100 bg-white/90 px-3 py-2 text-ink shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-600">Gesture 1 of 5</p>
+        <p className="text-lg font-black leading-tight">Show Eat</p>
       </div>
 
-      <div className="flex flex-col items-center gap-3 sm:items-start">
-        <div className="flex items-center gap-3">
-          <div className="relative h-16 w-16">
-            <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90" aria-hidden="true">
-              <circle cx="32" cy="32" r="26" fill="none" stroke="#dbeafe" strokeWidth="7" />
-              <motion.circle
-                cx="32"
-                cy="32"
-                r="26"
-                fill="none"
-                stroke="#10b981"
-                strokeWidth="7"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                initial={{ strokeDashoffset: reduceMotion ? circumference * (1 - confidence / 100) : circumference }}
-                animate={{ strokeDashoffset: circumference * (1 - confidence / 100) }}
-                transition={{ delay: 0.6, duration: 1.6, ease: "easeOut" }}
-              />
-            </svg>
-            <span className="absolute inset-0 grid place-items-center text-sm font-black text-ink">{confidence}%</span>
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Detected</p>
-            <p className="text-2xl font-black text-ink">Eat</p>
-          </div>
-        </div>
-        <motion.div
-          className="max-w-[16rem] rounded-2xl rounded-tl-sm bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_12px_30px_rgba(37,99,235,0.12)]"
-          initial={reduceMotion ? false : { opacity: 0, y: 12, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ delay: 2.2, duration: 0.4 }}
-        >
-          <span className="mb-1 flex items-center gap-1.5 text-xs font-bold text-blue-600">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Feedback
-          </span>
-          Great job! Keep your fingers close to your mouth.
-        </motion.div>
-        <motion.span
-          className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700"
-          initial={reduceMotion ? false : { opacity: 0, scale: 0.6 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 3, type: "spring", stiffness: 400, damping: 16 }}
-        >
-          <Check className="h-3.5 w-3.5" aria-hidden="true" /> Sign matched
-        </motion.span>
-      </div>
+      <motion.div
+        className="absolute inset-x-4 bottom-4 rounded-[1.25rem] border-4 border-emerald-200 bg-emerald-50 px-4 py-2.5 text-center text-emerald-950"
+        initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ delay: 1.8, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <p className="flex items-center justify-center gap-2 text-xl font-black">
+          <Check className="h-5 w-5 text-emerald-600" aria-hidden="true" /> Great job!
+        </p>
+        <p className="text-sm font-semibold">Fingers to your mouth. Well done.</p>
+      </motion.div>
     </div>
   );
 }

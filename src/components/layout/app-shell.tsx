@@ -14,7 +14,7 @@ import { studentNavItems, studentRouteHrefs } from "@/components/layout/nav-item
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { releaseStrayScrollLock } from "@/components/ui/dialog";
-import { LoadingState } from "@/components/common/loading-state";
+import { LoadingScreen } from "@/components/common/loading-state";
 import { PageTransition } from "@/components/motion/page-transition";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/layout/brand-logo";
@@ -95,11 +95,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   }
 
   if (loading) {
-    return (
-      <main className="grid min-h-screen place-items-center px-4">
-        <LoadingState label="Checking your MakaLearn account" />
-      </main>
-    );
+    return <LoadingScreen label="Checking your account" />;
   }
 
   if (!user) {
@@ -119,11 +115,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   }
 
   if (isStudentMode && !studentRouteHrefs.includes(pathname)) {
-    return (
-      <main className="grid min-h-screen place-items-center px-4">
-        <LoadingState label="Opening student mode" />
-      </main>
-    );
+    return <LoadingScreen label="Opening Student mode" />;
   }
 
   return (

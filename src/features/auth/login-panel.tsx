@@ -254,9 +254,6 @@ export function LoginPanel() {
             </button>
           </div>
         </div>
-        <p className="border-t border-slate-200/80 pt-5 text-center text-sm text-slate-500">
-          No account yet? Contact your school administrator.
-        </p>
       </form>
     </div>
   );

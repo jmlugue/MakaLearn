@@ -14,16 +14,16 @@ const manualSections = [
     title: "Add or update learning content",
     steps: [
       "Open Content, then choose PECS or Gestures on the content board.",
-      "Use Add learning item for new records, or Edit on an existing record to update label, category, description, instruction, and tags.",
-      "Attach PECS images, gesture image/video references, and audio cues from the upload controls on each content card."
+      "Use Add PECS card or Add gesture for new cards, or Edit on a card to change its label, category, and description.",
+      "Attach a picture and audio from the upload controls. Name each file word_category, like eat_food.png."
     ]
   },
   {
     title: "Create lessons",
     steps: [
-      "Choose Generate lesson on a PECS or gesture card, or open Lessons and choose Create manual lesson.",
-      "Type a title and a goal, then pick the materials.",
-      "Use Search learning items in the lesson form to find the PECS cards or gestures to include.",
+      "Open Lessons and choose New lesson.",
+      "Type a title and, if you like, a short description.",
+      "Pick the cards in the order you want to teach them. They fill the lesson order tray.",
       "Choose Private to me when you save a new lesson to keep it to yourself. Shared lessons can be opened by every teacher, who can use Make a copy to adapt one."
     ]
   },
@@ -54,7 +54,7 @@ const faqs = [
   },
   {
     question: "What is the difference between a lesson and an activity?",
-    answer: "A lesson is the plan: a title, a goal, and the cards. Activities are how the learner practises them. A lesson can hold many activities, added from the Activities page, and an activity can also stand on its own. Scores show at the end of an activity but are not saved."
+    answer: "A lesson is the plan: a title, a short description, and the cards in order. Activities are how the learner practises them. A lesson can hold many activities, added from the Activities page, and an activity can also stand on its own. Scores show at the end of an activity but are not saved."
   },
   {
     question: "Where do I find an activity after creating it?",
@@ -62,7 +62,7 @@ const faqs = [
   },
   {
     question: "Why is some media shown as placeholder content?",
-    answer: "The app does not include official Makaton symbols, gesture videos, or audio yet. Replace placeholders with approved classroom materials."
+    answer: "The app does not include official Makaton symbols or audio yet. Replace placeholders with approved classroom materials."
   },
   {
     question: "Can learners sign in by themselves?",

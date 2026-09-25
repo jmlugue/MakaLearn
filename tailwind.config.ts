@@ -14,6 +14,12 @@ const config: Config = {
         },
         skywash: "#eef7ff",
         ink: "#172033",
+        // Small red, yellow, blue touches on the landing, login, and loaders only. Blue stays the main color.
+        brand: {
+          red: "#ef4444",
+          yellow: "#facc15",
+          blue: "#2563eb"
+        },
         mint: "#e8f7ef",
         coral: "#fff1ec",
         // Accent family. Blue stays primary; these carry warmth on illustrations,

@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Shield } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Activity, LayoutDashboard, Layers, Users } from "lucide-react";
+import { ShieldUser } from "@/components/icons/shield-user";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
-import { UnderlineTabs } from "@/components/ui/underline-tabs";
+import { PillTabs } from "@/components/ui/pill-tabs";
 import { PageHeader } from "@/components/layout/page-header";
 import { GuideBanner } from "@/features/guide/guide-banner";
 import { GuideTip } from "@/features/guide/guide-tip";
@@ -15,7 +18,7 @@ import { fetchAuditLogs } from "@/lib/audit-logs";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { AccountsSection, type StatusFilter } from "@/features/admin/accounts-section";
 import { ActivitySection } from "@/features/admin/activity-section";
-import { type LogFilter, type LogRange, rangeStart } from "@/features/admin/admin-shared";
+import { type LogFilter, type LogRange, rangeBounds } from "@/features/admin/admin-shared";
 import { ContentSection, type ContentView } from "@/features/admin/content-section";
 import { OverviewSection, type OverviewJump } from "@/features/admin/overview-section";
 import type {
@@ -30,11 +33,11 @@ import type {
 
 type Section = "home" | "accounts" | "content" | "activity";
 
-const sections: { value: Section; label: string }[] = [
-  { value: "home", label: "Home" },
-  { value: "accounts", label: "Accounts" },
-  { value: "content", label: "Content" },
-  { value: "activity", label: "Activity log" }
+const sections: { value: Section; label: string; icon: LucideIcon }[] = [
+  { value: "home", label: "Home", icon: LayoutDashboard },
+  { value: "accounts", label: "Accounts", icon: Users },
+  { value: "content", label: "Content", icon: Layers },
+  { value: "activity", label: "Activity log", icon: Activity }
 ];
 
 const LOG_PAGE_SIZE = 50;
@@ -47,6 +50,7 @@ function sectionFromHash(): Section {
 export function AdminPanelView() {
   const { user } = useAuthUser();
   const { notify } = useToast();
+  const reduceMotion = useReducedMotion();
   const [section, setSection] = useState<Section>("home");
   const [users, setUsers] = useState<AppUser[]>([]);
   const [items, setItems] = useState<LearningItem[]>([]);
@@ -102,7 +106,7 @@ export function AdminPanelView() {
 
   const reloadActivityLogs = useCallback(async () => {
     try {
-      const firstPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE, since: rangeStart(logRange) });
+      const firstPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE, ...rangeBounds(logRange) });
       setLogs(firstPage);
       setHasMoreLogs(firstPage.length === LOG_PAGE_SIZE);
     } catch {
@@ -141,7 +145,8 @@ export function AdminPanelView() {
     if (!last) return;
     setLoadingMoreLogs(true);
     try {
-      const nextPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE, before: last.createdAt, since: rangeStart(logRange) });
+      // Paging moves `before` back to the last loaded log, which is always inside the range.
+      const nextPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE, since: rangeBounds(logRange).since, before: last.createdAt });
       setLogs((current) => [...current, ...nextPage]);
       setHasMoreLogs(nextPage.length === LOG_PAGE_SIZE);
     } catch {
@@ -174,84 +179,92 @@ export function AdminPanelView() {
 
   return (
     <>
-      <PageHeader title="Admin" icon={Shield} />
+      <PageHeader title="Admin" icon={ShieldUser} />
       <GuideBanner pageKey="admin" />
 
       <GuideTip id="admin.sections">
-        <UnderlineTabs id="admin-sections" label="Admin sections" value={section} onChange={goTo} options={sections} className="mb-6" />
+        <PillTabs id="admin-sections" label="Admin sections" value={section} onChange={goTo} options={sections} className="mb-6" />
       </GuideTip>
 
-      {section === "home" ? (
-        <OverviewSection
-          adminName={user.name}
-          users={users}
-          items={items}
-          media={media}
-          activities={activities}
-          lessons={lessons}
-          logs={dashboardLogs}
-          onJump={handleJump}
-        />
-      ) : null}
+      {/* Each section rises in when chosen, like a page change. */}
+      <motion.div
+        key={section}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {section === "home" ? (
+          <OverviewSection
+            adminName={user.name}
+            users={users}
+            items={items}
+            media={media}
+            activities={activities}
+            lessons={lessons}
+            logs={dashboardLogs}
+            onJump={handleJump}
+          />
+        ) : null}
 
-      {section === "accounts" ? (
-        <AccountsSection
-          users={users}
-          currentUserId={user.id}
-          initialStatusFilter={statusFilter}
-          onUserChange={(changed) => setUsers((current) => current.map((account) => (account.id === changed.id ? changed : account)))}
-          onUserAdd={(added) => setUsers((current) => [added, ...current.filter((account) => account.id !== added.id)])}
-          onLogsChanged={reloadLogs}
-        />
-      ) : null}
+        {section === "accounts" ? (
+          <AccountsSection
+            users={users}
+            currentUserId={user.id}
+            initialStatusFilter={statusFilter}
+            onUserChange={(changed) => setUsers((current) => current.map((account) => (account.id === changed.id ? changed : account)))}
+            onUserAdd={(added) => setUsers((current) => [added, ...current.filter((account) => account.id !== added.id)])}
+            onLogsChanged={reloadLogs}
+          />
+        ) : null}
 
-      {section === "content" ? (
-        <ContentSection
-          items={items}
-          media={media}
-          users={users}
-          categories={categories}
-          initialView={contentView}
-          openItemRequest={openItemRequest}
-          onItemSaved={(saved) => setItems((current) => current.map((item) => (item.id === saved.id ? saved : item)))}
-          onItemDeleted={(deleted, deletedMedia) => {
-            setItems((current) => current.filter((item) => item.id !== deleted.id));
-            if (deletedMedia) setMedia((current) => current.filter((asset) => asset.relatedItemId !== deleted.id));
-            reloadLogs();
-          }}
-          onMediaDeleted={(deleted) => {
-            setMedia((current) => current.filter((asset) => asset.id !== deleted.id));
-            // Clear the matching URL locally too, mirroring what the delete did in the database.
-            if (deleted.relatedItemId && deleted.publicUrl) {
-              setItems((current) =>
-                current.map((item) => {
-                  if (item.id !== deleted.relatedItemId) return item;
-                  return {
-                    ...item,
-                    symbolImageUrl: item.symbolImageUrl === deleted.publicUrl ? undefined : item.symbolImageUrl,
-                    gestureMediaUrl: item.gestureMediaUrl === deleted.publicUrl ? undefined : item.gestureMediaUrl,
-                    audioUrl: item.audioUrl === deleted.publicUrl ? undefined : item.audioUrl
-                  };
-                })
-              );
-            }
-            reloadLogs();
-          }}
-        />
-      ) : null}
+        {section === "content" ? (
+          <ContentSection
+            items={items}
+            media={media}
+            users={users}
+            categories={categories}
+            initialView={contentView}
+            openItemRequest={openItemRequest}
+            onItemSaved={(saved) => setItems((current) => current.map((item) => (item.id === saved.id ? saved : item)))}
+            onItemDeleted={(deleted, deletedMedia) => {
+              setItems((current) => current.filter((item) => item.id !== deleted.id));
+              if (deletedMedia) setMedia((current) => current.filter((asset) => asset.relatedItemId !== deleted.id));
+              reloadLogs();
+            }}
+            onMediaDeleted={(deleted) => {
+              setMedia((current) => current.filter((asset) => asset.id !== deleted.id));
+              // Clear the matching URL locally too, mirroring what the delete did in the database.
+              if (deleted.relatedItemId && deleted.publicUrl) {
+                setItems((current) =>
+                  current.map((item) => {
+                    if (item.id !== deleted.relatedItemId) return item;
+                    return {
+                      ...item,
+                      symbolImageUrl: item.symbolImageUrl === deleted.publicUrl ? undefined : item.symbolImageUrl,
+                      gestureMediaUrl: item.gestureMediaUrl === deleted.publicUrl ? undefined : item.gestureMediaUrl,
+                      audioUrl: item.audioUrl === deleted.publicUrl ? undefined : item.audioUrl
+                    };
+                  })
+                );
+              }
+              reloadLogs();
+            }}
+          />
+        ) : null}
 
-      {section === "activity" ? (
-        <ActivitySection
-          logs={logs}
-          hasMore={hasMoreLogs}
-          loadingMore={loadingMoreLogs}
-          onLoadMore={loadMoreLogs}
-          filter={logFilter}
-          onFilterChange={setLogFilter}
-          range={logRange}
-          onRangeChange={setLogRange}
-        />
-      ) : null}
+        {section === "activity" ? (
+          <ActivitySection
+            logs={logs}
+            hasMore={hasMoreLogs}
+            loadingMore={loadingMoreLogs}
+            onLoadMore={loadMoreLogs}
+            filter={logFilter}
+            onFilterChange={setLogFilter}
+            range={logRange}
+            onRangeChange={setLogRange}
+          />
+        ) : null}
+      </motion.div>
     </>
   );
 }
