@@ -37,7 +37,9 @@ export async function insertAuditLog(input: AuditLogInput) {
     throw new Error("Supabase is not configured. Audit logs require Supabase.");
   }
 
-  const { data, error } = await supabase
+  // No read-back: teachers may add log entries but only admins may read them, so asking for the new row
+  // back made every teacher's entry fail. The entry built here is what was saved.
+  const { error } = await supabase
     .from("audit_logs")
     .insert({
       id: log.id,
@@ -50,15 +52,13 @@ export async function insertAuditLog(input: AuditLogInput) {
       target_title: log.targetTitle,
       detail: log.detail,
       created_at: log.createdAt
-    })
-    .select()
-    .single();
+    });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return mapAuditLogRow(data);
+  return log;
 }
 
 /**

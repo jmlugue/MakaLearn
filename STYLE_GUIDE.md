@@ -32,7 +32,7 @@ Stack: Next.js 14, React 18, Tailwind CSS 3.4, Framer Motion, lucide-react icons
 | **App** (Content, Activities, Admin, Help, Settings, Profile) | Teachers, admins | `AppShell` with sidebar | Glass panels, blue, `max-w-7xl` centered |
 | **Student mode** (Playground, Gestures, Activities) | Learners | Same shell, no sidebar, logo button opens a drawer | Full width, big targets (56px+), `font-black`, bright colors |
 | **Full-screen player** | Teacher runs an activity | `player/activity-player-screen.tsx`, fixed over the page | Blue wash, white top bar, flat `blue-600` |
-| **Landing and Login** | Visitors | `app/page.tsx`, `app/login` | Own backgrounds (`.landing-page`, `.login-page`), soft orbs. No drawn figures or floating bubbles. |
+| **Landing and Login** | Visitors | `app/page.tsx`, `app/login` | Own backgrounds (`.landing-page`, `.login-page`), soft glass orbs. No drawn figures or floating bubbles. |
 
 ---
 
@@ -130,6 +130,7 @@ a page-specific color. Each entry also has `soft`, `border`, `hoverBorder`, `ico
 | Categories (teacher picks) | 12 pastel presets: blue, sky, teal, green, lime, yellow, orange, coral, rose, pink, lavender, slate. `tintDot()` makes the dot color. | `categoryTints` in `content-shared.tsx` |
 | Playground categories | All: blue. Greetings: amber. Emotions: pink. Family: violet. Food: orange. Classroom: teal. Daily needs: emerald. Safety: red. Each has an icon. | `categoryStyles` in `playground-view.tsx` |
 | Confetti | yellow, sky, emerald, rose | `globals.css` |
+| Brand accents (`brand-red` `#ef4444`, `brand-yellow` `#facc15`, `brand-blue` `#2563eb`) | Loader dots and the Student mode switch card only. Never in teacher or admin screens, and not on the landing (tried and reverted). | `tailwind.config.ts` |
 
 ### Unused tokens
 
@@ -336,12 +337,14 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 
 | Component | Look | Use |
 |---|---|---|
-| `UnderlineTabs` | Text tabs, `slate-200` bottom line, sliding `blue-600` underline, optional icon and count | Page sections (Materials, Lessons, Media) |
-| `SegmentedControl` | White pill group, selected is solid `blue-600` | Small choices (text size, filters) |
+| `UnderlineTabs` | Text tabs, `slate-200` bottom line, sliding `blue-600` underline, optional icon and count | Older screens (Activities library) |
+| `PillTabs` | White pill group, icon per tab, optional count, selected is a sliding solid `blue-600` pill | Page sections (Content, Admin) |
+| `FilterSelect` (`admin-shared.tsx`) | Select with its name inside ("Status  All") | Admin filters |
+| `SegmentedControl` | White pill group, optional icon and count, selected is solid `blue-600` | Small choices and filters under a `PillTabs` bar (PECS / Gestures, media type, linked) |
 | `CategoryPills` (`content-shared.tsx`) | One row of pills, extras in "+N more" | Category filter |
 | `DropdownMenu` | `⋯` button, white menu 224px wide, danger items red | Row and card actions |
 | `SelectionList` | Checkbox rows, selected `border-blue-500 bg-skywash` | Picking cards |
-| Slot tray (`MaterialsStep tray="slots"`) | Numbered 3:4 slots that fill in pick order, tap to remove, "3 of 5" pill | Picking a fixed number of cards (activity creator) |
+| Slot tray (`MaterialsStep tray="slots"`) | Numbered 3:4 slots that fill in pick order, tap to remove. With `max`: that many slots and a "3 of 5" pill (activity creator). Without: picked cards plus one next slot, wrapping, "Lesson order" (lesson form) | Picking cards in order |
 
 ### Badges and chips
 
@@ -360,8 +363,9 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 | `PageHeader` (`layout/`) | Blue icon tile plus big page name, actions on the right. **No band or box.** Blue only, no per-page colors. |
 | `StatCard` (`common/`) | Label, `text-3xl` number, icon tile right |
 | `EmptyState` (`common/`) | Card with a floating icon tile, title, one line |
-| `LoadingState` (`common/`) | Glass panel with pulsing `blue-100` / `blue-50` bars |
-| Toast (`common/toast-provider.tsx`) | White card top right, 3 seconds, icon in meaning color (`CheckCircle2`, `AlertCircle`, `Info`) |
+| `LoadingScreen` / `LoadingState` (`common/`) | Cropped logo that bobs, three hopping dots (red, yellow, blue), one short line. Full screen / in page. |
+| Student mode switch (`student-mode-transition.tsx`) | ~1s solid blue card: logo, "Student mode" or "Teacher view", brand shapes |
+| Toast (`common/toast-provider.tsx`) | Glass card, meaning-color left stripe, icon tile, timer bar. Bottom right (top on phones), 3 seconds, hover pauses. |
 | `FileUpload` (`ui/`) | Dashed `blue-200` box, icon tile, Choose or Change, limit shown in the hint |
 | Guide banner (`features/guide/`) | Light blue glass strip, `Sparkles` tile, one line, blue "Show me", close `X` |
 | Settings group | Card with an uppercase group heading, white list with `blue-100` dividers, icon tile rows |
@@ -370,9 +374,10 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 
 | Card | Anatomy |
 |---|---|
-| Material (`content/card-tile.tsx`) | Solid white card, 6px thing-color stripe on top, square picture well in the thing's soft color, word in `text-sm font-bold`, audio and video icons, category chip. Hover: lift 2px, `blue-300` border. Video plays on hover. |
+| Material (`content/card-tile.tsx`, picture only: name, audio, category show when opened) | Whole card in the thing's soft color and border, 6px stripe on top, white 3:4 picture box (`PictureBox`), word in `text-sm font-bold` (2 lines max), audio icon, category chip. No PECS / Gesture badge, no video. Hover: lift 2px. |
+| Lesson (`content/lesson-card.tsx`) | Full-width row, 6px blue stripe on the left, title, one-line description, meta line (cards, Private, By name), numbered 3:4 card strip on the right (5 then "+N") |
 | Activity (`activities/activity-card.tsx`) | Solid white card, type-color stripe, picture collage, one-line title `text-lg font-bold`, one meta line (type badge, card count, lock if private, By name), lesson name and Play at the bottom |
-| PECS picture | 3:4, word at the bottom, image `object-contain` |
+| PECS picture | 3:4, word at the bottom, image `object-contain`. Use `PictureBox` (`content-media.tsx`): an image in a plain grid cell keeps its own height and the word gets cut off. |
 
 ---
 
@@ -399,7 +404,10 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 | Drop box word | `text-xl sm:text-2xl font-black uppercase` |
 | Card | `studentCard`: 3:4, `border-4`, solid white, max `16rem` wide, same in every game and the score pop-up |
 | Buttons | `studentButton`: primary `blue-600`, secondary white with blue border, Hint white with amber border |
-| Flow | How to play card, then one tap per question. Big "Correct!" or "Not this one" pop-up (with the right card), next question after 1.8s. Drag and drop: drag only, a wrong drop flies back with "Try again". |
+| Instruction wording | "Find the picture..." (`studentInstruction`), not "Tap the...". Drag and drop: "Drag each picture onto its word." |
+| How to play card | Title, then the demo in its own light panel, then the instruction in a solid blue box, then Listen and Start, then "Don't show this again" (per activity, this browser) |
+| Flow | One tap per question. Right: big "Correct!" pop-up, next after 1.8s. Wrong: no pop-up, the cards shake, the pick is tagged "Not this one" in red, and the right card grows and glows with "This one!", next after 2.4s. Drag and drop: drag only, a wrong drop shakes the box and flies back. |
+| Drag and drop score | Placed cards are always green in the progress. Score counts first drops ("3 of 4 right"); a card that needed another try gets an amber turn arrow, not a red cross |
 | Hint | Greys out one wrong card per tap, stops at two cards left |
 | Solid white | Use `bg-[#fff]`, not `bg-white`: `.app-canvas .bg-white` is 70% glass |
 
@@ -419,7 +427,7 @@ Student pieces: `student-game-parts.tsx` (frame, top bar, progress dots, card, f
 | Card hover | `Card`, material and activity cards | Up 2px |
 | Pop-up open | `Dialog` | Backdrop fade 0.15s, panel rise 12px and scale 0.98, 0.18s |
 | Tab underline | `UnderlineTabs` | Slides, spring |
-| Toast | Toast provider | Slides in from the right, 0.22s |
+| Toast | Toast provider | Rises in, slides out right, 0.22s; timer bar shrinks |
 | Grid entrance | `.stagger-grid` | Cards rise one after another, 70ms apart |
 | Result | `.activity-result-panel` | Pop; wrong answers also shake |
 | Celebration | `.activity-confetti` | 18 pieces fall |
@@ -511,4 +519,4 @@ Rules:
 | Activity type colors | `src/features/activities/activity-helpers.ts` |
 | Player parts | `src/features/activities/player/player-parts.tsx` |
 | Playground colors | `src/features/playground/playground-view.tsx` |
-| Logo | `public/makalearn_logo_current.png` via `BrandLogo` |
+| Logo | `public/makalearn_logo_current.png` (landing, login); cropped `makalearn_logo_mark.png` in `BrandLogo` and loaders |

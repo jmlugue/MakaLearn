@@ -63,7 +63,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: createError?.message ?? "Account could not be created." }, { status: 500 });
   }
 
-  const { data: profile, error: profileError } = await serviceClient
+  // Save the profile as the signed-in admin, not the service role. The profiles trigger calls
+  // private.current_user_role(), and the service role cannot use the private schema until
+  // supabase/migrations/20260926000000_service_role_private_schema.sql is run.
+  const { data: profile, error: profileError } = await admin.sessionClient
     .from("profiles")
     .upsert({
       id: created.user.id,

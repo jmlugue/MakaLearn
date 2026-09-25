@@ -102,8 +102,15 @@ Activating or deactivating an account failed with "permission denied for schema 
 profiles trigger calls `private.current_user_role()`, but only `authenticated` could use that schema,
 and the admin routes run as the service role. Two `grant` lines fix it. elugs (who applied the Sep 25
 migrations) should run it in the Supabase SQL Editor.
-Workaround until then: `/api/admin/account-status` updates the profile with the signed-in admin's
-session (`requireActiveAdmin` now returns `sessionClient`), which the trigger and RLS allow.
+Workaround until then: `/api/admin/account-status`, `change-role`, and `create-teacher` write the profile
+with the signed-in admin's session (`requireActiveAdmin` returns `sessionClient`), which the trigger and RLS
+allow.
+
+**Activity log fix (Sep 26):** `insertAuditLog` no longer reads the new row back. Teachers may insert but
+not read `audit_logs`, so every teacher entry (logins, content, activities) had failed silently since Sep 25.
+
+**Whole-app test:** `npm run test:app:db` (dev server running) runs 33 live checks with the test accounts.
+`TEST_CREATE_ACCOUNT=1` also tests account creation and leaves a deactivated "[TEST] Created account".
 
 **The migration has NOT been run on the live database.** Verified by probing PostgREST directly:
 
@@ -431,5 +438,72 @@ seeing they were right. Student mode only; the teacher player is unchanged.
 - The player keeps its own state now (`StudentActivityPlayer` takes `activity`, `learningItems`, `onHome`).
   `ActivityResultModal` is Student only and takes `firstTryRight`. `match-question.tsx` was merged into
   `choose-question.tsx`; old footer, navigator, and grid helpers were removed.
+- Round 2 after testing: instructions read "Find the picture..."; How to play card has the demo and a blue
+  instruction box apart, plus "Don't show this again" (localStorage `makalearn.studentIntroHidden`, per
+  activity). Wrong taps have no pop-up: cards shake, the pick says "Not this one", the right card glows with "This one!". Drag and drop
+  progress is green once placed; the score says "X of Y right" (first drops) with amber arrows for retries.
 - Not verified signed in, on a real touch tablet, or with real speech timing.
 
+
+---
+
+## 14. UI pass: landing, login, admin, app-wide (Sep 26, checked on a temporary page, not signed in)
+
+- **Landing:** an accent pass (flat shapes, colored word underlines) was **reverted on request**. The landing is
+  the original glass design again. Do not remove its orbs or glass to add color.
+- **How it works:** blue step bars kept. "Get feedback" mirrors the real Gesture practice screen ("Show Eat"
+  chip, green "Great job!" card) on a **white** frame; the user rejected the dark camera look.
+- `brand-red`, `brand-yellow`, `brand-blue` tokens in `tailwind.config.ts` are used only by the loader dots and
+  the Student mode switch card. Restart the dev server after pulling so Tailwind picks them up.
+- **Login:** "No account yet? Contact your school administrator." removed.
+- **Admin:** `PillTabs` (`ui/pill-tabs.tsx`) with icons replace the underline tabs; sections rise in on switch.
+  Admin icon is a shield with a person (`src/components/icons/shield-user.ts`, Lucide's `ShieldUser` paths; the
+  installed lucide-react is too old to have it). The guide uses `LayoutDashboard` for Home. `BrandLogo` uses the
+  cropped `public/makalearn_logo_mark.png`. Home: type sizes to the guide, ring in PECS/Gesture colors,
+  Activities icon `Shapes`. Accounts: `FilterSelect` ("Role All", "Status All"); Temporary password pop-up
+  with an account row; Add account with role tiles, field icons, and Generate / show / Copy on the password.
+  Activity log: "Materials" filter is now "Content"; date ranges Today, Yesterday, Last 7 days, This week,
+  Last 30 days, This month, Last month (`rangeBounds` in `admin-shared.tsx`); new log pop-up.
+- **Dialog bug fixed:** the corner glow stuck out of the panel, so focusing a control near the right edge
+  scrolled every pop-up sideways (the "temp password alignment" report). The glow is now in a clipped layer.
+- **Toasts:** glass card, meaning stripe, icon tile, timer bar, hover pauses; bottom right (top on phones).
+- **Loading:** `LoadingScreen` / `LoadingState` show the bobbing logo and three colored dots. Entering or
+  leaving Student mode shows a ~1s card (`student-mode/student-mode-transition.tsx`, mounted in the provider).
+- **Two menu levels:** main sections use pills (`PillTabs`); anything under them uses `UnderlineTabs`
+  (Materials PECS / Gestures, Media type, Admin Content Materials / Media, Activity log type). The user
+  rejected a second row of pills. Media "Linked" is a `FilterSelect`.
+- **Cards are picture only:** material cards show the stripe and picture; name, audio, and category show when
+  opened (name kept as `aria-label` and hover `title`). Media thumbnails dropped their file name. Category
+  cards keep name and count but dropped the description line.
+- **Admin Content pop-ups** (`content-detail-dialog.tsx`) use the Activity log style: icon tile header, white
+  `DetailList` of `DetailRow`s with icons, `DetailNote` boxes (shared in `admin-shared.tsx`).
+- Lessons were left to another session. Activity and lesson name shortening was skipped on request.
+
+---
+
+## 15. Content page cleanup and file name rule (Sep 26, checked on a temporary page, not signed in)
+
+- **File name rule (advisor):** uploads must be named `<word>_<category>.<ext>` for the material's own label
+  and category, e.g. `eat_food.png`, `thank-you_greetings.mp3` (spaces become hyphens, any case). Refused files
+  name the expected file. In Add material, a valid file picked before typing a label fills the label and
+  category. Checked in the form, the detail pop-up, and inside `uploadMediaAssetToSupabase` (`expectedName`).
+  Helpers and allowed extensions: `src/utils/media-filename.ts`. Test: `npm run test:media`.
+- **Menu:** Content sections use `PillTabs` (with counts); PECS / Gestures, media type, and linked filters use
+  `SegmentedControl`. Category pills sit on their own row.
+- **Cut-off cards fixed:** pictures sat in square grid cells and kept their own height, so the bottom of each
+  3:4 PECS card (the word) was cropped. `PictureBox` in `content-media.tsx` fixes it; use it for card pictures.
+  The CategoryPills measuring row also widened the page on phones; it is now clipped.
+- **Materials:** no PECS / Gesture badge, whole card tinted by kind, no video anywhere in Content or Admin
+  content (old video files show as "Old video file" so they can be deleted). Detail pop-up is one layout:
+  picture and Play word, title, description, Files (Picture, Audio). Tags are hidden (the column stays;
+  kind detection still reads it).
+- **"Fixed gestures" category hidden** (`visibleCategories`, `isHiddenCategory` in `content-shared.tsx`). The 7
+  built-in gestures stay in it for Guided 7 and still cannot be deleted. File names for them use `gestures`.
+- **Automate removed:** Generate lesson, the draft lesson mode, Auto-made badge and filter, and
+  `lesson-template.ts` are gone. The `source` column stays; new lessons save "manual".
+- **Lessons:** full-width plan rows with a numbered card strip. Form: Title plus optional Description (saved in
+  `objective`), Cards step uses the slot tray without a max ("Lesson order"), Review and preview show numbered
+  steps.
+- **Categories:** an empty category shows only its color. **Media:** the "Every file in MakaLearn" line is gone;
+  thumbnails are small tinted cards instead of a dot.
+- **Not verified signed in:** real uploads with the new names, and the Admin content views.
