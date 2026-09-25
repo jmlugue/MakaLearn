@@ -4,6 +4,9 @@ Handoff for the next session. `AGENTS.md` holds the long-standing coding rules a
 the older project history. Where they disagree, this file wins. It covers the Content module finish,
 Guide mode, the Activities redesign (section 6), and teammate changes (section 8).
 
+**Design:** read `STYLE_GUIDE.md` before any UI work. It is the single source of truth for fonts, type,
+colors, spacing, icons, components, and motion. Do not use `DESIGN.md` (out of date).
+
 ---
 
 ## 1. What MakaLearn is
