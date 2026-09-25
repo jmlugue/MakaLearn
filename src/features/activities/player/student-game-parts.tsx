@@ -2,7 +2,7 @@
 
 import { type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, Home, Lightbulb, Volume2, X } from "lucide-react";
+import { Check, Home, Lightbulb, RotateCcw, Volume2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getActivityBackground } from "@/features/activities/player/player-utils";
 import { SymbolOption } from "@/features/activities/player/player-parts";
@@ -151,17 +151,19 @@ export function StudentPictureCard({
   );
 }
 
-/** Tick or cross in the corner of a card. */
-export function StudentResultBadge({ tone }: { tone: "correct" | "wrong" }) {
+/** Tick, cross, or (right after another try) a turn arrow in the corner of a card. */
+export function StudentResultBadge({ tone }: { tone: "correct" | "wrong" | "retry" }) {
   return (
     <span
       className={cn(
         "absolute right-2 top-2 z-10 grid h-11 w-11 place-items-center rounded-full border-4 border-white text-white shadow-md sm:h-12 sm:w-12",
-        tone === "correct" ? "bg-emerald-500" : "bg-rose-500"
+        tone === "correct" ? "bg-emerald-500" : tone === "retry" ? "bg-amber-400" : "bg-rose-500"
       )}
       aria-hidden="true"
     >
-      {tone === "correct" ? <Check className="h-6 w-6" strokeWidth={3.5} /> : <X className="h-6 w-6" strokeWidth={3.5} />}
+      {tone === "correct" ? <Check className="h-6 w-6" strokeWidth={3.5} /> : null}
+      {tone === "retry" ? <RotateCcw className="h-6 w-6" strokeWidth={3} /> : null}
+      {tone === "wrong" ? <X className="h-6 w-6" strokeWidth={3.5} /> : null}
     </span>
   );
 }
@@ -169,13 +171,11 @@ export function StudentResultBadge({ tone }: { tone: "correct" | "wrong" }) {
 export type AnswerFeedback = {
   tone: "correct" | "wrong";
   title: string;
-  /** On a wrong answer, the right card, shown so the child sees what it was. */
-  rightValue?: string;
   key: number;
 };
 
 /**
- * The big Correct or Not this one pop-up after an answer. It never blocks taps for long: it closes by itself.
+ * The big Correct! pop-up after a right answer (wrong answers shake instead). It never blocks taps for long: it closes by itself.
  * `passThrough` lets a drag continue under it.
  */
 export function AnswerFeedbackPopup({
@@ -219,14 +219,6 @@ export function AnswerFeedbackPopup({
               {feedback.tone === "correct" ? <Check className="h-12 w-12" strokeWidth={3.5} /> : <X className="h-12 w-12" strokeWidth={3.5} />}
             </span>
             <p className={cn(studentText.popupTitle, feedback.tone === "correct" ? "text-emerald-600" : "text-rose-600")}>{feedback.title}</p>
-            {feedback.rightValue ? (
-              <div className="grid justify-items-center gap-2">
-                <span className="text-lg font-black text-[#10285e]">The right one is</span>
-                <StudentPictureCard value={feedback.rightValue} learningItems={learningItems} className="w-28 border-emerald-400 sm:w-32">
-                  <StudentResultBadge tone="correct" />
-                </StudentPictureCard>
-              </div>
-            ) : null}
           </motion.div>
         </motion.div>
       ) : null}

@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { getDisplayLabel, getQuestionTitle } from "@/features/activities/player/player-utils";
 import { StudentPictureCard, StudentResultBadge } from "@/features/activities/player/student-game-parts";
@@ -8,7 +9,8 @@ import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 /**
  * Match, Choose the picture, and Fill in the blank in Student mode: one question and its picture cards.
- * One tap answers. After that the right card is green, a wrong pick red, and the rest fade.
+ * One tap answers. After that the right card is green, a wrong pick red, and the rest fade. On a wrong pick the
+ * cards shake, the pick is tagged "Not this one", and the right card grows and glows with "This one!" (no pop-up).
  */
 export function StudentChoiceBoard({
   activity,
@@ -33,6 +35,8 @@ export function StudentChoiceBoard({
   beingRead: boolean;
   onPick: (option: string) => void;
 }) {
+  const reduceMotion = useReducedMotion();
+  const missed = locked && picked !== question.answer;
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 sm:gap-4">
       <div
@@ -44,7 +48,10 @@ export function StudentChoiceBoard({
         <QuestionText activity={activity} question={question} learningItems={learningItems} filled={locked ? question.answer : undefined} />
       </div>
 
-      <div
+      <motion.div
+        key={`${question.id}-${missed ? "missed" : "open"}`}
+        animate={missed && !reduceMotion ? { x: [0, -14, 14, -10, 10, -5, 5, 0] } : { x: 0 }}
+        transition={{ duration: 0.5 }}
         className={cn(
           "mx-auto grid h-full min-h-0 w-full max-w-6xl gap-3 sm:gap-4",
           options.length <= 2 ? "grid-cols-2" : options.length === 3 ? "grid-cols-3" : "grid-cols-2 grid-rows-2 sm:grid-cols-4 sm:grid-rows-1"
@@ -64,6 +71,21 @@ export function StudentChoiceBoard({
                 className="w-[min(100cqw,75cqh,16rem)] rounded-[1.5rem] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-blue-300 disabled:cursor-default"
                 aria-label={getDisplayLabel(option, learningItems)}
               >
+                <motion.span
+                  className="relative block"
+                  animate={missed && isAnswer && !reduceMotion ? { scale: [1, 1, 1.1, 1.04, 1.1, 1.06] } : { scale: 1 }}
+                  transition={{ duration: 1.4, times: [0, 0.35, 0.55, 0.7, 0.85, 1] }}
+                >
+                {missed && (isAnswer || isPicked) ? (
+                  <span
+                    className={cn(
+                      "absolute -top-4 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full border-4 border-white px-4 py-1 text-lg font-black text-white shadow-md",
+                      isAnswer ? "bg-emerald-500" : "bg-rose-500"
+                    )}
+                  >
+                    {isAnswer ? "This one!" : "Not this one"}
+                  </span>
+                ) : null}
                 <StudentPictureCard
                   value={option}
                   learningItems={learningItems}
@@ -71,6 +93,7 @@ export function StudentChoiceBoard({
                     "w-full",
                     tone === "idle" && "hover:-translate-y-1 hover:border-blue-300",
                     tone === "correct" && "border-emerald-500 ring-8 ring-emerald-200",
+                    tone === "correct" && missed && "shadow-[0_0_0_10px_rgba(16,185,129,0.25),0_0_40px_rgba(16,185,129,0.55)]",
                     tone === "wrong" && "border-rose-500 ring-8 ring-rose-200",
                     tone === "faded" && "opacity-50",
                     tone === "removed" && "opacity-25 grayscale"
@@ -79,11 +102,12 @@ export function StudentChoiceBoard({
                   {tone === "correct" ? <StudentResultBadge tone="correct" /> : null}
                   {tone === "wrong" ? <StudentResultBadge tone="wrong" /> : null}
                 </StudentPictureCard>
+                </motion.span>
               </button>
             </div>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 }

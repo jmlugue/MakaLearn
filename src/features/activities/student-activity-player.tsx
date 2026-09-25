@@ -6,17 +6,16 @@ import {
   getActivityQuestionListenItems,
   getCorrectResultListenItems,
   getDisplayLabel,
-  getQuestionListenText,
+  getQuestionTitle,
   normalizeSpokenText,
   shuffleOptions,
   speakText,
   speakTextSequence
 } from "@/features/activities/player/player-utils";
-import { activityInstruction } from "@/features/activities/activity-helpers";
 import { StudentChoiceBoard } from "@/features/activities/player/choose-question";
 import { StudentDragBoard } from "@/features/activities/player/drag-drop-question";
 import { ActivityResultModal } from "@/features/activities/player/activity-result";
-import { StudentIntroCard } from "@/features/activities/player/student-intro-card";
+import { StudentIntroCard, isIntroHidden } from "@/features/activities/player/student-intro-card";
 import {
   type AnswerFeedback,
   AnswerFeedbackPopup,
@@ -24,7 +23,14 @@ import {
   StudentGameFrame,
   StudentTopBar
 } from "@/features/activities/player/student-game-parts";
-import { DROP_FEEDBACK_MS, FEEDBACK_MS, ROUND_SIZE, SCORE_DELAY_MS } from "@/features/activities/player/student-theme";
+import {
+  DROP_FEEDBACK_MS,
+  FEEDBACK_MS,
+  ROUND_SIZE,
+  SCORE_DELAY_MS,
+  WRONG_MS,
+  studentInstruction
+} from "@/features/activities/player/student-theme";
 import type { Activity, LearningItem } from "@/types";
 
 type StudentActivityPlayerProps = {
@@ -45,7 +51,7 @@ export function StudentActivityPlayer({ activity, learningItems, onHome }: Stude
       key={`${activity.id}-${round}`}
       activity={activity}
       learningItems={learningItems}
-      showIntro={round === 0}
+      showIntro={round === 0 && !isIntroHidden(activity.id)}
       onPlayAgain={() => setRound((current) => current + 1)}
       onHome={onHome}
     />
@@ -67,7 +73,7 @@ function StudentRound({
 }) {
   const isDrag = activity.type === "drag-drop-symbol";
   const questions = useMemo(() => activity.questions.slice(0, ROUND_SIZE), [activity.questions]);
-  const instruction = activityInstruction(activity.type);
+  const instruction = studentInstruction(activity.type);
 
   const [seed] = useState(() => Math.random());
   const [phase, setPhase] = useState<"intro" | "play" | "done">(showIntro ? "intro" : "play");
@@ -115,7 +121,8 @@ function StudentRound({
   const hintLeft = hintState === "ready";
 
   const steps: StepState[] = questions.map((candidate, position) => {
-    if (answers[candidate.id]) return firstTryRight[candidate.id] ? "correct" : "wrong";
+    // Drag and drop: a placed card is always right, so its circle is green even after a retry.
+    if (answers[candidate.id]) return isDrag || firstTryRight[candidate.id] ? "correct" : "wrong";
     if (!isDrag && position === index) return "current";
     return "todo";
   });
@@ -143,7 +150,10 @@ function StudentRound({
       ]);
       return;
     }
-    if (question) void speak([{ id: question.id, text: getQuestionListenText(activity, question, learningItems) }]);
+    if (question) {
+      const text = normalizeSpokenText(`${instruction} ${getQuestionTitle(activity, question, learningItems)}`);
+      void speak([{ id: question.id, text }]);
+    }
   }
 
   // The How to play card reads itself once.
@@ -163,23 +173,24 @@ function StudentRound({
     later(() => setPhase("done"), SCORE_DELAY_MS);
   }
 
-  /** One tap answers: the pop-up says right or not, then the next question comes by itself. */
+  /**
+   * One tap answers. Right: the Correct pop-up. Wrong: no pop-up, the cards shake and the right card grows
+   * and glows green. Then the next question comes by itself.
+   */
   function pick(option: string) {
     if (!question || answers[question.id] || feedback) return;
     const right = option === question.answer;
     const word = getDisplayLabel(question.answer, learningItems);
+    const wait = right ? FEEDBACK_MS : WRONG_MS;
     setAnswers((current) => ({ ...current, [question.id]: option }));
     setFirstTryRight((current) => ({ ...current, [question.id]: right }));
     setHintFor("");
-    showFeedback(
-      right ? { tone: "correct", title: "Correct!" } : { tone: "wrong", title: "Not this one", rightValue: question.answer },
-      right ? `Correct! ${word}.` : `Not this one. The right one is ${word}.`,
-      FEEDBACK_MS
-    );
+    if (right) showFeedback({ tone: "correct", title: "Correct!" }, `Correct! ${word}.`, FEEDBACK_MS);
+    else void speakText(`Not this one. It is ${word}.`);
     later(() => {
       if (index + 1 >= questions.length) finishRound();
       else setIndex(index + 1);
-    }, FEEDBACK_MS);
+    }, wait);
   }
 
   /** Drag and drop: a right card stays, a wrong one goes back. Only the first drop on a box counts. */
@@ -195,8 +206,9 @@ function StudentRound({
       showFeedback({ tone: "correct", title: "Correct!" }, "Correct!", DROP_FEEDBACK_MS);
       if (questions.every((candidate) => nextAnswers[candidate.id])) later(finishRound, DROP_FEEDBACK_MS);
     } else {
+      // No pop-up: the box shakes and the card flies back.
       setShake({ id: questionId, key: Date.now() });
-      showFeedback({ tone: "wrong", title: "Try again" }, "Try again.", DROP_FEEDBACK_MS);
+      void speakText("Try again.");
     }
     return right;
   }
@@ -226,6 +238,7 @@ function StudentRound({
       <AnswerFeedbackPopup feedback={feedback} learningItems={learningItems} passThrough={isDrag} />
       {phase === "intro" ? (
         <StudentIntroCard
+          activityId={activity.id}
           type={activity.type}
           title={activity.title}
           instruction={instruction}
@@ -242,6 +255,7 @@ function StudentRound({
           activity={activity}
           learningItems={learningItems}
           firstTryRight={firstTryRight}
+          retries={isDrag}
           questionIds={resultQuestionIds}
           onPlayAgain={onPlayAgain}
           onHome={onHome}

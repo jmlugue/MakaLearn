@@ -40,3 +40,14 @@ export const SCORE_DELAY_MS = 400;
 
 /** Games show at most this many questions per round. */
 export const ROUND_SIZE = 5;
+
+/** What to do, in Student mode words. Short and the same shape for every game. */
+export function studentInstruction(type: string) {
+  if (type === "match-word-symbol") return "Find the picture for the word.";
+  if (type === "fill-blank") return "Find the picture that finishes the sentence.";
+  if (type === "drag-drop-symbol") return "Drag each picture onto its word.";
+  return "Find the picture that answers the question.";
+}
+
+/** How long a wrong answer shows the right card before the next question. */
+export const WRONG_MS = 2400;
