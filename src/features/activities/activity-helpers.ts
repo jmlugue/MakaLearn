@@ -43,10 +43,10 @@ export function activityInstruction(type: ActivityType, word?: string) {
 }
 
 export const activityTypeDescriptions: Record<ActivityType, string> = {
-  "match-word-symbol": "Match words to pictures.",
-  "choose-correct-symbol": "Pick the right picture.",
-  "fill-blank": "Choose the missing word.",
-  "drag-drop-symbol": "Drag pictures to words.",
+  "match-word-symbol": "See a word, tap its picture.",
+  "choose-correct-symbol": "Read a question, tap the picture that answers it.",
+  "fill-blank": "Read a sentence, tap the picture that finishes it.",
+  "drag-drop-symbol": "Drag each picture onto its word.",
   "gesture-practice": "Practise gestures with the teacher.",
   "simple-quiz": "Pick the right word."
 };

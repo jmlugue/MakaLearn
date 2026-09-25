@@ -10,13 +10,27 @@ const copy: Record<StudentModeSwitch, { title: string; line: string }> = {
   exit: { title: "Teacher view", line: "Welcome back" }
 };
 
-// Small flat shapes in red, yellow, and blue that pop in around the logo.
-const shapes = [
-  { className: "left-[14%] top-[20%] h-10 w-10 rounded-full bg-brand-yellow", delay: 0.05 },
-  { className: "right-[16%] top-[26%] h-8 w-8 rotate-12 rounded-lg bg-brand-red", delay: 0.12 },
-  { className: "bottom-[22%] left-[22%] h-7 w-7 rotate-45 rounded-md bg-white/80", delay: 0.18 },
-  { className: "bottom-[18%] right-[20%] h-12 w-12 rounded-full bg-brand-yellow/80", delay: 0.1 }
-];
+// Student mode is playful: bright red, yellow, green, and sky shapes pop in, with a four-color band at the
+// bottom. Teacher view stays calm: plain blue with a few faint white shapes.
+const shapes: Record<StudentModeSwitch, Array<{ className: string; delay: number }>> = {
+  enter: [
+    { className: "left-[10%] top-[14%] h-16 w-16 rounded-full bg-yellow-400", delay: 0.05 },
+    { className: "right-[12%] top-[18%] h-12 w-12 rotate-12 rounded-xl bg-red-500", delay: 0.12 },
+    { className: "left-[20%] bottom-[24%] h-10 w-10 rotate-45 rounded-lg bg-emerald-400", delay: 0.18 },
+    { className: "right-[18%] bottom-[22%] h-20 w-20 rounded-full bg-sky-300", delay: 0.1 },
+    { className: "left-[42%] top-[8%] h-6 w-6 rounded-full bg-emerald-300", delay: 0.22 },
+    { className: "right-[36%] bottom-[12%] h-8 w-8 rotate-12 rounded-md bg-yellow-400/90", delay: 0.26 },
+    { className: "left-[6%] top-[52%] h-8 w-8 rounded-full bg-red-500/90", delay: 0.3 },
+    { className: "right-[6%] top-[50%] h-7 w-7 rotate-45 rounded-md bg-white/85", delay: 0.2 }
+  ],
+  exit: [
+    { className: "left-[14%] top-[20%] h-10 w-10 rounded-full bg-white/20", delay: 0.05 },
+    { className: "right-[16%] top-[26%] h-8 w-8 rotate-12 rounded-lg bg-white/15", delay: 0.12 },
+    { className: "bottom-[20%] right-[20%] h-12 w-12 rounded-full bg-white/20", delay: 0.1 }
+  ]
+};
+
+const bandColors = ["bg-red-500", "bg-yellow-400", "bg-emerald-400", "bg-sky-300"];
 
 /** Full-screen card shown for about a second when Student mode is switched on or off, so the change is obvious. */
 export function StudentModeTransition({ mode }: { mode: StudentModeSwitch | null }) {
@@ -35,8 +49,15 @@ export function StudentModeTransition({ mode }: { mode: StudentModeSwitch | null
           role="status"
           aria-live="assertive"
         >
+          {mode === "enter" ? (
+            <div className="absolute inset-x-0 bottom-0 flex h-3" aria-hidden="true">
+              {bandColors.map((color) => (
+                <span key={color} className={`h-full flex-1 ${color}`} />
+              ))}
+            </div>
+          ) : null}
           {!reduceMotion
-            ? shapes.map((shape) => (
+            ? shapes[mode].map((shape) => (
                 <motion.span
                   key={shape.className}
                   className={`absolute ${shape.className}`}

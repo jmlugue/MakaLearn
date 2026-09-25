@@ -354,48 +354,52 @@ export function MaterialsStep({
   return (
     <div className="space-y-3">
       {showSlots ? <PickedSlots items={selectedItems} max={max} onRemove={toggle} /> : null}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {kinds.length > 1 ? (
-          <SegmentedControl
-            label="Material type"
-            value={kind}
-            onChange={(option) => {
-              setKind(option);
-              setCategoryId("all");
-            }}
-            options={kinds.map((option) => ({ value: option, label: kindMeta[option].plural, icon: kindMeta[option].icon }))}
-          />
-        ) : null}
-        <SearchInput label="Search materials" placeholder="Search" value={search} onChange={setSearch} />
-      </div>
-      {usedCategories.length > 1 ? <CategoryPills categories={usedCategories} value={categoryId} onChange={setCategoryId} /> : null}
+      {/* The card library sits in its own panel below the picked cards, so the two never blur together. */}
+      <div className={cn("space-y-3", showSlots && "rounded-2xl border-2 border-blue-100 bg-white/70 p-3")}>
+        {showSlots ? <p className="text-sm font-semibold text-slate-700">Choose cards</p> : null}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {kinds.length > 1 ? (
+            <SegmentedControl
+              label="Material type"
+              value={kind}
+              onChange={(option) => {
+                setKind(option);
+                setCategoryId("all");
+              }}
+              options={kinds.map((option) => ({ value: option, label: kindMeta[option].plural, icon: kindMeta[option].icon }))}
+            />
+          ) : null}
+          <SearchInput label="Search materials" placeholder="Search" value={search} onChange={setSearch} />
+        </div>
+        {usedCategories.length > 1 ? <CategoryPills categories={usedCategories} value={categoryId} onChange={setCategoryId} /> : null}
 
-      <div className={cn("grid max-h-[16rem] grid-cols-3 gap-2 overflow-y-auto rounded-2xl p-2 clean-scrollbar sm:grid-cols-4 md:grid-cols-6", tone.soft)}>
-        {visible.map((item) => {
-          const selected = selectedIds.includes(item.id);
-          return (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={selected}
-              disabled={!selected && full}
-              onClick={() => toggle(item.id)}
-              className={cn(
-                "relative flex flex-col overflow-hidden rounded-xl border-2 bg-[#fff] p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-40",
-                selected ? "border-blue-600 shadow-sm" : "border-transparent hover:border-blue-200"
-              )}
-            >
-              <PictureBox value={item.symbolImageUrl} label={item.label} className="rounded-lg bg-slate-50" inset="inset-1" textClassName="text-xs" />
-              <span className="mt-1 truncate text-xs font-semibold text-ink">{item.label}</span>
-              {selected ? (
-                <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-white">
-                  <Check className="h-3 w-3" aria-hidden="true" />
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-        {!visible.length ? <p className="col-span-full py-8 text-center text-sm text-slate-500">{emptyText}</p> : null}
+        <div className={cn("grid max-h-[16rem] grid-cols-3 gap-2 overflow-y-auto rounded-2xl p-2 clean-scrollbar sm:grid-cols-4 md:grid-cols-6", tone.soft)}>
+          {visible.map((item) => {
+            const selected = selectedIds.includes(item.id);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={selected}
+                disabled={!selected && full}
+                onClick={() => toggle(item.id)}
+                className={cn(
+                  "relative flex flex-col overflow-hidden rounded-xl border-2 bg-[#fff] p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-40",
+                  selected ? "border-blue-600 shadow-sm" : "border-transparent hover:border-blue-200"
+                )}
+              >
+                <PictureBox value={item.symbolImageUrl} label={item.label} className="rounded-lg bg-slate-50" inset="inset-1" textClassName="text-xs" />
+                <span className="mt-1 truncate text-xs font-semibold text-ink">{item.label}</span>
+                {selected ? (
+                  <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-white">
+                    <Check className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+          {!visible.length ? <p className="col-span-full py-8 text-center text-sm text-slate-500">{emptyText}</p> : null}
+        </div>
       </div>
 
       {showSlots ? null : (

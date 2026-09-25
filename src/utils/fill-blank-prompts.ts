@@ -3,9 +3,63 @@ import { normalizePecsLabel } from "@/data/pecs-card-manifest";
 /**
  * One built-in Fill in the blank sentence per PECS card. Each gives a situation, so only one card fits the
  * gap (the meaning groups in `activity-option-sets.ts` keep look-alike cards out of the choices).
- * Rules: exactly one ____, a full grammatical sentence, no bare "I feel ____." style prompts.
+ * Rules: exactly one ____, a short situation then the sentence (7 to 12 words), no bare "I feel ____." prompts.
  */
 const fillBlankPromptByLabel: Record<string, string> = {
+  hello: "A new classmate comes in. I wave and say ____.",
+  goodbye: "School is over. I wave and say ____.",
+  "good morning": "I arrive at school. I say ____ to my teacher.",
+  "thank you": "My friend helps me. I say ____.",
+  please: "I want the red crayon. Can I have it, ____?",
+  sorry: "I bumped into my friend. I say ____.",
+  happy: "Everyone sings on my birthday. I feel ____.",
+  sad: "My balloon flew away. I feel ____.",
+  angry: "My friend took my toy. I feel ____.",
+  scared: "The thunder is so loud. I feel ____.",
+  tired: "I played all day. Now I feel ____.",
+  sick: "I have a fever. I feel ____.",
+  i: "My name is Sam, and ____ like to draw.",
+  you: "I point to my friend. Do ____ want to play?",
+  mother: "My mom cooks for us. She is my ____.",
+  father: "My dad drives me to school. He is my ____.",
+  teacher: "In class, my ____ writes on the board.",
+  friend: "At recess, I play tag with my ____.",
+  eat: "It is lunch time. I want to ____ my sandwich.",
+  drink: "I am thirsty. I want to ____ some water.",
+  food: "My tummy is rumbling. I need some ____.",
+  water: "It is hot. Can I have a glass of ____?",
+  rice: "For lunch, I have chicken and white ____.",
+  bread: "I put butter on my ____ for breakfast.",
+  milk: "I pour cold ____ on my cereal.",
+  banana: "The monkey peels a long yellow ____.",
+  sit: "The story is starting. Please ____ down on the mat.",
+  stand: "It is time to line up. Please ____ up.",
+  listen: "The teacher reads a story. Be quiet and ____.",
+  look: "The teacher points at the board. Please ____ at it.",
+  read: "I open my book and ____ the story.",
+  write: "I hold my pencil and ____ my name.",
+  wait: "My friend is on the swing. I ____ for my turn.",
+  stop: "The light is red. We must ____ now.",
+  toilet: "I need to pee. I go to the ____.",
+  help: "I cannot tie my shoe. Can you ____ me?",
+  rest: "I ran a lot. Now I need a ____.",
+  sleep: "It is night. I close my eyes and ____.",
+  "wash hands": "Before we eat, we ____ with soap.",
+  more: "I am still hungry. Can I have some ____?",
+  finished: "I colored the whole picture. Now I am ____.",
+  danger: "The sign says keep out. There is ____ inside.",
+  hot: "The soup just came off the stove. It is ____!",
+  hurt: "I fell and scraped my knee. I am ____.",
+  yes: "Do you want to play outside? I nod and say ____.",
+  no: "I do not like spicy food. I say ____.",
+  want: "I see the toy train. I ____ to play with it.",
+  am: "Let me tell you about me. I ____ seven years old.",
+  is: "Look at my puppy. He ____ very fluffy.",
+  are: "My friends and I play together. We ____ best friends."
+};
+
+/** The longer Sep 26 sentences. Saved activities that still use one get the short sentence. */
+const longFillBlankPromptByLabel: Record<string, string> = {
   hello: "A new classmate walks into our room. I wave and say ____.",
   goodbye: "School is over and my mother is here. I wave to my teacher and say ____.",
   "good morning": "I arrive at school before class starts. I smile and say ____ to my teacher.",
@@ -152,6 +206,7 @@ export function isBuiltInFillBlankPrompt(label: string, prompt: string) {
   return (
     isGenericFillBlankPrompt(label, prompt) ||
     normalizePecsLabel(legacyFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
+    normalizePecsLabel(longFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
     normalizePecsLabel(fillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt
   );
 }

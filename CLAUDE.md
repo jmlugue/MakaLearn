@@ -507,3 +507,29 @@ seeing they were right. Student mode only; the teacher player is unchanged.
 - **Categories:** an empty category shows only its color. **Media:** the "Every file in MakaLearn" line is gone;
   thumbnails are small tinted cards instead of a dot.
 - **Not verified signed in:** real uploads with the new names, and the Admin content views.
+
+---
+
+## 16. Notes round (Sep 26, checked on a temporary page, not signed in)
+
+- **Create activity:** Format tiles show full type names plus a one-line description. "From a lesson" is a
+  dropdown with search (closed, it shows the chosen lesson with a tick). Step 2 puts the card library in its own
+  "Choose cards" panel under the picked slots (the lesson form gets it too, since it shares `MaterialsStep`).
+  Default name is "Matching activity: Feelings" (`activityTypeNamePhrases`, `activity-title.ts`).
+- **Demo** (`content/activity-sample.tsx`) now mirrors Student mode: blue instruction strip, 3:4 picture cards,
+  the real option builder, sentence gap that fills, green "Correct!", red "Not this one". Drag and drop shows
+  three word boxes and their cards travelling with the pointer. It uses the chosen lesson's cards.
+- **Student mode:** the How to play card no longer shows the activity name. The in-game instruction is a solid
+  blue banner with a hand icon.
+- **Fill in the blank sentences** are 7 to 12 words (test enforces it). The longer Sep 26 set is kept as
+  `longFillBlankPromptByLabel` so saved activities using it upgrade at play time.
+- **Toasts** are top right again (top center on phones), sliding in from the right. Design unchanged.
+- **Admin Activity log:** type filters (All, Sign-ins, Content, Accounts) are category-style pills
+  (`FilterPills` in `admin-shared.tsx`); the date range stays a dropdown (`FilterSelect`).
+- **Gesture cards** show their name under the picture (PECS art already has the word).
+- **Student mode switch card:** entering shows red, yellow, green, and sky shapes and a four-color band;
+  leaving stays plain blue. Uses standard Tailwind colors, not the `brand-*` tokens.
+- **Colors finalized:** built-in categories use one hue in Content and the playground
+  (`src/lib/category-colors.ts`, applied in `ensurePecsManifestCategories` and Admin; the color picker is
+  replaced by a note for them). Activity types and main item colors unchanged and locked. See STYLE_GUIDE.
+

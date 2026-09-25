@@ -86,9 +86,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      {/* Top center on phones (clear of the thumb), bottom right on larger screens. */}
+      {/* Top center on phones, top right on larger screens. */}
       <div
-        className="pointer-events-none fixed inset-x-4 top-4 z-[200] mx-auto flex max-w-sm flex-col gap-3 sm:inset-x-auto sm:bottom-6 sm:right-6 sm:top-auto sm:mx-0 sm:w-96"
+        className="pointer-events-none fixed inset-x-4 top-4 z-[200] mx-auto flex max-w-sm flex-col gap-3 sm:inset-x-auto sm:right-6 sm:top-6 sm:mx-0 sm:w-96"
         aria-live="polite"
       >
         <AnimatePresence initial={false}>
@@ -99,8 +99,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <motion.div
                 key={toast.id}
                 layout={!reduceMotion}
-                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 40, scale: 0.96 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 40 }}
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                 onMouseEnter={() => pause(toast.id)}

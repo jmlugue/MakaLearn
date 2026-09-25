@@ -117,6 +117,7 @@ test("every PECS card has a contextual Fill in the blank sentence", () => {
     assert.equal(sentence.split("____").length, 2, `${card.label}: needs exactly one ____`);
     assert.match(sentence, /[.?!]$/, `${card.label}: must end with punctuation`);
     assert.ok(sentence.split(/\s+/).length >= 7, `${card.label}: too short to give context`);
+    assert.ok(sentence.split(/\s+/).length <= 12, `${card.label}: too long for a child to read`);
     assert.equal(fillBlank.isGenericFillBlankPrompt(card.label, sentence), false, `${card.label}: generic sentence`);
   });
 });

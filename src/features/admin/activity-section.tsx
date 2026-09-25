@@ -5,7 +5,6 @@ import { Clock, FileText, LayoutGrid, Layers, List, LogIn, LogOut, Pencil, Plus,
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import {
   Avatar,
   describeActivity,
@@ -13,6 +12,7 @@ import {
   DetailNote,
   DetailRow,
   EmptyRow,
+  FilterPills,
   FilterSelect,
   logGroup,
   logRangeLabels,
@@ -169,8 +169,7 @@ export function ActivitySection({
 
   return (
     <div className="w-full space-y-4">
-      <UnderlineTabs
-        id="log-type"
+      <FilterPills
         label="Log type"
         value={filter}
         onChange={onFilterChange}

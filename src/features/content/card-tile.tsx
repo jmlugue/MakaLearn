@@ -6,8 +6,8 @@ import { kindTone } from "@/features/content/content-shared";
 import type { Category, LearningItem } from "@/types";
 
 /**
- * Library tile: the card is tinted in its kind color with a white picture well. The name is kept for screen
- * readers and as a hover tooltip. Without `onOpen` it renders as a static preview.
+ * Library tile: the card is tinted in its kind color with a white picture well. Gestures show their name; PECS
+ * keep it for screen readers and as a hover tooltip. Without `onOpen` it renders as a static preview.
  */
 export function CardTile({
   item,
@@ -22,12 +22,15 @@ export function CardTile({
 }) {
   const tone = kindTone(item.contentType);
 
-  // Picture only. The word, audio, and category show when the card is opened, so the grid stays uncluttered.
+  // PECS cards are picture only: the word is printed on the card art. Gesture pictures have no word, so their
+  // name shows under the picture. Audio and category show when the card is opened.
+  const showName = item.contentType === "gesture" && Boolean(item.label);
   const content = (
     <>
       <span className={cn("block h-1.5 w-full", tone.accent)} aria-hidden="true" />
       <span className="flex min-w-0 flex-1 flex-col p-2.5">
         <PictureBox value={item.symbolImageUrl} label={item.label || "New"} className="rounded-xl bg-[#fff]" />
+        {showName ? <span className={cn("mt-2 truncate text-center text-sm font-bold", tone.text)}>{item.label}</span> : null}
       </span>
     </>
   );

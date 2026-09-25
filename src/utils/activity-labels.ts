@@ -20,14 +20,14 @@ export const activityTypeShortLabels: Record<ActivityType, string> = {
   "simple-quiz": "Choose the word"
 };
 
-/** The type as it reads inside a default name: "Feelings match activity". */
+/** The start of a default name: "Matching activity: Feelings". */
 export const activityTypeNamePhrases: Record<ActivityType, string> = {
-  "match-word-symbol": "match",
-  "choose-correct-symbol": "choose the picture",
-  "fill-blank": "fill in",
-  "drag-drop-symbol": "drag and drop",
-  "gesture-practice": "gesture",
-  "simple-quiz": "choose the word"
+  "match-word-symbol": "Matching activity",
+  "choose-correct-symbol": "Choose the picture activity",
+  "fill-blank": "Fill in the blank activity",
+  "drag-drop-symbol": "Drag and drop activity",
+  "gesture-practice": "Gesture activity",
+  "simple-quiz": "Choose the word activity"
 };
 
 export function getActivityTypeLabel(type: ActivityType) {

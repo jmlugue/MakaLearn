@@ -15,8 +15,8 @@ function mainCategoryName(items: Pick<LearningItem, "categoryId">[], categories:
 }
 
 /**
- * Short default name: "Feelings match activity". The topic is the lesson, else the main category of the
- * cards, else the first card.
+ * Default name: "Matching activity: Feelings". The topic is the lesson, else the main category of the cards,
+ * else the first card.
  */
 export function buildDefaultActivityTitle(
   type: ActivityType,
@@ -24,8 +24,8 @@ export function buildDefaultActivityTitle(
   { lessonTitle, categories = [] }: { lessonTitle?: string; categories?: Category[] } = {}
 ) {
   const topic = lessonTitle?.trim() || mainCategoryName(items, categories) || items[0]?.label || "New";
-  const suffix = ` ${activityTypeNamePhrases[type]} activity`;
-  const room = MAX_TITLE_LENGTH - suffix.length;
+  const prefix = `${activityTypeNamePhrases[type]}: `;
+  const room = MAX_TITLE_LENGTH - prefix.length;
   const shortTopic = topic.length > room ? `${topic.slice(0, room - 1).trimEnd()}…` : topic;
-  return `${shortTopic}${suffix}`;
+  return `${prefix}${shortTopic}`;
 }

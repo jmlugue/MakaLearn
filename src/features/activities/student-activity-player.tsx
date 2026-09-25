@@ -186,7 +186,7 @@ function StudentRound({
     setFirstTryRight((current) => ({ ...current, [question.id]: right }));
     setHintFor("");
     if (right) showFeedback({ tone: "correct", title: "Correct!" }, `Correct! ${word}.`, FEEDBACK_MS);
-    else void speakText(`Not this one. It is ${word}.`);
+    else void speakText("Not this one. This card is the right one.");
     later(() => {
       if (index + 1 >= questions.length) finishRound();
       else setIndex(index + 1);
@@ -240,7 +240,6 @@ function StudentRound({
         <StudentIntroCard
           activityId={activity.id}
           type={activity.type}
-          title={activity.title}
           instruction={instruction}
           isListening={isListening}
           onListen={listenToInstruction}

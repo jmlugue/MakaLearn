@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { BookOpen, Check, ChevronLeft, ChevronRight, Layers, Loader2, Lock, RotateCcw, Sparkles, Users } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Layers, Loader2, Lock, RotateCcw, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
 import { cn } from "@/lib/utils";
-import { activityTypeShortLabels } from "@/utils/activity-labels";
+import { activityTypeLabels } from "@/utils/activity-labels";
 import { canDraftQuestionPrompts, type ActivityDraftResult } from "@/utils/activity-ai-draft";
 import { buildDefaultActivityTitle } from "@/utils/activity-title";
 import { SearchInput } from "@/features/admin/admin-shared";
@@ -160,10 +160,11 @@ function ActivityForm({
   const draftable = canDraftQuestionPrompts(values.type);
   const everyCardHasQuestion = selectedItems.length > 0 && selectedItems.every((item) => values.promptInputs[getPromptStoreKey(values.type, item.id)]?.trim());
 
-  // Demo cards: the picked ones, or a few with pictures so the format can be seen before choosing.
+  // Demo cards: the picked ones, else the chosen lesson's cards, else a few with pictures, so the demo shows
+  // the real cards whenever it can.
   const demoItems = selectedItems.length
     ? selectedItems.filter((item) => item.contentType === "pecs")
-    : items.filter((item) => item.contentType === "pecs" && item.symbolImageUrl).slice(0, 3);
+    : usableItems.filter((item) => item.contentType === "pecs" && item.symbolImageUrl).slice(0, 3);
 
   function update(patch: Partial<ActivityFormValues>) {
     setValues((current) => ({ ...current, ...patch }));
@@ -334,7 +335,7 @@ function ActivityForm({
             <div>
               <SectionLabel className="mb-2">Format</SectionLabel>
               <GuideTip id="activities.types" className="block">
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Activity format">
+                <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Activity format">
                   {activityTypes.map((type) => {
                     const selected = values.type === type;
                     const Icon = activityTypeIcons[type];
@@ -354,9 +355,11 @@ function ActivityForm({
                         <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", activityTypeTones[type].soft, activityTypeTones[type].text)}>
                           <Icon className="h-4 w-4" aria-hidden="true" />
                         </span>
-                        <span className="text-sm font-bold leading-tight text-ink">{activityTypeShortLabels[type]}</span>
-                        <span id={`activity-type-${type}`} className="sr-only">
-                          {activityTypeDescriptions[type]}
+                        <span className="min-w-0">
+                          <span className="block text-sm font-bold leading-tight text-ink">{activityTypeLabels[type]}</span>
+                          <span id={`activity-type-${type}`} className="block text-xs leading-snug text-slate-500">
+                            {activityTypeDescriptions[type]}
+                          </span>
                         </span>
                       </button>
                     );
@@ -368,7 +371,7 @@ function ActivityForm({
             <div className="rounded-2xl bg-gradient-to-br from-blue-100/70 via-blue-50/70 to-sky-50/80 p-4 ring-1 ring-blue-100">
               <SectionLabel className="mb-2">How it plays</SectionLabel>
               {demoItems.length ? (
-                <ActivitySample key={`${values.type}-${demoItems.length}`} type={values.type} items={demoItems} pool={items} />
+                <ActivitySample key={`${values.type}-${demoItems.map((item) => item.id).join(",")}`} type={values.type} items={demoItems} pool={items} />
               ) : (
                 <p className="text-sm leading-6 text-slate-700">Add PECS cards with pictures in Content to see a demo.</p>
               )}
@@ -409,7 +412,7 @@ function ActivityForm({
                     className={fieldClass}
                     value={values.title}
                     onChange={(event) => update({ title: event.target.value })}
-                    placeholder={selectedItems.length ? defaultTitle() : "Feelings match activity"}
+                    placeholder={selectedItems.length ? defaultTitle() : "Matching activity: Feelings"}
                   />
                 </div>
                 <PrivateSwitch editing={mode.kind === "edit"} isPrivate={values.isPrivate} onChange={(isPrivate) => update({ isPrivate })} />
@@ -534,7 +537,10 @@ function SourceTile({ icon: Icon, label, selected, onClick }: { icon: typeof Lay
   );
 }
 
-/** Searchable list of lessons, each with its first picture and card count. */
+/**
+ * A dropdown with search. Closed, it shows the chosen lesson (picture, name, card count, tick). Open, a search
+ * box sits above the list; picking a lesson closes it. It opens by itself while nothing is chosen.
+ */
 function LessonPicker({
   lessons,
   itemById,
@@ -546,52 +552,113 @@ function LessonPicker({
   value?: string;
   onChange: (lessonId: string) => void;
 }) {
+  const [open, setOpen] = useState(!value);
   const [search, setSearch] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
   const query = search.trim().toLowerCase();
   const sorted = useMemo(() => [...lessons].sort((a, b) => a.title.localeCompare(b.title)), [lessons]);
   const visible = query ? sorted.filter((lesson) => lesson.title.toLowerCase().includes(query)) : sorted;
+  const chosen = lessons.find((lesson) => lesson.id === value);
+
+  useEffect(() => {
+    if (!open || !value) return;
+    function close(event: MouseEvent | KeyboardEvent) {
+      if (event instanceof KeyboardEvent ? event.key === "Escape" : !rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open, value]);
+
+  function cover(lesson: Lesson) {
+    return lesson.learningItemIds.map((id) => itemById.get(id)).find((item) => item?.symbolImageUrl);
+  }
+
+  function count(lesson: Lesson) {
+    const total = lesson.learningItemIds.filter((id) => itemById.has(id)).length;
+    return `${total} ${total === 1 ? "card" : "cards"}`;
+  }
+
+  function lessonRow(lesson: Lesson, selected: boolean) {
+    const picture = cover(lesson);
+    return (
+      <>
+        <span className="relative block h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-blue-50 p-1">
+          {picture ? <CardImage value={picture.symbolImageUrl} label={picture.label} className="p-0 text-xs leading-none" /> : <BookOpen className="m-auto h-full w-4 text-blue-600" aria-hidden="true" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-ink">{lesson.title}</span>
+          <span className="block text-xs text-slate-500">{count(lesson)}</span>
+        </span>
+        {selected ? (
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
+            <Check className="h-3.5 w-3.5" aria-hidden="true" />
+          </span>
+        ) : null}
+      </>
+    );
+  }
 
   return (
-    <div className="mt-2 rounded-2xl border border-blue-100 bg-[#fff] p-2">
-      <SearchInput label="Search lessons" placeholder="Search lessons" value={search} onChange={setSearch} />
-      <ul className="clean-scrollbar mt-2 max-h-56 space-y-1 overflow-y-auto" aria-label="Lessons">
-        {visible.map((lesson) => {
-          const selected = lesson.id === value;
-          const cover = lesson.learningItemIds.map((id) => itemById.get(id)).find((item) => item?.symbolImageUrl);
-          const count = lesson.learningItemIds.filter((id) => itemById.has(id)).length;
-          return (
-            <li key={lesson.id}>
-              <button
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onChange(lesson.id)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl p-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-                  selected ? "bg-skywash ring-1 ring-blue-500" : "hover:bg-blue-50"
-                )}
-              >
-                <span className="relative block h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-blue-50 p-1">
-                  {cover ? <CardImage value={cover.symbolImageUrl} label={cover.label} className="p-0 text-xs leading-none" /> : <BookOpen className="m-auto h-full w-4 text-blue-600" aria-hidden="true" />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-ink">{lesson.title}</span>
-                  <span className="block text-xs text-slate-500">
-                    {count} {count === 1 ? "card" : "cards"}
-                  </span>
-                </span>
-                {selected ? (
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                  </span>
-                ) : null}
-              </button>
-            </li>
-          );
-        })}
-        {!visible.length ? (
-          <li className="py-6 text-center text-sm text-slate-500">{lessons.length ? "No lessons match." : "No lessons yet. Make one in Content."}</li>
-        ) : null}
-      </ul>
+    <div ref={rootRef} className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-controls="activity-lesson-list"
+        className={cn(
+          "flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 bg-[#fff] p-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+          chosen ? "border-blue-500 ring-2 ring-blue-100" : "border-blue-100 hover:border-blue-300"
+        )}
+      >
+        {chosen ? (
+          lessonRow(chosen, true)
+        ) : (
+          <span className="flex min-w-0 flex-1 items-center gap-3 text-sm font-semibold text-slate-500">
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-blue-50 text-blue-600">
+              <BookOpen className="h-4 w-4" aria-hidden="true" />
+            </span>
+            Pick a lesson
+          </span>
+        )}
+        <ChevronDown className={cn("h-5 w-5 shrink-0 text-blue-600 transition", open && "rotate-180")} aria-hidden="true" />
+      </button>
+
+      {open ? (
+        <div id="activity-lesson-list" className="mt-2 rounded-2xl border border-blue-100 bg-[#fff] p-2 shadow-[0_12px_30px_rgba(37,99,235,0.12)]">
+          <SearchInput label="Search lessons" placeholder="Search lessons" value={search} onChange={setSearch} />
+          <ul className="clean-scrollbar mt-2 max-h-56 space-y-1 overflow-y-auto" aria-label="Lessons">
+            {visible.map((lesson) => {
+              const selected = lesson.id === value;
+              return (
+                <li key={lesson.id}>
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      onChange(lesson.id);
+                      setSearch("");
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-xl p-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                      selected ? "bg-blue-50 ring-1 ring-blue-500" : "hover:bg-blue-50"
+                    )}
+                  >
+                    {lessonRow(lesson, selected)}
+                  </button>
+                </li>
+              );
+            })}
+            {!visible.length ? (
+              <li className="py-6 text-center text-sm text-slate-500">{lessons.length ? "No lessons match." : "No lessons yet. Make one in Content."}</li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

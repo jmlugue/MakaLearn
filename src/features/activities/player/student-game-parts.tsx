@@ -2,7 +2,7 @@
 
 import { type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, Home, Lightbulb, RotateCcw, Volume2, X } from "lucide-react";
+import { Check, Hand, Home, Lightbulb, RotateCcw, Volume2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getActivityBackground } from "@/features/activities/player/player-utils";
 import { SymbolOption } from "@/features/activities/player/player-parts";
@@ -41,8 +41,14 @@ export function StudentGameFrame({
     >
       <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 rounded-[2rem] border border-white/80 bg-white/30 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:gap-3 sm:p-3">
         {topBar}
-        <p className="mx-auto w-full max-w-4xl rounded-2xl border-2 border-blue-100 bg-white/95 px-4 py-2 text-center shadow-sm sm:py-3" role="status">
-          <span className={studentText.instruction}>{instruction}</span>
+        <p
+          className="mx-auto flex w-full max-w-4xl items-center justify-center gap-3 rounded-2xl bg-blue-600 px-4 py-2.5 text-center text-white shadow-[0_6px_0_rgba(30,64,175,0.3)] sm:py-3"
+          role="status"
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/20 sm:h-10 sm:w-10" aria-hidden="true">
+            <Hand className="h-5 w-5 sm:h-6 sm:w-6" />
+          </span>
+          <span className={cn(studentText.instruction, "text-white")}>{instruction}</span>
         </p>
         <div className="min-h-0">{children}</div>
       </div>

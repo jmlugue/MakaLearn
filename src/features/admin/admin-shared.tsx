@@ -235,3 +235,45 @@ export function describeActivity(log: AuditLog): { sentence: string; itemType: s
     }
   }
 }
+
+export type FilterPillOption<T extends string> = { value: T; label: string; icon?: LucideIcon; count?: number };
+
+/** A row of filter pills in the Content category pill style. Scrolls sideways on narrow screens. */
+export function FilterPills<T extends string>({
+  label,
+  value,
+  onChange,
+  options
+}: {
+  label: string;
+  value: T;
+  onChange: (value: T) => void;
+  options: FilterPillOption<T>[];
+}) {
+  return (
+    <div className="clean-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label={label}>
+      {options.map((option) => {
+        const selected = option.value === value;
+        const Icon = option.icon;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "inline-flex min-h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+              selected ? "border-blue-600 bg-blue-600 text-white shadow-sm" : "border-slate-200 bg-[#fff] text-slate-600 hover:border-blue-300 hover:text-blue-700"
+            )}
+          >
+            {Icon ? <Icon className={cn("h-4 w-4", selected ? "text-white" : "text-blue-600")} aria-hidden="true" /> : null}
+            {option.label}
+            {option.count !== undefined ? (
+              <span className={cn("rounded-full px-1.5 text-xs font-bold", selected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500")}>{option.count}</span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

@@ -1,3 +1,4 @@
+import { builtInCategoryColor, withBuiltInCategoryColors } from "@/lib/category-colors";
 import {
   normalizePecsLabel,
   pecsCardManifest,
@@ -6,15 +7,6 @@ import {
 import type { Category, LearningItem } from "@/types";
 import { normalizeLearningSpeechText } from "@/utils/speech-text";
 
-const categoryColors: Record<PecsCardCategory, string> = {
-  Greetings: "#dbeafe",
-  Emotions: "#fce7f3",
-  Family: "#ede9fe",
-  Food: "#dcfce7",
-  "Classroom Commands": "#e0f2fe",
-  "Daily Needs": "#fef3c7",
-  "Safety Words": "#fee2e2"
-};
 
 function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -95,15 +87,16 @@ export function createPecsManifestCategories(createdBy = "user-admin"): Category
       id,
       name: card.category,
       description: `PECS/AAC cards for ${card.category.toLowerCase()} practice.`,
-      color: categoryColors[card.category],
+      color: builtInCategoryColor(card.category) ?? "#dbeafe",
       createdBy
     });
     return records;
   }, []);
 }
 
+/** Built-in categories always show their fixed color (see `src/lib/category-colors.ts`). */
 export function ensurePecsManifestCategories(records: Category[]) {
-  return records;
+  return withBuiltInCategoryColors(records);
 }
 
 function getManifestCard(label: string) {

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label, Textarea } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
+import { builtInCategoryColor } from "@/lib/category-colors";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { CardImage } from "@/features/content/content-media";
 import { KindBadge, PopupTitle, categoryTints, deleteButtonClass, fieldClass, glassBoxClass, kindTone, tintDot } from "@/features/content/content-shared";
@@ -172,6 +173,8 @@ function CategoryForm({
   const [color, setColor] = useState(category?.color ?? categoryTints[0].value);
   const [error, setError] = useState("");
   const isPreset = categoryTints.some((tint) => tint.value.toLowerCase() === color.toLowerCase());
+  // Built-in categories keep one color in Content and the playground, so it cannot be changed here.
+  const fixedColor = category ? builtInCategoryColor(category.name) : undefined;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -208,44 +211,54 @@ function CategoryForm({
             onChange={(event) => setDescription(event.target.value)}
           />
         </div>
-        <fieldset>
-          <legend className="text-sm font-semibold text-slate-700">Color</legend>
-          <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Category color">
-            {categoryTints.map((tint) => {
-              const selected = color.toLowerCase() === tint.value.toLowerCase();
-              return (
-                <button
-                  key={tint.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  aria-label={tint.label}
-                  title={tint.label}
-                  onClick={() => setColor(tint.value)}
-                  className={cn(
-                    "grid h-9 w-9 place-items-center rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-                    selected ? "border-blue-600 scale-110" : "border-white shadow-sm hover:scale-105"
-                  )}
-                  style={{ backgroundColor: tint.value }}
-                >
-                  {selected ? <Check className="h-4 w-4" style={{ color: tintDot(tint.value) }} aria-hidden="true" /> : null}
-                </button>
-              );
-            })}
-            <label
-              title="Custom color"
-              className={cn(
-                "relative grid h-9 w-9 cursor-pointer place-items-center rounded-full border-2 transition",
-                !isPreset ? "border-blue-600 scale-110" : "border-dashed border-slate-300 hover:border-blue-300"
-              )}
-              style={!isPreset ? { backgroundColor: color } : undefined}
-            >
-              <Palette className="h-4 w-4 text-slate-500" aria-hidden="true" />
-              <span className="sr-only">Custom color</span>
-              <input type="color" value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#dbeafe"} onChange={(event) => setColor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
-            </label>
+        {fixedColor ? (
+          <div>
+            <p className="text-sm font-semibold text-slate-700">Color</p>
+            <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+              <span className="h-9 w-9 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: fixedColor }} aria-hidden="true" />
+              Built-in color, the same in the playground.
+            </p>
           </div>
-        </fieldset>
+        ) : (
+          <fieldset>
+            <legend className="text-sm font-semibold text-slate-700">Color</legend>
+            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Category color">
+              {categoryTints.map((tint) => {
+                const selected = color.toLowerCase() === tint.value.toLowerCase();
+                return (
+                  <button
+                    key={tint.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    aria-label={tint.label}
+                    title={tint.label}
+                    onClick={() => setColor(tint.value)}
+                    className={cn(
+                      "grid h-9 w-9 place-items-center rounded-full border-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                      selected ? "border-blue-600 scale-110" : "border-white shadow-sm hover:scale-105"
+                    )}
+                    style={{ backgroundColor: tint.value }}
+                  >
+                    {selected ? <Check className="h-4 w-4" style={{ color: tintDot(tint.value) }} aria-hidden="true" /> : null}
+                  </button>
+                );
+              })}
+              <label
+                title="Custom color"
+                className={cn(
+                  "relative grid h-9 w-9 cursor-pointer place-items-center rounded-full border-2 transition",
+                  !isPreset ? "border-blue-600 scale-110" : "border-dashed border-slate-300 hover:border-blue-300"
+                )}
+                style={!isPreset ? { backgroundColor: color } : undefined}
+              >
+                <Palette className="h-4 w-4 text-slate-500" aria-hidden="true" />
+                <span className="sr-only">Custom color</span>
+                <input type="color" value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#dbeafe"} onChange={(event) => setColor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+              </label>
+            </div>
+          </fieldset>
+        )}
         <FieldError message={error} />
       </div>
 

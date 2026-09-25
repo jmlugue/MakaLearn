@@ -52,7 +52,8 @@ const allCategoriesLabel = "All cards";
 const maxSentenceCards = 5;
 
 // Student mode is for children, so each category gets its own color and icon to find it by.
-// Full class strings are kept literal so Tailwind keeps them.
+// Full class strings are kept literal so Tailwind keeps them. Same hues as the Content tints in
+// `src/lib/category-colors.ts`: change both together.
 const categoryStyles: Record<PecsCardCategory | typeof allCategoriesLabel, { icon: LucideIcon; idle: string; active: string }> = {
   "All cards": {
     icon: LayoutGrid,

@@ -1,5 +1,6 @@
 "use client";
 
+import { withBuiltInCategoryColors } from "@/lib/category-colors";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
@@ -94,7 +95,7 @@ export function AdminPanelView() {
         setMedia(data.mediaAssets);
         setActivities(data.activities);
         setLessons(data.lessons);
-        setCategories(data.categories);
+        setCategories(withBuiltInCategoryColors(data.categories));
       })
       .catch(() => {
         notify({ title: "Admin data unavailable", description: "Data could not be loaded. Try refreshing.", tone: "error" });

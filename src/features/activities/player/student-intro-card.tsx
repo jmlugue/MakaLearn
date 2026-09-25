@@ -36,7 +36,6 @@ function hideIntro(activityId: string) {
 export function StudentIntroCard({
   activityId,
   type,
-  title,
   instruction,
   isListening,
   onListen,
@@ -44,7 +43,6 @@ export function StudentIntroCard({
 }: {
   activityId: string;
   type: ActivityType;
-  title: string;
   instruction: string;
   isListening: boolean;
   onListen: () => void;
@@ -66,15 +64,10 @@ export function StudentIntroCard({
         aria-labelledby="student-intro-title"
         className="grid w-full max-w-lg gap-5 rounded-[2rem] border-4 border-white bg-[#fff] px-5 py-6 text-center shadow-[0_24px_70px_rgba(37,99,235,0.25)] sm:px-8 sm:py-7"
       >
-        <div className="grid justify-items-center gap-2">
-          <span className={cn("inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-black", activityTypeTones[type].badge)}>
-            <Icon className="h-5 w-5" aria-hidden="true" />
-            {activityTypeShortLabels[type]}
-          </span>
-          <h2 id="student-intro-title" className="line-clamp-2 text-2xl font-black leading-tight text-[#10285e] sm:text-3xl">
-            {title}
-          </h2>
-        </div>
+        <span className={cn("mx-auto inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-base font-black", activityTypeTones[type].badge)}>
+          <Icon className="h-5 w-5" aria-hidden="true" />
+          {activityTypeShortLabels[type]}
+        </span>
 
         <div className="grid h-44 place-items-center rounded-[1.5rem] border-2 border-sky-100 bg-sky-50/80">
           <IntroDemo drag={type === "drag-drop-symbol"} />
@@ -82,7 +75,7 @@ export function StudentIntroCard({
 
         <div className="grid gap-1 rounded-[1.5rem] border-2 border-blue-200 bg-blue-600 px-4 py-4 text-white shadow-[0_6px_0_rgba(30,64,175,0.3)]">
           <span className="text-sm font-black uppercase tracking-wide text-blue-100">How to play</span>
-          <p className="text-2xl font-black leading-tight sm:text-3xl">{instruction}</p>
+          <p id="student-intro-title" className="text-2xl font-black leading-tight sm:text-3xl">{instruction}</p>
         </div>
 
         <div className="grid gap-4">

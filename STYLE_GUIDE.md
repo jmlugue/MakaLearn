@@ -128,7 +128,7 @@ a page-specific color. Each entry also has `soft`, `border`, `hoverBorder`, `ico
 |---|---|---|
 | Activity types (accents only, always with the type icon) | Match: violet (`ArrowLeftRight`). Choose the picture: orange (`MousePointerClick`). Fill in the blank: yellow (`TextCursorInput`). Drag and drop: pink (`Move`). No blue or teal, so no type looks like Lessons or Activities. | `activityTypeTones` in `activity-helpers.ts`, icons in `activity-type-badge.tsx` |
 | Categories (teacher picks) | 12 pastel presets: blue, sky, teal, green, lime, yellow, orange, coral, rose, pink, lavender, slate. `tintDot()` makes the dot color. | `categoryTints` in `content-shared.tsx` |
-| Playground categories | All: blue. Greetings: amber. Emotions: pink. Family: violet. Food: orange. Classroom: teal. Daily needs: emerald. Safety: red. Each has an icon. | `categoryStyles` in `playground-view.tsx` |
+| Built-in categories (final, Sep 26) | Greetings amber, Emotions pink, Family violet, Food orange, Classroom commands teal, Daily needs green, Safety words red. **Same hue in Content (light tint) and the playground (solid).** Saved tints for these 7 are ignored; their color cannot be changed in Content. | `src/lib/category-colors.ts` (Content), `categoryStyles` in `playground-view.tsx` (All: blue, plus icons) |
 | Confetti | yellow, sky, emerald, rose | `globals.css` |
 | Brand accents (`brand-red` `#ef4444`, `brand-yellow` `#facc15`, `brand-blue` `#2563eb`) | Loader dots and the Student mode switch card only. Never in teacher or admin screens, and not on the landing (tried and reverted). | `tailwind.config.ts` |
 
@@ -365,7 +365,7 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 | `EmptyState` (`common/`) | Card with a floating icon tile, title, one line |
 | `LoadingScreen` / `LoadingState` (`common/`) | Cropped logo that bobs, three hopping dots (red, yellow, blue), one short line. Full screen / in page. |
 | Student mode switch (`student-mode-transition.tsx`) | ~1s solid blue card: logo, "Student mode" or "Teacher view", brand shapes |
-| Toast (`common/toast-provider.tsx`) | Glass card, meaning-color left stripe, icon tile, timer bar. Bottom right (top on phones), 3 seconds, hover pauses. |
+| Toast (`common/toast-provider.tsx`) | Glass card, meaning-color left stripe, icon tile, timer bar. Top right (top center on phones), 3 seconds, hover pauses. |
 | `FileUpload` (`ui/`) | Dashed `blue-200` box, icon tile, Choose or Change, limit shown in the hint |
 | Guide banner (`features/guide/`) | Light blue glass strip, `Sparkles` tile, one line, blue "Show me", close `X` |
 | Settings group | Card with an uppercase group heading, white list with `blue-100` dividers, icon tile rows |
@@ -374,7 +374,7 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 
 | Card | Anatomy |
 |---|---|
-| Material (`content/card-tile.tsx`, picture only: name, audio, category show when opened) | Whole card in the thing's soft color and border, 6px stripe on top, white 3:4 picture box (`PictureBox`), word in `text-sm font-bold` (2 lines max), audio icon, category chip. No PECS / Gesture badge, no video. Hover: lift 2px. |
+| Material (`content/card-tile.tsx`, PECS picture only; gestures show their name under the picture) | Whole card in the thing's soft color and border, 6px stripe on top, white 3:4 picture box (`PictureBox`), word in `text-sm font-bold` (2 lines max), audio icon, category chip. No PECS / Gesture badge, no video. Hover: lift 2px. |
 | Lesson (`content/lesson-card.tsx`) | Full-width row, 6px blue stripe on the left, title, one-line description, meta line (cards, Private, By name), numbered 3:4 card strip on the right (5 then "+N") |
 | Activity (`activities/activity-card.tsx`) | Solid white card, type-color stripe, picture collage, one-line title `text-lg font-bold`, one meta line (type badge, card count, lock if private, By name), lesson name and Play at the bottom |
 | PECS picture | 3:4, word at the bottom, image `object-contain`. Use `PictureBox` (`content-media.tsx`): an image in a plain grid cell keeps its own height and the word gets cut off. |
@@ -427,7 +427,7 @@ Student pieces: `student-game-parts.tsx` (frame, top bar, progress dots, card, f
 | Card hover | `Card`, material and activity cards | Up 2px |
 | Pop-up open | `Dialog` | Backdrop fade 0.15s, panel rise 12px and scale 0.98, 0.18s |
 | Tab underline | `UnderlineTabs` | Slides, spring |
-| Toast | Toast provider | Rises in, slides out right, 0.22s; timer bar shrinks |
+| Toast | Toast provider | Slides in and out on the right, 0.22s; timer bar shrinks |
 | Grid entrance | `.stagger-grid` | Cards rise one after another, 70ms apart |
 | Result | `.activity-result-panel` | Pop; wrong answers also shake |
 | Celebration | `.activity-confetti` | 18 pieces fall |
@@ -471,7 +471,7 @@ Rules:
 - Names: PECS cards, Gestures, Lessons, Activities, Student mode, Playground. Activity types in teacher
   screens use the short names (`activityTypeShortLabels` in `src/utils/activity-labels.ts`): Match, Choose the
   picture, Fill in the blank, Drag and drop. The full names (`activityTypeLabels`) stay for AI prompts.
-- Default activity names: topic, type, then "activity", for example "Feelings match activity". The topic is
+- Default activity names: type phrase, colon, topic, for example "Matching activity: Feelings" (`activityTypeNamePhrases`). The topic is
   the lesson, else the cards' main category, else the first card (`src/utils/activity-title.ts`).
 
 ---
