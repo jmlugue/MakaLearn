@@ -68,12 +68,11 @@ insert into public.learners (
   communication_needs,
   preferred_learning_mode,
   assigned_teacher_id,
-  profile_photo_url,
   status
 )
 values
-  ('learner-ella', 'Ella M.', 7, 'Primary 2', 'Benefits from visual prompts and repeated modeling.', 'Visual', (select id from public.profiles where email = 'teacher@makalearn.local'), '/placeholder-learner-1', 'active'),
-  ('learner-noah', 'Noah K.', 9, 'Primary 4', 'Responds well to short audio cues and gesture practice.', 'Mixed', (select id from public.profiles where email = 'teacher@makalearn.local'), '/placeholder-learner-2', 'active')
+  ('learner-ella', 'Ella M.', 7, 'Primary 2', 'Benefits from visual prompts and repeated modeling.', 'Visual', (select id from public.profiles where email = 'teacher@makalearn.local'), 'active'),
+  ('learner-noah', 'Noah K.', 9, 'Primary 4', 'Responds well to short audio cues and gesture practice.', 'Mixed', (select id from public.profiles where email = 'teacher@makalearn.local'), 'active')
 on conflict (id) do nothing;
 
 insert into public.lessons (

@@ -27,7 +27,6 @@ export type Learner = {
   communicationNeeds: string;
   preferredLearningMode: PreferredLearningMode;
   assignedTeacherId: string;
-  profilePhotoUrl: string;
   status: "active" | "inactive";
 };
 
@@ -55,9 +54,9 @@ export type SentenceRole =
 export type MediaAsset = {
   id: string;
   title: string;
-  type: "symbol-image" | "gesture-media" | "audio-file" | "learner-photo";
+  type: "symbol-image" | "gesture-media" | "audio-file";
   fileName: string;
-  bucket: "symbol-images" | "gesture-media" | "audio-files" | "learner-photos";
+  bucket: "symbol-images" | "gesture-media" | "audio-files";
   storagePath?: string;
   publicUrl?: string;
   uploadedBy: string;
@@ -170,6 +169,8 @@ export type ActivityPromptTemplate = {
   prompt: string;
   source: "hugging-face" | "local-fallback" | "manual";
   createdBy: string;
+  /** Admin-seeded fallback. Teachers save their own override instead of replacing it. */
+  isDefault: boolean;
   updatedAt: string;
 };
 

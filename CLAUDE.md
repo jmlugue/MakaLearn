@@ -200,12 +200,25 @@ disappears from the Media tab.
 | Full-screen frame: top bar and progress bar | `player/activity-player-screen.tsx` |
 | Student game player (teammate code; one question at a time since section 10) | `student-activity-player.tsx` + `player/*` |
 
+### Activity answer-option contract (do not regress)
+
+This is the current accepted behavior for every activity surface:
+
+- Answer options come only from image-backed PECS materials. Gesture materials and legacy gesture option values are excluded, including when a PECS card and gesture share a label.
+- Distractors come from the full eligible PECS library, not merely the activity's selected answer cards, and rotate between questions and rounds instead of repeating a fixed pair.
+- A distractor that is also a plausible answer must be excluded. For example, Food, Rice, Bread, and Banana are not safe distractors for an Eat prompt whose wording admits food-related answers. Semantic exclusions are part of correctness and require regression tests.
+- Every visible option uses `public/pecs/generated_cards_no_text`. Standard card art with its printed label remains appropriate in Content, but not as an activity answer choice.
+- Never render the answer word on an option or reveal it as the missing-image fallback. Use a neutral unavailable state; accessible screen-reader labels may still name the card.
+- `simple-quiz` is labelled "Choose the word" and stores word answers for scoring, but its visible choices are no-text PECS pictures.
+- The same rules apply to Student Mode, the teacher player, Match, Choose, Fill in the blank, Choose the word, Drag and drop, dropped-card views, result summaries, and activity samples/previews.
+- Treat saved `question.options` as legacy input: resolve and filter it against the current PECS-only rules at play time. Use `npm run test:activities` as a required regression gate.
+
 - **Scores are view only.** `scoreActivity` no longer calls `insertActivityResult` (kept in `app-data.ts`),
   so the Admin "Most used activities" tile stops updating. Accepted by the user.
 - Student mode: the result pop-up adds a final "Score X / Y" once every question in the round is answered.
   Match word only moves on after a correct answer, so its final score is usually full marks.
 - Type colors are an agreed exception to the blue-first palette, accents only.
-- `simple-quiz` stays, labelled "Choose the word" (words, not pictures). `gesture-practice` is retired (section 10).
+- `simple-quiz` stays, labelled "Choose the word". Its answer values remain words internally for scoring, while every visible option uses the corresponding PECS no-text activity image. `gesture-practice` is retired (section 10).
 
 ### Fixed after testing
 
@@ -311,8 +324,10 @@ card sound on tap, Listen highlight.
   - Fill in the blank and Choose the word used to show every question at once, so cards overlapped. They now
     use the one-question-at-a-time layout (`player/choose-question.tsx`). `choice-list-question.tsx` is
     deleted.
-  - Cards lost their word at the bottom: `SymbolOption` now places the picture absolutely inside its box
-    with `object-contain`, so the box sets the size. A card without a picture shows its name, never its id.
+  - Activity choices deliberately use the dedicated `generated_cards_no_text` PECS artwork. `SymbolOption`
+    places the picture absolutely inside its box with `object-contain`, so the box sets the size without
+    clipping. A missing picture is treated as a content problem rather than replacing an answer with a
+    visible identifying word.
   - The Activities switcher floats over the game with a backdrop; a tap outside closes it.
   - **Pick, Check, Next**, as in the teacher player, for Choose, Fill in the blank, Choose the word, and Match.
     Tapping a card only marks it. Check locks the question and shows green and red; after the last Check the

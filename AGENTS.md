@@ -4,6 +4,8 @@
 
 Read `SESSION_BOARD.md` at the start of each session. Add an **Active sessions** entry with the goal and likely files before editing. Keep your entry current, check for overlaps, and move it to **Recently completed** with the outcome when finished.
 
+Before inspecting or changing activity behavior, read the **Non-negotiable activity option contract** in the Activities section below and the current Activities section in `CLAUDE.md`. Treat those rules as acceptance criteria, not implementation suggestions.
+
 > This is the original brief. Parts are out of date: there is no Learners page, gesture recognition is
 > real (MediaPipe plus a trained model), gesture attempts are never saved or shown, and activity results
 > are saved to `activity_results`. `CLAUDE.md` has the current state and wins where they disagree.
@@ -270,6 +272,20 @@ Feedback:
 
 ## Activities
 
+### Non-negotiable activity option contract
+
+Read this subsection before changing activity creation, option generation, activity media lookup, previews, scoring, or any Student/Teacher activity player.
+
+- Active learning activities use **PECS learning materials only** for their answer choices. Never use gesture materials, gesture IDs, gesture thumbnails, or gesture videos as activity options. Gesture Practice is a separate feature and its retired activity type is not a source of distractors.
+- Build distractors from the **entire eligible PECS learning-material library**, not only from the cards selected as the activity's correct answers. Previously saved option arrays are untrusted legacy input and must be filtered through the same current eligibility rules at play time.
+- Randomize the choices for each question and each new round. Do not reuse one fixed distractor pair for every question. Always include the correct answer exactly once and never show duplicate options.
+- Preserve semantic-conflict filtering. A distractor must not also be a reasonable correct answer to the prompt. For example, an Eat question must not offer Food, Rice, Bread, Banana, or another food-related card when the wording would make it technically valid. Add or retain regression tests whenever these exclusions change.
+- Visible answer options must use the dedicated word-free artwork in `public/pecs/generated_cards_no_text`. Do not use the standard Content Library card image when it contains the printed learning-material label.
+- Do not print an identifying answer word on an option card or use the answer label as a visible missing-image fallback. Prompt text and screen-reader-only accessible labels are allowed. A missing image must show a neutral unavailable state.
+- "Choose the word" keeps word values internally for scoring, but its visible choices are still PECS no-text pictures. The activity name does not permit visible word choices.
+- Apply these rules consistently to Student Mode, the teacher player, match/choose/fill/quiz/drag activities, dropped cards, result summaries, and interactive activity samples/previews. Do not fix only one renderer.
+- Before handing off an activity-option change, run `npm run test:activities`, TypeScript, lint, material validation, and build when no development server is running. The focused tests must cover PECS-over-gesture resolution and the presence of all no-text assets.
+
 Activity types:
 - Match word to symbol
 - Choose correct symbol
@@ -432,4 +448,3 @@ Common commands:
 Do not start the dev server automatically. The user will run `npm run dev` manually when they want the app served locally.
 
 After implementation, run build/lint checks and fix errors where possible.
-

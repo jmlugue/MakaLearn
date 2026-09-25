@@ -120,6 +120,17 @@ Include:
 
 Activities should be fully working with scoring.
 
+### Current activity option contract
+
+The repository's current `AGENTS.md` and `CLAUDE.md` override the original activity brief. Preserve these rules when deciding activity behavior:
+
+- Only image-backed PECS learning materials may appear as answer options; gesture materials never appear in activity choices.
+- Draw randomized distractors from the full eligible PECS library, while excluding duplicates and semantically valid alternative answers.
+- Use the dedicated `public/pecs/generated_cards_no_text` artwork for every visible option. Never reveal the answer with a printed label or visible text fallback.
+- "Choose the word" stores word values for scoring but presents no-text PECS pictures.
+- Keep Student Mode, teacher player, all activity types, drag/drop states, results, and activity samples consistent.
+- Sanitize legacy saved options at playback and run the focused activity regression tests after changes.
+
 ## Progress
 
 Calculate progress from:

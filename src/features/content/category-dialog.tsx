@@ -17,6 +17,7 @@ export type CategoryDialogState = { category: Category | null; mode: "view" | "e
 export function CategoryDialog({
   state,
   items,
+  canManage,
   onClose,
   onModeChange,
   onSave,
@@ -25,6 +26,7 @@ export function CategoryDialog({
 }: {
   state: CategoryDialogState | null;
   items: LearningItem[];
+  canManage: boolean;
   onClose: () => void;
   onModeChange: (mode: "view" | "edit") => void;
   /** Resolves true when saved. */
@@ -51,7 +53,7 @@ export function CategoryDialog({
       className="max-w-3xl"
       hideHeader
       footer={
-        category && !editing ? (
+        category && !editing && canManage ? (
           <>
             <Button
               type="button"

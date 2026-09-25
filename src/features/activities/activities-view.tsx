@@ -115,17 +115,31 @@ export function ActivitiesView() {
         setLessons(data.lessons);
         setUsers(data.users);
         setCategories(ensurePecsManifestCategories(data.categories));
-        setPromptStore(
-          Object.fromEntries(
-            data.promptTemplates.map((template) => [
+        const reusablePrompts = new Map<string, string>();
+        // System defaults are the fallback. A teacher's own wording always wins for that teacher.
+        data.promptTemplates
+          .filter((template) => template.isDefault)
+          .forEach((template) => {
+            reusablePrompts.set(
               getPromptStoreKey(
                 template.activityType,
                 resolveCanonicalLearningItemId(template.learningItemId, nextItems, sourceItems)
               ),
               template.prompt
-            ])
-          )
-        );
+            );
+          });
+        data.promptTemplates
+          .filter((template) => template.createdBy === user.id)
+          .forEach((template) => {
+            reusablePrompts.set(
+              getPromptStoreKey(
+                template.activityType,
+                resolveCanonicalLearningItemId(template.learningItemId, nextItems, sourceItems)
+              ),
+              template.prompt
+            );
+          });
+        setPromptStore(Object.fromEntries(reusablePrompts));
       })
       .catch(() => {
         if (!active) return;
@@ -137,7 +151,7 @@ export function ActivitiesView() {
     return () => {
       active = false;
     };
-  }, [notify]);
+  }, [notify, user.id]);
 
   const itemById = useMemo(() => new Map(learningItems.map((item) => [item.id, item])), [learningItems]);
   // Others' private activities and lessons stay hidden. The read rules allow them, so this is the only filter.
@@ -191,7 +205,7 @@ export function ActivitiesView() {
   }, [isStudentMode, notify, pathname, playId, playingActivity, ready, router]);
 
   function canManage(activity: Activity) {
-    return user.role === "admin" || activity.createdBy === user.id || activity.visibility === "shared";
+    return user.role === "teacher" && (activity.createdBy === user.id || activity.visibility === "shared");
   }
 
   function log(action: "create" | "edit" | "delete", activity: Activity, detail: string) {
@@ -262,21 +276,6 @@ export function ActivitiesView() {
       })
     );
 
-    if (canDraftQuestionPrompts(type)) {
-      try {
-        await upsertActivityPromptTemplates(
-          selected.flatMap((item) => {
-            const prompt = promptOverrides[getPromptStoreKey(type, item.id)];
-            return prompt ? [{ activityType: type, learningItemId: item.id, prompt, source: "manual" as const, createdBy: user.id }] : [];
-          })
-        );
-        setPromptStore((current) => ({ ...current, ...promptOverrides }));
-      } catch (error) {
-        notify({ title: "Questions not saved", description: errorText(error, "Reusable questions could not be saved."), tone: "error" });
-        return false;
-      }
-    }
-
     const previous = mode.kind === "edit" ? mode.activity : null;
     // An activity made for a lesson carries the lesson in its id, so no extra database column is needed.
     const lesson = !previous && values.lessonId ? visibleLessons.find((candidate) => candidate.id === values.lessonId) : undefined;
@@ -305,9 +304,29 @@ export function ActivitiesView() {
     // Saving makes new question ids, so the player starts over on the edited version.
     if (previous && playingActivity?.id === saved.id) restartPlayer();
 
+    let reusableQuestionsSaved = true;
+    if (canDraftQuestionPrompts(type)) {
+      try {
+        await upsertActivityPromptTemplates(
+          selected.flatMap((item) => {
+            const prompt = promptOverrides[getPromptStoreKey(type, item.id)];
+            return prompt ? [{ activityType: type, learningItemId: item.id, prompt, source: "manual" as const, createdBy: user.id }] : [];
+          })
+        );
+        setPromptStore((current) => ({ ...current, ...promptOverrides }));
+      } catch {
+        // The activity owns its questions. Remembering them for a future activity is optional.
+        reusableQuestionsSaved = false;
+      }
+    }
+
     notify({
       title: previous ? "Activity updated" : "Activity created",
-      description: lesson ? `Added to ${lesson.title}.` : undefined,
+      description: !reusableQuestionsSaved
+        ? "The activity was saved, but your reusable questions could not be remembered."
+        : lesson
+          ? `Added to ${lesson.title}.`
+          : undefined,
       tone: "success"
     });
     return true;
@@ -405,14 +424,14 @@ export function ActivitiesView() {
       <PageHeader
         title="Activities"
         icon={ActivityIcon}
-        actions={
+        actions={user.role === "teacher" ? (
           <GuideTip id="activities.create">
             <Button type="button" onClick={() => setFormMode({ kind: "new" })} disabled={!ready}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               Create activity
             </Button>
           </GuideTip>
-        }
+        ) : undefined}
       />
       <GuideBanner pageKey="activities" />
 

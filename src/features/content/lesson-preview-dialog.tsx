@@ -82,7 +82,7 @@ export function LessonPreviewDialog({
   lesson: Lesson | null;
   items: LearningItem[];
   creator: string;
-  /** Owner or admin: Edit and Delete. Everyone gets Make a copy. */
+  /** Teachers can manage shared lessons and their own private lessons. Admins are read-only. */
   canEdit: boolean;
   onClose: () => void;
   onCopy: (lesson: Lesson) => void;
@@ -117,10 +117,12 @@ export function LessonPreviewDialog({
                 Practice gesture
               </Link>
             ) : null}
-            <Button type="button" variant={canEdit ? "outline" : "primary"} onClick={() => onCopy(lesson)}>
-              <Copy className="h-4 w-4" aria-hidden="true" />
-              Make a copy
-            </Button>
+            {canEdit ? (
+              <Button type="button" variant="outline" onClick={() => onCopy(lesson)}>
+                <Copy className="h-4 w-4" aria-hidden="true" />
+                Make a copy
+              </Button>
+            ) : null}
             {canEdit ? (
               <Button type="button" onClick={() => onEdit(lesson)}>
                 <Pencil className="h-4 w-4" aria-hidden="true" />

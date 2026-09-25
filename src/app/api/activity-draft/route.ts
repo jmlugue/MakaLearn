@@ -466,20 +466,26 @@ export async function POST(request: Request) {
       });
     }
 
-    const version = (await getLatestGenerationVersion(supabase, activityType, materialHash)) + 1;
-    const { error: insertError } = await supabase.from("activity_prompt_generations").insert({
-      activity_type: activityType,
-      material_hash: materialHash,
-      prompt_template_version: ACTIVITY_PROMPT_TEMPLATE_VERSION,
-      learning_item_ids: missingLearningItems.map((item) => item.id),
-      prompts: suggestions,
-      source: "hugging-face",
-      model,
-      version,
-      created_by: userId
-    });
+    let version = 0;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      version = (await getLatestGenerationVersion(supabase, activityType, materialHash)) + 1;
+      const { error: insertError } = await supabase.from("activity_prompt_generations").insert({
+        activity_type: activityType,
+        material_hash: materialHash,
+        prompt_template_version: ACTIVITY_PROMPT_TEMPLATE_VERSION,
+        learning_item_ids: missingLearningItems.map((item) => item.id),
+        prompts: suggestions,
+        source: "hugging-face",
+        model,
+        version,
+        created_by: userId
+      });
 
-    if (insertError) throw insertError;
+      if (!insertError) break;
+      // Another request may have claimed the same next version. Re-read and retry once.
+      if (insertError.code === "23505" && attempt === 0) continue;
+      throw insertError;
+    }
 
     await logAiUsage(supabase, {
       user_id: userId,
