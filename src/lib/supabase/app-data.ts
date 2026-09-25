@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { mapMediaAssetRow } from "@/lib/supabase/media";
+import { buildActivityOptionSets, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
 import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
 import { createChooseCorrectSymbolPrompt } from "@/utils/starter-learning-item-prompts";
 import type {
@@ -81,7 +82,6 @@ function mapLearner(row: LearnerRow): Learner {
     communicationNeeds: row.communication_needs,
     preferredLearningMode: row.preferred_learning_mode,
     assignedTeacherId: row.assigned_teacher_id,
-    profilePhotoUrl: row.profile_photo_url ?? "/placeholder-new",
     status: row.status
   };
 }
@@ -112,6 +112,7 @@ function mapActivityPromptTemplate(row: ActivityPromptTemplateRow): ActivityProm
     prompt: row.prompt,
     source: row.source,
     createdBy: row.created_by,
+    isDefault: row.is_default,
     updatedAt: row.updated_at
   };
 }
@@ -282,7 +283,6 @@ export async function upsertLearner(learner: Learner) {
         communication_needs: learner.communicationNeeds,
         preferred_learning_mode: learner.preferredLearningMode,
         assigned_teacher_id: learner.assignedTeacherId,
-        profile_photo_url: learner.profilePhotoUrl,
         status: learner.status,
         updated_at: new Date().toISOString()
       })
@@ -414,16 +414,22 @@ export async function insertLesson(lesson: Lesson) {
       .single()
   );
 
-  if (lesson.learningItemIds.length) {
-    await expectData(
-      supabase.from("lesson_items").insert(
-        lesson.learningItemIds.map((learningItemId, index) => ({
-          lesson_id: row.id,
-          learning_item_id: learningItemId,
-          position: index
-        }))
-      )
-    );
+  try {
+    if (lesson.learningItemIds.length) {
+      await expectData(
+        supabase.from("lesson_items").insert(
+          lesson.learningItemIds.map((learningItemId, index) => ({
+            lesson_id: row.id,
+            learning_item_id: learningItemId,
+            position: index
+          }))
+        )
+      );
+    }
+  } catch (error) {
+    // Do not leave an empty lesson behind when its selected materials fail to save.
+    await supabase.from("lessons").delete().eq("id", row.id);
+    throw error;
   }
 
   return { ...mapLesson(row, []), learningItemIds: lesson.learningItemIds };
@@ -703,7 +709,7 @@ export async function detachLearningItemMedia(learningItemId: string, type: Medi
   )) as Array<{ id: string }>;
 
   if (!rows.some((row) => row.id === learningItemId)) {
-    throw new Error("You can only change materials you created.");
+    throw new Error("Only teachers can change shared materials.");
   }
 }
 
@@ -724,7 +730,7 @@ export async function deleteLearningItem(learningItemId: string, deleteMedia: bo
     supabase.from("learning_items").delete().eq("id", learningItemId).select("id")
   )) as Array<{ id: string }>;
   if (!deletedRows.some((row) => row.id === learningItemId)) {
-    throw new Error("You can only delete materials you created.");
+    throw new Error("Only teachers can delete shared materials.");
   }
 
   if (!assets.length) return;
@@ -811,15 +817,16 @@ export async function upsertActivityPromptTemplates(
       .from("activity_prompt_templates")
       .upsert(
         prompts.map((prompt) => ({
-          id: `${prompt.activityType}:${prompt.learningItemId}`,
+          id: `prompt:${prompt.createdBy}:${prompt.activityType}:${prompt.learningItemId}`,
           activity_type: prompt.activityType,
           learning_item_id: prompt.learningItemId,
           prompt: prompt.prompt,
           source: prompt.source ?? "manual",
           created_by: prompt.createdBy,
+          is_default: false,
           updated_at: now
         })),
-        { onConflict: "activity_type,learning_item_id" }
+        { onConflict: "created_by,activity_type,learning_item_id" }
       )
       .select()
   )) as ActivityPromptTemplateRow[];
@@ -947,9 +954,17 @@ export function createActivityQuestions(
   const eligibleOptions =
     type === "gesture-practice"
       ? gestureOptionPool
-      : usesSymbolOptions
-        ? pecsOptionPool.filter((item) => item.symbolImageUrl)
-        : pecsOptionPool;
+      : pecsOptionPool.filter((item) => item.symbolImageUrl);
+
+  const selectedValues = selectedItems.map((item) => usesSymbolOptions ? item.id : item.label);
+  const fallbackValues = eligibleOptions.map((item) => usesSymbolOptions ? item.id : item.label);
+  const optionValueForItem = (item: LearningItem) => usesSymbolOptions ? item.id : item.label;
+  const semanticExclusions = selectedItems.map((item) =>
+    eligibleOptions
+      .filter((candidate) => isUnsafeActivityDistractor(type, item, candidate))
+      .map(optionValueForItem)
+  );
+  const optionSets = buildActivityOptionSets(selectedValues, fallbackValues, Math.random(), 3, semanticExclusions);
 
   return selectedItems.map((item, index) => {
     if (type === "gesture-practice") {
@@ -962,16 +977,11 @@ export function createActivityQuestions(
       };
     }
 
-    const choiceItems = [item, ...eligibleOptions.filter((candidate) => candidate.id !== item.id)].slice(0, 3);
-    const rotation = choiceItems.length ? index % choiceItems.length : 0;
-    const rotatedChoices = [...choiceItems.slice(rotation), ...choiceItems.slice(0, rotation)];
-    const options = rotatedChoices.map((candidate) => usesSymbolOptions ? candidate.id : candidate.label);
-
     return {
       id: `q-${Date.now()}-${item.id}`,
       prompt: createAdaptivePrompt(type, item, promptOverrides),
       answer: usesSymbolOptions ? item.id : item.label,
-      options,
+      options: optionSets[index],
       learningItemId: item.id
     };
   });

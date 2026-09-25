@@ -140,11 +140,10 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
 
   const userNames = useMemo(() => new Map(users.map((candidate) => [candidate.id, candidate.name])), [users]);
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
-  const libraryMedia = useMemo(() => media.filter((asset) => asset.type !== "learner-photo"), [media]);
   const openItem = itemById.get(openItemId) ?? null;
   const openLesson = lessons.find((lesson) => lesson.id === openLessonId) ?? null;
   const dialogCategory = categoryDialog?.categoryId ? categories.find((category) => category.id === categoryDialog.categoryId) ?? null : null;
-  const openAsset = libraryMedia.find((asset) => asset.id === openAssetId) ?? null;
+  const openAsset = media.find((asset) => asset.id === openAssetId) ?? null;
 
   function itemsOf(lesson: Lesson) {
     return lesson.learningItemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
@@ -153,9 +152,9 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   // Others' private lessons stay hidden. The read rules allow them, so this is the only filter.
   const visibleLessons = useMemo(() => lessons.filter((lesson) => canSee(lesson, user)), [lessons, user]);
 
-  /** Only the owner or an admin can change a lesson; the database refuses anyone else. */
+  /** Teachers collaborate on shared lessons; private lessons stay with their creator. */
   function canEditLesson(lesson: Lesson) {
-    return user.role === "admin" || lesson.createdBy === user.id;
+    return user.role === "teacher" && (lesson.visibility === "shared" || lesson.createdBy === user.id);
   }
 
   /** Owner name, shown on shared lessons made by someone else. */
@@ -189,7 +188,13 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       relatedItemId: item.id
     });
     if (uploaded.publicUrl) {
-      await updateLearningItemMedia(item.id, uploaded);
+      try {
+        await updateLearningItemMedia(item.id, uploaded);
+      } catch (error) {
+        // The file and media row are optional until the material points at them.
+        await deleteMediaAssetFromSupabase(uploaded).catch(() => undefined);
+        throw error;
+      }
     }
     setMedia((current) => [uploaded, ...current]);
     return uploaded;
@@ -213,22 +218,35 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       { key: "audio", bucket: "audio-files", type: "audio-file" }
     ];
 
+    let saved: LearningItem | undefined;
     try {
-      let saved = await insertLearningItem(draft);
+      saved = await insertLearningItem(draft);
       for (const upload of uploads) {
         const file = values.files[upload.key];
         if (!file) continue;
         const asset = await uploadToItem(saved, file, upload);
         if (asset.publicUrl) saved = applyMediaUrlToItem(saved, asset.type, asset.publicUrl, asset.uploadedAt);
       }
-      setItems((current) => [saved, ...current]);
-      log("create", "learning-item", saved.label, values.kind === "pecs" ? "Added a PECS card." : "Added a gesture.", saved.id);
+      const completedItem = saved;
+      setItems((current) => [completedItem, ...current]);
+      log("create", "learning-item", completedItem.label, values.kind === "pecs" ? "Added a PECS card." : "Added a gesture.", completedItem.id);
       setKind(values.kind);
       setCategoryId("all");
       setSearch("");
-      notify({ title: `${kindLabel(values.kind)} added`, description: `${saved.label} is in the library.`, tone: "success" });
+      notify({ title: `${kindLabel(values.kind)} added`, description: `${completedItem.label} is in the library.`, tone: "success" });
       return true;
     } catch (error) {
+      if (saved) {
+        const partiallySavedItem = saved;
+        setItems((current) => [partiallySavedItem, ...current.filter((item) => item.id !== partiallySavedItem.id)]);
+        log("create", "learning-item", partiallySavedItem.label, "Added a material, but one or more media files did not finish uploading.", partiallySavedItem.id);
+        notify({
+          title: `${kindLabel(values.kind)} added`,
+          description: "The material was saved. Add the missing media from its details.",
+          tone: "info"
+        });
+        return true;
+      }
       notify({ title: "Not saved", description: errorText(error, "The material could not be saved."), tone: "error" });
       return false;
     }
@@ -332,7 +350,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     try {
       await deleteMediaAssetFromSupabase(assetToDelete);
       setMedia((current) => current.filter((candidate) => candidate.id !== assetToDelete.id));
-      if (assetToDelete.relatedItemId && assetToDelete.type !== "learner-photo") {
+      if (assetToDelete.relatedItemId) {
         clearMediaUrlInState(assetToDelete.relatedItemId, assetToDelete.type);
       }
       log("delete", "media", assetToDelete.title, `Deleted ${assetToDelete.fileName} from the media library.`, assetToDelete.id);
@@ -500,7 +518,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     { value: "materials", label: "Materials", count: items.length, icon: Layers },
     { value: "lessons", label: "Lessons", count: lessons.length, icon: BookOpen },
     { value: "categories", label: "Categories", count: categories.length, icon: FolderOpen },
-    { value: "media", label: "Media", count: libraryMedia.length, icon: ImageIcon }
+    { value: "media", label: "Media", count: media.length, icon: ImageIcon }
   ];
 
   return (
@@ -536,6 +554,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
             lessons={visibleLessons}
             itemById={itemById}
             creatorFor={sharedCreator}
+            canCreate={user.role === "teacher"}
             onOpenLesson={(lesson) => setOpenLessonId(lesson.id)}
             onNewLesson={() => setLessonMode({ kind: "new" })}
           />
@@ -543,11 +562,12 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
           <CategoriesTab
             categories={categories}
             items={items}
+            canCreate={user.role === "teacher"}
             onOpenCategory={(category) => setCategoryDialog({ categoryId: category.id, mode: "view" })}
             onNewCategory={() => setCategoryDialog({ categoryId: null, mode: "edit" })}
           />
         ) : (
-          <MediaTab media={libraryMedia} itemById={itemById} userNames={userNames} onOpenAsset={(asset) => setOpenAssetId(asset.id)} />
+          <MediaTab media={media} itemById={itemById} userNames={userNames} onOpenAsset={(asset) => setOpenAssetId(asset.id)} />
         )}
       </div>
 
@@ -557,7 +577,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         item={openItem}
         categories={categories}
         creator={openItem ? nameFor(userNames, openItem.createdBy) : ""}
-        canManage={Boolean(openItem && (user.role === "admin" || openItem.createdBy === user.id))}
+        canManage={Boolean(openItem && user.role === "teacher")}
         onClose={() => setOpenItemId("")}
         onSaveText={saveCardText}
         onUpload={uploadCardMedia}
@@ -642,6 +662,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       <CategoryDialog
         state={categoryDialog ? { category: dialogCategory, mode: categoryDialog.mode } : null}
         items={items}
+        canManage={user.role === "teacher"}
         onClose={() => setCategoryDialog(null)}
         onModeChange={(mode) => setCategoryDialog((current) => (current ? { ...current, mode } : current))}
         onSave={saveCategory}
@@ -664,7 +685,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         asset={openAsset}
         item={openAsset?.relatedItemId ? itemById.get(openAsset.relatedItemId) : undefined}
         uploaderName={openAsset ? nameFor(userNames, openAsset.uploadedBy) : ""}
-        canDelete={Boolean(openAsset && (user.role === "admin" || openAsset.uploadedBy === user.id))}
+        canDelete={Boolean(openAsset && user.role === "teacher")}
         onClose={() => setOpenAssetId("")}
         onOpenCard={(item) => {
           setOpenAssetId("");

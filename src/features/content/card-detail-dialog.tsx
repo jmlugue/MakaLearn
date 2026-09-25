@@ -39,7 +39,7 @@ export function CardDetailDialog({
   item: LearningItem | null;
   categories: Category[];
   creator: string;
-  /** Teachers can only change materials they created (admins can change any). */
+  /** Teachers manage shared materials. Admins receive a read-only view. */
   canManage: boolean;
   onClose: () => void;
   onSaveText: (item: LearningItem, values: CardTextValues) => Promise<boolean>;
@@ -109,14 +109,18 @@ export function CardDetailDialog({
             Delete
           </Button>
         ) : null}
-        <Button type="button" variant="outline" onClick={startEdit}>
-          <Pencil className="h-4 w-4" aria-hidden="true" />
-          Edit
-        </Button>
-        <Button type="button" onClick={() => onGenerateLesson(item)}>
-          <BookPlus className="h-4 w-4" aria-hidden="true" />
-          Generate lesson
-        </Button>
+        {canManage ? (
+          <>
+            <Button type="button" variant="outline" onClick={startEdit}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              Edit
+            </Button>
+            <Button type="button" onClick={() => onGenerateLesson(item)}>
+              <BookPlus className="h-4 w-4" aria-hidden="true" />
+              Generate lesson
+            </Button>
+          </>
+        ) : null}
       </>
     )
   ) : null;
@@ -186,6 +190,7 @@ export function CardDetailDialog({
             bucket="gesture-media"
             thumb={<Film className={cn("h-5 w-5", tone.text)} aria-hidden="true" />}
             hasValue={Boolean(item.gestureMediaUrl)}
+            canUpload={canManage}
             canRemove={canManage}
             onUpload={(file) => onUpload(item, file, { bucket: "gesture-media", type: "gesture-media" })}
             onRemove={() => onRemoveMedia(item, "gesture-media")}
@@ -199,6 +204,7 @@ export function CardDetailDialog({
           bucket="symbol-images"
           thumb={item.symbolImageUrl ? <CardImage value={item.symbolImageUrl} label={item.label} className="text-[10px]" /> : null}
           hasValue={Boolean(item.symbolImageUrl)}
+          canUpload={canManage}
           canRemove={canManage}
           onUpload={(file) => onUpload(item, file, { bucket: "symbol-images", type: "symbol-image" })}
           onRemove={() => onRemoveMedia(item, "symbol-image")}
@@ -211,6 +217,7 @@ export function CardDetailDialog({
           bucket="audio-files"
           thumb={<AudioButton value={item.audioUrl} label={item.label} className="h-9 w-9" />}
           hasValue={Boolean(item.audioUrl)}
+          canUpload={canManage}
           canRemove={canManage}
           onUpload={(file) => onUpload(item, file, { bucket: "audio-files", type: "audio-file" })}
           onRemove={() => onRemoveMedia(item, "audio-file")}
@@ -322,27 +329,31 @@ function GestureLayout({
               <p className={cn("mt-0.5 text-xs", videoError ? "text-red-600" : "text-slate-500")}>
                 {videoError || `MP4, WebM, or MOV, up to ${limitLabel("gesture-media")}`}
               </p>
-              <input
-                id={inputId}
-                type="file"
-                accept="video/*"
-                className="sr-only"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  event.target.value = "";
-                  if (!file) return;
-                  const tooBig = sizeError(file, "gesture-media");
-                  setVideoError(tooBig);
-                  if (!tooBig) onUpload(item, file, { bucket: "gesture-media", type: "gesture-media" }).catch(() => undefined);
-                }}
-              />
-              <label
-                htmlFor={inputId}
-                className="mt-3 inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
-              >
-                <Upload className="h-4 w-4" aria-hidden="true" />
-                Upload video
-              </label>
+              {canManage ? (
+                <>
+                  <input
+                    id={inputId}
+                    type="file"
+                    accept="video/*"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      if (!file) return;
+                      const tooBig = sizeError(file, "gesture-media");
+                      setVideoError(tooBig);
+                      if (!tooBig) onUpload(item, file, { bucket: "gesture-media", type: "gesture-media" }).catch(() => undefined);
+                    }}
+                  />
+                  <label
+                    htmlFor={inputId}
+                    className="mt-3 inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-xl bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    <Upload className="h-4 w-4" aria-hidden="true" />
+                    Upload video
+                  </label>
+                </>
+              ) : null}
             </div>
           </div>
         )}
@@ -372,6 +383,7 @@ function MediaRow({
   bucket,
   thumb,
   hasValue,
+  canUpload,
   canRemove,
   onUpload,
   onRemove
@@ -383,6 +395,7 @@ function MediaRow({
   bucket: MediaAsset["bucket"];
   thumb: ReactNode;
   hasValue: boolean;
+  canUpload: boolean;
   canRemove: boolean;
   onUpload: (file: File) => Promise<void>;
   onRemove: () => void;
@@ -423,14 +436,18 @@ function MediaRow({
           {status === "error" ? error : hasValue ? fileName ?? "Stored file" : `${empty} · up to ${limitLabel(bucket)}`}
         </span>
       </span>
-      <input id={id} type="file" accept={accept} onChange={handleChange} className="sr-only" disabled={status === "uploading"} />
-      <label
-        htmlFor={id}
-        className="inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 text-xs font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50"
-      >
-        {status === "uploading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}
-        {status === "uploading" ? "Uploading" : hasValue ? "Replace" : "Upload"}
-      </label>
+      {canUpload ? (
+        <>
+          <input id={id} type="file" accept={accept} onChange={handleChange} className="sr-only" disabled={status === "uploading"} />
+          <label
+            htmlFor={id}
+            className="inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 text-xs font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50"
+          >
+            {status === "uploading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}
+            {status === "uploading" ? "Uploading" : hasValue ? "Replace" : "Upload"}
+          </label>
+        </>
+      ) : null}
       {hasValue && canRemove ? (
         <button
           type="button"

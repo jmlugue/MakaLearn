@@ -1,18 +1,16 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Archive, Image as ImageIcon, Pencil, Plus, Search, UserRound, X } from "lucide-react";
+import { Archive, Pencil, Plus, Search, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardFooter, CardTitle } from "@/components/ui/card";
 import { FieldError, FieldHint, Input, Label, Select, Textarea } from "@/components/ui/form";
-import { FileUpload } from "@/components/ui/file-upload";
 import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { fetchMakaLearnData, upsertLearner } from "@/lib/supabase/app-data";
-import { uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import type { AppUser, Learner, PreferredLearningMode } from "@/types";
 
 const modes: PreferredLearningMode[] = ["Visual", "Audio", "Gesture", "Mixed", "Teacher-guided"];
@@ -31,7 +29,6 @@ export function LearnersView() {
   const [mode, setMode] = useState<PreferredLearningMode>("Visual");
   const [notes, setNotes] = useState("");
   const [assignedTeacherId, setAssignedTeacherId] = useState(user.role === "teacher" ? user.id : "");
-  const [profilePhotoUrl, setProfilePhotoUrl] = useState("/placeholder-new");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -75,7 +72,6 @@ export function LearnersView() {
     setMode(learner?.preferredLearningMode ?? "Visual");
     setNotes(learner?.communicationNeeds ?? "");
     setAssignedTeacherId(learner?.assignedTeacherId ?? (user.role === "teacher" ? user.id : ""));
-    setProfilePhotoUrl(learner?.profilePhotoUrl ?? "/placeholder-new");
     setError("");
     setFormOpen(true);
   }
@@ -87,7 +83,6 @@ export function LearnersView() {
     setMode("Visual");
     setNotes("");
     setAssignedTeacherId(user.role === "teacher" ? user.id : "");
-    setProfilePhotoUrl("/placeholder-new");
     setError("");
     setFormOpen(false);
   }
@@ -111,7 +106,6 @@ export function LearnersView() {
       communicationNeeds: notes || "Add communication notes after the first session.",
       preferredLearningMode: mode,
       assignedTeacherId: user.role === "teacher" ? user.id : assignedTeacherId,
-      profilePhotoUrl,
       status: editing?.status ?? "active"
     };
 
@@ -165,28 +159,6 @@ export function LearnersView() {
       current.map((candidate) => (candidate.id === learnerId ? archived : candidate))
     );
     notify({ title: "Learner archived", description: "The profile remains available under inactive learners." });
-  }
-
-  async function uploadProfilePhoto(file: File) {
-    try {
-      const uploaded = await uploadMediaAssetToSupabase({
-        file,
-        bucket: "learner-photos",
-        type: "learner-photo",
-        title: `${name || "Learner"} profile photo`,
-        uploadedBy: user.id
-      });
-      if (uploaded.publicUrl) {
-        setProfilePhotoUrl(uploaded.publicUrl);
-      }
-      notify({ title: "Profile photo uploaded", description: `${file.name} was attached to this learner.`, tone: "success" });
-    } catch {
-      notify({
-        title: "Photo upload failed",
-        description: "The photo could not be uploaded. Try again."
-      });
-      throw new Error("Photo upload failed");
-    }
   }
 
   return (
@@ -266,14 +238,6 @@ export function LearnersView() {
                 <FieldHint>Admins can reassign learners.</FieldHint>
               </div>
             ) : null}
-            <FileUpload
-              icon={ImageIcon}
-              label="Profile photo"
-              accept="image/*"
-              hint="PNG, JPG, or WebP"
-              storageNote="Attach a learner photo."
-              onUpload={uploadProfilePhoto}
-            />
             <div>
               <Label htmlFor="learner-notes">Communication needs / notes</Label>
               <Textarea id="learner-notes" value={notes} onChange={(event) => setNotes(event.target.value)} />

@@ -45,11 +45,11 @@ export function activityUsesImageOptions(type: ActivityType) {
   return type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
 }
 
-/** The cards a type can use: gestures for gesture practice, PECS (with a picture when needed) otherwise. */
+/** Every active PECS activity displays cards, so only materials with a picture can be selected. */
 export function canUseItem(type: ActivityType, item: LearningItem) {
   if (type === "gesture-practice") return item.contentType === "gesture";
   if (item.contentType !== "pecs") return false;
-  return activityUsesImageOptions(type) ? Boolean(item.symbolImageUrl) : true;
+  return Boolean(item.symbolImageUrl);
 }
 
 export function getPromptStoreKey(type: ActivityType, learningItemId: string) {

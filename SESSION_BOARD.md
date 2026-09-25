@@ -12,6 +12,12 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Active sessions
 
+### 2026-09-25-semantic-activity-distractors
+- Status: active
+- Goal: Restore runtime semantic-conflict filtering so documented activity options never include another technically valid answer.
+- Files/areas: Activity option rules/builder, question creation and playback, focused tests, and handoff notes.
+- Notes: Follow-up discovered while formalizing the mandatory activity contract; no active-session overlap.
+
 <!-- Add one section per session. Example:
 ### 2026-09-21-1430-content-library
 - Status: active
@@ -21,6 +27,41 @@ Use this file to coordinate work across terminal sessions in this repository. It
 -->
 
 ## Recently completed
+
+### 2026-09-25-activity-agent-contract
+- Outcome: Added a mandatory activity-option contract to the repository instructions, current handoff notes, and MakaLearn product skill. It records PECS-only choices, full-library randomization, semantic-conflict exclusions, no-text artwork, hidden answer labels, legacy-option sanitization, all affected renderers, and required regression checks.
+- Files/areas: `AGENTS.md`, `CLAUDE.md`, `.codex/skills/makalearn-product/SKILL.md`.
+- Verification: Documentation diff and `git diff --check` passed.
+
+### 2026-09-25-activity-pecs-no-text-repair
+- Outcome: Repaired the activity-option regression. New and previously saved rounds now discard gesture distractors, shared labels resolve to the PECS record, and every learner/teacher option surface uses the dedicated no-text activity artwork without a visible answer-label fallback.
+- Files/areas: Shared activity value/image resolution, all Student and teacher option renderers, activity sample, focused tests, and current behavior notes.
+- Verification: `npm run test:activities` (6 tests), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, `npm run build`, and `git diff --check` passed. The material validator's only warnings are the pre-existing duplicate PECS labels for Eat and Drink.
+
+### 2026-09-25-choose-word-card-images
+- Outcome: Choose the word now resolves each word answer to its learning material and shows the card image plus visible word in Student Mode and the teacher player. All active activity types now select and randomize image-backed PECS options, and the activity preview uses the same shared image resolver instead of displaying raw IDs or labels.
+- Files/areas: Activity eligibility/question pools, Student and teacher option renderers, activity preview, current handoff notes.
+- Verification: `npm run test:activities`, `npx tsc --noEmit`, `npm run lint`, `npm run build`, and `git diff --check` passed. Automated browser verification was unavailable because both browser-control transports failed; the initially detected dev server exited before an HTTP check.
+
+### 2026-09-25-full-library-activity-distractors
+- Outcome: Corrected the randomized activity choices so wrong options rotate through the full eligible learning-material library first, rather than using the other answers selected for that activity. Other selected answers are only a fallback when the library is too small.
+- Files/areas: `src/utils/activity-option-sets.ts`, `scripts/test-activity-option-sets.mjs`.
+- Verification: `npm run test:activities`, `npx tsc --noEmit`, `npm run lint`, `npm run build`, and `git diff --check` passed.
+
+### 2026-09-25-choose-symbol-random-options
+- Outcome: Activity choices now prioritize the cards selected for the activity, vary the distractor pair per question, randomize card order per round, and upgrade already-saved activities at play time. Applied to Choose correct symbol, Match word to symbol, Fill in the blank, and Choose the word; drag-and-drop already shuffles its selected-card tray.
+- Files/areas: Shared activity option builder, activity question creation, teacher and Student Mode players, focused regression tests.
+- Verification: `npm run test:activities`, `npx tsc --noEmit`, `npm run lint`, `npm run build`, and `git diff --check` passed.
+
+### 2026-09-25-teacher-content-permissions
+- Outcome: Made shared teaching content collaborative for teachers and view-only for admins; kept private lessons/activities owner-only; added teacher-specific activity-question overrides; removed learner-photo UI/data support; hardened account roles; repaired save cleanup and migration drift; and added missing foreign-key indexes. All migrations were applied and verified on the live Supabase project.
+- Files/areas: Activities, Content Library, Admin content views, Learners photo removal, Supabase data/media helpers and types, schema/seed/storage definitions, and migrations.
+- Verification: TypeScript, lint, production build, and `git diff --check` passed. Live RLS/policy, private-visibility, prompt-template, index, migration-history, and security-advisor checks passed. Supabase leaked-password protection remains unavailable because the project plan returned HTTP 402; the unused empty learner-photo bucket remains disabled and unreferenced because Storage forbids SQL bucket deletion.
+
+### 2026-09-25-student-activity-instructions
+- Outcome: Removed the top-left activity-type label from every Student Mode activity and introduced a shared, wider instruction banner with substantially larger responsive text for paged and drag-and-drop activities.
+- Files/areas: `src/features/activities/player/player-parts.tsx`, `match-question.tsx`, `choose-question.tsx`, `drag-drop-question.tsx`.
+- Verification: `npx tsc --noEmit` equivalent via the local compiler, `npm run lint`, `npm run build`, and `git diff --check` passed.
 
 ### 2026-09-22-admin-recent-activity-home
 - Outcome: Replaced the Admin home Accounts card with Recent Activity, removed the lower dashboard cards below Usage Trends, and stopped loading activity results for the Admin home.

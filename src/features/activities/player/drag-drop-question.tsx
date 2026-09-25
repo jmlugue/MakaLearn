@@ -3,11 +3,9 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Check, CheckCircle2, RotateCcw, Star, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BrandLogo } from "@/components/layout/brand-logo";
 import { cn } from "@/lib/utils";
-import { activityTypeLabels } from "@/utils/activity-labels";
 import { type ActivityScore, shuffleOptions, getCompactSymbolGridClass, getActivityBackground } from "@/features/activities/player/player-utils";
-import { ActivityGameTopBar, DragChoiceCard, DroppedCardPreview } from "@/features/activities/player/player-parts";
+import { ActivityGameTopBar, DragChoiceCard, DroppedCardPreview, StudentInstructionPanel } from "@/features/activities/player/player-parts";
 import { ActivityResultModal } from "@/features/activities/player/activity-result";
 import type { Activity, LearningItem } from "@/types";
 
@@ -106,13 +104,9 @@ export function DragDropSymbolStudentLayout({
           activityNavigator={activityNavigator}
         />
       </div>
-      <div className="grid h-full min-h-0 grid-rows-[3.75rem_minmax(0,1.12fr)_minmax(0,0.88fr)_4.25rem] gap-2 rounded-[2rem] border border-white/80 bg-white/28 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[4.25rem_minmax(0,1.16fr)_minmax(0,0.84fr)_4.5rem] sm:p-3">
+      <div className="grid h-full min-h-0 grid-rows-[3.75rem_minmax(0,1.12fr)_minmax(0,0.88fr)_6rem] gap-2 rounded-[2rem] border border-white/80 bg-white/28 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[4.25rem_minmax(0,1.16fr)_minmax(0,0.84fr)_7.5rem] sm:p-3">
         <header className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-          <div className="flex min-w-0 items-center gap-3 pl-16 sm:pl-20">
-            <div className="min-w-0 rounded-2xl border border-blue-100 bg-white/90 px-3 py-1.5 shadow-sm sm:px-4 sm:py-2">
-              <p className="truncate text-sm font-black text-[#10285e] sm:text-lg">{activityTypeLabels[activity.type]}</p>
-            </div>
-          </div>
+          <div aria-hidden="true" />
 
           <div className="flex items-center justify-center gap-1 rounded-2xl border border-yellow-100 bg-white/90 px-3 py-1.5 shadow-sm sm:gap-2 sm:px-4 sm:py-2" aria-label={`${checkedCorrect} of ${visibleQuestions.length} matches correct after check`}>
             {Array.from({ length: 5 }, (_, index) => (
@@ -225,17 +219,13 @@ export function DragDropSymbolStudentLayout({
           )}
         </section>
 
-        <footer className="grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(0,34rem)_minmax(0,1fr)] items-center gap-2 sm:gap-3">
+        <footer className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
           <div className="flex min-h-12 w-fit items-center gap-2 rounded-2xl border border-yellow-100 bg-white/90 px-3 shadow-sm sm:min-h-14 sm:px-4">
             <Star className="h-6 w-6 fill-yellow-300 text-yellow-400 sm:h-7 sm:w-7" aria-hidden="true" />
             <span className="text-lg font-black text-[#10285e]">{scoreValue}</span>
           </div>
 
-          <div className="mx-auto grid min-h-12 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-blue-100 bg-white/90 px-3 text-center shadow-sm sm:min-h-14 sm:gap-3 sm:px-4">
-            <BrandLogo markClassName="h-9 w-9 rounded-xl sm:h-11 sm:w-11" />
-            <p className="text-sm font-black text-[#10285e] sm:text-lg">{feedbackText}</p>
-            <span className="h-9 w-9 sm:h-11 sm:w-11" aria-hidden="true" />
-          </div>
+          <StudentInstructionPanel message={feedbackText} />
 
           <div className="flex justify-end gap-2 sm:gap-3">
             <Button
@@ -335,7 +325,7 @@ export function DragMatchBoard({
               </span>
               <span className="grid h-full min-h-0 w-full flex-1 place-items-center">
                 {answer ? (
-                  <DroppedCardPreview value={answer} learningItems={learningItems} />
+                  <DroppedCardPreview value={answer} learningItems={learningItems} preferNoTextPecs />
                 ) : (
                   <span className="h-14 w-full max-w-44 rounded-[1.25rem] bg-white/28" aria-hidden="true" />
                 )}
@@ -366,6 +356,7 @@ export function DragMatchBoard({
               value={card}
               learningItems={learningItems}
               selected={dragged === card}
+              preferNoTextPecs
               onSelect={() => setDragged(card)}
             />
           ))}

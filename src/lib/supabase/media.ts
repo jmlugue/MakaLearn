@@ -97,6 +97,8 @@ export async function uploadMediaAssetToSupabase({
     .single();
 
   if (insert.error) {
+    // The database row is the source of truth. Remove the uploaded object if recording it failed.
+    await supabase.storage.from(bucket).remove([storagePath]);
     throw insert.error;
   }
 
@@ -114,21 +116,25 @@ export async function deleteMediaAssetFromSupabase(asset: MediaAsset) {
     throw new Error("Supabase is not configured.");
   }
 
-  if (asset.storagePath) {
-    // A missing storage object should not block removing the database record.
-    await supabase.storage.from(asset.bucket).remove([asset.storagePath]);
-  }
-
-  // RLS returns zero rows (not an error) when a teacher deletes someone else's file, so check the result.
+  // Delete the database record first. If Storage cleanup later fails, an unreferenced object is safer
+  // than a visible database row whose file has already disappeared.
   const { data, error } = await supabase.from("media_assets").delete().eq("id", asset.id).select("id");
   if (error) {
     throw error;
   }
   if (!data?.some((row) => row.id === asset.id)) {
-    throw new Error("You can only delete files you uploaded.");
+    throw new Error("Only teachers can delete shared media.");
   }
 
-  if (asset.relatedItemId && asset.publicUrl && asset.type !== "learner-photo") {
+  if (asset.storagePath) {
+    const removal = await supabase.storage.from(asset.bucket).remove([asset.storagePath]);
+    if (removal.error) {
+      // The row is already gone, so keep the app consistent and leave the unreferenced object for cleanup.
+      console.error("Media row was deleted, but the storage object could not be removed.", removal.error);
+    }
+  }
+
+  if (asset.relatedItemId && asset.publicUrl) {
     const updatedAt = new Date().toISOString();
     const items = supabase.from("learning_items");
     if (asset.type === "symbol-image") {

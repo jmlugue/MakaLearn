@@ -19,8 +19,7 @@ import { materialColor } from "@/lib/entity-colors";
 export const mediaTypeNames: Record<MediaAsset["type"], string> = {
   "symbol-image": "Symbol image",
   "gesture-media": "Gesture media",
-  "audio-file": "Audio",
-  "learner-photo": "Learner photo"
+  "audio-file": "Audio"
 };
 
 function nameFor(users: AppUser[], id: string) {
@@ -89,6 +88,7 @@ export function ItemDetailDialog({
   if (!item) return null;
   const current = item;
   const category = categories.find((entry) => entry.id === current.categoryId);
+  const canManage = user.role === "teacher";
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -259,18 +259,22 @@ export function ItemDetailDialog({
             </dl>
 
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-              <Button type="button" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
-                <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
-              </Button>
+              {canManage ? (
+                <Button type="button" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
+                </Button>
+              ) : <span />}
               <div className="flex flex-wrap gap-2">
                 <Link href={`/content?item=${current.id}`} className="inline-flex">
                   <Button type="button" variant="secondary" tabIndex={-1}>
                     <ExternalLink className="h-4 w-4" aria-hidden="true" /> Open in Content Library
                   </Button>
                 </Link>
-                <Button type="button" onClick={() => setEditing(true)}>
-                  <Pencil className="h-4 w-4" aria-hidden="true" /> Edit
-                </Button>
+                {canManage ? (
+                  <Button type="button" onClick={() => setEditing(true)}>
+                    <Pencil className="h-4 w-4" aria-hidden="true" /> Edit
+                  </Button>
+                ) : null}
               </div>
             </div>
           </div>
@@ -339,6 +343,7 @@ export function MediaDetailDialog({
   const current = asset;
   const relatedItem = current.relatedItemId ? items.find((entry) => entry.id === current.relatedItemId) : undefined;
   const url = current.publicUrl;
+  const canManage = user.role === "teacher";
 
   async function remove() {
     setDeleting(true);
@@ -397,9 +402,11 @@ export function MediaDetailDialog({
           </dl>
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-            <Button type="button" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
-              <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
-            </Button>
+            {canManage ? (
+              <Button type="button" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
+                <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
+              </Button>
+            ) : <span />}
             <div className="flex flex-wrap gap-2">
               {url ? (
                 <a href={url} target="_blank" rel="noreferrer" className="inline-flex">

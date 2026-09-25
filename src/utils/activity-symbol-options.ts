@@ -65,6 +65,15 @@ export function findLearningItemForActivityValue(value: string, learningItems: L
   return undefined;
 }
 
+/** Activity choices are picture-exchange cards. Prefer the PECS record when a
+ * label is shared by both a PECS card and a gesture learning material. */
+export function findPecsLearningItemForActivityValue(value: string, learningItems: LearningItem[]) {
+  return findLearningItemForActivityValue(
+    value,
+    learningItems.filter((item) => item.contentType === "pecs")
+  );
+}
+
 function findCanonicalVersion(item: LearningItem, learningItems: LearningItem[]) {
   return learningItems.find(
     (candidate) =>
@@ -90,12 +99,17 @@ export function resolveActivitySymbolValue(
   relatedItem?: LearningItem,
   sourceLearningItems: LearningItem[] = learningItems
 ) {
-  if (relatedItem?.symbolImageUrl) return relatedItem.id;
+  const relatedPecsItem = relatedItem?.contentType === "pecs"
+    ? relatedItem
+    : relatedItem
+      ? findPecsLearningItemForActivityValue(relatedItem.label, learningItems)
+      : undefined;
+  if (relatedPecsItem?.symbolImageUrl) return relatedPecsItem.id;
 
-  const currentItem = findLearningItemForActivityValue(value, learningItems);
+  const currentItem = findPecsLearningItemForActivityValue(value, learningItems);
   if (currentItem?.symbolImageUrl) return currentItem.id;
 
-  const sourceItem = findLearningItemForActivityValue(value, sourceLearningItems);
+  const sourceItem = findPecsLearningItemForActivityValue(value, sourceLearningItems);
   const canonicalItem = sourceItem ? findCanonicalVersion(sourceItem, learningItems) : undefined;
   if (canonicalItem?.symbolImageUrl) return canonicalItem.id;
 
@@ -103,7 +117,8 @@ export function resolveActivitySymbolValue(
 }
 
 export function getActivityDisplayLabel(value: string, learningItems: LearningItem[]) {
-  const item = findLearningItemForActivityValue(value, learningItems);
+  const item = findPecsLearningItemForActivityValue(value, learningItems)
+    ?? findLearningItemForActivityValue(value, learningItems);
   return item?.label ?? value;
 }
 

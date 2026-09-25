@@ -12,7 +12,7 @@ import { nameFor, sortLabels, sortRecords, type SortOrder, type Tone } from "@/f
 import { GuideTip } from "@/features/guide/guide-tip";
 import type { LearningItem, MediaAsset } from "@/types";
 
-export type LibraryMediaType = Exclude<MediaAsset["type"], "learner-photo">;
+export type LibraryMediaType = MediaAsset["type"];
 
 /** Finds files that no material points at any more, so the library can be tidied up. */
 type LinkFilter = "all" | "linked" | "unlinked";

@@ -8,14 +8,14 @@ import { cn } from "@/lib/utils";
 import { SectionLabel } from "@/features/content/content-shared";
 import {
   type ActivityScore,
-  activityUsesImageOptions,
+  getActivityQuestionOptions,
   getDisplayLabel,
   getQuestionListenText,
   getQuestionTitle,
   shuffleOptions,
   speakText
 } from "@/features/activities/player/player-utils";
-import { findLearningItemForActivityValue, isEmbeddableActivityMediaUrl } from "@/utils/activity-symbol-options";
+import { SymbolOption } from "@/features/activities/player/player-parts";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 type TeacherPlayerProps = {
@@ -54,7 +54,12 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
   const questions = activity.questions;
   const [index, setIndex] = useState(0);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [optionShuffleSeed] = useState(() => Math.random());
   const question = questions[Math.min(index, Math.max(questions.length - 1, 0))];
+  const options = useMemo(
+    () => question ? getActivityQuestionOptions(activity, question, learningItems, optionShuffleSeed) : [],
+    [activity, learningItems, optionShuffleSeed, question]
+  );
   const selected = question ? answers[question.id] : undefined;
   const isChecked = question ? Boolean(checked[question.id]) : false;
   const last = index >= questions.length - 1;
@@ -79,9 +84,6 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
 
   if (!question) return <EmptyNote />;
 
-  const showPictures = activityUsesImageOptions(activity.type) || activity.type === "fill-blank";
-  const showWords = !activityUsesImageOptions(activity.type);
-
   return (
     <div className="space-y-5">
       <StepTracker
@@ -92,8 +94,8 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
       />
       <QuestionPrompt activity={activity} question={question} learningItems={learningItems} selected={selected} />
 
-      <div className={cn("grid gap-4", question.options.length <= 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
-        {question.options.map((option) => {
+      <div className={cn("grid gap-4", options.length <= 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
+        {options.map((option) => {
           const picked = selected === option;
           const correct = option === question.answer;
           const state = !isChecked ? (picked ? "picked" : "idle") : correct ? "correct" : picked ? "wrong" : "idle";
@@ -103,6 +105,7 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
               type="button"
               disabled={isChecked}
               aria-pressed={picked}
+              aria-label={`Choose ${getDisplayLabel(option, learningItems)} card`}
               onClick={() => chooseAnswer(question.id, option)}
               className={cn(
                 "group relative flex min-w-0 flex-col gap-2 rounded-3xl border-2 bg-white p-2.5 text-center shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
@@ -113,12 +116,7 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
                 isChecked && "cursor-default"
               )}
             >
-              {showPictures ? <PictureWell value={option} learningItems={learningItems} tone={state} /> : null}
-              {showWords ? (
-                <span className={cn("break-words px-1 font-bold leading-tight text-ink", showPictures ? "text-base" : "grid min-h-24 place-items-center text-xl")}>
-                  {getDisplayLabel(option, learningItems)}
-                </span>
-              ) : null}
+              <PictureWell value={option} learningItems={learningItems} tone={state} />
               {state === "correct" ? <CheckCircle2 className="absolute right-3 top-3 h-6 w-6 rounded-full bg-white text-green-600" aria-hidden="true" /> : null}
               {state === "wrong" ? <XCircle className="absolute right-3 top-3 h-6 w-6 rounded-full bg-white text-red-500" aria-hidden="true" /> : null}
             </button>
@@ -223,13 +221,10 @@ function QuestionPrompt({
 }
 
 /**
- * A card's picture in a tall well matching the PECS cards (3:4). The image is placed inside the well and
- * scaled to fit, so the whole card, including its word, always shows.
+ * Activity cards use the dedicated no-text PECS artwork so the answer is not
+ * disclosed by a word printed inside the source image.
  */
 function PictureWell({ value, learningItems, tone = "idle" }: { value: string; learningItems: LearningItem[]; tone?: string }) {
-  const item = findLearningItemForActivityValue(value, learningItems);
-  const source = item?.symbolImageUrl ?? value;
-  const label = item?.label ?? getDisplayLabel(value, learningItems);
   return (
     <span
       className={cn(
@@ -237,12 +232,13 @@ function PictureWell({ value, learningItems, tone = "idle" }: { value: string; l
         tone === "correct" ? "bg-green-50" : tone === "wrong" ? "bg-red-50" : "bg-blue-50/60"
       )}
     >
-      {isEmbeddableActivityMediaUrl(source) ? (
-        // eslint-disable-next-line @next/next/no-img-element -- card pictures come from Content uploads and the PECS set.
-        <img src={source} alt={`${label} card`} draggable={false} className="absolute inset-0 h-full w-full object-contain p-1.5" />
-      ) : (
-        <span className="absolute inset-0 grid place-items-center break-words p-3 text-center text-xl font-black text-blue-600">{label}</span>
-      )}
+      <SymbolOption
+        value={value}
+        learningItems={learningItems}
+        framed={false}
+        preferNoTextPecs
+        className="!h-full max-h-full p-1.5"
+      />
     </span>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, GripVertical, Lightbulb, Library, Volume2, X } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, GripVertical, ImageOff, Lightbulb, Library, Volume2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { cn } from "@/lib/utils";
@@ -81,10 +81,7 @@ export function CheckStepFooter({
         Back
       </Button>
 
-      <div className="mx-auto flex min-h-14 w-full max-w-xl items-center justify-center gap-3 rounded-2xl border border-blue-100 bg-white/90 px-4 text-center shadow-sm" role="status">
-        <BrandLogo markClassName="h-11 w-11 rounded-xl" />
-        <p className="text-base font-black text-[#10285e] sm:text-lg">{message}</p>
-      </div>
+      <StudentInstructionPanel message={message} />
 
       {!isChecked ? (
         <Button
@@ -109,6 +106,23 @@ export function CheckStepFooter({
         </Button>
       )}
     </footer>
+  );
+}
+
+/** A large, consistent instruction banner used at the foot of every Student Mode activity. */
+export function StudentInstructionPanel({ message, className }: { message: string; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "mx-auto grid min-h-20 w-full max-w-4xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[1.75rem] border-2 border-blue-100 bg-white/95 px-4 py-3 text-center shadow-[0_10px_26px_rgba(37,99,235,0.13)] sm:min-h-24 sm:gap-4 sm:px-6 lg:min-h-28",
+        className
+      )}
+      role="status"
+    >
+      <BrandLogo markClassName="h-12 w-12 rounded-xl sm:h-14 sm:w-14 lg:h-16 lg:w-16" />
+      <p className="text-xl font-black leading-tight text-[#10285e] sm:text-3xl lg:text-4xl">{message}</p>
+      <span className="h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16" aria-hidden="true" />
+    </div>
   );
 }
 
@@ -346,17 +360,13 @@ export function DroppedCardPreview({
         resultTone === "correct" ? "border-emerald-300 ring-4 ring-emerald-100" : "",
         resultTone === "wrong" ? "border-rose-300 ring-4 ring-rose-100" : "",
         resultTone === "neutral" ? "border-transparent" : "",
-        compact ? "grid-rows-[minmax(0,1fr)]" : "max-h-36 max-w-64 grid-rows-[minmax(0,1fr)_2.25rem]"
+        compact ? "grid-rows-[minmax(0,1fr)]" : "max-h-36 max-w-64 grid-rows-[minmax(0,1fr)]"
       )}
     >
       <span className={cn("grid min-h-0 place-items-center overflow-hidden", compact ? "p-1" : "px-3 pt-3")}>
         <SymbolOption value={value} learningItems={learningItems} framed={false} preferNoTextPecs={preferNoTextPecs} className="!h-full max-h-full" />
       </span>
-      {compact ? null : (
-        <span className="grid min-h-0 place-items-center border-t border-blue-100 bg-white/95 px-2 text-sm font-black uppercase leading-tight text-[#0d255a]">
-          <span className="line-clamp-2">{getDisplayLabel(value, learningItems)}</span>
-        </span>
-      )}
+      <span className="sr-only">{getDisplayLabel(value, learningItems)}</span>
     </span>
   );
 }
@@ -403,13 +413,16 @@ export function SymbolOption({
   return (
     <span
       className={cn(
-        "grid h-20 min-h-0 min-w-0 max-w-full place-items-center px-2 text-xl font-black text-blue-700 sm:h-24",
+        "grid h-20 min-h-0 min-w-0 max-w-full place-items-center px-2 text-slate-400 sm:h-24",
         framed ? "rounded-xl border border-blue-100 bg-[#f8fbff] shadow-inner" : "rounded-none bg-transparent",
         className
       )}
     >
-      {item?.symbolImageUrl || getDisplayLabel(value, learningItems)}
-      {item ? <span className="sr-only">{item.label} symbol image</span> : null}
+      <span className="grid place-items-center gap-1" aria-hidden="true">
+        <ImageOff className="h-7 w-7" />
+        <span className="text-xs font-bold">Picture unavailable</span>
+      </span>
+      <span className="sr-only">{getDisplayLabel(value, learningItems)} symbol image unavailable</span>
     </span>
   );
 }

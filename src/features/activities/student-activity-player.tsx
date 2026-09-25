@@ -292,6 +292,7 @@ export function StudentActivityPlayer({
       learningItems={learningItems}
       answers={answers}
       currentQuestionIndex={chooseQuestionIndex}
+      optionSetVersion={matchOptionRound}
       hintedQuestionId={hintedQuestionId}
       isListening={isListening}
       highlightedListenQuestionId={highlightedListenQuestionId}

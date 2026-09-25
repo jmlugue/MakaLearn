@@ -15,8 +15,7 @@ export type ContentView = "materials" | "media";
 export type ItemsFilter = "all" | "pecs" | "gesture";
 // "incomplete" is materials-only: it keeps only materials missing an image or audio (newest first).
 type ContentSort = "newest" | "oldest" | "name-asc" | "name-desc" | "incomplete";
-// Learner photos are not part of the admin media view.
-type AdminMediaType = Exclude<MediaAsset["type"], "learner-photo">;
+type AdminMediaType = MediaAsset["type"];
 type MediaFilter = "all" | AdminMediaType;
 
 const PAGE_SIZE = 20;
@@ -76,12 +75,11 @@ export function ContentSection({
   const [itemsFilter, setItemsFilter] = useState<ItemsFilter>("all");
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("all");
   const [sort, setSort] = useState<ContentSort>("newest");
-  const adminMedia = useMemo(() => media.filter((asset) => asset.type !== "learner-photo"), [media]);
   const [page, setPage] = useState(1);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [openMediaId, setOpenMediaId] = useState<string | null>(null);
   const openItem = openItemId ? items.find((item) => item.id === openItemId) ?? null : null;
-  const openMedia = openMediaId ? adminMedia.find((asset) => asset.id === openMediaId) ?? null : null;
+  const openMedia = openMediaId ? media.find((asset) => asset.id === openMediaId) ?? null : null;
 
   useEffect(() => {
     setView(initialView);
@@ -105,12 +103,12 @@ export function ContentSection({
   );
 
   const mediaCounts = useMemo(() => {
-    const counts: Record<MediaFilter, number> = { all: adminMedia.length, "symbol-image": 0, "gesture-media": 0, "audio-file": 0 };
-    adminMedia.forEach((asset) => {
+    const counts: Record<MediaFilter, number> = { all: media.length, "symbol-image": 0, "gesture-media": 0, "audio-file": 0 };
+    media.forEach((asset) => {
       counts[asset.type as AdminMediaType] += 1;
     });
     return counts;
-  }, [adminMedia]);
+  }, [media]);
 
   // Admin material search follows the same label-prefix behavior as the
   // Content Library, so metadata cannot produce unrelated card matches.
@@ -134,7 +132,7 @@ export function ContentSection({
 
   const filteredMedia = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const matches = adminMedia
+    const matches = media
       .filter((asset) => mediaFilter === "all" || asset.type === mediaFilter)
       .filter(
         (asset) =>
@@ -151,7 +149,7 @@ export function ContentSection({
       if (sort === "name-desc") return nameB.localeCompare(nameA);
       return b.uploadedAt.localeCompare(a.uploadedAt);
     });
-  }, [adminMedia, mediaFilter, search, sort, users]);
+  }, [media, mediaFilter, search, sort, users]);
 
   const total = view === "materials" ? filteredItems.length : filteredMedia.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));

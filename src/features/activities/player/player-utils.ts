@@ -1,4 +1,5 @@
-import { activityUsesSymbolOptions, findLearningItemForActivityValue, getActivityDisplayLabel } from "@/utils/activity-symbol-options";
+import { activityUsesSymbolOptions, findPecsLearningItemForActivityValue, getActivityDisplayLabel } from "@/utils/activity-symbol-options";
+import { buildActivityOptionSets, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
 import { normalizeLearningSpeechText } from "@/utils/speech-text";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
@@ -21,7 +22,7 @@ export function activityUsesImageOptions(type: Activity["type"]) {
 }
 
 export function getLearningItemForValue(value: string, learningItems: LearningItem[]) {
-  return findLearningItemForActivityValue(value, learningItems);
+  return findPecsLearningItemForActivityValue(value, learningItems);
 }
 
 export function getRelatedItem(question: ActivityQuestion, learningItems: LearningItem[]) {
@@ -130,19 +131,53 @@ export function shuffleOptions(options: string[], seed: number) {
   return shuffled;
 }
 
-export function getMatchWordOptions(question: ActivityQuestion, learningItems: LearningItem[], shuffleSeed: number) {
-  const libraryOptions = learningItems
-    .filter((item) => item.contentType === "pecs" && item.symbolImageUrl)
-    .map(getSymbolOptionValue)
-    .filter((value) => value && value !== question.answer);
-  const fallbackOptions = question.options.filter((value) => value && value !== question.answer);
-  const optionPool = [...libraryOptions, ...fallbackOptions].filter(
-    (value, index, values) => values.indexOf(value) === index
-  );
-  const randomizedDistractors = shuffleOptions(optionPool, shuffleSeed);
-  const choices = [question.answer, ...randomizedDistractors.slice(0, 4)];
+/**
+ * Rebuild choices for the current round from the activity's own answers. This also upgrades activities
+ * saved before distractors were varied, without requiring the teacher to edit and save them again.
+ */
+export function getActivityQuestionOptions(
+  activity: Activity,
+  question: ActivityQuestion,
+  learningItems: LearningItem[],
+  shuffleSeed: number
+) {
+  const usesSymbols = activityUsesImageOptions(activity.type);
+  const eligibleItems = learningItems.filter((item) => item.contentType === "pecs" && item.symbolImageUrl);
+  const optionValueForItem = (item: LearningItem) => usesSymbols ? getSymbolOptionValue(item) : item.label;
+  const savedPecsOptions = activity.questions
+    .flatMap((candidate) => candidate.options)
+    .map((value) => findPecsLearningItemForActivityValue(value, eligibleItems))
+    .filter((item): item is LearningItem => Boolean(item?.symbolImageUrl))
+    .map(optionValueForItem);
+  const libraryOptions = eligibleItems.map(optionValueForItem);
+  const semanticExclusions = activity.questions.map((candidateQuestion) => {
+    const answerItem = getRelatedItem(candidateQuestion, eligibleItems)
+      ?? findPecsLearningItemForActivityValue(candidateQuestion.answer, eligibleItems);
+    if (!answerItem) return [];
 
-  return shuffleOptions(choices, shuffleSeed + 211);
+    return eligibleItems
+      .filter((candidate) => isUnsafeActivityDistractor(activity.type, answerItem, candidate))
+      .map(optionValueForItem);
+  });
+  const optionSets = buildActivityOptionSets(
+    activity.questions.map((candidate) => candidate.answer),
+    [...savedPecsOptions, ...libraryOptions],
+    shuffleSeed,
+    3,
+    semanticExclusions
+  );
+  const questionIndex = activity.questions.findIndex((candidate) => candidate.id === question.id);
+
+  return optionSets[questionIndex] ?? question.options;
+}
+
+export function getMatchWordOptions(
+  activity: Activity,
+  question: ActivityQuestion,
+  learningItems: LearningItem[],
+  shuffleSeed: number
+) {
+  return getActivityQuestionOptions(activity, question, learningItems, shuffleSeed);
 }
 
 export function getFirstHintQuestion(activity: Activity, answers: Record<string, string>) {

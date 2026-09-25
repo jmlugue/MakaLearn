@@ -7,8 +7,7 @@ import type { MediaAsset } from "@/types";
 export const mediaSizeLimits: Record<MediaAsset["bucket"], number> = {
   "symbol-images": 10 * 1024 * 1024,
   "gesture-media": 50 * 1024 * 1024,
-  "audio-files": 20 * 1024 * 1024,
-  "learner-photos": 10 * 1024 * 1024
+  "audio-files": 20 * 1024 * 1024
 };
 
 /** Short size for messages and hints: "820KB", "6.4MB", "50MB". */

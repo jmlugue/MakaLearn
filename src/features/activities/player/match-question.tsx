@@ -2,8 +2,13 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { activityTypeLabels } from "@/utils/activity-labels";
-import { type ActivityScore, getQuestionTitle, getMatchWordOptions, getActivityBackground } from "@/features/activities/player/player-utils";
+import {
+  type ActivityScore,
+  getQuestionTitle,
+  getMatchWordOptions,
+  getPagedSymbolChoiceGridClass,
+  getActivityBackground
+} from "@/features/activities/player/player-utils";
 import {
   StepProgress,
   ActivityGameTopBar,
@@ -78,8 +83,8 @@ export function MatchWordSymbolStudentLayout({
   const currentWord = currentQuestion ? getQuestionTitle(activity, currentQuestion, learningItems) : "";
   const selectedAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
   const options = useMemo(
-    () => (currentQuestion ? getMatchWordOptions(currentQuestion, learningItems, optionShuffleSeed) : []),
-    [currentQuestion, learningItems, optionShuffleSeed]
+    () => (currentQuestion ? getMatchWordOptions(activity, currentQuestion, learningItems, optionShuffleSeed) : []),
+    [activity, currentQuestion, learningItems, optionShuffleSeed]
   );
   const shouldShowHint = hintedQuestionId === currentQuestion?.id;
   const motivationText = checkStepMessage({
@@ -114,13 +119,9 @@ export function MatchWordSymbolStudentLayout({
           activityNavigator={activityNavigator}
         />
       </div>
-      <div className="grid h-full min-h-0 grid-rows-[5rem_minmax(0,1fr)_5.5rem] gap-3 rounded-[2rem] border border-white/80 bg-white/28 p-3 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[5.5rem_minmax(0,1fr)_5.75rem] sm:gap-4 sm:p-4">
+      <div className="grid h-full min-h-0 grid-rows-[5rem_minmax(0,1fr)_7rem] gap-3 rounded-[2rem] border border-white/80 bg-white/28 p-3 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[5.5rem_minmax(0,1fr)_8rem] sm:gap-4 sm:p-4">
         <header className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-          <div className="flex min-w-0 items-center gap-3 pl-16 sm:pl-20">
-            <div className="min-w-0 rounded-2xl border border-blue-100 bg-white/90 px-4 py-2 shadow-sm">
-              <p className="truncate text-base font-black text-[#10285e] sm:text-lg">{activityTypeLabels[activity.type]}</p>
-            </div>
-          </div>
+          <div aria-hidden="true" />
 
           <div className="hidden min-w-0 justify-center sm:flex">
             <StepProgress currentStep={currentStep} totalSteps={totalSteps} />
@@ -143,7 +144,12 @@ export function MatchWordSymbolStudentLayout({
             </div>
           </div>
 
-          <div className="grid min-h-0 grid-cols-1 items-stretch gap-3 sm:grid-cols-5 sm:gap-3 lg:gap-4">
+          <div
+            className={cn(
+              "mx-auto grid min-h-0 w-full grid-cols-1 items-stretch gap-3 sm:gap-3 lg:gap-4",
+              getPagedSymbolChoiceGridClass(options.length)
+            )}
+          >
             {options.map((option) => {
               const selected = selectedAnswer === option;
               const state = checkedOptionState(option, currentQuestion?.answer ?? "", selectedAnswer, isChecked);

@@ -17,6 +17,7 @@ export function LessonsTab({
   lessons,
   itemById,
   creatorFor,
+  canCreate,
   onOpenLesson,
   onNewLesson
 }: {
@@ -24,6 +25,7 @@ export function LessonsTab({
   itemById: Map<string, LearningItem>;
   /** Owner name for shared lessons made by someone else. */
   creatorFor: (lesson: Lesson) => string | undefined;
+  canCreate: boolean;
   onOpenLesson: (lesson: Lesson) => void;
   onNewLesson: () => void;
 }) {
@@ -64,12 +66,14 @@ export function LessonsTab({
             ))}
           </Select>
         </div>
-        <GuideTip id="content.addLesson">
-          <Button className="ml-auto" onClick={onNewLesson}>
-            <BookPlus className="h-4 w-4" aria-hidden="true" />
-            New lesson
-          </Button>
-        </GuideTip>
+        {canCreate ? (
+          <GuideTip id="content.addLesson">
+            <Button className="ml-auto" onClick={onNewLesson}>
+              <BookPlus className="h-4 w-4" aria-hidden="true" />
+              New lesson
+            </Button>
+          </GuideTip>
+        ) : null}
       </div>
 
       {filtered.length ? (

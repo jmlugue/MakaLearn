@@ -23,11 +23,13 @@ const sortOptions: Record<CategorySort, string> = {
 export function CategoriesTab({
   categories,
   items,
+  canCreate,
   onOpenCategory,
   onNewCategory
 }: {
   categories: Category[];
   items: LearningItem[];
+  canCreate: boolean;
   onOpenCategory: (category: Category) => void;
   onNewCategory: () => void;
 }) {
@@ -64,12 +66,14 @@ export function CategoriesTab({
             ))}
           </Select>
         </div>
-        <GuideTip id="content.addCategory">
-          <Button className="ml-auto" onClick={onNewCategory}>
-            <FolderPlus className="h-4 w-4" aria-hidden="true" />
-            New category
-          </Button>
-        </GuideTip>
+        {canCreate ? (
+          <GuideTip id="content.addCategory">
+            <Button className="ml-auto" onClick={onNewCategory}>
+              <FolderPlus className="h-4 w-4" aria-hidden="true" />
+              New category
+            </Button>
+          </GuideTip>
+        ) : null}
       </div>
 
       {visible.length ? (

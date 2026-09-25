@@ -8,8 +8,8 @@ create type public.user_role as enum ('admin', 'teacher');
 create type public.profile_status as enum ('active', 'invited', 'deactivated');
 create type public.learner_status as enum ('active', 'inactive');
 create type public.preferred_learning_mode as enum ('Visual', 'Audio', 'Gesture', 'Mixed', 'Teacher-guided');
-create type public.media_asset_type as enum ('symbol-image', 'gesture-media', 'audio-file', 'learner-photo');
-create type public.media_bucket as enum ('symbol-images', 'gesture-media', 'audio-files', 'learner-photos');
+create type public.media_asset_type as enum ('symbol-image', 'gesture-media', 'audio-file');
+create type public.media_bucket as enum ('symbol-images', 'gesture-media', 'audio-files');
 create type public.lesson_source as enum ('manual', 'auto-generated');
 create type public.visibility_level as enum ('shared', 'private');
 create type public.activity_type as enum (
@@ -52,7 +52,6 @@ create table public.learners (
   communication_needs text not null default '',
   preferred_learning_mode public.preferred_learning_mode not null default 'Visual',
   assigned_teacher_id text not null,
-  profile_photo_url text,
   status public.learner_status not null default 'active',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -631,6 +630,13 @@ create index if not exists activity_prompt_generations_created_by_idx on public.
 create index if not exists ai_usage_events_user_feature_created_idx on public.ai_usage_events(user_id, feature, created_at desc);
 create index if not exists ai_usage_events_material_created_idx on public.ai_usage_events(material_hash, created_at desc);
 create index if not exists ai_usage_events_user_created_idx on public.ai_usage_events(user_id, created_at desc);
+create index if not exists activity_items_activity_id_idx on public.activity_items(activity_id);
+create index if not exists activity_items_learning_item_id_idx on public.activity_items(learning_item_id);
+create index if not exists activity_prompt_templates_learning_item_id_idx on public.activity_prompt_templates(learning_item_id);
+create index if not exists activity_results_activity_id_idx on public.activity_results(activity_id);
+create index if not exists lesson_items_learning_item_id_idx on public.lesson_items(learning_item_id);
+create index if not exists lessons_related_activity_id_idx on public.lessons(related_activity_id);
+create index if not exists practice_attempts_learning_item_id_idx on public.practice_attempts(learning_item_id);
 
 alter table public.practice_attempts enable row level security;
 alter table public.activity_results enable row level security;

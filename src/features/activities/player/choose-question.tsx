@@ -1,9 +1,14 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { activityTypeLabels } from "@/utils/activity-labels";
-import { type ActivityScore, getDisplayLabel, getPagedSymbolChoiceGridClass, getActivityBackground } from "@/features/activities/player/player-utils";
+import {
+  type ActivityScore,
+  getActivityQuestionOptions,
+  getDisplayLabel,
+  getPagedSymbolChoiceGridClass,
+  getActivityBackground
+} from "@/features/activities/player/player-utils";
 import {
   StepProgress,
   ActivityGameTopBar,
@@ -22,6 +27,7 @@ export function ChooseCorrectSymbolStudentLayout({
   learningItems,
   answers,
   currentQuestionIndex,
+  optionSetVersion,
   hintedQuestionId,
   isListening,
   highlightedListenQuestionId,
@@ -45,6 +51,7 @@ export function ChooseCorrectSymbolStudentLayout({
   learningItems: LearningItem[];
   answers: Record<string, string>;
   currentQuestionIndex: number;
+  optionSetVersion: number;
   hintedQuestionId: string;
   isListening: boolean;
   highlightedListenQuestionId: string;
@@ -65,10 +72,16 @@ export function ChooseCorrectSymbolStudentLayout({
   onCheck: (question: ActivityQuestion) => void;
   activityNavigator?: ReactNode;
 }) {
+  const [optionShuffleSeed, setOptionShuffleSeed] = useState(() => Math.random());
   const totalSteps = Math.min(activity.questions.length, 5);
   const safeQuestionIndex = Math.min(currentQuestionIndex, Math.max(totalSteps - 1, 0));
   const currentQuestion = activity.questions[safeQuestionIndex];
-  const currentOptions = currentQuestion?.options ?? [];
+  const currentOptions = useMemo(
+    () => currentQuestion
+      ? getActivityQuestionOptions(activity, currentQuestion, learningItems, optionShuffleSeed)
+      : [],
+    [activity, currentQuestion, learningItems, optionShuffleSeed]
+  );
   const currentStep = safeQuestionIndex + 1;
   const selectedAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
   const canMoveBack = totalSteps > 1 && safeQuestionIndex > 0;
@@ -77,20 +90,20 @@ export function ChooseCorrectSymbolStudentLayout({
   const hinted = hintedQuestionId === currentQuestion?.id;
   const activelyRead = highlightedListenQuestionId === currentQuestion?.id;
   const isFillBlank = activity.type === "fill-blank";
-  // Choose the word (simple-quiz) answers with words; the other types answer with cards.
-  const showWords = activity.type === "simple-quiz";
   const feedbackText = checkStepMessage({
     isChecked,
     isRight: Boolean(currentQuestion && selectedAnswer === currentQuestion.answer),
     hasPick: Boolean(selectedAnswer),
     hinted,
-    words: showWords,
+    words: false,
     prompt: isFillBlank
       ? "Choose the card that fills the gap."
-      : showWords
-        ? "Choose the word that answers the question."
-        : "Choose the picture that answers the question."
+      : "Choose the picture that answers the question."
   });
+
+  useEffect(() => {
+    setOptionShuffleSeed(Math.random());
+  }, [activity.id, optionSetVersion]);
 
   return (
     <section
@@ -111,13 +124,9 @@ export function ChooseCorrectSymbolStudentLayout({
           activityNavigator={activityNavigator}
         />
       </div>
-      <div className="grid h-full min-h-0 grid-rows-[5rem_minmax(0,1fr)_5.5rem] gap-3 rounded-[2rem] border border-white/80 bg-white/28 p-3 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[5.5rem_minmax(0,1fr)_5.75rem] sm:gap-4 sm:p-4">
+      <div className="grid h-full min-h-0 grid-rows-[5rem_minmax(0,1fr)_7rem] gap-3 rounded-[2rem] border border-white/80 bg-white/28 p-3 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[5.5rem_minmax(0,1fr)_8rem] sm:gap-4 sm:p-4">
         <header className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-          <div className="flex min-w-0 items-center gap-3 pl-16 sm:pl-20">
-            <div className="min-w-0 rounded-2xl border border-blue-100 bg-white/90 px-4 py-2 shadow-sm">
-              <p className="truncate text-base font-black text-[#10285e] sm:text-lg">{activityTypeLabels[activity.type]}</p>
-            </div>
-          </div>
+          <div aria-hidden="true" />
 
           <div className="hidden min-w-0 justify-center sm:flex">
             <StepProgress currentStep={currentStep} totalSteps={totalSteps} />
@@ -168,16 +177,20 @@ export function ChooseCorrectSymbolStudentLayout({
                   )}
                 >
                   <CheckedOptionBadge state={state} />
-                  {showWords ? (
-                    <span className="grid h-full min-h-0 place-items-center rounded-[1.2rem] bg-white/85 p-2 text-2xl font-black uppercase leading-tight text-[#10285e] sm:text-4xl">
-                      {getDisplayLabel(option, learningItems)}
+                  <span
+                    className="grid h-full min-h-0 place-items-center overflow-hidden rounded-[1.2rem] bg-white/85 p-1 sm:p-2"
+                  >
+                    <span className="grid h-full min-h-0 w-full place-items-center overflow-hidden">
+                      <SymbolOption
+                        value={option}
+                        learningItems={learningItems}
+                        framed={false}
+                        preferNoTextPecs
+                        className="!h-full max-h-full"
+                      />
                     </span>
-                  ) : (
-                    <span className="grid h-full min-h-0 place-items-center overflow-hidden rounded-[1.2rem] bg-white/85 p-1 sm:p-2">
-                      <SymbolOption value={option} learningItems={learningItems} framed={false} preferNoTextPecs className="!h-full max-h-full" />
-                      <span className="sr-only">{getDisplayLabel(option, learningItems)}</span>
-                    </span>
-                  )}
+                    <span className="sr-only">{getDisplayLabel(option, learningItems)}</span>
+                  </span>
                 </button>
               );
             })}

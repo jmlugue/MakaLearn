@@ -429,8 +429,7 @@ export function OverviewSection({
   const manualLessons = lessons.filter((lesson) => lesson.source === "manual").length;
   const pecsCount = items.filter((item) => item.contentType === "pecs").length;
   const gestureCount = items.length - pecsCount;
-  const adminMedia = media.filter((asset) => asset.type !== "learner-photo");
-  const previewMedia = adminMedia.filter((asset) => asset.publicUrl && asset.type === "symbol-image").slice(0, 3);
+  const previewMedia = media.filter((asset) => asset.publicUrl && asset.type === "symbol-image").slice(0, 3);
   const sharedActivities = activities.filter((activity) => activity.visibility === "shared").length;
   const sharedLessons = lessons.filter((lesson) => lesson.visibility === "shared").length;
   const uploadsToday = logs.filter((log) => log.action === "upload" && isToday(log.createdAt)).length;
@@ -521,7 +520,7 @@ export function OverviewSection({
               <img key={asset.id} src={asset.publicUrl} alt="" className="h-7 w-7 rounded-md border-2 border-white bg-[#fff] object-contain" />
             ))}
           </span>
-          <span className="text-lg font-black text-ink">{adminMedia.length}</span>
+          <span className="text-lg font-black text-ink">{media.length}</span>
           <span className="text-xs font-semibold text-slate-500">media files</span>
         </button>
       </Tile>

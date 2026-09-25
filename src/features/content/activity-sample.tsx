@@ -6,7 +6,7 @@ import { CheckCircle2, MousePointerClick, Play, Pointer, RotateCcw, XCircle } fr
 import { cn } from "@/lib/utils";
 import { createActivityQuestions } from "@/lib/supabase/app-data";
 import { getActivityTypeLabel } from "@/utils/activity-labels";
-import { isUrl } from "@/features/content/content-media";
+import { SymbolOption } from "@/features/activities/player/player-parts";
 import type { ActivityType, LearningItem } from "@/types";
 
 const explanations: Partial<Record<ActivityType, string>> = {
@@ -184,7 +184,7 @@ export function ActivitySample({ type, items, pool }: { type: ActivityType; item
             >
               {placed ? (
                 <motion.div layoutId={`sample-card-${question.id}-${question.options.indexOf(placed)}`} className="w-16" transition={{ duration: reduceMotion ? 0 : 0.45 }}>
-                  <Option value={placed} small />
+                  <Option value={placed} learningItems={pool} small />
                 </motion.div>
               ) : (
                 <span className="text-lg font-black text-ink">{question.prompt}</span>
@@ -222,7 +222,7 @@ export function ActivitySample({ type, items, pool }: { type: ActivityType; item
                   <span className="h-full w-full rounded-lg border-2 border-dashed border-blue-100" aria-hidden="true" />
                 ) : (
                   <motion.div layoutId={isDragDrop ? `sample-card-${question.id}-${position}` : undefined} className="grid h-full w-full place-items-center">
-                    <Option value={option} />
+                    <Option value={option} learningItems={pool} />
                   </motion.div>
                 )}
               </motion.button>
@@ -265,10 +265,14 @@ export function ActivitySample({ type, items, pool }: { type: ActivityType; item
   );
 }
 
-function Option({ value, small }: { value: string; small?: boolean }) {
-  if (isUrl(value)) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={value} alt="" className={cn("h-full w-full object-contain", small ? "max-h-16" : "max-h-24")} />;
-  }
-  return <span className="text-sm font-bold text-ink">{value}</span>;
+function Option({ value, learningItems, small }: { value: string; learningItems: LearningItem[]; small?: boolean }) {
+  return (
+    <SymbolOption
+      value={value}
+      learningItems={learningItems}
+      framed={false}
+      preferNoTextPecs
+      className={cn("w-full", small ? "!h-16" : "!h-24")}
+    />
+  );
 }
