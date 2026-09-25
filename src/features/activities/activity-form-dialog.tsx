@@ -1,17 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Check, ChevronLeft, ChevronRight, Link2, Loader2, Sparkles } from "lucide-react";
+import { BookOpen, Check, ChevronLeft, ChevronRight, Layers, Loader2, Lock, RotateCcw, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { FieldError, Input, Label, Select } from "@/components/ui/form";
+import { FieldError, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
 import { cn } from "@/lib/utils";
-import { activityTypeLabels } from "@/utils/activity-labels";
-import { buildActivityTitle, canDraftQuestionPrompts, type ActivityDraftResult } from "@/utils/activity-ai-draft";
+import { activityTypeShortLabels } from "@/utils/activity-labels";
+import { canDraftQuestionPrompts, type ActivityDraftResult } from "@/utils/activity-ai-draft";
+import { buildDefaultActivityTitle } from "@/utils/activity-title";
+import { SearchInput } from "@/features/admin/admin-shared";
 import { ActivitySample } from "@/features/content/activity-sample";
+import { CardImage } from "@/features/content/content-media";
 import { PopupTitle, SectionLabel, fieldClass, glassBoxClass } from "@/features/content/content-shared";
-import { MaterialsStep, VisibilityControl } from "@/features/content/lesson-form-dialog";
+import { MaterialsStep } from "@/features/content/lesson-form-dialog";
 import { GuideTip } from "@/features/guide/guide-tip";
 import {
   MAX_ACTIVITY_LEARNING_ITEMS,
@@ -19,12 +22,12 @@ import {
   activityTypeTones,
   activityTypes,
   canUseItem,
-  getActivityTypeDraftText,
   getPromptStoreKey,
   getSavedQuestionPrompt,
   validatePromptForActivity,
   type ActivityPromptStore
 } from "@/features/activities/activity-helpers";
+import { ActivityTypeBadge, activityTypeIcons } from "@/features/activities/activity-type-badge";
 import type { Activity, ActivityType, Category, LearningItem, Lesson } from "@/types";
 
 export type ActivityFormMode = { kind: "new" } | { kind: "edit"; activity: Activity };
@@ -41,7 +44,7 @@ export type ActivityFormValues = {
   lessonId?: string;
 };
 
-const stepLabels = ["Type", "Cards", "Review"];
+const stepLabels = ["Start", "Cards", "Review"];
 
 export function ActivityFormDialog({
   mode,
@@ -57,7 +60,7 @@ export function ActivityFormDialog({
   mode: ActivityFormMode | null;
   items: LearningItem[];
   categories: Category[];
-  /** Lessons the teacher can see, offered in "Part of a lesson". */
+  /** Lessons the teacher can see, offered under "From a lesson". */
   lessons: Lesson[];
   promptStore: ActivityPromptStore;
   /** The lesson an edited activity belongs to. Its cards then come from that lesson. */
@@ -140,6 +143,7 @@ function ActivityForm({
   const { notify } = useToast();
   const [values, setValues] = useState<ActivityFormValues>(() => initialValues(mode, lessonOfActivity));
   const [step, setStep] = useState(mode.kind === "edit" ? 2 : 0);
+  const [source, setSource] = useState<"own" | "lesson">(lessonOfActivity ? "lesson" : "own");
   const [error, setError] = useState("");
   const [aiNote, setAiNote] = useState("");
   const [drafting, setDrafting] = useState(false);
@@ -147,14 +151,14 @@ function ActivityForm({
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const selectedItems = values.itemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
   const lesson = values.lessonId ? lessonOfActivity ?? lessons.find((candidate) => candidate.id === values.lessonId) : undefined;
-  // Part of a lesson: only that lesson's cards can be picked.
+  // From a lesson: only that lesson's cards can be picked.
   const lessonCardIds = useMemo(() => (lesson ? new Set(lesson.learningItemIds) : null), [lesson]);
   const usableItems = useMemo(
     () => items.filter((item) => canUseItem(values.type, item) && (!lessonCardIds || lessonCardIds.has(item.id))),
     [items, lessonCardIds, values.type]
   );
   const draftable = canDraftQuestionPrompts(values.type);
-  const isGesture = values.type === "gesture-practice";
+  const everyCardHasQuestion = selectedItems.length > 0 && selectedItems.every((item) => values.promptInputs[getPromptStoreKey(values.type, item.id)]?.trim());
 
   // Demo cards: the picked ones, or a few with pictures so the format can be seen before choosing.
   const demoItems = selectedItems.length
@@ -188,6 +192,12 @@ function ActivityForm({
     update({ lessonId: next?.id, itemIds: kept, promptInputs: withPrompts(values.type, kept, values.promptInputs) });
   }
 
+  function pickSource(next: "own" | "lesson") {
+    setSource(next);
+    if (next === "own") pickLesson("");
+    setError("");
+  }
+
   function changeType(type: ActivityType) {
     const kept = values.itemIds.filter((id) => {
       const item = itemById.get(id);
@@ -197,11 +207,20 @@ function ActivityForm({
     setAiNote("");
   }
 
+  function defaultTitle() {
+    return buildDefaultActivityTitle(values.type, selectedItems, { lessonTitle: lesson?.title, categories });
+  }
+
   function validate(target: number) {
+    if (target >= 1 && mode.kind === "new" && source === "lesson" && !lesson) {
+      setStep(0);
+      setError("Pick a lesson, or start from your own cards.");
+      return false;
+    }
     if (target >= 2) {
       if (!selectedItems.length) {
         setStep(1);
-        setError(isGesture ? "Pick at least one gesture." : "Pick at least one card.");
+        setError("Pick at least one card.");
         return false;
       }
       if (selectedItems.some((item) => !canUseItem(values.type, item))) {
@@ -216,7 +235,7 @@ function ActivityForm({
   function goTo(target: number) {
     if (target > step && !validate(target)) return;
     if (target === 2 && !values.title.trim() && selectedItems.length) {
-      update({ title: buildActivityTitle(values.type, selectedItems) });
+      update({ title: defaultTitle() });
     }
     setError("");
     setStep(target);
@@ -235,8 +254,7 @@ function ActivityForm({
         return;
       }
     }
-    const name = values.title.trim() || buildActivityTitle(values.type, selectedItems);
-    onSave({ ...values, title: name });
+    onSave({ ...values, title: values.title.trim() || defaultTitle() });
   }
 
   async function draftWithAi(regenerate: boolean) {
@@ -247,10 +265,6 @@ function ActivityForm({
     const missing = regenerate
       ? selectedItems.map((item) => item.id)
       : selectedItems.filter((item) => !values.promptInputs[getPromptStoreKey(values.type, item.id)]?.trim()).map((item) => item.id);
-    if (!missing.length) {
-      setAiNote("Each card already has a question.");
-      return;
-    }
 
     setDrafting(true);
     setAiNote("");
@@ -268,7 +282,7 @@ function ActivityForm({
         setValues((current) => ({ ...current, promptInputs: { ...current.promptInputs, ...patch } }));
         onPromptStoreChange(patch);
       }
-      setAiNote(draft.note || "Draft with AI finished.");
+      setAiNote(draft.note || "Questions drafted. Check them before saving.");
       notify({
         title:
           draft.source === "hugging-face"
@@ -282,7 +296,7 @@ function ActivityForm({
         tone: draft.source === "hugging-face" || draft.source === "cache" ? "success" : "info"
       });
     } catch {
-      setAiNote("Could not draft with AI. Type the questions below.");
+      setAiNote("Could not draft with AI. Type the questions instead.");
     } finally {
       setDrafting(false);
     }
@@ -291,55 +305,72 @@ function ActivityForm({
   return (
     <div>
       <PopupTitle title={title} className="mb-4" />
-      {lessonOfActivity ? (
-        <p className="-mt-2 mb-4 flex items-start gap-2 rounded-xl bg-blue-50/80 p-2.5 text-xs text-slate-600 ring-1 ring-blue-100">
-          <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
-          <span>
-            <span className="font-semibold text-ink">Part of {lessonOfActivity.title}.</span> Its cards come from that lesson.
-          </span>
-        </p>
-      ) : null}
       <Stepper step={step} onStep={goTo} />
 
       <div className="mt-5 min-h-[22rem]">
         {step === 0 ? (
-          <div className="space-y-4">
-            <GuideTip id="activities.types" className="block">
-              <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Activity type">
-                {activityTypes.map((type) => {
-                  const selected = values.type === type;
-                  return (
-                    <button
-                      key={type}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      onClick={() => changeType(type)}
-                      className={cn(
-                        "rounded-2xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-                        selected ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-blue-100 bg-white/80 hover:border-blue-300"
-                      )}
-                    >
-                      <span className="flex items-center gap-1.5 text-sm font-bold text-ink">
-                        <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", activityTypeTones[type].dot)} aria-hidden="true" />
-                        {activityTypeLabels[type]}
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-500">{activityTypeDescriptions[type]}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </GuideTip>
+          <div className="space-y-5">
+            <div>
+              <SectionLabel className="mb-2">Start from</SectionLabel>
+              {mode.kind === "new" ? (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Start from">
+                    <SourceTile icon={Layers} label="My own cards" selected={source === "own"} onClick={() => pickSource("own")} />
+                    <SourceTile icon={BookOpen} label="From a lesson" selected={source === "lesson"} onClick={() => pickSource("lesson")} />
+                  </div>
+                  {source === "lesson" ? (
+                    <LessonPicker lessons={lessons} itemById={itemById} value={values.lessonId} onChange={pickLesson} />
+                  ) : null}
+                </>
+              ) : (
+                <p className="flex items-center gap-2 rounded-xl bg-white/80 p-2.5 text-sm text-slate-600 ring-1 ring-blue-100">
+                  {lesson ? <BookOpen className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" /> : <Layers className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />}
+                  <span className="font-semibold text-ink">{lesson ? `From ${lesson.title}` : "My own cards"}</span>
+                  <span>Set when it was made.</span>
+                </p>
+              )}
+            </div>
+
+            <div>
+              <SectionLabel className="mb-2">Format</SectionLabel>
+              <GuideTip id="activities.types" className="block">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Activity format">
+                  {activityTypes.map((type) => {
+                    const selected = values.type === type;
+                    const Icon = activityTypeIcons[type];
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-describedby={`activity-type-${type}`}
+                        onClick={() => changeType(type)}
+                        className={cn(
+                          "flex min-h-11 items-center gap-2 rounded-2xl border p-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                          selected ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-blue-100 bg-white/80 hover:border-blue-300"
+                        )}
+                      >
+                        <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", activityTypeTones[type].soft, activityTypeTones[type].text)}>
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <span className="text-sm font-bold leading-tight text-ink">{activityTypeShortLabels[type]}</span>
+                        <span id={`activity-type-${type}`} className="sr-only">
+                          {activityTypeDescriptions[type]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </GuideTip>
+            </div>
+
             <div className="rounded-2xl bg-gradient-to-br from-blue-100/70 via-blue-50/70 to-sky-50/80 p-4 ring-1 ring-blue-100">
               <SectionLabel className="mb-2">How it plays</SectionLabel>
-              {!isGesture && demoItems.length ? (
+              {demoItems.length ? (
                 <ActivitySample key={`${values.type}-${demoItems.length}`} type={values.type} items={demoItems} pool={items} />
               ) : (
-                <p className="text-sm leading-6 text-slate-700">
-                  {isGesture
-                    ? "The learner copies each gesture. The teacher marks it done or asks for another try."
-                    : "Add PECS cards with pictures in Content to see a demo."}
-                </p>
+                <p className="text-sm leading-6 text-slate-700">Add PECS cards with pictures in Content to see a demo.</p>
               )}
             </div>
           </div>
@@ -347,22 +378,11 @@ function ActivityForm({
 
         {step === 1 ? (
           <div className="space-y-3">
-            {mode.kind === "new" ? (
-              <div className={cn("p-3", glassBoxClass)}>
-                <Label htmlFor="activity-lesson">Part of a lesson (optional)</Label>
-                <Select id="activity-lesson" className={fieldClass} value={values.lessonId ?? ""} onChange={(event) => pickLesson(event.target.value)}>
-                  <option value="">None</option>
-                  {lessons.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.title}
-                    </option>
-                  ))}
-                </Select>
-                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
-                  <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                  {lesson ? "Only this lesson's cards are shown. A lesson can have many activities." : "Leave empty for an activity of your own."}
-                </p>
-              </div>
+            {lesson ? (
+              <p className="flex items-center gap-1.5 text-sm text-slate-600">
+                <BookOpen className="h-4 w-4 text-blue-600" aria-hidden="true" />
+                Cards from <span className="font-semibold text-ink">{lesson.title}</span>
+              </p>
             ) : null}
             <MaterialsStep
               key={`${values.type}-${values.lessonId ?? "none"}`}
@@ -370,84 +390,97 @@ function ActivityForm({
               categories={categories}
               selectedIds={values.itemIds}
               onChange={setItems}
-              kinds={[isGesture ? "gesture" : "pecs"]}
+              kinds={["pecs"]}
               max={MAX_ACTIVITY_LEARNING_ITEMS}
-              emptyText={
-                lesson
-                  ? "This lesson has no cards that fit this format. Try another format."
-                  : isGesture
-                    ? "No gestures yet. Add one in Content."
-                    : "No cards with pictures match."
-              }
+              tray="slots"
+              emptyText={lesson ? "This lesson has no cards with pictures." : "No cards with pictures match."}
             />
-            <p className="text-xs text-slate-500">
-              Up to {MAX_ACTIVITY_LEARNING_ITEMS} cards.{!isGesture && values.type !== "fill-blank" && values.type !== "simple-quiz" ? " Only cards with pictures are shown." : ""}
-            </p>
           </div>
         ) : null}
 
         {step === 2 ? (
           <div className="space-y-4">
             <div className={cn("space-y-3 p-4", glassBoxClass)}>
-              <div>
-                <Label htmlFor="activity-title">Name</Label>
-                <Input id="activity-title" className={fieldClass} value={values.title} onChange={(event) => update({ title: event.target.value })} placeholder="Match greetings" />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <Label htmlFor="activity-title">Name</Label>
+                  <Input
+                    id="activity-title"
+                    className={fieldClass}
+                    value={values.title}
+                    onChange={(event) => update({ title: event.target.value })}
+                    placeholder={selectedItems.length ? defaultTitle() : "Feelings match activity"}
+                  />
+                </div>
+                <PrivateSwitch editing={mode.kind === "edit"} isPrivate={values.isPrivate} onChange={(isPrivate) => update({ isPrivate })} />
               </div>
-              <VisibilityControl editing={mode.kind === "edit"} isPrivate={values.isPrivate} onChange={(isPrivate) => update({ isPrivate })} />
+              <div className="flex flex-wrap items-center gap-2 border-t border-blue-50 pt-3">
+                <ActivityTypeBadge type={values.type} />
+                {lesson ? (
+                  <span className="inline-flex min-w-0 items-center gap-1 text-xs font-semibold text-blue-700">
+                    <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span className="truncate">From {lesson.title}</span>
+                  </span>
+                ) : null}
+                <span className="ml-auto flex items-center gap-1" aria-label={`${selectedItems.length} cards`}>
+                  {selectedItems.map((item) => (
+                    <span key={item.id} title={item.label} className="relative block h-10 w-8 overflow-hidden rounded-lg border border-blue-100 bg-[#fff] p-0.5">
+                      <CardImage value={item.symbolImageUrl} label={item.label} className="p-0 text-xs leading-none" />
+                    </span>
+                  ))}
+                </span>
+              </div>
             </div>
 
-            <div className={cn("space-y-3 p-4", glassBoxClass)}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <SectionLabel>{draftable ? (values.type === "fill-blank" ? "Sentences" : "Questions") : "Cards"}</SectionLabel>
-                {draftable ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant="secondary" onClick={() => draftWithAi(false)} disabled={drafting}>
-                      {drafting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
-                      {drafting ? "Drafting..." : "Draft with AI"}
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => draftWithAi(true)} disabled={drafting}>
-                      New version
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-              {draftable ? (
-                <>
-                  <p className="text-xs text-slate-500">
-                    {values.type === "fill-blank" ? "One sentence per card. Use ____ for the missing word." : "One short question per card."}
+            {draftable ? (
+              <div className={cn("space-y-3 p-4", glassBoxClass)}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <SectionLabel>{values.type === "fill-blank" ? "Sentences" : "Questions"}</SectionLabel>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => draftWithAi(everyCardHasQuestion)} disabled={drafting}>
+                    {drafting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : everyCardHasQuestion ? (
+                      <RotateCcw className="h-4 w-4 text-blue-600" aria-hidden="true" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 text-blue-600" aria-hidden="true" />
+                    )}
+                    {drafting ? "Drafting..." : everyCardHasQuestion ? "Try again with AI" : "Draft with AI"}
+                  </Button>
+                </div>
+                {aiNote ? (
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-700" role="status">
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                    {aiNote}
                   </p>
+                ) : null}
+                <ul className="space-y-2.5">
                   {selectedItems.map((item) => {
                     const key = getPromptStoreKey(values.type, item.id);
                     const value = values.promptInputs[key] ?? "";
                     return (
-                      <div key={key}>
-                        <Label htmlFor={`activity-prompt-${item.id}`}>{item.label}</Label>
-                        <Input
-                          id={`activity-prompt-${item.id}`}
-                          className={fieldClass}
-                          value={value}
-                          onChange={(event) => update({ promptInputs: { ...values.promptInputs, [key]: event.target.value } })}
-                          placeholder={values.type === "fill-blank" ? "My ____ is here." : "Which card shows family?"}
-                        />
-                        <FieldError message={validatePromptForActivity(values.type, item, value)} />
-                      </div>
+                      <li key={key} className="flex items-start gap-3">
+                        <span className="relative mt-0.5 block h-14 w-11 shrink-0 overflow-hidden rounded-xl border border-blue-100 bg-[#fff] p-1">
+                          <CardImage value={item.symbolImageUrl} label={item.label} className="text-xs" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <label htmlFor={`activity-prompt-${item.id}`} className="text-xs font-semibold text-slate-600">
+                            {item.label}
+                          </label>
+                          <Input
+                            id={`activity-prompt-${item.id}`}
+                            className={cn(fieldClass, "mt-0.5")}
+                            value={value}
+                            onChange={(event) => update({ promptInputs: { ...values.promptInputs, [key]: event.target.value } })}
+                            placeholder={values.type === "fill-blank" ? "Use ____ for the missing word" : "A short question"}
+                          />
+                          <FieldError message={validatePromptForActivity(values.type, item, value)} />
+                        </div>
+                      </li>
                     );
                   })}
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-slate-500">{getActivityTypeDraftText(values.type)}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedItems.map((item) => (
-                      <span key={item.id} className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">
-                        {item.label}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              )}
-              {aiNote ? <p className="text-xs font-semibold text-blue-700">{aiNote}</p> : null}
-            </div>
+                </ul>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -465,7 +498,6 @@ function ActivityForm({
             Back
           </Button>
         )}
-        {step === 1 ? <span className="text-sm font-semibold text-slate-500">{selectedItems.length} of {MAX_ACTIVITY_LEARNING_ITEMS}</span> : null}
         {step < 2 ? (
           <Button type="button" onClick={() => goTo(step + 1)}>
             Next
@@ -479,6 +511,121 @@ function ActivityForm({
         )}
       </div>
     </div>
+  );
+}
+
+function SourceTile({ icon: Icon, label, selected, onClick }: { icon: typeof Layers; label: string; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onClick}
+      className={cn(
+        "flex min-h-12 items-center gap-2.5 rounded-2xl border p-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+        selected ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-blue-100 bg-white/80 hover:border-blue-300"
+      )}
+    >
+      <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", selected ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600")}>
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <span className="text-sm font-bold text-ink">{label}</span>
+    </button>
+  );
+}
+
+/** Searchable list of lessons, each with its first picture and card count. */
+function LessonPicker({
+  lessons,
+  itemById,
+  value,
+  onChange
+}: {
+  lessons: Lesson[];
+  itemById: Map<string, LearningItem>;
+  value?: string;
+  onChange: (lessonId: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+  const sorted = useMemo(() => [...lessons].sort((a, b) => a.title.localeCompare(b.title)), [lessons]);
+  const visible = query ? sorted.filter((lesson) => lesson.title.toLowerCase().includes(query)) : sorted;
+
+  return (
+    <div className="mt-2 rounded-2xl border border-blue-100 bg-[#fff] p-2">
+      <SearchInput label="Search lessons" placeholder="Search lessons" value={search} onChange={setSearch} />
+      <ul className="clean-scrollbar mt-2 max-h-56 space-y-1 overflow-y-auto" aria-label="Lessons">
+        {visible.map((lesson) => {
+          const selected = lesson.id === value;
+          const cover = lesson.learningItemIds.map((id) => itemById.get(id)).find((item) => item?.symbolImageUrl);
+          const count = lesson.learningItemIds.filter((id) => itemById.has(id)).length;
+          return (
+            <li key={lesson.id}>
+              <button
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onChange(lesson.id)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-xl p-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                  selected ? "bg-skywash ring-1 ring-blue-500" : "hover:bg-blue-50"
+                )}
+              >
+                <span className="relative block h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-blue-100 bg-blue-50 p-1">
+                  {cover ? <CardImage value={cover.symbolImageUrl} label={cover.label} className="p-0 text-xs leading-none" /> : <BookOpen className="m-auto h-full w-4 text-blue-600" aria-hidden="true" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-ink">{lesson.title}</span>
+                  <span className="block text-xs text-slate-500">
+                    {count} {count === 1 ? "card" : "cards"}
+                  </span>
+                </span>
+                {selected ? (
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  </span>
+                ) : null}
+              </button>
+            </li>
+          );
+        })}
+        {!visible.length ? (
+          <li className="py-6 text-center text-sm text-slate-500">{lessons.length ? "No lessons match." : "No lessons yet. Make one in Content."}</li>
+        ) : null}
+      </ul>
+    </div>
+  );
+}
+
+/** Private is picked when an activity is made; afterwards it is only shown. */
+function PrivateSwitch({ editing, isPrivate, onChange }: { editing: boolean; isPrivate: boolean; onChange: (isPrivate: boolean) => void }) {
+  if (editing) {
+    const Icon = isPrivate ? Lock : Users;
+    return (
+      <span className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-sm font-semibold text-slate-600 ring-1 ring-blue-100">
+        <Icon className="h-4 w-4 text-blue-600" aria-hidden="true" />
+        {isPrivate ? "Private" : "Shared"}
+      </span>
+    );
+  }
+
+  return (
+    <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-white/80 px-3 ring-1 ring-blue-100">
+      <Lock className="h-4 w-4 text-blue-600" aria-hidden="true" />
+      <span className="text-sm font-semibold text-ink">Private</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isPrivate}
+        aria-label="Private to me"
+        onClick={() => onChange(!isPrivate)}
+        className={cn(
+          "relative h-7 w-12 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+          isPrivate ? "bg-blue-600" : "bg-slate-200"
+        )}
+      >
+        <span className={cn("absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all", isPrivate ? "left-6" : "left-1")} />
+      </button>
+    </label>
   );
 }
 
@@ -499,12 +646,12 @@ function Stepper({ step, onStep }: { step: number; onStep: (step: number) => voi
               <span
                 className={cn(
                   "grid h-7 w-7 place-items-center rounded-full text-xs font-bold transition",
-                  current ? "bg-blue-600 text-white" : done ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"
+                  current ? "bg-blue-600 text-white" : done ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"
                 )}
               >
                 {done ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
               </span>
-              <span className={cn("text-sm font-semibold", current ? "text-ink" : "text-slate-400")}>{label}</span>
+              <span className={cn("text-sm font-semibold", current ? "text-ink" : "text-slate-500")}>{label}</span>
             </button>
             {index < stepLabels.length - 1 ? <span className={cn("h-0.5 flex-1 rounded-full", done ? "bg-blue-200" : "bg-slate-100")} /> : null}
           </li>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Activity as ActivityIcon, PlayCircle, Plus } from "lucide-react";
+import { PlayCircle, Plus, Shapes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, releaseStrayScrollLock } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/common/empty-state";
@@ -14,6 +14,7 @@ import { GuideTip } from "@/features/guide/guide-tip";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { StudentActivityPlayer } from "@/features/activities/student-activity-player";
+import { StudentActivityMenu } from "@/features/activities/student-activity-menu";
 import { ActivityPlayerScreen } from "@/features/activities/player/activity-player-screen";
 import { TeacherPlayer } from "@/features/activities/player/teacher-player";
 import { ActivityLibrary } from "@/features/activities/activity-library";
@@ -50,9 +51,10 @@ import type { Activity, ActivityType, AppUser, Category, LearningItem, Lesson } 
 
 type Score = { score: number; correct: number; incorrect: number };
 
+/** A Student mode link (`?play=` or `?type=`) opens that game; without one the picture menu shows. */
 function getInitialActivity(activities: Activity[], activityId?: string, activityType?: ActivityType) {
   const requested = activityId ? activities.find((activity) => activity.id === activityId) : undefined;
-  return requested ?? (activityType ? activities.find((activity) => activity.type === activityType) : undefined) ?? activities[0];
+  return requested ?? (activityType ? activities.find((activity) => activity.type === activityType) : undefined);
 }
 
 function errorText(error: unknown, fallback: string) {
@@ -89,7 +91,8 @@ export function ActivitiesView() {
   const [deleting, setDeleting] = useState(false);
 
   // Player state. Student mode picks its activity here; teachers pick it through the URL.
-  const [studentActivityId, setStudentActivityId] = useState("");
+  // null: follow the link (if any). "": the picture menu. Otherwise the game being played.
+  const [studentActivityId, setStudentActivityId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [dragged, setDragged] = useState("");
   const [result, setResult] = useState<Score | null>(null);
@@ -179,7 +182,9 @@ export function ActivitiesView() {
   const reportProgress = useCallback((current: number, total: number) => setProgress({ current, total }), []);
 
   const playingActivity = isStudentMode
-    ? visibleActivities.find((activity) => activity.id === studentActivityId) ?? getInitialActivity(visibleActivities, playId, requestedType)
+    ? studentActivityId === null
+      ? getInitialActivity(visibleActivities, playId, requestedType)
+      : visibleActivities.find((activity) => activity.id === studentActivityId)
     : visibleActivities.find((activity) => activity.id === playId);
   const openActivity = visibleActivities.find((activity) => activity.id === openActivityId) ?? null;
   const editingActivity = formMode?.kind === "edit" ? formMode.activity : null;
@@ -227,14 +232,6 @@ export function ActivitiesView() {
       return;
     }
     router.replace(pathname);
-  }
-
-  function switchActivity(activityId: string) {
-    if (isStudentMode) {
-      setStudentActivityId(activityId);
-      return;
-    }
-    router.replace(activityPlayHref(activityId));
   }
 
   function resetPlayer() {
@@ -353,19 +350,7 @@ export function ActivitiesView() {
   }
 
   const player = playingActivity ? (
-    <StudentActivityPlayer
-      activity={playingActivity}
-      activities={visibleActivities}
-      learningItems={learningItems}
-      answers={answers}
-      result={result}
-      dragged={dragged}
-      setDragged={setDragged}
-      chooseAnswer={chooseAnswer}
-      onScore={scoreActivity}
-      onReset={resetPlayer}
-      onSelectActivity={switchActivity}
-    />
+    <StudentActivityPlayer activity={playingActivity} learningItems={learningItems} onHome={() => setStudentActivityId("")} />
   ) : null;
 
   const deleteLesson = activityToDelete ? lessonOf(activityToDelete) : undefined;
@@ -416,14 +401,18 @@ export function ActivitiesView() {
 
   if (isStudentMode) {
     if (!ready) return <LoadingState label="Loading activities" />;
-    return player ?? <EmptyState icon={PlayCircle} title="No activities yet" description="Ask your teacher to add an activity." />;
+    if (player) return player;
+    if (!visibleActivities.length) {
+      return <EmptyState icon={PlayCircle} title="No activities yet" description="Ask your teacher to add an activity." />;
+    }
+    return <StudentActivityMenu activities={visibleActivities} learningItems={learningItems} onPlay={setStudentActivityId} />;
   }
 
   return (
     <>
       <PageHeader
         title="Activities"
-        icon={ActivityIcon}
+        icon={Shapes}
         actions={user.role === "teacher" ? (
           <GuideTip id="activities.create">
             <Button type="button" onClick={() => setFormMode({ kind: "new" })} disabled={!ready}>

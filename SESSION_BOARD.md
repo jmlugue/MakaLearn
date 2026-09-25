@@ -28,6 +28,16 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-09-26-activities-design
+- Outcome: Teacher Activities UI cleanup. Shapes icon for Activities; short type names with icons on badges; type colors off blue and teal (violet, orange, yellow, pink); default names like "Feelings match activity" (`src/utils/activity-title.ts`); creator steps Start (own cards or searchable lesson list, format tiles), Cards (5-slot tray via `MaterialsStep tray="slots"`), Review (name with Private switch, summary line, one question row per card, single AI button); one-line card title and meta line; preview shows demo before cards.
+- Files/areas: `nav-items.ts`, `guide-content.ts`, `activity-labels.ts`, `activity-title.ts`, `activity-helpers.ts` (`activityTypeTones` only), `activity-type-badge.tsx`, `activity-card.tsx`, `activity-preview-dialog.tsx`, `activity-library.tsx`, `activity-form-dialog.tsx`, `activities-view.tsx`, `lesson-form-dialog.tsx`, `activity-sample.tsx`, `STYLE_GUIDE.md`, `CLAUDE.md`.
+- Verification: `npx tsc --noEmit`, `npx next lint --dir src`, `npm run test:activities` (17 pass). Card, preview, and creator checked on a temporary sample page at laptop and phone size (page removed). Not verified signed in; `npm run build` not run because a dev server was running.
+
+### 2026-09-26-activities-finalize
+- Outcome: Choose the word retired (4 types remain). Shared per-type instructions in Student mode, teacher player, and Listen. Contextual Fill in the blank sentence for every PECS card, old built-in sentences upgraded at play time, AI draft request and cache version (v2) updated. Meaning-group distractor rule for all types (covers the semantic-distractors entry, pending elugs). Activity create/edit/delete moved to `src/lib/supabase/activity-records.ts` with clearer refusal messages. Instruction banner fits phones.
+- Files/areas: `activity-helpers.ts` (not `activityTypeTones`), players, `activity-option-sets.ts`, `fill-blank-prompts.ts`, `activity-ai-draft.ts`, `api/activity-draft/route.ts` (max tokens), `activity-records.ts`, `app-data.ts`, `scripts/test-activity-rules.mjs`, `scripts/test-activity-records-db.mjs`, `package.json`, `CLAUDE.md`.
+- Verification: `npm run test:activities` (17 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials` (only the known Eat/Drink duplicates). Players checked on a temporary sample page at laptop and phone size (page removed). `npm run build` not run because a dev server was running. `npm run test:activities:db` waits on test accounts.
+
 ### 2026-09-25-activity-agent-contract
 - Outcome: Added a mandatory activity-option contract to the repository instructions, current handoff notes, and MakaLearn product skill. It records PECS-only choices, full-library randomization, semantic-conflict exclusions, no-text artwork, hidden answer labels, legacy-option sanitization, all affected renderers, and required regression checks.
 - Files/areas: `AGENTS.md`, `CLAUDE.md`, `.codex/skills/makalearn-product/SKILL.md`.

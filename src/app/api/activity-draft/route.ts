@@ -255,7 +255,7 @@ async function requestHuggingFaceDraft(
           }
         ],
         temperature: 0.4,
-        max_tokens: 300
+        max_tokens: 700
       })
     });
 

@@ -97,6 +97,14 @@ over in Student mode. Admins get two more: accounts, then the overview and activ
 
 ## 3. Database state, read this first
 
+**Sep 26, not yet run on live:** `supabase/migrations/20260926000000_service_role_private_schema.sql`.
+Activating or deactivating an account failed with "permission denied for schema private": the Sep 25
+profiles trigger calls `private.current_user_role()`, but only `authenticated` could use that schema,
+and the admin routes run as the service role. Two `grant` lines fix it. elugs (who applied the Sep 25
+migrations) should run it in the Supabase SQL Editor.
+Workaround until then: `/api/admin/account-status` updates the profile with the signed-in admin's
+session (`requireActiveAdmin` now returns `sessionClient`), which the trigger and RLS allow.
+
 **The migration has NOT been run on the live database.** Verified by probing PostgREST directly:
 
 ```
@@ -218,7 +226,31 @@ This is the current accepted behavior for every activity surface:
 - Student mode: the result pop-up adds a final "Score X / Y" once every question in the round is answered.
   Match word only moves on after a correct answer, so its final score is usually full marks.
 - Type colors are an agreed exception to the blue-first palette, accents only.
-- `simple-quiz` stays, labelled "Choose the word". Its answer values remain words internally for scoring, while every visible option uses the corresponding PECS no-text activity image. `gesture-practice` is retired (section 10).
+- **Choose the word (`simple-quiz`) is retired (Sep 26)**: it was the same task as Match word to symbol. Hidden like `gesture-practice` via `retiredActivityTypes` / `isRetiredActivity` in `activity-helpers.ts`; the enum and old rows stay. Teachers make 4 types: Match word to symbol, Choose correct symbol, Fill in the blank, Drag and drop.
+
+### Sep 26: instructions, sentences, one answer, database tests (not verified signed in)
+
+- **Instructions:** one line per type from `activityInstruction()` in `activity-helpers.ts`, used by every
+  Student layout, the teacher player, and Listen (which reads the instruction, then the word, question, or
+  sentence). Match: 'Tap the picture for "Happy".' Fill: "Tap the picture that finishes the sentence."
+  Choose: "Tap the picture that answers the question." Drag: "Drag each picture onto its word." On phones
+  the banner sits on its own row above Back and Check.
+- **Fill in the blank sentences** (`src/utils/fill-blank-prompts.ts`): one contextual sentence per PECS card,
+  a situation plus a sentence ("My friend took my toy without asking. I feel ____."). The situation shows on
+  its own line in Student mode. Saved activities that still use an old built-in sentence get the new one at
+  play time; sentences a teacher wrote are kept (`isBuiltInFillBlankPrompt`). AI drafts ask for the same
+  style; `ACTIVITY_PROMPT_TEMPLATE_VERSION` is `activity-prompt-v2`, so v1 cached drafts are not reused.
+- **One right answer:** `activityMeaningGroups` in `src/utils/activity-option-sets.ts` (feelings, food,
+  drinks, greetings, people, classroom actions, and so on). A wrong option never shares a group with the
+  answer, for all types. Fill in the blank also keeps the same-sentence-role rule. Took over the Sep 25
+  "semantic-activity-distractors" work (elugs); confirm with elugs before closing that board entry.
+- **Create, edit, delete** live in `src/lib/supabase/activity-records.ts` (client passed in); `app-data.ts`
+  keeps same-name wrappers. Refusal messages now say only teachers can change activities (admins are view
+  only since Sep 25), and a private one only by its maker.
+- **Tests:** `npm run test:activities` (logic, no database). `npm run test:activities:db` runs create, edit,
+  delete, sharing, and admin cases against the **live** project, signed in as test accounts from
+  `.env.local` (`TEST_TEACHER_*` required, `TEST_TEACHER2_*` and `TEST_ADMIN_*` optional). It only makes
+  `[TEST]` records with ids starting `test-activity-` and deletes them afterwards. The user runs it.
 
 ### Fixed after testing
 
@@ -241,7 +273,7 @@ This is the current accepted behavior for every activity surface:
 - Plan before building. The user says "let us plan" and expects questions and options first.
 - The user commits and pushes. Do not commit unless asked.
 - Secrets go in `.env.local`, which is git-ignored, pasted by the user. Never ask for them in chat.
-- Commit messages end with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+- Commit messages carry no Claude attribution (no Co-Authored-By line). The user commits under their own name.
 - Redesigns are incremental, not overhauls, and the look is blue-toned glassmorphism.
 - Ask before removing or reworking a teammate's feature (Julian: gesture recognition and Guided 7;
   Lloyd: accounts and passwords). Prefer hiding over deleting.
@@ -362,4 +394,42 @@ The user found PECS purple in Content, amber on Admin Home, and blue in the Admi
 - Meaning colors stay as they are: green added or signed in, amber edited or a warning, red deleted.
 - Student mode has no PECS or Gesture labels to recolor; playground category colors are categories.
 - The `accent-amber` and `accent-teal` Tailwind tokens are no longer used for kinds.
+
+---
+
+## 12. Activities design cleanup (Sep 26, checked on a temporary page, not signed in)
+
+- **Icon:** Activities uses `Shapes` (sidebar, mobile and student nav, page header, guide). The pulse icon is
+  only for the Admin activity log.
+- **Type names and colors:** teacher screens show short names (Match, Choose the picture, Fill in the blank,
+  Drag and drop) with an icon on every badge. Colors moved off blue and teal: violet, orange, yellow, pink.
+- **Default name:** "Feelings match activity" (`src/utils/activity-title.ts`). Topic is the lesson, else the
+  main category, else the first card. `buildActivityTitle` in `activity-ai-draft.ts` is no longer used by the form.
+- **Creator:** steps are Start, Cards, Review. Start holds "My own cards / From a lesson" (searchable lesson
+  list) and the format tiles. Cards is only card picking, with a 5-slot tray (`MaterialsStep tray="slots"`;
+  the lesson form keeps its chips). Review: name with a Private switch, a summary line, and one row per card
+  with its question. One AI button: "Draft with AI", or "Try again with AI" once every card has a question.
+- **Card and preview:** one-line title and one meta line. Preview shows the demo first, then the cards.
+- Category colors were left for a later session on request.
+
+---
+
+## 13. Student mode activities redesign (Sep 26, checked on a temporary page, not signed in)
+
+From client testing and the dean's review: inconsistent text sizes, a cramped activity dropdown, and kids not
+seeing they were right. Student mode only; the teacher player is unchanged.
+
+- **Picture menu:** Activities in Student mode opens `student-activity-menu.tsx` (big tiles, type color,
+  pictures, 2-line title). Home in the game returns to it. `?play=` and `?type=` links still open a game.
+- **How to play card** (`player/student-intro-card.tsx`) before the first round, read aloud. Play again skips it.
+- **One tap answers** Match, Choose the picture, Fill in the blank. Big "Correct!" / "Not this one" pop-up (shows
+  the right card), spoken, next question after 1.8s. One try per question. No Check, Next, or Back.
+- **Drag and drop is drag only** (pointer events, works on touch). Right drop stays with "Correct!", wrong one
+  flies back with "Try again". Score counts boxes right on the first drop.
+- **Hint** greys out one wrong card per tap and reads the question. Stops at two cards left.
+- **One type scale** (`player/student-theme.ts`), same card size in every game. See STYLE_GUIDE section 10.
+- The player keeps its own state now (`StudentActivityPlayer` takes `activity`, `learningItems`, `onHome`).
+  `ActivityResultModal` is Student only and takes `firstTryRight`. `match-question.tsx` was merged into
+  `choose-question.tsx`; old footer, navigator, and grid helpers were removed.
+- Not verified signed in, on a real touch tablet, or with real speech timing.
 

@@ -1,245 +1,133 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import {
-  type ActivityScore,
-  getActivityQuestionOptions,
-  getDisplayLabel,
-  getPagedSymbolChoiceGridClass,
-  getActivityBackground
-} from "@/features/activities/player/player-utils";
-import {
-  StepProgress,
-  ActivityGameTopBar,
-  SymbolOption,
-  CheckStepFooter,
-  CheckedOptionBadge,
-  checkStepMessage,
-  checkedOptionClass,
-  checkedOptionState
-} from "@/features/activities/player/player-parts";
-import { ActivityResultModal } from "@/features/activities/player/activity-result";
+import { getDisplayLabel, getQuestionTitle } from "@/features/activities/player/player-utils";
+import { StudentPictureCard, StudentResultBadge } from "@/features/activities/player/student-game-parts";
+import { studentText } from "@/features/activities/player/student-theme";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
-export function ChooseCorrectSymbolStudentLayout({
+/**
+ * Match, Choose the picture, and Fill in the blank in Student mode: one question and its picture cards.
+ * One tap answers. After that the right card is green, a wrong pick red, and the rest fade.
+ */
+export function StudentChoiceBoard({
   activity,
+  question,
+  options,
   learningItems,
-  answers,
-  currentQuestionIndex,
-  optionSetVersion,
-  hintedQuestionId,
-  isListening,
-  highlightedListenQuestionId,
-  result,
-  resultQuestionIds,
-  resultPrimaryActionLabel,
-  onResultPrimaryAction,
-  isResultListening,
-  onResultListen,
-  onHint,
-  onListen,
-  onReset,
-  onBack,
-  onNext,
-  onChooseAnswer,
-  checkedQuestionIds,
-  onCheck,
-  activityNavigator
+  picked,
+  locked,
+  eliminated,
+  beingRead,
+  onPick
 }: {
   activity: Activity;
+  question: ActivityQuestion;
+  options: string[];
   learningItems: LearningItem[];
-  answers: Record<string, string>;
-  currentQuestionIndex: number;
-  optionSetVersion: number;
-  hintedQuestionId: string;
-  isListening: boolean;
-  highlightedListenQuestionId: string;
-  result: ActivityScore | null;
-  resultQuestionIds: string[];
-  resultPrimaryActionLabel: string;
-  onResultPrimaryAction: () => void;
-  isResultListening: boolean;
-  onResultListen: () => void;
-  onHint: () => void;
-  onListen: () => void;
-  onReset: () => void;
-  onBack: () => void;
-  onNext: () => void;
-  onChooseAnswer: (question: ActivityQuestion, option: string) => void;
-  /** Questions already checked: their cards are locked and show green or red. */
-  checkedQuestionIds: Record<string, boolean>;
-  onCheck: (question: ActivityQuestion) => void;
-  activityNavigator?: ReactNode;
+  picked?: string;
+  /** Answered: cards no longer respond. */
+  locked: boolean;
+  /** Wrong cards taken away by Hint. */
+  eliminated: string[];
+  beingRead: boolean;
+  onPick: (option: string) => void;
 }) {
-  const [optionShuffleSeed, setOptionShuffleSeed] = useState(() => Math.random());
-  const totalSteps = Math.min(activity.questions.length, 5);
-  const safeQuestionIndex = Math.min(currentQuestionIndex, Math.max(totalSteps - 1, 0));
-  const currentQuestion = activity.questions[safeQuestionIndex];
-  const currentOptions = useMemo(
-    () => currentQuestion
-      ? getActivityQuestionOptions(activity, currentQuestion, learningItems, optionShuffleSeed)
-      : [],
-    [activity, currentQuestion, learningItems, optionShuffleSeed]
-  );
-  const currentStep = safeQuestionIndex + 1;
-  const selectedAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
-  const canMoveBack = totalSteps > 1 && safeQuestionIndex > 0;
-  const isLast = safeQuestionIndex + 1 >= totalSteps;
-  const isChecked = currentQuestion ? Boolean(checkedQuestionIds[currentQuestion.id]) : false;
-  const hinted = hintedQuestionId === currentQuestion?.id;
-  const activelyRead = highlightedListenQuestionId === currentQuestion?.id;
-  const isFillBlank = activity.type === "fill-blank";
-  const feedbackText = checkStepMessage({
-    isChecked,
-    isRight: Boolean(currentQuestion && selectedAnswer === currentQuestion.answer),
-    hasPick: Boolean(selectedAnswer),
-    hinted,
-    words: false,
-    prompt: isFillBlank
-      ? "Choose the card that fills the gap."
-      : "Choose the picture that answers the question."
-  });
-
-  useEffect(() => {
-    setOptionShuffleSeed(Math.random());
-  }, [activity.id, optionSetVersion]);
-
   return (
-    <section
-      className="fixed inset-0 z-40 grid h-screen w-screen overflow-hidden bg-[#dff5ff] p-3 sm:p-4 lg:p-5"
-      style={{
-        backgroundImage:
-          `linear-gradient(180deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), url('${getActivityBackground(activity.id)}')`,
-        backgroundPosition: "center",
-        backgroundSize: "cover"
-      }}
-    >
-      <div className="absolute right-4 top-4 z-30 sm:right-6 sm:top-5">
-        <ActivityGameTopBar
-          stacked
-          isListening={isListening}
-          onHint={onHint}
-          onListen={onListen}
-          activityNavigator={activityNavigator}
-        />
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 sm:gap-4">
+      <div
+        className={cn(
+          "mx-auto grid min-h-24 w-full max-w-5xl place-items-center rounded-[2rem] border-4 border-white bg-white/95 px-4 py-3 text-center shadow-[0_10px_0_rgba(147,197,253,0.26),0_22px_40px_rgba(37,99,235,0.12)] transition sm:min-h-28 sm:px-6",
+          beingRead && "border-sky-400 ring-8 ring-sky-100"
+        )}
+      >
+        <QuestionText activity={activity} question={question} learningItems={learningItems} filled={locked ? question.answer : undefined} />
       </div>
-      <div className="grid h-full min-h-0 grid-rows-[5rem_minmax(0,1fr)_7rem] gap-3 rounded-[2rem] border border-white/80 bg-white/28 p-3 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[5.5rem_minmax(0,1fr)_8rem] sm:gap-4 sm:p-4">
-        <header className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-          <div aria-hidden="true" />
 
-          <div className="hidden min-w-0 justify-center sm:flex">
-            <StepProgress currentStep={currentStep} totalSteps={totalSteps} />
-          </div>
-
-          <div aria-hidden="true" />
-        </header>
-
-        <main className="grid min-h-0 grid-rows-[minmax(5.5rem,0.48fr)_minmax(0,1.52fr)] gap-3 sm:grid-rows-[minmax(6rem,0.52fr)_minmax(0,1.48fr)] sm:gap-4">
-          <div className="flex min-h-0 items-center justify-center">
-            <div
-              className={cn(
-                "grid h-full max-h-40 w-full max-w-5xl place-items-center rounded-[2rem] border-4 border-white bg-white/92 px-5 text-center shadow-[0_12px_0_rgba(147,197,253,0.26),0_26px_48px_rgba(37,99,235,0.14)] sm:max-h-48 lg:max-h-52",
-                hintedQuestionId === currentQuestion?.id && "ring-8 ring-amber-100",
-                activelyRead && "border-sky-400 ring-8 ring-sky-100"
-              )}
-            >
-              {isFillBlank && currentQuestion ? (
-                <FillBlankSentence
-                  prompt={currentQuestion.prompt}
-                  answer={selectedAnswer ? getDisplayLabel(selectedAnswer, learningItems) : ""}
-                />
-              ) : (
-                <h1 className="text-2xl font-black leading-tight text-[#10285e] sm:text-4xl lg:text-5xl">
-                  {currentQuestion?.prompt ?? activity.prompt}
-                </h1>
-              )}
-            </div>
-          </div>
-
-          <div className={cn(
-            "mx-auto grid min-h-0 w-full grid-cols-1 items-stretch gap-3 sm:gap-3 lg:gap-4",
-            getPagedSymbolChoiceGridClass(currentOptions.length)
-          )}>
-            {currentOptions.map((option) => {
-              const selected = selectedAnswer === option;
-              const state = checkedOptionState(option, currentQuestion?.answer ?? "", selectedAnswer, isChecked);
-              return (
-                <button
-                  key={`${currentQuestion?.id}-${option}`}
-                  type="button"
-                  disabled={isChecked}
-                  onClick={() => currentQuestion && onChooseAnswer(currentQuestion, option)}
-                  aria-pressed={selected}
+      <div
+        className={cn(
+          "mx-auto grid h-full min-h-0 w-full max-w-6xl gap-3 sm:gap-4",
+          options.length <= 2 ? "grid-cols-2" : options.length === 3 ? "grid-cols-3" : "grid-cols-2 grid-rows-2 sm:grid-cols-4 sm:grid-rows-1"
+        )}
+      >
+        {options.map((option) => {
+          const isAnswer = option === question.answer;
+          const isPicked = option === picked;
+          const removed = eliminated.includes(option);
+          const tone = locked ? (isAnswer ? "correct" : isPicked ? "wrong" : "faded") : removed ? "removed" : "idle";
+          return (
+            <div key={`${question.id}-${option}`} className="grid min-h-0 place-items-center [container-type:size]">
+              <button
+                type="button"
+                disabled={locked || removed}
+                onClick={() => onPick(option)}
+                className="w-[min(100cqw,75cqh,16rem)] rounded-[1.5rem] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-blue-300 disabled:cursor-default"
+                aria-label={getDisplayLabel(option, learningItems)}
+              >
+                <StudentPictureCard
+                  value={option}
+                  learningItems={learningItems}
                   className={cn(
-                    "relative grid h-full min-h-0 overflow-hidden rounded-[1.75rem] border-4 bg-white/92 p-2 text-center shadow-[0_12px_0_rgba(147,197,253,0.22),0_24px_40px_rgba(37,99,235,0.12)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 disabled:cursor-default sm:p-3",
-                    checkedOptionClass(state, isChecked, hinted && option === currentQuestion?.answer)
+                    "w-full",
+                    tone === "idle" && "hover:-translate-y-1 hover:border-blue-300",
+                    tone === "correct" && "border-emerald-500 ring-8 ring-emerald-200",
+                    tone === "wrong" && "border-rose-500 ring-8 ring-rose-200",
+                    tone === "faded" && "opacity-50",
+                    tone === "removed" && "opacity-25 grayscale"
                   )}
                 >
-                  <CheckedOptionBadge state={state} />
-                  <span
-                    className="grid h-full min-h-0 place-items-center overflow-hidden rounded-[1.2rem] bg-white/85 p-1 sm:p-2"
-                  >
-                    <span className="grid h-full min-h-0 w-full place-items-center overflow-hidden">
-                      <SymbolOption
-                        value={option}
-                        learningItems={learningItems}
-                        framed={false}
-                        preferNoTextPecs
-                        className="!h-full max-h-full"
-                      />
-                    </span>
-                    <span className="sr-only">{getDisplayLabel(option, learningItems)}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </main>
-
-        <CheckStepFooter
-          canMoveBack={canMoveBack}
-          onBack={onBack}
-          message={feedbackText}
-          isChecked={isChecked}
-          isLast={isLast}
-          canCheck={Boolean(selectedAnswer)}
-          onCheck={() => currentQuestion && onCheck(currentQuestion)}
-          onNext={onNext}
-        />
+                  {tone === "correct" ? <StudentResultBadge tone="correct" /> : null}
+                  {tone === "wrong" ? <StudentResultBadge tone="wrong" /> : null}
+                </StudentPictureCard>
+              </button>
+            </div>
+          );
+        })}
       </div>
-
-      {result ? (
-        <ActivityResultModal
-          activity={activity}
-          learningItems={learningItems}
-          answers={answers}
-          result={result}
-          questionIds={resultQuestionIds}
-          primaryActionLabel={resultPrimaryActionLabel}
-          onPrimaryAction={onResultPrimaryAction}
-          isListening={isResultListening}
-          onListen={onResultListen}
-          highlightedQuestionId={highlightedListenQuestionId}
-        />
-      ) : null}
-    </section>
+    </div>
   );
 }
 
-/** The sentence with its gap. The chosen card's word fills the gap. */
+function QuestionText({
+  activity,
+  question,
+  learningItems,
+  filled
+}: {
+  activity: Activity;
+  question: ActivityQuestion;
+  learningItems: LearningItem[];
+  /** After an answer: the right card, whose word fills the gap. */
+  filled?: string;
+}) {
+  if (activity.type === "fill-blank") {
+    return <FillBlankSentence prompt={question.prompt} answer={filled ? getDisplayLabel(filled, learningItems) : ""} />;
+  }
+  return <h1 className={studentText.question}>{getQuestionTitle(activity, question, learningItems) || activity.prompt}</h1>;
+}
+
+/**
+ * The sentence with its gap. After an answer, the right card's word fills the gap. Most sentences start with
+ * a short situation ("My friend took my toy without asking."), shown on its own line so the gap line stays short.
+ */
 function FillBlankSentence({ prompt, answer }: { prompt: string; answer: string }) {
   const [before, after] = prompt.split("____");
   if (after === undefined) {
-    return <h1 className="text-2xl font-black leading-tight text-[#10285e] sm:text-4xl lg:text-5xl">{prompt}</h1>;
+    return <h1 className={studentText.question}>{prompt}</h1>;
   }
+  const situationEnd = Math.max(before.lastIndexOf(". "), before.lastIndexOf("? "), before.lastIndexOf("! "));
+  const situation = situationEnd >= 0 ? before.slice(0, situationEnd + 1).trim() : "";
+  const lead = (situationEnd >= 0 ? before.slice(situationEnd + 1) : before).trim();
   return (
-    <h1 className="flex flex-wrap items-center justify-center gap-3 text-2xl font-black leading-tight text-[#10285e] sm:text-4xl lg:text-5xl">
-      <span>{before.trim()}</span>
-      <span className="inline-grid min-h-14 min-w-36 place-items-center rounded-2xl border-4 border-dashed border-blue-300 bg-[#f8fbff] px-4 uppercase text-blue-700">
-        {answer}
-      </span>
-      <span>{after.trim()}</span>
-    </h1>
+    <div className="grid gap-2 sm:gap-3">
+      {situation ? <p className={studentText.lead}>{situation}</p> : null}
+      <h1 className={cn("flex flex-wrap items-center justify-center gap-x-3 gap-y-2", studentText.question)}>
+        {lead ? <span>{lead}</span> : null}
+        <span className="inline-grid min-h-12 min-w-32 place-items-center rounded-2xl border-4 border-dashed border-blue-300 bg-[#f8fbff] px-4 text-blue-700 sm:min-h-14 sm:min-w-40">
+          {answer}
+        </span>
+        {after.trim() ? <span>{after.trim()}</span> : null}
+      </h1>
+    </div>
   );
 }

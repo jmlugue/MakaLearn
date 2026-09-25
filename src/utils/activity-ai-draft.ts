@@ -3,7 +3,8 @@ import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
 import { createChooseCorrectSymbolPrompt } from "@/utils/starter-learning-item-prompts";
 import type { ActivityType, LearningItem } from "@/types";
 
-export const ACTIVITY_PROMPT_TEMPLATE_VERSION = "activity-prompt-v1";
+// v2: Fill in the blank asks for a situation plus a full sentence. Bumping this skips drafts cached under v1.
+export const ACTIVITY_PROMPT_TEMPLATE_VERSION = "activity-prompt-v2";
 
 export type ActivityPromptDraftSource = "cache" | "hugging-face" | "local-fallback" | "rate-limited";
 export type DraftablePromptActivityType = Extract<ActivityType, "choose-correct-symbol" | "fill-blank">;
@@ -124,7 +125,12 @@ export function buildPromptDraftRequest(
 ) {
   const promptInstruction =
     type === "fill-blank"
-      ? "Create one simple fill-in-the-blank sentence for each item. Each prompt must contain exactly one ____ blank and the answer must be the item label."
+      ? [
+          "Create one fill-in-the-blank prompt for each item: a short everyday situation, then a complete sentence with exactly one ____ blank.",
+          "The item label must be the only card that makes sense in the blank. Give enough context that similar words (other feelings, other foods, other actions) would be wrong.",
+          "Use correct grammar at an intermediate primary-school level, 12 to 22 words in total. Example for Angry: \"My friend took my toy without asking. I feel ____.\"",
+          "Do not write bare prompts such as \"I feel ____.\" or \"I want ____.\""
+        ].join(" ")
       : "Create one short teacher question for each item. The learner should answer by choosing the matching PECS card.";
 
   return [
@@ -158,9 +164,9 @@ function extractJsonObject(text: string) {
 function cleanPrompt(value: unknown, type: DraftablePromptActivityType) {
   if (typeof value !== "string") return "";
 
-  const prompt = value.replace(/\s+/g, " ").trim().slice(0, 180).trim();
+  const prompt = value.replace(/_{3,}/g, "____").replace(/\s+/g, " ").trim().slice(0, 180).trim();
   if (!prompt) return "";
-  if (type === "fill-blank" && !prompt.includes("____")) return "";
+  if (type === "fill-blank" && prompt.split("____").length !== 2) return "";
 
   return prompt;
 }

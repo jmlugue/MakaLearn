@@ -24,7 +24,7 @@ export function ActivityCover({ activity, items, className }: { activity: Activi
         <span className="grid aspect-[4/3] place-items-center rounded-xl bg-white/70 text-lg font-extrabold text-blue-700">+{extra}</span>
       ) : null}
       {!items.length ? (
-        <span className="col-span-full grid aspect-[2/1] place-items-center rounded-xl bg-white/70 text-sm font-semibold text-slate-400">No cards</span>
+        <span className="col-span-full grid aspect-[2/1] place-items-center rounded-xl bg-white/70 text-sm font-semibold text-slate-500">No cards</span>
       ) : null}
     </div>
   );
@@ -47,6 +47,8 @@ export function ActivityCard({
   onOpen: () => void;
   onPlay: () => void;
 }) {
+  const isPrivate = activity.visibility === "private";
+
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-blue-100 bg-[#fff] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_14px_30px_rgba(37,99,235,0.12)]">
       {/* The whole card opens the preview; Play sits above it as its own button. */}
@@ -56,25 +58,27 @@ export function ActivityCard({
       <span className={cn("pointer-events-none h-1.5 w-full", activityTypeTones[activity.type].stripe)} aria-hidden="true" />
       <ActivityCover activity={activity} items={items} className="pointer-events-none" />
       <div className="pointer-events-none flex flex-1 flex-col p-4">
-        <span className="flex flex-wrap items-center gap-1.5">
+        <span className="truncate text-lg font-bold leading-snug text-ink group-hover:text-blue-700" title={activity.title}>
+          {activity.title}
+        </span>
+        <span className="mt-1.5 flex min-w-0 items-center gap-1.5 text-sm text-slate-500">
           <ActivityTypeBadge type={activity.type} />
-          {activity.visibility === "private" ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600">
-              <Lock className="h-3 w-3" aria-hidden="true" />
-              Private
+          <span className="shrink-0">
+            {items.length} {items.length === 1 ? "card" : "cards"}
+          </span>
+          {isPrivate ? (
+            <span className="inline-flex shrink-0 items-center" title="Private">
+              <Lock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+              <span className="sr-only">Private</span>
             </span>
           ) : null}
+          {creator ? <span className="min-w-0 truncate">· By {creator}</span> : null}
         </span>
-        <span className="mt-2 line-clamp-2 text-lg font-bold leading-snug text-ink group-hover:text-blue-700">{activity.title}</span>
-        <span className="mt-1 text-sm text-slate-500">
-          {items.length} {items.length === 1 ? "card" : "cards"}
-          {creator ? <span className="text-slate-400"> · By {creator}</span> : null}
-        </span>
-        <span className="mt-auto flex items-center justify-between gap-2 border-t border-blue-50 pt-3">
+        <span className="mt-auto flex items-center justify-between gap-2 pt-3">
           {lesson ? (
-            <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-semibold text-blue-700">
+            <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-semibold text-blue-700" title={`From ${lesson.title}`}>
               <BookOpen className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="truncate">From {lesson.title}</span>
+              <span className="truncate">{lesson.title}</span>
             </span>
           ) : (
             <span />
@@ -82,7 +86,8 @@ export function ActivityCard({
           <button
             type="button"
             onClick={onPlay}
-            className="pointer-events-auto relative z-10 inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 px-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(37,99,235,0.22)] transition hover:shadow-[0_12px_24px_rgba(37,99,235,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            aria-label={`Play ${activity.title}`}
+            className="pointer-events-auto relative z-10 inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 px-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition hover:shadow-[0_10px_24px_rgba(37,99,235,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
           >
             <Play className="h-4 w-4" aria-hidden="true" />
             Play

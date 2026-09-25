@@ -16,6 +16,7 @@ import {
   speakText
 } from "@/features/activities/player/player-utils";
 import { SymbolOption } from "@/features/activities/player/player-parts";
+import { activityInstruction } from "@/features/activities/activity-helpers";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 type TeacherPlayerProps = {
@@ -214,6 +215,9 @@ function QuestionPrompt({
             {getQuestionTitle(activity, question, learningItems)}
           </p>
         )}
+        <p className="mt-3 text-sm font-semibold text-slate-600">
+          {activityInstruction(activity.type, isMatch ? getQuestionTitle(activity, question, learningItems) : undefined)}
+        </p>
       </div>
       <ListenButton text={getQuestionListenText(activity, question, learningItems)} />
     </div>
@@ -282,7 +286,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
   return (
     <div className="space-y-5">
       <div className={cn(panelClass, "p-4")}>
-        <SectionLabel>Put each card on its word</SectionLabel>
+        <SectionLabel>{activityInstruction(activity.type)}</SectionLabel>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {questions.map((question) => {
             const answer = answers[question.id];

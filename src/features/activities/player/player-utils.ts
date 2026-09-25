@@ -1,5 +1,6 @@
 import { activityUsesSymbolOptions, findPecsLearningItemForActivityValue, getActivityDisplayLabel } from "@/utils/activity-symbol-options";
 import { buildActivityOptionSets, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
+import { activityInstruction } from "@/features/activities/activity-helpers";
 import { normalizeLearningSpeechText } from "@/utils/speech-text";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
@@ -59,12 +60,25 @@ export function completeSentencePrompt(prompt: string, answer: string) {
   return normalizeSpokenText(completed);
 }
 
-export function getQuestionListenText(activity: Activity, question: ActivityQuestion, learningItems: LearningItem[]) {
+/** The word, question, or sentence on screen, without the instruction. */
+function getQuestionSpokenContent(activity: Activity, question: ActivityQuestion, learningItems: LearningItem[]) {
   if (activity.type === "match-word-symbol") {
     return normalizeSpokenText(getQuestionTitle(activity, question, learningItems));
   }
 
   return normalizeSpokenText(question.prompt);
+}
+
+/**
+ * Listen for one question reads the same instruction the banner shows, then what is on screen, so the audio
+ * always matches the words the learner sees. Match's instruction already names the word.
+ */
+export function getQuestionListenText(activity: Activity, question: ActivityQuestion, learningItems: LearningItem[]) {
+  if (activity.type === "match-word-symbol") {
+    return normalizeSpokenText(activityInstruction(activity.type, getQuestionTitle(activity, question, learningItems)));
+  }
+
+  return normalizeSpokenText(`${activityInstruction(activity.type)} ${getQuestionSpokenContent(activity, question, learningItems)}`);
 }
 
 export function getActivityQuestionListenItems(activity: Activity, learningItems: LearningItem[], answers: Record<string, string>) {
@@ -73,7 +87,7 @@ export function getActivityQuestionListenItems(activity: Activity, learningItems
   const questionsToRead = unansweredQuestions.length ? unansweredQuestions : visibleQuestions;
 
   return questionsToRead
-    .map((question) => ({ id: question.id, text: getQuestionListenText(activity, question, learningItems) }))
+    .map((question) => ({ id: question.id, text: getQuestionSpokenContent(activity, question, learningItems) }))
     .filter((item) => item.text);
 }
 
@@ -171,88 +185,9 @@ export function getActivityQuestionOptions(
   return optionSets[questionIndex] ?? question.options;
 }
 
-export function getMatchWordOptions(
-  activity: Activity,
-  question: ActivityQuestion,
-  learningItems: LearningItem[],
-  shuffleSeed: number
-) {
-  return getActivityQuestionOptions(activity, question, learningItems, shuffleSeed);
-}
-
-export function getFirstHintQuestion(activity: Activity, answers: Record<string, string>) {
-  return activity.questions.find((question) => !answers[question.id]) ?? activity.questions[0];
-}
-
-
-export function getCompactSymbolGridClass(itemCount: number) {
-  if (itemCount <= 1) {
-    return "max-w-[14rem] grid-cols-1";
-  }
-
-  if (itemCount === 2) {
-    return "max-w-[30rem] grid-cols-2";
-  }
-
-  if (itemCount === 3) {
-    return "max-w-[44rem] grid-cols-3";
-  }
-
-  if (itemCount === 4) {
-    return "max-w-[56rem] grid-cols-2 sm:grid-cols-4";
-  }
-
-  return "max-w-[70rem] grid-cols-3 sm:grid-cols-5";
-}
-
-export function getPagedSymbolChoiceGridClass(itemCount: number) {
-  if (itemCount <= 1) {
-    return "max-w-[18rem] grid-cols-1";
-  }
-
-  if (itemCount === 2) {
-    return "max-w-[40rem] sm:grid-cols-2";
-  }
-
-  if (itemCount === 3) {
-    return "max-w-[62rem] sm:grid-cols-3";
-  }
-
-  if (itemCount === 4) {
-    return "max-w-[76rem] sm:grid-cols-4";
-  }
-
-  return "max-w-none sm:grid-cols-5";
-}
-
 export function getActivityBackground(activityId: string) {
   const index = activityId.split("").reduce((sum, character) => sum + character.charCodeAt(0), 0) % activityBackgrounds.length;
   return activityBackgrounds[index];
-}
-
-export function getChoiceTheme(option: string) {
-  const themes = [
-    {
-      card: "border-sky-200 bg-gradient-to-br from-white via-sky-50 to-cyan-100 text-blue-950 shadow-[0_16px_0_rgba(14,165,233,0.18),0_24px_42px_rgba(14,165,233,0.18)]",
-      selected: "border-sky-500 ring-sky-200",
-      correct: "border-emerald-500 bg-gradient-to-br from-white via-emerald-50 to-lime-100 ring-emerald-200",
-      wrong: "border-rose-400 bg-gradient-to-br from-white via-rose-50 to-pink-100 ring-rose-200"
-    },
-    {
-      card: "border-amber-200 bg-gradient-to-br from-white via-yellow-50 to-orange-100 text-blue-950 shadow-[0_16px_0_rgba(245,158,11,0.2),0_24px_42px_rgba(245,158,11,0.18)]",
-      selected: "border-amber-500 ring-amber-200",
-      correct: "border-emerald-500 bg-gradient-to-br from-white via-emerald-50 to-lime-100 ring-emerald-200",
-      wrong: "border-rose-400 bg-gradient-to-br from-white via-rose-50 to-pink-100 ring-rose-200"
-    },
-    {
-      card: "border-violet-200 bg-gradient-to-br from-white via-violet-50 to-fuchsia-100 text-blue-950 shadow-[0_16px_0_rgba(139,92,246,0.18),0_24px_42px_rgba(139,92,246,0.16)]",
-      selected: "border-violet-500 ring-violet-200",
-      correct: "border-emerald-500 bg-gradient-to-br from-white via-emerald-50 to-lime-100 ring-emerald-200",
-      wrong: "border-rose-400 bg-gradient-to-br from-white via-rose-50 to-pink-100 ring-rose-200"
-    }
-  ];
-  const index = option.split("").reduce((sum, character) => sum + character.charCodeAt(0), 0) % themes.length;
-  return themes[index];
 }
 
 export function playAudio(url: string) {

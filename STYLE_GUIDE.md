@@ -126,7 +126,7 @@ a page-specific color. Each entry also has `soft`, `border`, `hoverBorder`, `ico
 
 | Where | Colors | File |
 |---|---|---|
-| Activity types (accents only) | Match word to symbol: blue. Choose correct symbol: teal. Fill in the blank: yellow. Drag and drop symbol cards: violet. Choose the word: pink. | `activityTypeTones` in `activity-helpers.ts` |
+| Activity types (accents only, always with the type icon) | Match: violet (`ArrowLeftRight`). Choose the picture: orange (`MousePointerClick`). Fill in the blank: yellow (`TextCursorInput`). Drag and drop: pink (`Move`). No blue or teal, so no type looks like Lessons or Activities. | `activityTypeTones` in `activity-helpers.ts`, icons in `activity-type-badge.tsx` |
 | Categories (teacher picks) | 12 pastel presets: blue, sky, teal, green, lime, yellow, orange, coral, rose, pink, lavender, slate. `tintDot()` makes the dot color. | `categoryTints` in `content-shared.tsx` |
 | Playground categories | All: blue. Greetings: amber. Emotions: pink. Family: violet. Food: orange. Classroom: teal. Daily needs: emerald. Safety: red. Each has an icon. | `categoryStyles` in `playground-view.tsx` |
 | Confetti | yellow, sky, emerald, rose | `globals.css` |
@@ -259,7 +259,7 @@ Fixed meanings:
 | Thing or action | Icon |
 |---|---|
 | Content | `BookOpen` |
-| Activities | `Activity` |
+| Activities | `Shapes` (the pulse `Activity` icon is only for the Admin activity log) |
 | Admin | `Shield` |
 | Help | `HelpCircle` |
 | Settings | `Settings` |
@@ -341,6 +341,7 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 | `CategoryPills` (`content-shared.tsx`) | One row of pills, extras in "+N more" | Category filter |
 | `DropdownMenu` | `⋯` button, white menu 224px wide, danger items red | Row and card actions |
 | `SelectionList` | Checkbox rows, selected `border-blue-500 bg-skywash` | Picking cards |
+| Slot tray (`MaterialsStep tray="slots"`) | Numbered 3:4 slots that fill in pick order, tap to remove, "3 of 5" pill | Picking a fixed number of cards (activity creator) |
 
 ### Badges and chips
 
@@ -370,7 +371,7 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 | Card | Anatomy |
 |---|---|
 | Material (`content/card-tile.tsx`) | Solid white card, 6px thing-color stripe on top, square picture well in the thing's soft color, word in `text-sm font-bold`, audio and video icons, category chip. Hover: lift 2px, `blue-300` border. Video plays on hover. |
-| Activity (`activities/activity-card.tsx`) | Solid white card, type-color stripe, picture collage, badges, title `text-lg font-bold`, "From (lesson)", run button bottom right |
+| Activity (`activities/activity-card.tsx`) | Solid white card, type-color stripe, picture collage, one-line title `text-lg font-bold`, one meta line (type badge, card count, lock if private, By name), lesson name and Play at the bottom |
 | PECS picture | 3:4, word at the bottom, image `object-contain` |
 
 ---
@@ -386,10 +387,23 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 | Back | White, `border-2 border-blue-200`, blue text |
 | Playground buttons | Check `emerald-600`, Listen `blue-600`, Clear `red-600`, solid, disabled when the board is empty |
 | Answer states | Picked: `border-blue-500 ring-8 ring-blue-100`. Correct: emerald border and ring plus green tick badge. Wrong: rose border and ring plus red cross badge. Hint: amber. Others fade to 60%. |
-| Flow | Pick, Check, Next. Score pop-up opens by itself 1.2s after the last Check. |
+| Flow (teacher player) | Pick, Check, Next. Score pop-up opens by itself 1.2s after the last Check. |
 | Player top bar | White glass bar, title `text-lg font-extrabold`, type badge, "2 of 5 done" solid blue pill, Restart and Edit joined in one white control |
 
-Shared pieces: `CheckStepFooter`, `checkedOptionClass`, `CheckedOptionBadge` in `player/player-parts.tsx`.
+**Student mode games** (one scale for every game, in `player/student-theme.ts`):
+
+| Piece | Look |
+|---|---|
+| Instruction line | `text-xl sm:text-2xl font-black text-blue-700`, white strip under the top bar |
+| Question, word, sentence | `text-3xl sm:text-4xl lg:text-5xl font-black text-[#10285e]` |
+| Drop box word | `text-xl sm:text-2xl font-black uppercase` |
+| Card | `studentCard`: 3:4, `border-4`, solid white, max `16rem` wide, same in every game and the score pop-up |
+| Buttons | `studentButton`: primary `blue-600`, secondary white with blue border, Hint white with amber border |
+| Flow | How to play card, then one tap per question. Big "Correct!" or "Not this one" pop-up (with the right card), next question after 1.8s. Drag and drop: drag only, a wrong drop flies back with "Try again". |
+| Hint | Greys out one wrong card per tap, stops at two cards left |
+| Solid white | Use `bg-[#fff]`, not `bg-white`: `.app-canvas .bg-white` is 70% glass |
+
+Student pieces: `student-game-parts.tsx` (frame, top bar, progress dots, card, feedback pop-up), `student-intro-card.tsx`.
 
 ---
 
@@ -446,9 +460,11 @@ Rules:
 - No em dashes. Use a comma, colon, period, or parentheses.
 - Sentence case for buttons and titles ("Add PECS card", not "Add PECS Card").
 - Say what happened ("File deleted", "Could not save"), never a false success.
-- Names: PECS cards, Gestures, Lessons, Activities, Student mode, Playground. Activity types (from
-  `src/utils/activity-labels.ts`): Match word to symbol, Choose correct symbol, Fill in the blank, Drag and
-  drop symbol cards, Choose the word.
+- Names: PECS cards, Gestures, Lessons, Activities, Student mode, Playground. Activity types in teacher
+  screens use the short names (`activityTypeShortLabels` in `src/utils/activity-labels.ts`): Match, Choose the
+  picture, Fill in the blank, Drag and drop. The full names (`activityTypeLabels`) stay for AI prompts.
+- Default activity names: topic, type, then "activity", for example "Feelings match activity". The topic is
+  the lesson, else the cards' main category, else the first card (`src/utils/activity-title.ts`).
 
 ---
 

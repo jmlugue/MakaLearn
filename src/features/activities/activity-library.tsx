@@ -10,7 +10,7 @@ import { sortLabels, sortRecords, type SortOrder } from "@/features/content/cont
 import { GuideTip } from "@/features/guide/guide-tip";
 import { ActivityCard } from "@/features/activities/activity-card";
 import { activityTypes, itemsOfActivity } from "@/features/activities/activity-helpers";
-import { activityTypeLabels } from "@/utils/activity-labels";
+import { activityTypeLabels, activityTypeShortLabels } from "@/utils/activity-labels";
 import type { Activity, ActivityType, LearningItem, Lesson } from "@/types";
 
 type LibraryFilter = "all" | "lessons" | "private";
@@ -46,7 +46,7 @@ export function ActivityLibrary({
     const matches = query
       ? pool.filter((activity) => {
           const labels = itemsOfActivity(activity, itemById).map((item) => item.label).join(" ");
-          return [activity.title, activityTypeLabels[activity.type], lessonOf(activity)?.title ?? "", labels].join(" ").toLowerCase().includes(query);
+          return [activity.title, activityTypeLabels[activity.type], activityTypeShortLabels[activity.type], lessonOf(activity)?.title ?? "", labels].join(" ").toLowerCase().includes(query);
         })
       : pool;
     // Activities have no created date, so "newest" keeps the saved order (newest first from the database).
@@ -77,7 +77,7 @@ export function ActivityLibrary({
               <option value="all">All types</option>
               {activityTypes.map((option) => (
                 <option key={option} value={option}>
-                  {activityTypeLabels[option]}
+                  {activityTypeShortLabels[option]}
                 </option>
               ))}
             </Select>
@@ -115,7 +115,7 @@ export function ActivityLibrary({
           description={
             activities.length
               ? "Try another search or filter."
-              : "Use Create activity, or tick Create activity when you save a lesson."
+              : "Use Create activity to make one."
           }
         />
       )}

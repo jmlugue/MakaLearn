@@ -1,4 +1,4 @@
-import { Activity, BookOpen, FolderOpen, GraduationCap, Hand, Image as ImageIcon, Layers, ScrollText, Shield, Users, type LucideIcon } from "lucide-react";
+import { BookOpen, FolderOpen, GraduationCap, Hand, Image as ImageIcon, Layers, ScrollText, Shapes, Shield, Users, type LucideIcon } from "lucide-react";
 import type { AppUser } from "@/types";
 
 /**
@@ -30,7 +30,7 @@ const teacherWelcomeSteps: GuideStep[] = [
   {
     title: "Run an activity",
     text: "Practise a lesson as an activity, or build your own from the cards you have made.",
-    icon: Activity,
+    icon: Shapes,
     scene: "activity"
   },
   {
@@ -114,8 +114,8 @@ export const pageGuides: Record<string, PageGuide> = {
       },
       {
         title: "Create in three steps",
-        text: "Choose a format, pick up to five cards, then check the questions. Add it to a lesson if you like.",
-        icon: Activity,
+        text: "Start from your own cards or a lesson, pick a format and up to five cards, then check the questions.",
+        icon: Shapes,
         scene: "activity"
       },
       {
@@ -189,9 +189,9 @@ export const guideTips: Record<string, string> = {
 
   // Activities and gesture practice
   "activities.types": "Each format asks the learner to do something different with the same cards.",
-  "activities.create": "Build an activity. Pick a lesson in step 2 to add it there; a lesson can hold many.",
+  "activities.create": "Build an activity from your own cards or from a lesson. A lesson can hold many.",
   "activities.filter": "From lessons shows each lesson's activity. Private shows the ones only you can see.",
-  "activities.typeFilter": "Show one format. Each format has its own color on the cards.",
+  "activities.typeFilter": "Show one format. Each format has its own color and icon on the cards.",
   "activities.teacherBar": "Exit to the library, start again from the first question, or edit the activity.",
   "gesture.camera": "Your camera stays on this device. It reads your hand shape and tells you if the sign matches.",
 

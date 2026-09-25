@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { CheckCircle2, MousePointerClick, Play, Pointer, RotateCcw, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createActivityQuestions } from "@/lib/supabase/app-data";
-import { getActivityTypeLabel } from "@/utils/activity-labels";
+import { activityTypeShortLabels } from "@/utils/activity-labels";
 import { SymbolOption } from "@/features/activities/player/player-parts";
 import type { ActivityType, LearningItem } from "@/types";
 
@@ -117,7 +117,7 @@ export function ActivitySample({ type, items, pool }: { type: ActivityType; item
     <div>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-bold text-ink">{getActivityTypeLabel(type)}</p>
+          <p className="text-sm font-bold text-ink">{activityTypeShortLabels[type]}</p>
           <p className="mt-0.5 text-sm text-slate-600">{explanations[type]}</p>
         </div>
         <button

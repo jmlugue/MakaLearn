@@ -12,7 +12,8 @@
     "test:feedback": "node scripts/test-gesture-feedback.mjs",
     "test:gesture-capture": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-gesture-capture-state.mjs",
     "test:gesture-stability": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-gesture-stability.mjs",
-    "test:activities": "node --test scripts/test-activity-option-sets.mjs",
+    "test:activities": "node --test scripts/test-activity-option-sets.mjs scripts/test-activity-rules.mjs",
+    "test:activities:db": "node --test --test-concurrency=1 scripts/test-activity-records-db.mjs",
     "test:playground": "node --test scripts/test-pecs-sentence-validation.mjs scripts/test-playground-board.mjs",
     "test:audio": "node --test scripts/test-speech-text.mjs"
   },

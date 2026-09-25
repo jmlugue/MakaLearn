@@ -1,4 +1,8 @@
-import { getSavedFillBlankPromptForLabel, isGenericFillBlankPrompt } from "@/utils/fill-blank-prompts";
+import {
+  getSavedFillBlankPromptForLabel,
+  isBuiltInFillBlankPrompt,
+  isGenericFillBlankPrompt
+} from "@/utils/fill-blank-prompts";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import {
   getSavedChooseCorrectSymbolPrompt,
@@ -8,20 +12,34 @@ import {
 import type { Activity, ActivityType, LearningItem } from "@/types";
 
 /**
- * The activity types teachers can make and see, in the order the creator offers them. "gesture-practice" is
- * retired (gestures are practised with the camera on the Gestures page). The type stays in the database enum,
- * and old gesture activities are hidden (`isRetiredActivity`).
+ * The activity types teachers can make and see, in the order the creator offers them. Retired types stay in
+ * the database enum, and old activities of those types are hidden (`isRetiredActivity`):
+ * - "gesture-practice": gestures are practised with the camera on the Gestures page.
+ * - "simple-quiz" (Choose the word): it showed a word and asked for its picture, the same task as Match word
+ *   to symbol.
  */
 export const activityTypes: ActivityType[] = [
   "match-word-symbol",
   "choose-correct-symbol",
   "fill-blank",
-  "drag-drop-symbol",
-  "simple-quiz"
+  "drag-drop-symbol"
 ];
 
+export const retiredActivityTypes: ActivityType[] = ["gesture-practice", "simple-quiz"];
+
 export function isRetiredActivity(activity: Pick<Activity, "type">) {
-  return activity.type === "gesture-practice";
+  return retiredActivityTypes.includes(activity.type);
+}
+
+/**
+ * What the learner has to do, shown in the instruction banner and read by Listen. Match names the word so the
+ * learner knows exactly which picture to find.
+ */
+export function activityInstruction(type: ActivityType, word?: string) {
+  if (type === "match-word-symbol") return word ? `Tap the picture for "${word}".` : "Tap the picture for the word.";
+  if (type === "fill-blank") return "Tap the picture that finishes the sentence.";
+  if (type === "drag-drop-symbol") return "Drag each picture onto its word.";
+  return "Tap the picture that answers the question.";
 }
 
 export const activityTypeDescriptions: Record<ActivityType, string> = {
@@ -97,9 +115,13 @@ export function upgradeStarterActivityPrompts(records: Activity[]) {
     return {
       ...activity,
       questions: activity.questions.map((question) => {
-        const prompt = activity.type === "fill-blank"
-          ? getSavedFillBlankPromptForLabel(question.answer)
-          : getStarterLearningItemPromptDescription(question.learningItemId);
+        if (activity.type === "fill-blank") {
+          // Only built-in or generic sentences are upgraded; a sentence a teacher wrote is kept.
+          if (!isBuiltInFillBlankPrompt(question.answer, question.prompt)) return question;
+          const prompt = getSavedFillBlankPromptForLabel(question.answer);
+          return prompt ? { ...question, prompt } : question;
+        }
+        const prompt = getStarterLearningItemPromptDescription(question.learningItemId);
         return prompt ? { ...question, prompt } : question;
       })
     };
@@ -124,13 +146,14 @@ export function itemsOfActivity(activity: Activity, itemById: Map<string, Learni
 
 /**
  * Each type's soft accent. Agreed exception to the blue-first palette: used only as a card's top stripe,
- * its type badge, and a light cover tint, never as the main look of a surface.
+ * its type badge, and a light cover tint, never as the main look of a surface. Blue and teal are left out
+ * so no type looks like Lessons (blue) or Activities (teal). `text` colors the type icon on a white tile.
  */
-export const activityTypeTones: Record<ActivityType, { stripe: string; badge: string; soft: string; dot: string }> = {
-  "match-word-symbol": { stripe: "bg-blue-300", badge: "bg-blue-100 text-blue-800", soft: "bg-blue-50", dot: "bg-blue-400" },
-  "choose-correct-symbol": { stripe: "bg-teal-300", badge: "bg-teal-100 text-teal-800", soft: "bg-teal-50", dot: "bg-teal-400" },
-  "fill-blank": { stripe: "bg-yellow-300", badge: "bg-yellow-100 text-yellow-800", soft: "bg-yellow-50", dot: "bg-yellow-400" },
-  "drag-drop-symbol": { stripe: "bg-violet-300", badge: "bg-violet-100 text-violet-800", soft: "bg-violet-50", dot: "bg-violet-400" },
-  "gesture-practice": { stripe: "bg-sky-300", badge: "bg-sky-100 text-sky-800", soft: "bg-sky-50", dot: "bg-sky-400" },
-  "simple-quiz": { stripe: "bg-pink-300", badge: "bg-pink-100 text-pink-800", soft: "bg-pink-50", dot: "bg-pink-400" }
+export const activityTypeTones: Record<ActivityType, { stripe: string; badge: string; soft: string; dot: string; text: string }> = {
+  "match-word-symbol": { stripe: "bg-violet-300", badge: "bg-violet-100 text-violet-800", soft: "bg-violet-50", dot: "bg-violet-400", text: "text-violet-700" },
+  "choose-correct-symbol": { stripe: "bg-orange-300", badge: "bg-orange-100 text-orange-800", soft: "bg-orange-50", dot: "bg-orange-400", text: "text-orange-700" },
+  "fill-blank": { stripe: "bg-yellow-300", badge: "bg-yellow-100 text-yellow-800", soft: "bg-yellow-50", dot: "bg-yellow-400", text: "text-yellow-700" },
+  "drag-drop-symbol": { stripe: "bg-pink-300", badge: "bg-pink-100 text-pink-800", soft: "bg-pink-50", dot: "bg-pink-400", text: "text-pink-700" },
+  "gesture-practice": { stripe: "bg-sky-300", badge: "bg-sky-100 text-sky-800", soft: "bg-sky-50", dot: "bg-sky-400", text: "text-sky-700" },
+  "simple-quiz": { stripe: "bg-lime-300", badge: "bg-lime-100 text-lime-800", soft: "bg-lime-50", dot: "bg-lime-400", text: "text-lime-700" }
 };

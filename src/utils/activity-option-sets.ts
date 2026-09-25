@@ -27,20 +27,37 @@ function normalizeLabel(value: string) {
 }
 
 /**
- * Some prompts admit several technically correct cards. Those cards are poor distractors even when
- * they are different database records. Fill-in-the-blank is intentionally conservative: another card
- * with the same sentence role can also complete the open sentence, so it is kept out of that question.
+ * Meaning groups. Every question must have exactly one right answer, so a wrong option may never share a
+ * group with the answer: "Food" and "Rice" both answer "What do we eat?", and "Happy" and "Sad" can both
+ * finish "I feel ____." A card can sit in several groups. Cards a teacher adds later are only kept apart
+ * by label.
  */
-const relatedAnswersByLabel: Record<string, string[]> = {
-  hello: ["good morning"],
-  eat: ["food", "rice", "bread", "banana"],
-  drink: ["water", "milk"],
-  food: ["rice", "bread", "banana"],
-  water: ["drink"],
-  milk: ["drink"],
-  rest: ["sleep"],
-  more: ["want"]
+export const activityMeaningGroups: Record<string, string[]> = {
+  greetings: ["hello", "goodbye", "good morning"],
+  polite: ["thank you", "please", "sorry"],
+  feelings: ["happy", "sad", "angry", "scared", "tired", "sick", "hurt", "hot"],
+  people: ["i", "you", "mother", "father", "teacher", "friend"],
+  food: ["eat", "food", "rice", "bread", "banana", "more", "want"],
+  drink: ["drink", "water", "milk", "more", "want"],
+  classroom: ["sit", "stand", "listen", "look", "read", "write", "wait", "stop"],
+  rest: ["rest", "sleep", "tired", "finished"],
+  hygiene: ["toilet", "wash hands"],
+  safety: ["danger", "hot", "hurt", "stop", "help"],
+  answers: ["yes", "no"],
+  done: ["finished", "more", "stop"],
+  requests: ["want", "more", "help", "please"],
+  be: ["am", "is", "are"]
 };
+
+/** Extra cards that could also finish a built-in Fill in the blank sentence, beyond its meaning groups. */
+const fillBlankAlsoFits: Record<string, string[]> = {
+  finished: ["tired"],
+  yes: ["please"]
+};
+
+function meaningGroupsOf(label: string) {
+  return Object.values(activityMeaningGroups).filter((group) => group.includes(label));
+}
 
 export function isUnsafeActivityDistractor(
   type: ActivityType,
@@ -51,16 +68,15 @@ export function isUnsafeActivityDistractor(
   const candidateLabel = normalizeLabel(candidate.label);
 
   if (answerLabel === candidateLabel) return true;
-  if (
-    type === "fill-blank" &&
-    answerItem.sentenceRole &&
-    candidate.sentenceRole === answerItem.sentenceRole
-  ) {
-    return true;
+  if (meaningGroupsOf(answerLabel).some((group) => group.includes(candidateLabel))) return true;
+
+  if (type === "fill-blank") {
+    // Another card with the same sentence role can often complete an open sentence too.
+    if (answerItem.sentenceRole && candidate.sentenceRole === answerItem.sentenceRole) return true;
+    if (fillBlankAlsoFits[answerLabel]?.includes(candidateLabel)) return true;
   }
 
-  if (type !== "choose-correct-symbol" && type !== "simple-quiz") return false;
-  return relatedAnswersByLabel[answerLabel]?.includes(candidateLabel) ?? false;
+  return false;
 }
 
 /**

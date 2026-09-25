@@ -1,5 +1,11 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { mapMediaAssetRow } from "@/lib/supabase/media";
+import {
+  deleteActivityRecord,
+  insertActivityRecord,
+  mapActivity,
+  updateActivityRecord
+} from "@/lib/supabase/activity-records";
 import { buildActivityOptionSets, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
 import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
 import { createChooseCorrectSymbolPrompt } from "@/utils/starter-learning-item-prompts";
@@ -176,28 +182,6 @@ function mapLesson(row: LessonRow, lessonItems: LessonItemRow[]): Lesson {
       .filter((item) => item.lesson_id === row.id)
       .sort((a, b) => a.position - b.position)
       .map((item) => item.learning_item_id)
-  };
-}
-
-function mapActivity(row: ActivityRow, questions: ActivityItemRow[]): Activity {
-  return {
-    id: row.id,
-    title: row.title,
-    type: row.type,
-    prompt: row.prompt,
-    learningItemIds: row.learning_item_ids,
-    visibility: row.visibility,
-    createdBy: row.created_by,
-    questions: questions
-      .filter((question) => question.activity_id === row.id)
-      .sort((a, b) => a.position - b.position)
-      .map((question) => ({
-        id: question.id,
-        prompt: question.prompt,
-        answer: question.answer,
-        options: question.options,
-        learningItemId: question.learning_item_id
-      }))
   };
 }
 
@@ -534,144 +518,15 @@ export async function deleteLesson(lessonId: string) {
 }
 
 export async function insertActivity(activity: Activity) {
-  const supabase = getClientOrThrow();
-  const row = (await expectData(
-    supabase
-      .from("activities")
-      .insert({
-        id: activity.id,
-        title: activity.title,
-        type: activity.type,
-        prompt: activity.prompt,
-        learning_item_ids: activity.learningItemIds,
-        visibility: activity.visibility,
-        created_by: activity.createdBy
-      })
-      .select()
-      .single()
-  )) as ActivityRow;
-
-  if (activity.questions.length) {
-    try {
-      await expectData(
-        supabase.from("activity_items").insert(
-          activity.questions.map((question, index) => ({
-            id: question.id,
-            activity_id: row.id,
-            prompt: question.prompt,
-            answer: question.answer,
-            options: question.options,
-            learning_item_id: question.learningItemId,
-            position: index
-          }))
-        )
-      );
-    } catch (error) {
-      // Compensate for a partial create so retrying does not leave duplicate activity records.
-      await supabase.from("activities").delete().eq("id", row.id);
-      throw error;
-    }
-  }
-
-  return { ...mapActivity(row, []), questions: activity.questions };
+  return insertActivityRecord(getClientOrThrow(), activity);
 }
 
 export async function deleteActivity(activityId: string) {
-  const supabase = getClientOrThrow();
-
-  // The schema cascades this deletion to activity_items.
-  const deletedRows = (await expectData(
-    supabase.from("activities").delete().eq("id", activityId).select("id")
-  )) as Array<{ id: string }>;
-
-  if (!deletedRows.some((row) => row.id === activityId)) {
-    throw new Error("Supabase did not delete this activity. Check the activities delete policy and try again.");
-  }
+  return deleteActivityRecord(getClientOrThrow(), activityId);
 }
 
 export async function updateActivity(activity: Activity, previousActivity: Activity) {
-  const supabase = getClientOrThrow();
-  const newQuestionRows = activity.questions.map((question, index) => ({
-    id: question.id,
-    activity_id: activity.id,
-    prompt: question.prompt,
-    answer: question.answer,
-    options: question.options,
-    learning_item_id: question.learningItemId,
-    position: index
-  }));
-  const previousQuestionRows = previousActivity.questions.map((question, index) => ({
-    id: question.id,
-    activity_id: previousActivity.id,
-    prompt: question.prompt,
-    answer: question.answer,
-    options: question.options,
-    learning_item_id: question.learningItemId,
-    position: index
-  }));
-  const newQuestionIds = new Set(newQuestionRows.map((question) => question.id));
-  const previousQuestionIds = previousQuestionRows.map((question) => question.id);
-  const previousQuestionIdSet = new Set(previousQuestionIds);
-
-  try {
-    // RLS refuses by matching zero rows rather than erroring, which `.single()` reported as
-    // "Cannot coerce the result to a single JSON object". Check the count and say what happened.
-    const rows = (await expectData(
-      supabase
-        .from("activities")
-        .update({
-          title: activity.title,
-          type: activity.type,
-          prompt: activity.prompt,
-          learning_item_ids: activity.learningItemIds,
-          visibility: activity.visibility,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", activity.id)
-        .select()
-    )) as ActivityRow[];
-    const row = rows[0];
-    if (!row) {
-      throw new Error("You can't change this activity. Only the person who made it, or an admin, can.");
-    }
-
-    if (newQuestionRows.length) {
-      await expectData(supabase.from("activity_items").upsert(newQuestionRows));
-    }
-
-    const staleQuestionIds = previousQuestionIds.filter((id) => !newQuestionIds.has(id));
-    if (staleQuestionIds.length) {
-      const deletedRows = (await expectData(
-        supabase.from("activity_items").delete().in("id", staleQuestionIds).select("id")
-      )) as Array<{ id: string }>;
-      if (deletedRows.length !== staleQuestionIds.length) {
-        throw new Error("Supabase did not replace every previous activity question.");
-      }
-    }
-
-    return { ...mapActivity(row, []), questions: activity.questions };
-  } catch (error) {
-    const insertedQuestionIds = newQuestionRows
-      .map((question) => question.id)
-      .filter((id) => !previousQuestionIdSet.has(id));
-    if (insertedQuestionIds.length) {
-      await supabase.from("activity_items").delete().in("id", insertedQuestionIds);
-    }
-    await supabase
-      .from("activities")
-      .update({
-        title: previousActivity.title,
-        type: previousActivity.type,
-        prompt: previousActivity.prompt,
-        learning_item_ids: previousActivity.learningItemIds,
-        visibility: previousActivity.visibility
-      })
-      .eq("id", previousActivity.id);
-    if (previousQuestionRows.length) {
-      await supabase.from("activity_items").upsert(previousQuestionRows);
-    }
-    throw error;
-  }
+  return updateActivityRecord(getClientOrThrow(), activity, previousActivity);
 }
 
 export async function updateLearningItemMedia(

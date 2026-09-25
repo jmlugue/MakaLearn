@@ -311,7 +311,8 @@ export function MaterialsStep({
   onChange,
   kinds = ["pecs", "gesture"],
   max,
-  emptyText = "Nothing matches."
+  emptyText = "Nothing matches.",
+  tray = "chips"
 }: {
   items: LearningItem[];
   categories: Category[];
@@ -322,6 +323,8 @@ export function MaterialsStep({
   /** Most cards that can be picked. */
   max?: number;
   emptyText?: string;
+  /** "slots": numbered picture slots above the grid (needs `max`). "chips": name chips below it. */
+  tray?: "chips" | "slots";
 }) {
   const [kind, setKind] = useState<ContentKind>(() => {
     const first = items.find((item) => item.id === selectedIds[0])?.contentType;
@@ -349,8 +352,11 @@ export function MaterialsStep({
     onChange([...selectedIds, id]);
   }
 
+  const showSlots = tray === "slots" && max !== undefined;
+
   return (
     <div className="space-y-3">
+      {showSlots && max !== undefined ? <PickedSlots items={selectedItems} max={max} onRemove={toggle} /> : null}
       {kinds.length > 1 ? (
         <UnderlineTabs
           id="lesson-material-type"
@@ -400,20 +406,74 @@ export function MaterialsStep({
         {!visible.length ? <p className="col-span-full py-8 text-center text-sm text-slate-500">{emptyText}</p> : null}
       </div>
 
-      <div className="flex min-h-9 flex-wrap items-center gap-1.5">
-        {selectedItems.length ? (
-          selectedItems.map((item) => (
-            <span key={item.id} className={cn("inline-flex items-center gap-1 rounded-full py-1 pl-2.5 pr-1 text-xs font-semibold", kindTone(item.contentType).badge)}>
-              {item.label}
-              <button type="button" onClick={() => toggle(item.id)} aria-label={`Remove ${item.label}`} className="grid h-5 w-5 place-items-center rounded-full hover:bg-white/60">
-                <X className="h-3 w-3" aria-hidden="true" />
-              </button>
-            </span>
-          ))
-        ) : (
-          <span className="text-sm text-slate-400">Nothing picked yet.</span>
-        )}
+      {showSlots ? null : (
+        <div className="flex min-h-9 flex-wrap items-center gap-1.5">
+          {selectedItems.length ? (
+            selectedItems.map((item) => (
+              <span key={item.id} className={cn("inline-flex items-center gap-1 rounded-full py-1 pl-2.5 pr-1 text-xs font-semibold", kindTone(item.contentType).badge)}>
+                {item.label}
+                <button type="button" onClick={() => toggle(item.id)} aria-label={`Remove ${item.label}`} className="grid h-5 w-5 place-items-center rounded-full hover:bg-white/60">
+                  <X className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </span>
+            ))
+          ) : (
+            <span className="text-sm text-slate-400">Nothing picked yet.</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Numbered slots that fill in pick order. Tap a filled slot to take the card out. */
+function PickedSlots({ items, max, onRemove }: { items: LearningItem[]; max: number; onRemove: (id: string) => void }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-blue-100 bg-[#fff] p-3 sm:flex-row sm:items-center">
+      <div className="flex items-center justify-between gap-2 sm:w-24 sm:flex-col sm:items-start">
+        <p className="text-sm font-semibold text-slate-700">Picked</p>
+        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", items.length ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}>
+          {items.length} of {max}
+        </span>
       </div>
+      <ol className="grid flex-1 grid-cols-5 gap-2 sm:max-w-md">
+        {Array.from({ length: max }, (_, index) => {
+          const item = items[index];
+          const next = index === items.length;
+          return (
+            <li key={item?.id ?? `slot-${index}`}>
+              {item ? (
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  aria-label={`Remove ${item.label}, card ${index + 1}`}
+                  title={`Remove ${item.label}`}
+                  className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border-2 border-blue-600 bg-[#fff] transition hover:border-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                >
+                  <span className="absolute inset-1.5 bottom-6">
+                    <CardImage value={item.symbolImageUrl} label={item.label} className="text-xs" />
+                  </span>
+                  <span className="absolute inset-x-1 bottom-1 truncate text-center text-xs font-semibold text-ink">{item.label}</span>
+                  <span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-xs font-bold text-white group-hover:bg-red-600">
+                    <span className="group-hover:hidden">{index + 1}</span>
+                    <X className="hidden h-3 w-3 group-hover:block" aria-hidden="true" />
+                  </span>
+                </button>
+              ) : (
+                <span
+                  className={cn(
+                    "grid aspect-[3/4] w-full place-items-center rounded-xl border-2 border-dashed text-sm font-bold",
+                    next ? "border-blue-300 bg-blue-50 text-blue-600" : "border-blue-100 bg-slate-50/60 text-slate-400"
+                  )}
+                  aria-label={`Empty slot ${index + 1}`}
+                >
+                  {index + 1}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

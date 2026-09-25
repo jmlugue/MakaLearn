@@ -1,18 +1,16 @@
 "use client";
 
-import { BookOpen, Hand, Lock, Pencil, Play, Trash2, User, Users } from "lucide-react";
+import { BookOpen, Lock, Pencil, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { ActivitySample } from "@/features/content/activity-sample";
 import { AudioButton, CardImage } from "@/features/content/content-media";
-import { PopupTitle, SectionLabel, deleteButtonClass, glassBoxClass, kindTone } from "@/features/content/content-shared";
+import { PopupTitle, SectionLabel, deleteButtonClass, kindTone } from "@/features/content/content-shared";
 import { ActivityTypeBadge } from "@/features/activities/activity-type-badge";
 import type { Activity, LearningItem, Lesson } from "@/types";
 
-const chipClass = "inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-blue-100";
-
-/** What an activity is: its cards, where it came from, and a hover demo of how it plays. */
+/** What an activity is: how it plays, its cards, and where it came from. */
 export function ActivityPreviewDialog({
   activity,
   items,
@@ -70,58 +68,50 @@ export function ActivityPreviewDialog({
       }
     >
       {activity ? (
-        <div className="space-y-4">
+        <div className="space-y-5">
           <PopupTitle title={activity.title}>
             <ActivityTypeBadge type={activity.type} />
-            <span className={chipClass}>
-              {activity.visibility === "private" ? <Lock className="h-3 w-3" aria-hidden="true" /> : <Users className="h-3 w-3" aria-hidden="true" />}
-              {activity.visibility === "private" ? "Private" : "Shared"}
+            <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
+              {lesson ? (
+                <span className="inline-flex min-w-0 items-center gap-1 font-semibold text-blue-700">
+                  <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">From {lesson.title}</span>
+                </span>
+              ) : null}
+              {creator ? <span>By {creator}</span> : null}
+              {activity.visibility === "private" ? (
+                <span className="inline-flex items-center gap-1">
+                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                  Private
+                </span>
+              ) : null}
             </span>
-            {creator ? (
-              <span className={chipClass}>
-                <User className="h-3 w-3" aria-hidden="true" />
-                By {creator}
-              </span>
-            ) : null}
-            {lesson ? (
-              <span className={cn(chipClass, "text-blue-700")}>
-                <BookOpen className="h-3 w-3" aria-hidden="true" />
-                From {lesson.title}
-              </span>
-            ) : null}
           </PopupTitle>
 
-          <div className={cn("p-4", glassBoxClass)}>
-            <SectionLabel>
-              {items.length} {items.length === 1 ? "Card" : "Cards"}
+          {pecsItems.length ? (
+            <div className="rounded-2xl bg-gradient-to-br from-blue-100/70 via-blue-50/70 to-sky-50/80 p-4 ring-1 ring-blue-100">
+              <SectionLabel className="mb-2">How it plays</SectionLabel>
+              <ActivitySample key={activity.type} type={activity.type} items={pecsItems} pool={pool} />
+            </div>
+          ) : null}
+
+          <div>
+            <SectionLabel className="mb-2">
+              {items.length} {items.length === 1 ? "card" : "cards"}
             </SectionLabel>
-            <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
+            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {items.map((item) => (
-                <div key={item.id} className="overflow-hidden rounded-2xl border border-blue-100 bg-[#fff] shadow-sm">
+                <li key={item.id} className="overflow-hidden rounded-xl border border-blue-100 bg-[#fff]">
                   <div className={cn("grid aspect-square place-items-center p-2", kindTone(item.contentType).soft)}>
                     <CardImage value={item.symbolImageUrl} label={item.label} className="text-sm" />
                   </div>
-                  <div className="flex items-center gap-1.5 p-2">
+                  <div className="flex items-center gap-1 px-2 py-1.5">
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{item.label}</span>
                     <AudioButton value={item.audioUrl} label={item.label} className="h-7 w-7" />
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-gradient-to-br from-blue-100/70 via-blue-50/70 to-sky-50/80 p-4 ring-1 ring-blue-100">
-            <SectionLabel className="mb-2">How it plays</SectionLabel>
-            {activity.type !== "gesture-practice" && pecsItems.length ? (
-              <ActivitySample key={activity.type} type={activity.type} items={pecsItems} pool={pool} />
-            ) : (
-              <div className="flex items-start gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-100 text-sky-700">
-                  <Hand className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <p className="text-sm leading-6 text-slate-700">The learner copies each gesture. The teacher marks it done or asks for another try.</p>
-              </div>
-            )}
+            </ul>
           </div>
         </div>
       ) : null}

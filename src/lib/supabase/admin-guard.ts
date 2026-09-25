@@ -31,7 +31,8 @@ export async function requireActiveAdmin() {
     return { error: NextResponse.json({ error: "Only active admin accounts can do this." }, { status: 403 }) };
   }
 
-  return { profile };
+  // sessionClient acts as this admin, so database rules and triggers see an admin, not the service role.
+  return { profile, sessionClient };
 }
 
 /**

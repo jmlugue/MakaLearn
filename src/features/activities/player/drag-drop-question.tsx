@@ -1,367 +1,237 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { Check, CheckCircle2, RotateCcw, Star, XCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { type ActivityScore, shuffleOptions, getCompactSymbolGridClass, getActivityBackground } from "@/features/activities/player/player-utils";
-import { ActivityGameTopBar, DragChoiceCard, DroppedCardPreview, StudentInstructionPanel } from "@/features/activities/player/player-parts";
-import { ActivityResultModal } from "@/features/activities/player/activity-result";
-import type { Activity, LearningItem } from "@/types";
+import { getDisplayLabel } from "@/features/activities/player/player-utils";
+import { StudentPictureCard, StudentResultBadge } from "@/features/activities/player/student-game-parts";
+import { studentText } from "@/features/activities/player/student-theme";
+import type { ActivityQuestion, LearningItem } from "@/types";
 
-export function DragDropSymbolStudentLayout({
-  activity,
+type DragState = {
+  value: string;
+  pointerId: number;
+  x: number;
+  y: number;
+  offsetX: number;
+  offsetY: number;
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+  overId: string;
+  returning: boolean;
+};
+
+/**
+ * Drag and drop in Student mode. Cards are dragged with a finger or the mouse (pointer events, since the
+ * browser's own drag and drop does not work on touch screens). Tapping does nothing: it is a drag game.
+ * The parent decides if a drop is right: a right card stays, a wrong one flies back to the tray.
+ */
+export function StudentDragBoard({
+  questions,
   learningItems,
-  answers,
-  result,
-  dragged,
-  hintedQuestionId,
-  isListening,
-  highlightedListenQuestionId,
-  setDragged,
-  chooseAnswer,
-  onHint,
-  onListen,
-  onReset,
-  onScore,
-  onResultListen,
-  activityNavigator
+  placed,
+  trayCards,
+  hintTargetId,
+  dimmedCards,
+  beingReadId,
+  shake,
+  onDrop
 }: {
-  activity: Activity;
+  questions: ActivityQuestion[];
   learningItems: LearningItem[];
-  answers: Record<string, string>;
-  result: ActivityScore | null;
-  dragged: string;
-  hintedQuestionId: string;
-  isListening: boolean;
-  highlightedListenQuestionId: string;
-  setDragged: (value: string) => void;
-  chooseAnswer: (questionId: string, value: string) => void;
-  onHint: () => void;
-  onListen: () => void;
-  onReset: () => void;
-  onScore: (questionIds?: string[]) => void;
-  onResultListen: () => void;
-  activityNavigator?: ReactNode;
+  /** Question id to the card placed on it (only right cards are ever placed). */
+  placed: Record<string, string>;
+  trayCards: string[];
+  hintTargetId: string;
+  /** Tray cards Hint says do not belong in the hinted box. */
+  dimmedCards: string[];
+  beingReadId: string;
+  shake: { id: string; key: number } | null;
+  /** Returns true when the card belongs there. */
+  onDrop: (questionId: string, value: string) => boolean;
 }) {
-  const [cardShuffleSeed, setCardShuffleSeed] = useState(() => Math.random());
-  const visibleQuestions = activity.questions.slice(0, 5);
-  const draggableCards = useMemo(() => {
-    const cards = visibleQuestions
-      .map((question) => question.answer)
-      .filter((value, index, values) => values.indexOf(value) === index);
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const returnTimer = useRef<number | null>(null);
+  const reduceMotion = useReducedMotion();
+  // The window listeners read the latest values through these.
+  const latest = useRef({ drag, placed, onDrop, reduceMotion });
+  latest.current = { drag, placed, onDrop, reduceMotion };
+  const dragging = Boolean(drag && !drag.returning);
 
-    return shuffleOptions(cards, cardShuffleSeed);
-  }, [cardShuffleSeed, visibleQuestions]);
-  const availableDraggableCards = draggableCards.filter(
-    (card) => !visibleQuestions.some((question) => answers[question.id] === card)
-  );
-  const placedCount = visibleQuestions.filter((question) => answers[question.id]).length;
-  const checkedCorrect = result?.correct ?? 0;
-  const scoreValue = result ? `${result.correct}/${result.correct + result.incorrect}` : `0/${visibleQuestions.length}`;
-  const feedbackText = result
-    ? result.incorrect === 0
-      ? "Great matching!"
-      : "Try again with the red matches."
-    : hintedQuestionId
-      ? "Try the highlighted word first."
-      : dragged
-        ? "Now choose the matching word."
-        : placedCount > 0
-          ? "Keep matching the cards."
-          : "Drag each picture to its word.";
-
-  function placeCard(questionId: string, value: string) {
-    chooseAnswer(questionId, value);
-    setDragged("");
-  }
-
-  function resetActivity() {
-    setCardShuffleSeed(Math.random());
-    onReset();
-  }
-
+  // While a card is held, follow the pointer anywhere on the page (touch or mouse) until it is let go.
   useEffect(() => {
-    setCardShuffleSeed(Math.random());
-  }, [activity.id]);
+    if (!dragging) return;
+
+    function dropTargetAt(x: number, y: number) {
+      const element = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-drop-id]");
+      const id = element?.dataset.dropId ?? "";
+      return id && !latest.current.placed[id] ? id : "";
+    }
+
+    function flyBack(current: DragState) {
+      setDrag({ ...current, returning: true, overId: "", x: current.originX + current.offsetX, y: current.originY + current.offsetY });
+      if (returnTimer.current) window.clearTimeout(returnTimer.current);
+      returnTimer.current = window.setTimeout(() => setDrag(null), latest.current.reduceMotion ? 0 : 320);
+    }
+
+    function onMove(event: PointerEvent) {
+      const current = latest.current.drag;
+      if (!current || event.pointerId !== current.pointerId) return;
+      event.preventDefault();
+      setDrag({ ...current, x: event.clientX, y: event.clientY, overId: dropTargetAt(event.clientX, event.clientY) });
+    }
+
+    function onUp(event: PointerEvent) {
+      const current = latest.current.drag;
+      if (!current || event.pointerId !== current.pointerId) return;
+      const targetId = dropTargetAt(event.clientX, event.clientY);
+      if (targetId && latest.current.onDrop(targetId, current.value)) setDrag(null);
+      else flyBack(current);
+    }
+
+    function onCancel(event: PointerEvent) {
+      const current = latest.current.drag;
+      if (current && event.pointerId === current.pointerId) flyBack(current);
+    }
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+    };
+  }, [dragging]);
+
+  useEffect(() => () => {
+    if (returnTimer.current) window.clearTimeout(returnTimer.current);
+  }, []);
+
+  function startDrag(event: ReactPointerEvent<HTMLDivElement>, value: string) {
+    if (drag || (event.pointerType === "mouse" && event.button !== 0)) return;
+    event.preventDefault();
+    try {
+      // Keeps touch moves coming to the page even when the finger leaves the card.
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // Not captured: nothing to release.
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setDrag({
+      value,
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      originX: rect.left,
+      originY: rect.top,
+      width: rect.width,
+      height: rect.height,
+      overId: "",
+      returning: false
+    });
+  }
 
   return (
-    <section
-      className="fixed inset-0 z-40 grid h-screen w-screen overflow-hidden bg-[#dff5ff] p-2 sm:p-3 lg:p-4"
-      style={{
-        backgroundImage:
-          `linear-gradient(180deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08)), url('${getActivityBackground(activity.id)}')`,
-        backgroundPosition: "center",
-        backgroundSize: "cover"
-      }}
-    >
-      <div className="absolute right-4 top-4 z-30 sm:right-6 sm:top-5">
-        <ActivityGameTopBar
-          stacked
-          isListening={isListening}
-          onHint={onHint}
-          onListen={onListen}
-          activityNavigator={activityNavigator}
-        />
-      </div>
-      <div className="grid h-full min-h-0 grid-rows-[3.75rem_minmax(0,1.12fr)_minmax(0,0.88fr)_6rem] gap-2 rounded-[2rem] border border-white/80 bg-white/28 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:grid-rows-[4.25rem_minmax(0,1.16fr)_minmax(0,0.84fr)_7.5rem] sm:p-3">
-        <header className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-          <div aria-hidden="true" />
-
-          <div className="flex items-center justify-center gap-1 rounded-2xl border border-yellow-100 bg-white/90 px-3 py-1.5 shadow-sm sm:gap-2 sm:px-4 sm:py-2" aria-label={`${checkedCorrect} of ${visibleQuestions.length} matches correct after check`}>
-            {Array.from({ length: 5 }, (_, index) => (
-              <Star
-                key={index}
-                className={cn(
-                  "h-6 w-6 sm:h-7 sm:w-7",
-                  index < checkedCorrect ? "fill-yellow-300 text-yellow-400" : "fill-white text-yellow-200"
-                )}
-                aria-hidden="true"
-              />
-            ))}
-          </div>
-
-          <div aria-hidden="true" />
-        </header>
-
-        <main className={cn(
-          "relative mx-auto grid h-full min-h-0 w-full content-center place-items-center gap-1.5 overflow-hidden sm:gap-2",
-          getCompactSymbolGridClass(visibleQuestions.length)
-        )}>
-          {visibleQuestions.map((question, index) => {
-            const answer = answers[question.id];
-            const isCorrect = answer === question.answer;
-            const scoredAnswer = Boolean(result && answer);
-            const hinted = hintedQuestionId === question.id;
-            const activelyRead = highlightedListenQuestionId === question.id;
-            return (
-              <button
-                key={question.id}
-                type="button"
-                onClick={() => {
-                  if (dragged) {
-                    placeCard(question.id, dragged);
-                    return;
-                  }
-                  if (answer) {
-                    chooseAnswer(question.id, "");
-                  }
-                }}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  if (dragged) {
-                    placeCard(question.id, dragged);
-                  }
-                }}
-                className={cn(
-                  "mx-auto grid aspect-[3/4] h-auto max-h-full min-h-0 w-full max-w-[13.5rem] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[1.25rem] border-[3px] bg-white/90 p-2 text-center shadow-[0_5px_0_rgba(147,197,253,0.16),0_10px_20px_rgba(37,99,235,0.08)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:p-2.5",
-                  hinted ? "border-amber-400 ring-8 ring-amber-100" : "border-white",
-                  activelyRead ? "border-sky-500 ring-8 ring-sky-200 shadow-[0_0_0_6px_rgba(14,165,233,0.18),0_18px_36px_rgba(14,165,233,0.24)]" : "",
-                  scoredAnswer && (isCorrect
-                    ? "border-emerald-500 bg-emerald-50/95 ring-8 ring-emerald-100 shadow-[0_0_0_6px_rgba(16,185,129,0.16),0_18px_36px_rgba(16,185,129,0.22)]"
-                    : "border-rose-500 bg-rose-50/95 ring-8 ring-rose-100 shadow-[0_0_0_6px_rgba(244,63,94,0.16),0_18px_36px_rgba(244,63,94,0.2)]")
-                )}
-                aria-label={answer ? `Remove card from ${question.prompt}` : `Drop card on ${question.prompt}`}
-              >
-                <span
-                  className={cn(
-                    "truncate rounded-lg border px-2 py-1 text-xs font-black uppercase leading-none sm:text-sm lg:text-base",
-                    scoredAnswer
-                      ? isCorrect
-                        ? "border-emerald-200 bg-emerald-100 text-emerald-900"
-                        : "border-rose-200 bg-rose-100 text-rose-900"
-                      : "border-blue-100 bg-white text-[#10285e]"
-                  )}
-                >
-                  {question.prompt || `Word ${index + 1}`}
-                </span>
-                <span className="grid min-h-0 place-items-center py-1">
-                  {answer ? (
-                    <DroppedCardPreview
-                      value={answer}
-                      learningItems={learningItems}
-                      compact
-                      preferNoTextPecs
-                      resultTone={result ? (isCorrect ? "correct" : "wrong") : "neutral"}
-                    />
-                  ) : (
-                    <span className="grid h-full min-h-0 w-full place-items-center rounded-[1.15rem] border-[3px] border-dashed border-blue-100 bg-sky-50/70 px-2 text-xs font-black text-blue-400 sm:text-sm">
-                      Drop card here
-                    </span>
-                  )}
-                </span>
-              </button>
-            );
-          })}
-        </main>
-
-        <section className={cn(
-          "mx-auto grid h-full min-h-0 w-full content-center place-items-center gap-1.5 overflow-hidden pb-1 sm:gap-2",
-          getCompactSymbolGridClass(Math.max(availableDraggableCards.length, 1))
-        )}>
-          {availableDraggableCards.length ? availableDraggableCards.map((card, index) => {
-            const selected = dragged === card;
-            return (
-              <DragChoiceCard
-                key={`${card}-${index}`}
-                value={card}
-                learningItems={learningItems}
-                selected={selected}
-                preferNoTextPecs
-                onSelect={() => setDragged(card)}
-              />
-            );
-          }) : (
-            <div className="mx-auto grid min-h-16 place-items-center rounded-2xl border border-blue-100 bg-white/90 px-5 text-center text-sm font-black text-[#10285e] shadow-sm sm:text-base">
-              All cards are placed.
-            </div>
-          )}
-        </section>
-
-        <footer className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
-          <div className="flex min-h-12 w-fit items-center gap-2 rounded-2xl border border-yellow-100 bg-white/90 px-3 shadow-sm sm:min-h-14 sm:px-4">
-            <Star className="h-6 w-6 fill-yellow-300 text-yellow-400 sm:h-7 sm:w-7" aria-hidden="true" />
-            <span className="text-lg font-black text-[#10285e]">{scoreValue}</span>
-          </div>
-
-          <StudentInstructionPanel message={feedbackText} />
-
-          <div className="flex justify-end gap-2 sm:gap-3">
-            <Button
-              type="button"
-              className="min-h-12 rounded-2xl border-2 border-green-300 bg-[#50c819] px-3 text-sm font-black text-white shadow-[0_8px_18px_rgba(67,167,22,0.22)] hover:bg-[#48b513] sm:min-h-14 sm:px-5 sm:text-base"
-              onClick={() => onScore(visibleQuestions.map((question) => question.id))}
-            >
-              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-              Check
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-12 rounded-2xl border-2 border-blue-200 bg-blue-100 px-3 text-sm font-black text-blue-800 shadow-[0_8px_18px_rgba(37,99,235,0.14)] hover:bg-blue-200 sm:min-h-14 sm:px-5 sm:text-base"
-              onClick={resetActivity}
-            >
-              <RotateCcw className="h-5 w-5" aria-hidden="true" />
-              Reset
-            </Button>
-          </div>
-        </footer>
-      </div>
-
-      {result ? (
-        <ActivityResultModal
-          activity={activity}
-          learningItems={learningItems}
-          answers={answers}
-          result={result}
-          questionIds={visibleQuestions.map((question) => question.id)}
-          primaryActionLabel={result.incorrect === 0 ? "Practice again" : "Try again"}
-          onPrimaryAction={resetActivity}
-          isListening={isListening}
-          onListen={onResultListen}
-          highlightedQuestionId={highlightedListenQuestionId}
-        />
-      ) : null}
-    </section>
-  );
-}
-
-export function DragMatchBoard({
-  activity,
-  learningItems,
-  answers,
-  result,
-  dragged,
-  hintedQuestionId,
-  setDragged,
-  chooseAnswer
-}: {
-  activity: Activity;
-  learningItems: LearningItem[];
-  answers: Record<string, string>;
-  result: ActivityScore | null;
-  dragged: string;
-  hintedQuestionId: string;
-  setDragged: (value: string) => void;
-  chooseAnswer: (questionId: string, value: string) => void;
-}) {
-  const uniqueCards = useMemo(() => [...new Set(activity.questions.flatMap((question) => question.options))], [activity.questions]);
-  const scored = Boolean(result);
-  const holderCount = activity.questions.length;
-  const cardCount = uniqueCards.length;
-
-  return (
-    <div className="mt-3 grid min-h-0 grid-rows-[minmax(12rem,1fr)_auto] gap-4 overflow-visible">
-      <div
-        className={cn(
-          "mx-auto grid min-h-0 w-full gap-5 px-1 pt-7",
-          holderCount === 1 && "max-w-[36rem] grid-cols-1",
-          holderCount === 2 && "max-w-[68rem] md:grid-cols-2",
-          holderCount === 3 && "max-w-[88rem] md:grid-cols-3",
-          holderCount >= 4 && "max-w-[88rem] md:grid-cols-2 xl:grid-cols-4"
-        )}
-      >
-        {activity.questions.map((question) => {
-          const answer = answers[question.id];
-          const isCorrect = answer === question.answer;
-
+    <div className="grid h-full min-h-0 grid-rows-[minmax(0,1.6fr)_minmax(0,0.6fr)] gap-3 sm:grid-rows-[minmax(0,1.1fr)_minmax(0,0.9fr)] sm:gap-4">
+      <div className={cn("mx-auto grid h-full min-h-0 w-full max-w-6xl gap-2 sm:gap-4", boxColumnsFor(questions.length))}>
+        {questions.map((question) => {
+          const card = placed[question.id];
+          const over = drag?.overId === question.id;
+          const hinted = hintTargetId === question.id && !card;
           return (
-            <button
-              key={question.id}
-              type="button"
-              onClick={() => dragged && chooseAnswer(question.id, dragged)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => dragged && chooseAnswer(question.id, dragged)}
-              aria-label={`Place selected card on ${question.prompt}`}
+            <motion.div
+              key={shake?.id === question.id ? `${question.id}-${shake.key}` : question.id}
+              data-drop-id={question.id}
               className={cn(
-                "relative flex min-h-[11.5rem] flex-col items-center overflow-visible rounded-[2rem] border-4 border-white bg-white/82 px-4 pb-4 pt-10 text-center shadow-[0_14px_0_rgba(147,197,253,0.22),0_24px_42px_rgba(37,99,235,0.12)] transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-100 sm:min-h-[13rem] lg:min-h-[14.5rem]",
-                hintedQuestionId === question.id ? "ring-8 ring-amber-100" : "",
-                scored && answer && (isCorrect ? "bg-emerald-50/90 ring-8 ring-emerald-100" : "bg-rose-50/90 ring-8 ring-rose-100")
+                "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-[1.75rem] border-4 bg-white/80 p-2 shadow-[0_8px_0_rgba(147,197,253,0.25)] transition-colors sm:p-3",
+                card ? "border-emerald-400 bg-emerald-50/90" : over ? "border-blue-500 bg-blue-50" : hinted ? "border-amber-400 ring-8 ring-amber-100" : "border-white",
+                beingReadId === question.id && "ring-8 ring-sky-200"
               )}
+              animate={shake?.id === question.id && !reduceMotion ? { x: [0, -10, 10, -6, 6, 0] } : { x: 0 }}
+              transition={{ duration: 0.4 }}
             >
-              <span className="absolute -top-6 left-1/2 max-w-[88%] -translate-x-1/2 rounded-[1.3rem] border-4 border-blue-100 bg-white px-8 py-2 text-xl font-black uppercase leading-none text-[#10285e] shadow-[0_6px_0_rgba(147,197,253,0.28)] sm:text-2xl">
+              <span className={cn("rounded-xl bg-[#fff] px-1 py-2 text-center [overflow-wrap:anywhere]", studentText.label)}>
                 {question.prompt}
               </span>
-              <span className="grid h-full min-h-0 w-full flex-1 place-items-center">
-                {answer ? (
-                  <DroppedCardPreview value={answer} learningItems={learningItems} preferNoTextPecs />
+              <div className="grid min-h-0 place-items-center [container-type:size]">
+                {card ? (
+                  <StudentPictureCard value={card} learningItems={learningItems} className="w-[min(100cqw,75cqh,16rem)] border-emerald-500">
+                    <StudentResultBadge tone="correct" />
+                  </StudentPictureCard>
                 ) : (
-                  <span className="h-14 w-full max-w-44 rounded-[1.25rem] bg-white/28" aria-hidden="true" />
+                  <span
+                    className={cn(
+                      "grid aspect-[3/4] w-[min(100cqw,75cqh,16rem)] place-items-center rounded-[1.5rem] border-4 border-dashed text-center text-base font-black sm:text-lg",
+                      over ? "border-blue-500 bg-blue-100 text-blue-700" : "border-blue-200 bg-sky-50/80 text-blue-400"
+                    )}
+                  >
+                    Drop here
+                  </span>
                 )}
-              </span>
-              {scored && answer ? (
-                <span className={cn("absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full text-white shadow-sm", isCorrect ? "bg-emerald-500" : "bg-rose-500")}>
-                  {isCorrect ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : <XCircle className="h-5 w-5" aria-hidden="true" />}
-                </span>
-              ) : null}
-            </button>
+              </div>
+            </motion.div>
           );
         })}
       </div>
 
-      <div className="min-h-0 px-1 pb-1">
-        <div
-          className={cn(
-            "mx-auto grid min-h-0 w-full gap-3",
-            cardCount === 1 && "max-w-[18rem] grid-cols-1",
-            cardCount === 2 && "max-w-[38rem] grid-cols-2",
-            cardCount === 3 && "max-w-[58rem] grid-cols-3",
-            cardCount >= 4 && "max-w-[88rem] grid-cols-2 sm:grid-cols-4"
-          )}
-        >
-          {uniqueCards.map((card) => (
-            <DragChoiceCard
-              key={card}
-              value={card}
-              learningItems={learningItems}
-              selected={dragged === card}
-              preferNoTextPecs
-              onSelect={() => setDragged(card)}
-            />
-          ))}
+      <div className="rounded-[1.75rem] border-2 border-dashed border-blue-200 bg-white/50 p-2 sm:p-3">
+        <div className={cn("mx-auto grid h-full min-h-0 w-full max-w-6xl gap-2 sm:gap-4", columnsFor(Math.max(trayCards.length, 1)))}>
+          {trayCards.map((value) => {
+            const held = drag?.value === value;
+            const dimmed = dimmedCards.includes(value);
+            return (
+              <div key={value} className="grid min-h-0 place-items-center [container-type:size]">
+                <div
+                  role="img"
+                  aria-label={`${getDisplayLabel(value, learningItems)} card. Drag it onto its word.`}
+                  className={cn(
+                    "w-[min(100cqw,75cqh,16rem)] cursor-grab touch-none select-none active:cursor-grabbing",
+                    held && "opacity-0",
+                    dimmed && !held && "opacity-30 grayscale"
+                  )}
+                  onPointerDown={(event) => startDrag(event, value)}
+                >
+                  <StudentPictureCard value={value} learningItems={learningItems} className="pointer-events-none w-full hover:border-blue-300" />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
+
+      {drag ? (
+        <div
+          className={cn("pointer-events-none fixed left-0 top-0 z-[80]", drag.returning && "transition-transform duration-300 ease-out")}
+          style={{
+            width: drag.width,
+            height: drag.height,
+            transform: `translate3d(${drag.x - drag.offsetX}px, ${drag.y - drag.offsetY}px, 0) ${drag.returning ? "" : "scale(1.06) rotate(-2deg)"}`
+          }}
+          aria-hidden="true"
+        >
+          <StudentPictureCard value={drag.value} learningItems={learningItems} className="w-full border-blue-500 shadow-[0_24px_40px_rgba(37,99,235,0.3)]" />
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function columnsFor(count: number) {
+  if (count <= 1) return "grid-cols-1";
+  if (count === 2) return "grid-cols-2";
+  if (count === 3) return "grid-cols-3";
+  if (count === 4) return "grid-cols-4";
+  return "grid-cols-5";
+}
+
+/** Drop boxes need room for their word, so phones get two or three columns. */
+function boxColumnsFor(count: number) {
+  if (count <= 2) return columnsFor(count);
+  if (count === 5) return "grid-cols-3 sm:grid-cols-5";
+  return count === 3 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4";
 }
