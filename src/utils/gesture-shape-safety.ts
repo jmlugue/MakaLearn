@@ -18,7 +18,7 @@ export type CapturedGestureFrame = {
   handedness: Array<"Left" | "Right" | "Unknown">;
 };
 
-const EAT_LABEL = "I want to eat food";
+const EAT_LABEL = "I want to eat";
 const TOILET_LABEL = "I want to go to toilet";
 const DRINK_LABEL = "I want to drink";
 const HELP_LABEL = "Help";

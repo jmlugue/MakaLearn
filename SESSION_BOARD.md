@@ -28,6 +28,26 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-09-26-free-practice-reference-card
+- Outcome: Free Practice now shows the right-side gesture media and Play controls directly, with no flip wrapper, rotation, keyboard flip behavior, or click prompt. Guided practice keeps its prior flip interaction.
+- Files/areas: `src/features/gesture/gesture-practice-view.tsx`, `CLAUDE.md`.
+- Verification: `npm run test:feedback`, `npx tsc --noEmit`, `npm run lint`, `npm run build`, and `git diff --check` passed.
+
+### 2026-09-26-eat-gesture-label
+- Outcome: Renamed the fixed Eat recognition phrase to "I want to eat" everywhere while preserving the `gesture-eat-food` ID and trained `eat` class. Regenerated and offline-audited the spoken clip, published it as cache-safe `gesture-eat.wav`, and updated the live Supabase learning item plus all linked media titles.
+- Files/areas: Gesture label/model/feedback mappings, fixed-label filters, learning-media uploader/validator, seed/docs/tests, `public/audio/gesture-eat-food.wav`, live `learning_items` and linked `media_assets` records.
+- Verification: Offline WAV transcript matched "I want to eat"; gesture feedback/capture/stability tests, `npm run test:audio`, `npx tsc --noEmit`, `npm run lint`, live `npm run validate:materials`, `npm run build`, and `git diff --check` passed.
+
+### 2026-09-26-activity-edit-step
+- Outcome: Activity editing now opens on the Cards step instead of Review, so teachers can change learning materials immediately and Next clearly advances to Review rather than appearing to loop.
+- Files/areas: `src/features/activities/activity-form-dialog.tsx`.
+- Verification: `npm run test:activities` (18 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, `npm run build`, and `git diff --check` passed.
+
+### 2026-09-26-related-pecs-distractor-audit
+- Outcome: Confirmed that related target cards may stay in the same activity as separate questions, while each question's generated wrong options exclude cards that could also be reasonable answers. Added direct regression coverage for Eat with Bread/Rice and Drink with Water/Milk.
+- Files/areas: `scripts/test-activity-option-sets.mjs`, `scripts/test-activity-rules.mjs`.
+- Verification: `npm run test:activities` (18 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, and `git diff --check` passed. Build skipped because the user's Next.js development server is running.
+
 ### 2026-09-26-activities-design
 - Outcome: Teacher Activities UI cleanup. Shapes icon for Activities; short type names with icons on badges; type colors off blue and teal (violet, orange, yellow, pink); default names like "Feelings match activity" (`src/utils/activity-title.ts`); creator steps Start (own cards or searchable lesson list, format tiles), Cards (5-slot tray via `MaterialsStep tray="slots"`), Review (name with Private switch, summary line, one question row per card, single AI button); one-line card title and meta line; preview shows demo before cards.
 - Files/areas: `nav-items.ts`, `guide-content.ts`, `activity-labels.ts`, `activity-title.ts`, `activity-helpers.ts` (`activityTypeTones` only), `activity-type-badge.tsx`, `activity-card.tsx`, `activity-preview-dialog.tsx`, `activity-library.tsx`, `activity-form-dialog.tsx`, `activities-view.tsx`, `lesson-form-dialog.tsx`, `activity-sample.tsx`, `STYLE_GUIDE.md`, `CLAUDE.md`.

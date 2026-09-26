@@ -4,7 +4,7 @@ The Gesture Recognition page currently uses the following rule-based demo mappin
 
 | Hand pose | Sample prediction |
 | --- | --- |
-| Raise only the pinky | I want to eat food |
+| Raise only the pinky | I want to eat |
 | Raise only the index finger | I want to go to toilet |
 | Show two open hands | I want to drink water |
 | Raise the index finger and pinky | Yes |

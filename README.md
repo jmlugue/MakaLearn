@@ -64,7 +64,7 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - Playground is available in teacher UI and Student Mode. Other teacher-only pages remain restricted while Student Mode is active.
 - Playground sentence checks use `validatePecsSentence`, a rule-based PECS arrangement validator with supported patterns such as `I want water`, `I am happy`, `Please sit`, greetings, responses, and safety expressions.
 - Teachers can store additional gesture records in Content Library.
-- Gesture Recognition uses MediaPipe hand landmarks and the bundled trained MakaLearn gesture model for seven fixed labels: I want to go to toilet, I want to eat food, I want to drink, Help, Yes, No, and Sit down. These prototype labels/media are not official Makaton content.
+- Gesture Recognition uses MediaPipe hand landmarks and the bundled trained MakaLearn gesture model for seven fixed labels: I want to go to toilet, I want to eat, I want to drink, Help, Yes, No, and Sit down. These prototype labels/media are not official Makaton content.
 - Gesture Practice is free practice: the side card is a reference aid, while corrective feedback is based on the gesture actually recognized by the model.
 - See `GESTURE_SAMPLE_POSES.md` for the complete demo pose-to-prediction mapping.
 - Gesture records support reference image, gesture image/video, and audio uploads.

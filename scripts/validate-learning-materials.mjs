@@ -87,7 +87,7 @@ async function validateRemoteWave(item, expectedFileName, errors) {
 
 const gestureMaterials = new Map([
   ["gesture-toilet", { label: "I want to go to toilet", localAudioFileName: "gesture-toilet.wav", storedAudioFileName: "gesture-toilet.wav" }],
-  ["gesture-eat-food", { label: "I want to eat food", localAudioFileName: "gesture-eat-food.wav", storedAudioFileName: "gesture-eat-food.wav" }],
+  ["gesture-eat-food", { label: "I want to eat", localAudioFileName: "gesture-eat-food.wav", storedAudioFileName: "gesture-eat.wav" }],
   ["gesture-drink-water", { label: "I want to drink", localAudioFileName: "gesture-drink-water.wav", storedAudioFileName: "gesture-drink.wav" }],
   ["gesture-help", { label: "Help", localAudioFileName: "gesture-help.wav", storedAudioFileName: "gesture-help.wav" }],
   ["gesture-yes", { label: "Yes", localAudioFileName: "gesture-yes.wav", storedAudioFileName: "gesture-yes.wav" }],

@@ -100,6 +100,22 @@ test("an Eat question excludes food cards that are also reasonable answers", () 
   );
 });
 
+test("a Drink question excludes drinks that are also reasonable answers", () => {
+  const drink = { label: "Drink", sentenceRole: "verb" };
+  const drinkCards = ["Water", "Milk"];
+
+  drinkCards.forEach((label) => {
+    assert.equal(
+      isUnsafeActivityDistractor("choose-correct-symbol", drink, { label, sentenceRole: "object" }),
+      true
+    );
+  });
+  assert.equal(
+    isUnsafeActivityDistractor("choose-correct-symbol", drink, { label: "Teacher", sentenceRole: "subject" }),
+    false
+  );
+});
+
 test("fill-in-the-blank excludes other cards that can fill the same sentence role", () => {
   const answer = { label: "Mother", sentenceRole: "subject" };
 

@@ -94,6 +94,10 @@ test("no question offers a second card that could also be right", () => {
 
 test("look-alike cards are never wrong options for each other", () => {
   const pairs = [
+    ["Eat", "Bread"],
+    ["Eat", "Rice"],
+    ["Drink", "Water"],
+    ["Drink", "Milk"],
     ["Happy", "Sad"],
     ["Angry", "Scared"],
     ["Water", "Milk"],

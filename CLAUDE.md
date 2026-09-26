@@ -512,6 +512,12 @@ seeing they were right. Student mode only; the teacher player is unchanged.
 
 ## 16. Notes round (Sep 26, checked on a temporary page, not signed in)
 
+- **Eat gesture wording:** the fixed recognition phrase is now "I want to eat" while keeping the existing
+  `gesture-eat-food` ID and trained model `eat` class. Its spoken clip uses the cache-safe stored filename
+  `gesture-eat.wav`.
+- **Free Practice reference:** the right-side card no longer flips. It always shows the former back face
+  with the gesture media and Play control. Guided practice keeps its existing flip interaction.
+
 - **Create activity:** Format tiles show full type names plus a one-line description. "From a lesson" is a
   dropdown with search (closed, it shows the chosen lesson with a tick). Step 2 puts the card library in its own
   "Choose cards" panel under the picked slots (the lesson form gets it too, since it shares `MaterialsStep`).

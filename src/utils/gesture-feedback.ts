@@ -234,7 +234,7 @@ export function createLearnerGestureMessage(issueCategory: GestureFeedbackIssueC
 
 export function simplifyGestureLabel(label: string) {
   if (/toilet/i.test(label)) return "toilet";
-  if (/eat food/i.test(label)) return "eat";
+  if (/\beat(?: food)?\b/i.test(label)) return "eat";
   if (/drink(?: water)?/i.test(label)) return "drink";
   if (/sit/i.test(label)) return "sit";
 
