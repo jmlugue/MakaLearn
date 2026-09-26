@@ -108,6 +108,19 @@ export function renameFile(file: File, base: string, bucket: UploadBucket) {
   });
 }
 
+/**
+ * What a file name says, even when it only half follows the rule: `bad_emotions` gives the word and the
+ * category, `bad` only the word. Camera and screenshot names (any digit, like IMG_2044) or names with more
+ * than one underscore say nothing.
+ */
+export function guessFromFileName(fileName: string): { word?: string; category?: string } {
+  const parts = baseName(fileName).split("_");
+  if (parts.length > 2 || parts.some((part) => /\d/.test(part) || !/^[a-z '’-]*$/i.test(part))) return {};
+  const word = namePart(parts[0]);
+  const category = parts.length === 2 ? namePart(parts[1]) : "";
+  return { word: word || undefined, category: category || undefined };
+}
+
 /** Turns the word part back into a label: "thank-you" becomes "Thank you". */
 export function labelFromWord(word: string) {
   const text = word.replace(/-/g, " ").trim();

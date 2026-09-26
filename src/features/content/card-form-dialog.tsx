@@ -11,8 +11,7 @@ import { cn } from "@/lib/utils";
 import { CardTile } from "@/features/content/card-tile";
 import { PopupTitle, SectionLabel, fieldClass, fileCategoryName, glassBoxClass, kindMeta, kindTone, visibleCategories, type ContentKind } from "@/features/content/content-shared";
 import { limitLabel, mediaSizeLimits, sizeError } from "@/utils/media-limits";
-import { acceptFor, expectedFileName, extensionError, fileNameError, labelFromWord, namePart, parseFileName } from "@/utils/media-filename";
-import { RenameFileDialog } from "@/features/content/rename-file-dialog";
+import { acceptFor, expectedFileName, extensionError, fileNameError, guessFromFileName, labelFromWord, namePart, renameFile } from "@/utils/media-filename";
 import type { Category } from "@/types";
 
 export type NewCardFiles = Partial<Record<"symbol" | "audio", File>>;
@@ -78,18 +77,15 @@ function CardForm({
   const choices = useMemo(() => visibleCategories(categories), [categories]);
   const [kind, setKind] = useState<ContentKind>(initialKind);
   const [label, setLabel] = useState("");
-  const [categoryId, setCategoryId] = useState(() => choices[0]?.id ?? "");
+  // Starts empty so a blank the file name could not fill is easy to see.
+  const [categoryId, setCategoryId] = useState("");
+  // True while the label or category came from a file name, so a new or removed file may refill it.
+  // Typing or picking by hand turns it off, and the teacher's value is then never overwritten.
+  const [autoLabel, setAutoLabel] = useState(false);
+  const [autoCategory, setAutoCategory] = useState(false);
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<NewCardFiles>({});
   const [error, setError] = useState("");
-  // A picked file whose name is wrong waits here while the rename pop-up is open.
-  const [renaming, setRenaming] = useState<{
-    file: File;
-    key: keyof NewCardFiles;
-    askForLabel: boolean;
-    resolve: (file: File) => void;
-    reject: (error: Error) => void;
-  } | null>(null);
 
   const imagePreview = useObjectUrl(files.symbol);
   const tone = kindTone(kind);
@@ -97,58 +93,65 @@ function CardForm({
   const categoryName = fileCategoryName(category);
 
   /**
-   * Checks a picked file against the name rule. A right name is kept as is; with no label yet it also fills
-   * the label and category. A wrong name opens the rename pop-up, and the file is kept once renamed.
+   * Fills the label and category from file names (the first file listed wins). A field is only filled when
+   * it is blank or was filled from a file before, so replacing or removing a file updates it again.
+   */
+  function fillFromNames(fileList: File[]) {
+    const guesses = fileList.map((file) => guessFromFileName(file.name));
+    const word = guesses.find((guess) => guess.word)?.word;
+    const match = guesses
+      .map((guess) =>
+        guess.category
+          ? choices.find(
+              (candidate) => namePart(candidate.name) === guess.category || namePart(fileCategoryName(candidate)) === guess.category
+            )
+          : undefined
+      )
+      .find(Boolean);
+    if (!label.trim() || autoLabel) {
+      setLabel(word ? labelFromWord(word) : "");
+      setAutoLabel(Boolean(word));
+    }
+    if (!categoryId || autoCategory) {
+      setCategoryId(match?.id ?? "");
+      setAutoCategory(Boolean(match));
+    }
+  }
+
+  /**
+   * Any picture or sound of the right type is taken. Its name fills whatever is blank: `bad_emotions` gives
+   * the label and category, `bad` only the label, and a name like IMG_2044 nothing. On Save the file is
+   * renamed to match the card (word_category), so the stored file always follows the rule.
    */
   function stage(key: keyof NewCardFiles) {
     return (file: File) => {
-      const bucket = fileBuckets[key];
-      const wrongType = extensionError(file, bucket);
+      const wrongType = extensionError(file, fileBuckets[key]);
       if (wrongType) return Promise.reject(new Error(wrongType));
 
-      let nextLabel = label.trim();
-      let nextCategory = categoryName;
-      const parsed = parseFileName(file.name);
-      if (!nextLabel && parsed) {
-        const match = choices.find((candidate) => namePart(candidate.name) === parsed.category);
-        if (match) {
-          nextLabel = labelFromWord(parsed.word);
-          nextCategory = match.name;
-          setLabel(nextLabel);
-          setCategoryId(match.id);
-        }
-      }
-      if (nextLabel && !fileNameError(file, bucket, nextLabel, nextCategory)) {
-        setError("");
-        setFiles((current) => ({ ...current, [key]: file }));
-        return Promise.resolve(file);
-      }
-      return new Promise<File>((resolve, reject) => setRenaming({ file, key, askForLabel: !nextLabel, resolve, reject }));
+      const others = (Object.keys(fileBuckets) as Array<keyof NewCardFiles>)
+        .filter((other) => other !== key)
+        .map((other) => files[other])
+        .filter((other): other is File => Boolean(other));
+      fillFromNames([file, ...others]);
+      setError("");
+      setFiles((current) => ({ ...current, [key]: file }));
+      return Promise.resolve(file);
     };
   }
 
-  function confirmRename(result: { file: File; label?: string; categoryId?: string }) {
-    if (!renaming) return;
-    if (result.label) setLabel(result.label);
-    if (result.categoryId) setCategoryId(result.categoryId);
-    setError("");
-    setFiles((current) => ({ ...current, [renaming.key]: result.file }));
-    renaming.resolve(result.file);
-    setRenaming(null);
-  }
-
-  function cancelRename() {
-    renaming?.reject(new Error("Not added. Pick the file again to rename it."));
-    setRenaming(null);
-  }
-
   function unstage(key: keyof NewCardFiles) {
-    return () =>
+    return () => {
+      const remaining = (Object.keys(fileBuckets) as Array<keyof NewCardFiles>)
+        .filter((other) => other !== key)
+        .map((other) => files[other])
+        .filter((other): other is File => Boolean(other));
+      fillFromNames(remaining);
       setFiles((current) => {
         const next = { ...current };
         delete next[key];
         return next;
       });
+    };
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -157,18 +160,23 @@ function CardForm({
       setError("Add a label, category, and description.");
       return;
     }
-    // Checked again here: the label or category may have changed after a file was picked.
+    // Each file is renamed to match the card (word_category) unless it already does.
+    const named: NewCardFiles = {};
     for (const key of Object.keys(fileBuckets) as Array<keyof NewCardFiles>) {
       const file = files[key];
       if (!file) continue;
-      const problem = sizeError(file, fileBuckets[key]) || fileNameError(file, fileBuckets[key], label.trim(), categoryName);
+      const bucket = fileBuckets[key];
+      const problem = sizeError(file, bucket) || extensionError(file, bucket);
       if (problem) {
         setError(`${file.name}: ${problem}`);
         return;
       }
+      named[key] = fileNameError(file, bucket, label.trim(), categoryName)
+        ? renameFile(file, expectedFileName(label.trim(), categoryName), bucket)
+        : file;
     }
     setSaving(true);
-    const saved = await onSubmit({ kind, label: label.trim(), categoryId, description: description.trim(), files });
+    const saved = await onSubmit({ kind, label: label.trim(), categoryId, description: description.trim(), files: named });
     setSaving(false);
     if (saved) onClose();
   }
@@ -197,13 +205,18 @@ function CardForm({
                 placeholder={kind === "pecs" ? "Eat" : "Sit down"}
                 onChange={(event) => {
                   setLabel(event.target.value);
+                  setAutoLabel(false);
                   setError("");
                 }}
               />
             </div>
             <div>
               <Label htmlFor="card-category">Category</Label>
-              <Select id="card-category" className={fieldClass} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+              <Select id="card-category" className={fieldClass} value={categoryId} onChange={(event) => {
+                  setCategoryId(event.target.value);
+                  setAutoCategory(false);
+                }}>
+                <option value="">Pick a category</option>
                 {choices.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.name}
@@ -234,7 +247,7 @@ function CardForm({
             icon={ImageIcon}
             label={kind === "pecs" ? "Card image" : "Reference image"}
             accept={acceptFor["symbol-images"]}
-            hint={`Name it ${example}. PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
+            hint={`Saved as ${example}. PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
             maxBytes={mediaSizeLimits["symbol-images"]}
             storageNote="Saved with the material."
             successMessage="Ready to save."
@@ -247,7 +260,7 @@ function CardForm({
             icon={FileAudio}
             label="Audio"
             accept={acceptFor["audio-files"]}
-            hint={`Name it ${example}. MP3, WAV, or M4A, up to ${limitLabel("audio-files")}`}
+            hint={`Saved as ${example}. MP3, WAV, or M4A, up to ${limitLabel("audio-files")}`}
             maxBytes={mediaSizeLimits["audio-files"]}
             storageNote="Plays the spoken word."
             successMessage="Ready to save."
@@ -275,15 +288,6 @@ function CardForm({
         </Button>
       </div>
 
-      <RenameFileDialog
-        file={renaming?.file ?? null}
-        bucket={renaming ? fileBuckets[renaming.key] : "symbol-images"}
-        label={label.trim()}
-        categoryName={categoryName}
-        askForLabel={renaming?.askForLabel ? { categories: choices, categoryId, nameFor: fileCategoryName } : undefined}
-        onConfirm={confirmRename}
-        onCancel={cancelRename}
-      />
     </form>
   );
 }

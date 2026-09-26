@@ -6,6 +6,7 @@ import {
   fileNameError,
   labelFromWord,
   namePart,
+  guessFromFileName,
   parseFileName,
   renameFile
 } from "../src/utils/media-filename.ts";
@@ -78,4 +79,14 @@ test("a renamed file keeps its contents, type, and a matching extension", async 
   assert.equal(renameFile(new File(["x"], "photo", { type: "image/png" }), "bad_emotions", "symbol-images").name, "bad_emotions.png");
   assert.equal(renameFile(new File(["x"], "clip.jfif", { type: "image/jpeg" }), "bad_emotions", "symbol-images").name, "bad_emotions.jpg");
   assert.equal(renameFile(new File(["x"], "voice", { type: "audio/mpeg" }), "bad_emotions", "audio-files").name, "bad_emotions.mp3");
+});
+
+test("a file name fills whatever part it has", () => {
+  assert.deepEqual(guessFromFileName("bad_emotions.png"), { word: "bad", category: "emotions" });
+  assert.deepEqual(guessFromFileName("Thank You_Greetings.png.png"), { word: "thank-you", category: "greetings" });
+  assert.deepEqual(guessFromFileName("bad.jpg"), { word: "bad", category: undefined });
+  assert.deepEqual(guessFromFileName("bad_snacks.png"), { word: "bad", category: "snacks" }, "the form keeps only a real category");
+  assert.deepEqual(guessFromFileName("IMG_2044.jpg"), {}, "camera names say nothing");
+  assert.deepEqual(guessFromFileName("Screenshot 2026-10-01.png"), {});
+  assert.deepEqual(guessFromFileName("eat_food_2.png"), {});
 });

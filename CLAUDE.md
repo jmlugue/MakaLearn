@@ -575,9 +575,13 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   are unchanged. Old wordings are kept in the retired tables so saved activities upgrade. Saving an activity
   stores its questions as templates, so the creator now swaps an old saved built-in question for the current
   one (`getSavedQuestionPrompt`); a teacher's own question is kept.
-- **Rename pop-up for uploads (Oct 1):** a picked file with the wrong name is no longer refused. `RenameFileDialog`
-  (`src/features/content/rename-file-dialog.tsx`) opens with the right name filled in (`bad_emotions`); the
-  teacher presses "Use this name" or edits it, and it must still match the card. `renameFile` in
-  `media-filename.ts` makes a renamed copy (same contents and type). Used by Add material (with Label and
-  Category fields when the label is still empty) and by Upload / Replace in a material's pop-up. Wrong file
-  type and oversized files are still refused. `FileUpload.onUpload` may resolve with the renamed file.
+- **Uploads (Oct 1):** a wrongly named file is never refused.
+  - **Add material:** any picture or sound of the right type is taken. Its name fills whatever is still blank
+    (`guessFromFileName`): `bad_emotions` gives label and category, `bad` only the label, IMG_2044 nothing.
+    Replacing or removing a file refills them from the newest remaining file name (`fillFromNames`), but only
+    fields that are blank or came from a file; anything typed or picked by hand is kept.
+    Category starts empty ("Pick a category"). On Save each file is renamed to the card's word_category
+    (`renameFile`), so stored files always follow the rule. Hints say "Saved as bad_emotions".
+  - **A material's Upload / Replace:** `RenameFileDialog` (`rename-file-dialog.tsx`) opens with the right name
+    filled in; "Use this name" or edit it, and it must still match the card.
+  - Wrong file types and oversized files are still refused. `FileUpload.onUpload` may resolve with a renamed file.
