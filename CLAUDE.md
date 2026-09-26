@@ -575,3 +575,9 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   are unchanged. Old wordings are kept in the retired tables so saved activities upgrade. Saving an activity
   stores its questions as templates, so the creator now swaps an old saved built-in question for the current
   one (`getSavedQuestionPrompt`); a teacher's own question is kept.
+- **Rename pop-up for uploads (Oct 1):** a picked file with the wrong name is no longer refused. `RenameFileDialog`
+  (`src/features/content/rename-file-dialog.tsx`) opens with the right name filled in (`bad_emotions`); the
+  teacher presses "Use this name" or edits it, and it must still match the card. `renameFile` in
+  `media-filename.ts` makes a renamed copy (same contents and type). Used by Add material (with Label and
+  Category fields when the label is still empty) and by Upload / Replace in a material's pop-up. Wrong file
+  type and oversized files are still refused. `FileUpload.onUpload` may resolve with the renamed file.

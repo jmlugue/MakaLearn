@@ -25,7 +25,8 @@ export function FileUpload({
   storageNote: string;
   /** Largest file this input accepts. Oversized files are refused before any upload starts. */
   maxBytes?: number;
-  onUpload?: (file: File) => Promise<void>;
+  /** May resolve with a renamed copy of the file, whose name is then shown. */
+  onUpload?: (file: File) => Promise<void | File>;
   onRemove?: () => Promise<void> | void;
   existingFileName?: string;
   successMessage?: string;
@@ -61,7 +62,8 @@ export function FileUpload({
 
     try {
       setStatus("uploading");
-      await onUpload(file);
+      const kept = await onUpload(file);
+      if (kept instanceof File) setFileName(kept.name);
       setStatus("uploaded");
       setMessage(successMessage);
     } catch (error) {

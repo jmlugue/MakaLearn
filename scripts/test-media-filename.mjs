@@ -6,7 +6,8 @@ import {
   fileNameError,
   labelFromWord,
   namePart,
-  parseFileName
+  parseFileName,
+  renameFile
 } from "../src/utils/media-filename.ts";
 
 test("name parts are lowercase with hyphens for spaces", () => {
@@ -63,4 +64,18 @@ test("the file type must suit the bucket", () => {
   assert.notEqual(extensionError("eat_food.png", "audio-files"), "");
   assert.notEqual(fileNameError("eat_food.mp3", "symbol-images", "Eat", "Food"), "");
   assert.equal(fileNameError("eat_food.mp3", "audio-files", "Eat", "Food"), "");
+});
+
+test("a renamed file keeps its contents, type, and a matching extension", async () => {
+  const photo = new File(["picture bytes"], "IMG_2044.jpeg", { type: "image/jpeg" });
+  const renamed = renameFile(photo, "bad_emotions", "symbol-images");
+  assert.equal(renamed.name, "bad_emotions.jpeg");
+  assert.equal(renamed.type, "image/jpeg");
+  assert.equal(await renamed.text(), "picture bytes");
+  assert.equal(fileNameError(renamed, "symbol-images", "Bad", "Emotions"), "");
+
+  // No extension, or an odd one: the file's type decides.
+  assert.equal(renameFile(new File(["x"], "photo", { type: "image/png" }), "bad_emotions", "symbol-images").name, "bad_emotions.png");
+  assert.equal(renameFile(new File(["x"], "clip.jfif", { type: "image/jpeg" }), "bad_emotions", "symbol-images").name, "bad_emotions.jpg");
+  assert.equal(renameFile(new File(["x"], "voice", { type: "audio/mpeg" }), "bad_emotions", "audio-files").name, "bad_emotions.mp3");
 });

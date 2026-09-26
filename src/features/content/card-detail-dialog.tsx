@@ -21,7 +21,8 @@ import {
 } from "@/features/content/content-shared";
 import { cn, formatDate } from "@/lib/utils";
 import { limitLabel, sizeError } from "@/utils/media-limits";
-import { acceptFor, expectedFileName, fileNameError } from "@/utils/media-filename";
+import { acceptFor, expectedFileName, extensionError, fileNameError } from "@/utils/media-filename";
+import { RenameFileDialog } from "@/features/content/rename-file-dialog";
 import type { Category, LearningItem, MediaAsset } from "@/types";
 
 export type CardTextValues = { label: string; categoryId: string; description: string };
@@ -175,8 +176,8 @@ export function CardDetailDialog({
                   fileName={getMediaFileName(item.symbolImageUrl)}
                   empty="No picture yet"
                   bucket="symbol-images"
-                  example={expectedFileName(item.label, categoryName)}
-                  checkName={(file) => fileNameError(file, "symbol-images", item.label, categoryName)}
+                  label={item.label}
+                  categoryName={categoryName}
                   thumb={item.symbolImageUrl ? <CardImage value={item.symbolImageUrl} label={item.label} className="text-[10px]" /> : null}
                   hasValue={Boolean(item.symbolImageUrl)}
                   canManage={canManage && !editing}
@@ -188,8 +189,8 @@ export function CardDetailDialog({
                   fileName={getMediaFileName(item.audioUrl) ?? (item.audioUrl ? "Browser voice" : undefined)}
                   empty="No audio yet"
                   bucket="audio-files"
-                  example={expectedFileName(item.label, categoryName)}
-                  checkName={(file) => fileNameError(file, "audio-files", item.label, categoryName)}
+                  label={item.label}
+                  categoryName={categoryName}
                   thumb={<AudioButton value={item.audioUrl} label={item.label} className="h-9 w-9" />}
                   hasValue={Boolean(item.audioUrl)}
                   canManage={canManage && !editing}
@@ -214,8 +215,8 @@ function FileRow({
   fileName,
   empty,
   bucket,
-  example,
-  checkName,
+  label,
+  categoryName,
   thumb,
   hasValue,
   canManage,
@@ -226,10 +227,9 @@ function FileRow({
   fileName?: string;
   empty: string;
   bucket: "symbol-images" | "audio-files";
-  /** The file name this material expects, shown as a hint. */
-  example: string;
-  /** "" when the file name follows the rule for this material. */
-  checkName: (file: File) => string;
+  /** The material's label and category, which its file names must follow (word_category). */
+  label: string;
+  categoryName: string;
   thumb: ReactNode;
   hasValue: boolean;
   canManage: boolean;
@@ -239,19 +239,31 @@ function FileRow({
   const id = useId();
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
   const [error, setError] = useState("");
+  // A picked file with the wrong name waits here while the rename pop-up is open.
+  const [renaming, setRenaming] = useState<File | null>(null);
+  const example = expectedFileName(label, categoryName);
 
   async function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
 
-    const refused = sizeError(file, bucket) || checkName(file);
+    const refused = sizeError(file, bucket) || extensionError(file, bucket);
     if (refused) {
       setStatus("error");
       setError(refused);
       return;
     }
+    if (fileNameError(file, bucket, label, categoryName)) {
+      setStatus("idle");
+      setError("");
+      setRenaming(file);
+      return;
+    }
+    await upload(file);
+  }
 
+  async function upload(file: File) {
     setStatus("uploading");
     setError("");
     try {
@@ -293,6 +305,17 @@ function FileRow({
               Remove
             </button>
           ) : null}
+          <RenameFileDialog
+            file={renaming}
+            bucket={bucket}
+            label={label}
+            categoryName={categoryName}
+            onConfirm={({ file }) => {
+              setRenaming(null);
+              void upload(file);
+            }}
+            onCancel={() => setRenaming(null)}
+          />
         </>
       ) : null}
     </div>

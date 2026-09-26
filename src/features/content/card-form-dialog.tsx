@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 import { CardTile } from "@/features/content/card-tile";
 import { PopupTitle, SectionLabel, fieldClass, fileCategoryName, glassBoxClass, kindMeta, kindTone, visibleCategories, type ContentKind } from "@/features/content/content-shared";
 import { limitLabel, mediaSizeLimits, sizeError } from "@/utils/media-limits";
-import { acceptFor, expectedFileName, fileNameError, labelFromWord, namePart, parseFileName } from "@/utils/media-filename";
+import { acceptFor, expectedFileName, extensionError, fileNameError, labelFromWord, namePart, parseFileName } from "@/utils/media-filename";
+import { RenameFileDialog } from "@/features/content/rename-file-dialog";
 import type { Category } from "@/types";
 
 export type NewCardFiles = Partial<Record<"symbol" | "audio", File>>;
@@ -81,6 +82,14 @@ function CardForm({
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<NewCardFiles>({});
   const [error, setError] = useState("");
+  // A picked file whose name is wrong waits here while the rename pop-up is open.
+  const [renaming, setRenaming] = useState<{
+    file: File;
+    key: keyof NewCardFiles;
+    askForLabel: boolean;
+    resolve: (file: File) => void;
+    reject: (error: Error) => void;
+  } | null>(null);
 
   const imagePreview = useObjectUrl(files.symbol);
   const tone = kindTone(kind);
@@ -88,33 +97,49 @@ function CardForm({
   const categoryName = fileCategoryName(category);
 
   /**
-   * Checks a picked file against the name rule. With no label yet, a valid name fills the label and
-   * category instead, so teachers can start from the file.
+   * Checks a picked file against the name rule. A right name is kept as is; with no label yet it also fills
+   * the label and category. A wrong name opens the rename pop-up, and the file is kept once renamed.
    */
   function stage(key: keyof NewCardFiles) {
     return (file: File) => {
       const bucket = fileBuckets[key];
+      const wrongType = extensionError(file, bucket);
+      if (wrongType) return Promise.reject(new Error(wrongType));
+
       let nextLabel = label.trim();
       let nextCategory = categoryName;
       const parsed = parseFileName(file.name);
       if (!nextLabel && parsed) {
         const match = choices.find((candidate) => namePart(candidate.name) === parsed.category);
-        if (!match) {
-          return Promise.reject(new Error(`No category is called "${parsed.category}". Pick one, then rename the file.`));
+        if (match) {
+          nextLabel = labelFromWord(parsed.word);
+          nextCategory = match.name;
+          setLabel(nextLabel);
+          setCategoryId(match.id);
         }
-        nextLabel = labelFromWord(parsed.word);
-        nextCategory = match.name;
-        setLabel(nextLabel);
-        setCategoryId(match.id);
       }
-      const wrongName = nextLabel
-        ? fileNameError(file, bucket, nextLabel, nextCategory)
-        : `Name it word_category, like ${expectedFileName("eat", nextCategory || "food")}.`;
-      if (wrongName) return Promise.reject(new Error(wrongName));
-      setError("");
-      setFiles((current) => ({ ...current, [key]: file }));
-      return Promise.resolve();
+      if (nextLabel && !fileNameError(file, bucket, nextLabel, nextCategory)) {
+        setError("");
+        setFiles((current) => ({ ...current, [key]: file }));
+        return Promise.resolve(file);
+      }
+      return new Promise<File>((resolve, reject) => setRenaming({ file, key, askForLabel: !nextLabel, resolve, reject }));
     };
+  }
+
+  function confirmRename(result: { file: File; label?: string; categoryId?: string }) {
+    if (!renaming) return;
+    if (result.label) setLabel(result.label);
+    if (result.categoryId) setCategoryId(result.categoryId);
+    setError("");
+    setFiles((current) => ({ ...current, [renaming.key]: result.file }));
+    renaming.resolve(result.file);
+    setRenaming(null);
+  }
+
+  function cancelRename() {
+    renaming?.reject(new Error("Not added. Pick the file again to rename it."));
+    setRenaming(null);
   }
 
   function unstage(key: keyof NewCardFiles) {
@@ -249,6 +274,16 @@ function CardForm({
           {saving ? "Saving..." : "Save"}
         </Button>
       </div>
+
+      <RenameFileDialog
+        file={renaming?.file ?? null}
+        bucket={renaming ? fileBuckets[renaming.key] : "symbol-images"}
+        label={label.trim()}
+        categoryName={categoryName}
+        askForLabel={renaming?.askForLabel ? { categories: choices, categoryId, nameFor: fileCategoryName } : undefined}
+        onConfirm={confirmRename}
+        onCancel={cancelRename}
+      />
     </form>
   );
 }

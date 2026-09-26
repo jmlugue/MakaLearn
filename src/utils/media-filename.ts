@@ -77,6 +77,37 @@ export function parseFileName(fileName: string) {
   return { word, category, extension };
 }
 
+const extensionForMime: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/wave": "wav",
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/aac": "aac",
+  "audio/ogg": "ogg"
+};
+
+/** The extension a renamed file keeps: its own when allowed, otherwise one that matches its type. */
+export function extensionForFile(file: { name: string; type?: string }, bucket: UploadBucket) {
+  const own = fileExtension(file.name);
+  if (allowedExtensions[bucket].includes(own)) return own;
+  return extensionForMime[(file.type ?? "").toLowerCase()] ?? allowedExtensions[bucket][0];
+}
+
+/** A copy of the file under a new name (`bad_emotions` plus its extension). The contents and type stay. */
+export function renameFile(file: File, base: string, bucket: UploadBucket) {
+  return new File([file], `${base.trim()}.${extensionForFile(file, bucket)}`, {
+    type: file.type,
+    lastModified: file.lastModified
+  });
+}
+
 /** Turns the word part back into a label: "thank-you" becomes "Thank you". */
 export function labelFromWord(word: string) {
   const text = word.replace(/-/g, " ").trim();
