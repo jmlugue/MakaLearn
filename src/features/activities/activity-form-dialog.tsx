@@ -473,7 +473,7 @@ function ActivityForm({
                             className={cn(fieldClass, "mt-0.5")}
                             value={value}
                             onChange={(event) => update({ promptInputs: { ...values.promptInputs, [key]: event.target.value } })}
-                            placeholder={values.type === "fill-blank" ? "Use ____ for the missing word" : "A short question"}
+                            placeholder={values.type === "fill-blank" ? "Write a sentence with ____, or use Draft with AI" : "A short question"}
                           />
                           <FieldError message={validatePromptForActivity(values.type, item, value)} />
                         </div>

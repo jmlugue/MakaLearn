@@ -554,9 +554,10 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   ("How do I feel when my toy breaks?"); the old ones are kept as `legacyChooseCorrectSymbolPromptsByLabel` and
   upgraded at play time. **Bug fixed:** that upgrade used to overwrite questions teachers wrote; now only
   built-in ones are upgraded (`isBuiltInChooseCorrectSymbolPrompt`).
-- **Teacher-made cards** get a starter question from their category (`src/utils/category-prompts.ts`), never
-  "Use ____ to talk about three." Built-in categories are read from `cat-pecs-*` ids; others name the category.
-  `createActivityQuestions` takes a `categoryNameById` map.
+- **Teacher-made cards:** a category mixes things, actions, and words, and a teacher's card does not record
+  which it is, so no category sentence fits every card. Fill in the blank starts empty (the teacher writes it
+  or uses Draft with AI; save is blocked until it is filled). Choose asks "Which picture is from (category)?"
+  (`src/utils/category-prompts.ts`). Never "Use ____ to talk about three."
 - **Wrong choices:** a teacher-made card keeps its whole category out of the choices. The question text is read
   too (`isQuestionRelatedDistractor`): cards it names, or groups it points at ("eat", "feel", "say", "who"), are
   used only when nothing else is left. More Fill in the blank second answers in `fillBlankAlsoFits`.
@@ -564,3 +565,13 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   `ACTIVITY_PROMPT_TEMPLATE_VERSION` is `activity-prompt-v3`.
 - **Playground:** a wrong Check opens an amber "TRY AGAIN" pop-up (spoken) instead of a toast and strip; right
   keeps "GOOD JOB". Am, Is, or Are alone is no longer right. Good morning and Thank you count as expressions.
+
+- **Upload names (Oct 1):** only the name is checked (`bad_emotions`), never the extension, because Windows
+  hides extensions and renamed files became `bad_emotions.png.png`. The file type is checked from the file's
+  own MIME type (`allowedMimeTypes` in `media-filename.ts`). Hints show the name without an extension.
+- **Activity creator:** Format tiles show the name only, no description line.
+- **Sentence pass (Oct 1):** reworded the awkward built-in sentences (Fill: wash hands, no ("asks if the sky is green"), am ("I ____ a student."), danger;
+  Choose: I, you, eat, drink, danger, hot, hurt;). Card names
+  are unchanged. Old wordings are kept in the retired tables so saved activities upgrade. Saving an activity
+  stores its questions as templates, so the creator now swaps an old saved built-in question for the current
+  one (`getSavedQuestionPrompt`); a teacher's own question is kept.

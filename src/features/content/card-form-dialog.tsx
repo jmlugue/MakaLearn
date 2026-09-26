@@ -108,8 +108,8 @@ function CardForm({
         setCategoryId(match.id);
       }
       const wrongName = nextLabel
-        ? fileNameError(file.name, bucket, nextLabel, nextCategory)
-        : `Name it word_category, like ${expectedFileName("eat", nextCategory || "food", "png")}.`;
+        ? fileNameError(file, bucket, nextLabel, nextCategory)
+        : `Name it word_category, like ${expectedFileName("eat", nextCategory || "food")}.`;
       if (wrongName) return Promise.reject(new Error(wrongName));
       setError("");
       setFiles((current) => ({ ...current, [key]: file }));
@@ -136,7 +136,7 @@ function CardForm({
     for (const key of Object.keys(fileBuckets) as Array<keyof NewCardFiles>) {
       const file = files[key];
       if (!file) continue;
-      const problem = sizeError(file, fileBuckets[key]) || fileNameError(file.name, fileBuckets[key], label.trim(), categoryName);
+      const problem = sizeError(file, fileBuckets[key]) || fileNameError(file, fileBuckets[key], label.trim(), categoryName);
       if (problem) {
         setError(`${file.name}: ${problem}`);
         return;
@@ -148,7 +148,7 @@ function CardForm({
     if (saved) onClose();
   }
 
-  const example = (extension: string) => expectedFileName(label.trim() || "eat", categoryName || "food", extension);
+  const example = expectedFileName(label.trim() || "eat", categoryName || "food");
 
   return (
     <form onSubmit={submit} className="grid gap-5 md:grid-cols-[minmax(0,1fr)_13rem]">
@@ -209,7 +209,7 @@ function CardForm({
             icon={ImageIcon}
             label={kind === "pecs" ? "Card image" : "Reference image"}
             accept={acceptFor["symbol-images"]}
-            hint={`Name it ${example("png")}. PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
+            hint={`Name it ${example}. PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
             maxBytes={mediaSizeLimits["symbol-images"]}
             storageNote="Saved with the material."
             successMessage="Ready to save."
@@ -222,7 +222,7 @@ function CardForm({
             icon={FileAudio}
             label="Audio"
             accept={acceptFor["audio-files"]}
-            hint={`Name it ${example("mp3")}. MP3, WAV, or M4A, up to ${limitLabel("audio-files")}`}
+            hint={`Name it ${example}. MP3, WAV, or M4A, up to ${limitLabel("audio-files")}`}
             maxBytes={mediaSizeLimits["audio-files"]}
             storageNote="Plays the spoken word."
             successMessage="Ready to save."

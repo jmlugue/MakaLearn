@@ -70,7 +70,7 @@ export async function uploadMediaAssetToSupabase({
     throw new Error(tooBig);
   }
   if (expectedName && bucket !== "gesture-media") {
-    const wrongName = fileNameError(file.name, bucket, expectedName.label, expectedName.category);
+    const wrongName = fileNameError(file, bucket, expectedName.label, expectedName.category);
     if (wrongName) throw new Error(wrongName);
   }
 

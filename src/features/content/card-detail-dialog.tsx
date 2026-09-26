@@ -175,8 +175,8 @@ export function CardDetailDialog({
                   fileName={getMediaFileName(item.symbolImageUrl)}
                   empty="No picture yet"
                   bucket="symbol-images"
-                  example={expectedFileName(item.label, categoryName, "png")}
-                  checkName={(file) => fileNameError(file.name, "symbol-images", item.label, categoryName)}
+                  example={expectedFileName(item.label, categoryName)}
+                  checkName={(file) => fileNameError(file, "symbol-images", item.label, categoryName)}
                   thumb={item.symbolImageUrl ? <CardImage value={item.symbolImageUrl} label={item.label} className="text-[10px]" /> : null}
                   hasValue={Boolean(item.symbolImageUrl)}
                   canManage={canManage && !editing}
@@ -188,8 +188,8 @@ export function CardDetailDialog({
                   fileName={getMediaFileName(item.audioUrl) ?? (item.audioUrl ? "Browser voice" : undefined)}
                   empty="No audio yet"
                   bucket="audio-files"
-                  example={expectedFileName(item.label, categoryName, "mp3")}
-                  checkName={(file) => fileNameError(file.name, "audio-files", item.label, categoryName)}
+                  example={expectedFileName(item.label, categoryName)}
+                  checkName={(file) => fileNameError(file, "audio-files", item.label, categoryName)}
                   thumb={<AudioButton value={item.audioUrl} label={item.label} className="h-9 w-9" />}
                   hasValue={Boolean(item.audioUrl)}
                   canManage={canManage && !editing}

@@ -1,7 +1,9 @@
 /**
- * Upload file name rule: `<word>_<category>.<ext>`, for example `eat_food.png` or `thank-you_greetings.mp3`.
- * Words with spaces use hyphens. The check is case-insensitive. The extension lists mirror
- * `allowed_mime_types` in `supabase/storage.sql`. No imports, so `scripts/test-media-filename.mjs` can load it.
+ * Upload file name rule: the name must be `<word>_<category>`, for example `eat_food` or `thank-you_greetings`.
+ * Only the name is checked, not the extension (Windows hides extensions, so `eat_food.png` often turns into
+ * `eat_food.png.png`). Words with spaces use hyphens, and the check is case-insensitive. The file type is
+ * checked from the file itself (its MIME type), which mirrors `allowed_mime_types` in `supabase/storage.sql`.
+ * No imports, so `scripts/test-media-filename.mjs` can load it.
  */
 
 export type UploadBucket = "symbol-images" | "gesture-media" | "audio-files";
@@ -11,6 +13,16 @@ export const allowedExtensions: Record<UploadBucket, string[]> = {
   "gesture-media": ["png", "jpg", "jpeg", "webp", "gif"],
   "audio-files": ["mp3", "wav", "m4a", "aac", "ogg"]
 };
+
+/** MIME types Storage takes per bucket, the same list as `supabase/storage.sql`. */
+export const allowedMimeTypes: Record<UploadBucket, string[]> = {
+  "symbol-images": ["image/png", "image/jpeg", "image/webp", "image/gif"],
+  "gesture-media": ["image/png", "image/jpeg", "image/webp", "image/gif"],
+  "audio-files": ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/wave", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/ogg"]
+};
+
+/** A picked file, or just its name (tests and old callers). */
+export type NamedFile = string | { name: string; type?: string };
 
 /** Value for the file input's `accept`, so the picker only offers files Storage will take. */
 export const acceptFor: Record<UploadBucket, string> = {
@@ -39,16 +51,23 @@ export function fileExtension(fileName: string) {
   return dot > 0 ? fileName.slice(dot + 1).toLowerCase() : "";
 }
 
-export function expectedFileName(label: string, categoryName: string, extension: string) {
-  return `${namePart(label) || "word"}_${namePart(categoryName) || "category"}.${extension || "png"}`;
+/** The name a file should have, for example `thank-you_greetings`. An extension is added only when given. */
+export function expectedFileName(label: string, categoryName: string, extension = "") {
+  const base = `${namePart(label) || "word"}_${namePart(categoryName) || "category"}`;
+  return extension ? `${base}.${extension}` : base;
 }
 
-/** Splits `eat_food.png` into its parts, or returns null when the name does not follow the rule. */
+/** The name before the first dot: `bad_emotions.png.png` gives `bad_emotions`. */
+export function baseName(fileName: string) {
+  const trimmed = fileName.trim();
+  const dot = trimmed.indexOf(".");
+  return dot > 0 ? trimmed.slice(0, dot) : trimmed;
+}
+
+/** Splits `eat_food` (any extension or none) into its parts, or returns null when it does not follow the rule. */
 export function parseFileName(fileName: string) {
   const extension = fileExtension(fileName);
-  if (!extension) return null;
-  const base = fileName.slice(0, fileName.length - extension.length - 1);
-  const parts = base.split("_");
+  const parts = baseName(fileName).split("_");
   if (parts.length !== 2) return null;
   const word = namePart(parts[0]);
   const category = namePart(parts[1]);
@@ -64,19 +83,26 @@ export function labelFromWord(word: string) {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
 }
 
-/** "" when the file type is allowed for the bucket, otherwise the message to show. */
-export function extensionError(fileName: string, bucket: UploadBucket) {
-  return allowedExtensions[bucket].includes(fileExtension(fileName)) ? "" : extensionText[bucket];
+/**
+ * "" when the file type is allowed for the bucket, otherwise the message to show. The file's own type is
+ * used when the browser knows it; the extension is only a fallback.
+ */
+export function extensionError(file: NamedFile, bucket: UploadBucket) {
+  const name = typeof file === "string" ? file : file.name;
+  const type = typeof file === "string" ? "" : (file.type ?? "").toLowerCase();
+  if (type) return allowedMimeTypes[bucket].includes(type) ? "" : extensionText[bucket];
+  return allowedExtensions[bucket].includes(fileExtension(name)) ? "" : extensionText[bucket];
 }
 
 /**
  * "" when the file may be uploaded for this material, otherwise the message to show.
- * The name must be `<label>_<category>.<ext>` for the material's own label and category.
+ * The name must be `<label>_<category>` for the material's own label and category; the extension is ignored.
  */
-export function fileNameError(fileName: string, bucket: UploadBucket, label: string, categoryName: string) {
-  const wrongType = extensionError(fileName, bucket);
+export function fileNameError(file: NamedFile, bucket: UploadBucket, label: string, categoryName: string) {
+  const wrongType = extensionError(file, bucket);
   if (wrongType) return wrongType;
-  const expected = expectedFileName(label, categoryName, fileExtension(fileName));
+  const fileName = typeof file === "string" ? file : file.name;
+  const expected = expectedFileName(label, categoryName);
   const parsed = parseFileName(fileName);
   if (!parsed || parsed.word !== namePart(label) || parsed.category !== namePart(categoryName)) {
     return `Rename it to ${expected} (word_category).`;

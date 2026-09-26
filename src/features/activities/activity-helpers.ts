@@ -87,7 +87,13 @@ export function getSavedQuestionPrompt(
   categoryName?: string
 ) {
   const savedPrompt = promptStore[getPromptStoreKey(type, item.id)];
-  if (savedPrompt) return savedPrompt;
+  // Saving an activity remembers its questions, including built-in ones. An old built-in question is
+  // swapped for the current one, so the creator always offers the newest wording; a teacher's own is kept.
+  const savedIsBuiltIn =
+    savedPrompt &&
+    ((type === "fill-blank" && isBuiltInFillBlankPrompt(item.label, savedPrompt)) ||
+      (type === "choose-correct-symbol" && isBuiltInChooseCorrectSymbolPrompt(item, savedPrompt)));
+  if (savedPrompt && !savedIsBuiltIn) return savedPrompt;
   if (type === "fill-blank") return createFillBlankPromptForLabel(item.label, item, categoryName);
   if (type === "choose-correct-symbol") return createChooseCorrectSymbolPrompt(item, categoryName);
   return undefined;

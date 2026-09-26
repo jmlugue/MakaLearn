@@ -113,11 +113,14 @@ export function createLocalFallbackPromptSuggestions(
   type: DraftablePromptActivityType,
   items: LearningItem[]
 ): ActivityPromptSuggestion[] {
-  return items.map((item) => ({
-    learningItemId: item.id,
-    label: item.label,
-    prompt: type === "fill-blank" ? createFillBlankPromptForLabel(item.label) : createChooseCorrectSymbolPrompt(item)
-  }));
+  // A teacher's own card has no built-in Fill sentence, so it gets no fallback suggestion.
+  return items
+    .map((item) => ({
+      learningItemId: item.id,
+      label: item.label,
+      prompt: type === "fill-blank" ? createFillBlankPromptForLabel(item.label, item) : createChooseCorrectSymbolPrompt(item)
+    }))
+    .filter((suggestion) => suggestion.prompt);
 }
 
 export function buildPromptDraftRequest(

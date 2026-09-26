@@ -155,7 +155,10 @@ test("every Choose the picture question is short, one sentence, and never names 
   manifest.forEach((card) => {
     const entry = entries.find((candidate) => candidate.label === normalizePecsLabel(card.label));
     assert.ok(entry, `${card.label} has no question`);
-    assert.equal(hasWord(entry.prompt, card.label), false, `${card.label}: "${entry.prompt}" names the answer`);
+    // "I" is the one card whose word a natural question needs ("Which word do I use to talk about myself?").
+    if (card.label !== "I") {
+      assert.equal(hasWord(entry.prompt, card.label), false, `${card.label}: "${entry.prompt}" names the answer`);
+    }
     assert.match(entry.prompt, /\?$/, `${card.label}: must be a question`);
     const sentences = entry.prompt.replace(/"[^"]*"/g, "").split(/[.?!]/).filter((part) => part.trim());
     assert.equal(sentences.length, 1, `${card.label}: one sentence`);
@@ -170,24 +173,22 @@ test("no Fill in the blank sentence names its answer", () => {
   });
 });
 
-test("a teacher's own card gets a category starter that never names it", () => {
+test("a teacher's own card: Fill starts empty, Choose names the category and never the card", () => {
   const categories = ["Greetings", "Emotions", "Family", "Food", "Classroom Commands", "Daily Needs", "Safety Words", "Numbers"];
   const labels = ["Three", "Apple", "Grandma", "Jump", "Numbers"];
   categories.forEach((categoryName) => {
     labels.forEach((label) => {
       const item = { id: `custom-${label}`, label, categoryId: "custom-cat" };
-      const fill = fillBlank.createFillBlankPromptForLabel(label, item, categoryName);
+      assert.equal(fillBlank.createFillBlankPromptForLabel(label, item, categoryName), "", `${categoryName}/${label}: Fill should start empty`);
       const question = choose.createChooseCorrectSymbolPrompt(item, categoryName);
-      assert.equal(fill.split("____").length, 2, `${categoryName}/${label}: one blank`);
-      assert.equal(hasWord(fill, label), false, `${categoryName}/${label}: "${fill}" names the card`);
       assert.equal(hasWord(question, label), false, `${categoryName}/${label}: "${question}" names the card`);
-      assert.equal(fillBlank.isGenericFillBlankPrompt(label, fill), false);
     });
   });
+  assert.equal(choose.createChooseCorrectSymbolPrompt({ id: "x", label: "Apple", categoryId: "custom" }, "Snack Time"), "Which picture is from Snack Time?");
   // A built-in category is read from its id when no name is given.
   assert.equal(
-    choose.createChooseCorrectSymbolPrompt({ id: "x", label: "Apple", categoryId: "cat-pecs-food" }),
-    categoryPrompts.allCategoryPrompts().find((entry) => entry.name === "food").choose
+    choose.createChooseCorrectSymbolPrompt({ id: "x", label: "Toothbrush", categoryId: "cat-pecs-daily-needs" }),
+    "Which picture is from Daily Needs?"
   );
 });
 
@@ -265,4 +266,29 @@ test("built-in Choose questions are upgraded, teacher questions are kept", () =>
   const [upgraded] = helpers.upgradeStarterActivityPrompts([activity]);
   assert.equal(upgraded.questions[0].prompt, "What white food do we eat with chicken?");
   assert.equal(upgraded.questions[1].prompt, "What do we eat with adobo?");
+});
+
+test("the creator swaps an old saved built-in question for the current one, and keeps a teacher's own", () => {
+  const rice = { id: "pecs-rice", label: "Rice", categoryId: "cat-pecs-food" };
+  const hot = { id: "pecs-hot", label: "Hot", categoryId: "cat-pecs-safety-words" };
+  const store = {
+    "choose-correct-symbol:pecs-rice": "Which card shows rice?",
+    "choose-correct-symbol:pecs-hot": "How is soup that just came off the stove?",
+    "fill-blank:pecs-rice": "I want ____."
+  };
+  assert.equal(helpers.getSavedQuestionPrompt("choose-correct-symbol", rice, store), "What white food do we eat with chicken?");
+  assert.equal(helpers.getSavedQuestionPrompt("choose-correct-symbol", hot, store), "How does soup feel right off the stove?");
+  assert.equal(helpers.getSavedQuestionPrompt("fill-blank", rice, store), fillBlank.getSavedFillBlankPromptForLabel("Rice"));
+
+  const own = { "choose-correct-symbol:pecs-rice": "What do we eat with adobo?" };
+  assert.equal(helpers.getSavedQuestionPrompt("choose-correct-symbol", rice, own), "What do we eat with adobo?");
+});
+
+test("reworded Fill sentences upgrade in saved activities", () => {
+  const activity = {
+    type: "fill-blank",
+    questions: [{ id: "q1", prompt: "I do not like spicy food. I say ____.", answer: "No", learningItemId: "pecs-no", options: [] }]
+  };
+  const [upgraded] = helpers.upgradeStarterActivityPrompts([activity]);
+  assert.equal(upgraded.questions[0].prompt, "My teacher asks if the sky is green. I say ____.");
 });

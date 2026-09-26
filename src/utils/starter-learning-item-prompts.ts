@@ -20,14 +20,14 @@ const chooseCorrectSymbolPromptsByLabel: Record<string, string> = {
   scared: "How do I feel when the thunder is loud?",
   tired: "How do I feel after playing all day?",
   sick: "How do I feel when I have a fever?",
-  i: "Which word means me, myself?",
-  you: "Which word is for the person we talk to?",
+  i: "Which word do I use to talk about myself?",
+  you: "Which word do I use for the person I talk to?",
   mother: "Who is the woman who looks after me at home?",
   father: "Who is the man who looks after me at home?",
   teacher: "Who helps us learn at school?",
   friend: "Who do I play with at recess?",
-  eat: "What do we ask to do when we are hungry?",
-  drink: "What do we ask to do when we are thirsty?",
+  eat: "What do we want to do when we are hungry?",
+  drink: "What do we want to do when we are thirsty?",
   food: "What do I need when my tummy is rumbling?",
   water: "What clear drink do we have when we are thirsty?",
   rice: "What white food do we eat with chicken?",
@@ -49,15 +49,26 @@ const chooseCorrectSymbolPromptsByLabel: Record<string, string> = {
   "wash hands": "What do we do with soap before we eat?",
   more: "What do I ask for when I am still hungry?",
   finished: "What do I say when my work is all done?",
-  danger: "What does a keep out sign warn us about?",
-  hot: "How is soup that just came off the stove?",
-  hurt: "How am I when I fall and scrape my knee?",
+  danger: "What does a keep-out sign warn us about?",
+  hot: "How does soup feel right off the stove?",
+  hurt: "What am I when I fall and scrape my knee?",
   yes: "What do I say when I nod my head?",
   no: "What do I say when I shake my head?",
   want: "Which word do I use when I wish for a toy?",
   am: 'Which word finishes "I ___ happy"?',
   is: 'Which word finishes "She ___ my friend"?',
   are: 'Which word finishes "We ___ friends"?'
+};
+
+/** Oct questions reworded because they were awkward. Saved activities that use one get the new question. */
+const retiredChooseCorrectSymbolPromptsByLabel: Record<string, string> = {
+  i: "Which word means me, myself?",
+  you: "Which word is for the person we talk to?",
+  eat: "What do we ask to do when we are hungry?",
+  drink: "What do we ask to do when we are thirsty?",
+  danger: "What does a keep out sign warn us about?",
+  hot: "How is soup that just came off the stove?",
+  hurt: "How am I when I fall and scrape my knee?"
 };
 
 /** The questions before Oct 1. Saved activities that still use one get the new question at play time. */
@@ -75,8 +86,8 @@ const legacyChooseCorrectSymbolPromptsByLabel: Record<string, string> = {
   father: "Which card shows father?",
   teacher: "Which card shows teacher?",
   friend: "Which card shows friend?",
-  eat: "What do we ask to do when we are hungry?",
-  drink: "What do we ask to do when we are thirsty?",
+  eat: "What do we want to do when we are hungry?",
+  drink: "What do we want to do when we are thirsty?",
   food: "Which card do we use for food?",
   water: "Which card do we use when we want water?",
   rice: "Which card shows rice?",
@@ -176,8 +187,8 @@ function labelFromLearningItemId(itemId: string) {
 }
 
 /**
- * The built-in question for a card, or for a card a teacher made, a starter question from its category that
- * never names the card.
+ * The built-in question for a card, or for a card a teacher made, "Which picture is from (category)?", which
+ * fits any card and never names it.
  */
 export function createChooseCorrectSymbolPrompt(
   item: Pick<LearningItem, "id" | "label"> & { categoryId?: string },
@@ -209,7 +220,8 @@ export function isBuiltInChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id"
     labels.some(
       (label) =>
         normalizePecsLabel(chooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt ||
-        normalizePecsLabel(legacyChooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt
+        normalizePecsLabel(legacyChooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt ||
+        normalizePecsLabel(retiredChooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt
     ) ||
     Object.values(starterLearningItemPromptDescriptions).some(
       (entry) => normalizePecsLabel(entry.description) === normalizedPrompt

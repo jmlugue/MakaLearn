@@ -45,24 +45,26 @@ const fillBlankPromptByLabel: Record<string, string> = {
   help: "I cannot tie my shoe. Can you ____ me?",
   rest: "I ran a lot. Now I need a ____.",
   sleep: "It is night. I close my eyes and ____.",
-  "wash hands": "Lunch is ready. First, it is time to ____.",
+  "wash hands": "Lunch is ready. First, we go and ____.",
   more: "I am still hungry. Can I have some ____?",
   finished: "I colored the whole picture. Now I am ____.",
-  danger: "The sign says keep out. It warns us of ____.",
+  danger: "The sign says to keep out. It warns us of ____.",
   hot: "The soup just came off the stove. It is ____!",
   hurt: "I fell and scraped my knee. I am ____.",
   yes: "Do you want to play outside? I nod and say ____.",
-  no: "I do not like spicy food. I say ____.",
+  no: "My teacher asks if the sky is green. I say ____.",
   want: "I see the toy train. I ____ to play with it.",
-  am: "Let me tell you about me. I ____ seven years old.",
+  am: "I go to school every day. I ____ a student.",
   is: "Look at my puppy. He ____ very fluffy.",
   are: "My friends and I play together. We ____ best friends."
 };
 
-/** Sentences replaced on Oct 1 because they read oddly. Saved activities that use one get the new one. */
-const retiredFillBlankPromptByLabel: Record<string, string> = {
-  "wash hands": "Before we eat, we ____ with soap.",
-  danger: "The sign says keep out. There is ____ inside."
+/** Sentences replaced in Oct because they read oddly or lacked context. Saved activities that use one get the new one. */
+const retiredFillBlankPromptByLabel: Record<string, string[]> = {
+  "wash hands": ["Before we eat, we ____ with soap.", "Lunch is ready. First, it is time to ____."],
+  danger: ["The sign says keep out. There is ____ inside.", "The sign says keep out. It warns us of ____."],
+  no: ["I do not like spicy food. I say ____.", "Mom offers me spicy food. I shake my head and say ____.", "Can we eat a rock? I shake my head and say ____."],
+  am: ["Let me tell you about me. I ____ seven years old.", "Let me tell you about myself. I ____ seven years old."]
 };
 
 /** The longer Sep 26 sentences. Saved activities that still use one get the short sentence. */
@@ -114,7 +116,7 @@ const longFillBlankPromptByLabel: Record<string, string> = {
   yes: "My teacher asks: Do you want to play outside? I nod and say ____.",
   no: "My friend offers me a spicy pepper, but I do not like it. I shake my head and say ____.",
   want: "I see the toy train on the shelf. I ____ to play with it.",
-  am: "Let me tell you about myself. I ____ seven years old.",
+  am: "I go to school every day. I ____ a student.",
   is: "Look at my puppy. He ____ very fluffy and soft.",
   are: "My friends and I play together every day. We ____ best friends."
 };
@@ -179,8 +181,8 @@ export function neutralFillBlankPrompt(label: string) {
 }
 
 /**
- * The built-in sentence for a card, or for a card a teacher made, a starter sentence from its category that
- * never names the card.
+ * The built-in sentence for a card, or "" for a card a teacher made: no single sentence fits every card in a
+ * category, so the teacher writes it or uses Draft with AI.
  */
 export function createFillBlankPromptForLabel(label: string, item?: { categoryId?: string }, categoryName?: string) {
   const normalized = normalizePecsLabel(label);
@@ -218,7 +220,7 @@ export function isBuiltInFillBlankPrompt(label: string, prompt: string) {
     isGenericFillBlankPrompt(label, prompt) ||
     normalizePecsLabel(legacyFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
     normalizePecsLabel(longFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
-    normalizePecsLabel(retiredFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
+    (retiredFillBlankPromptByLabel[normalizedLabel] ?? []).some((retired) => normalizePecsLabel(retired) === normalizedPrompt) ||
     normalizePecsLabel(fillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt
   );
 }
