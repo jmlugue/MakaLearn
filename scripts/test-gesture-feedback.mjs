@@ -87,8 +87,8 @@ const request = buildGestureFeedbackRequest({
 assert.equal(request.issueCategory, "correct");
 
 const localPalmRequest = buildGestureFeedbackRequest({
-  selectedGestureLabel: "I want to eat food",
-  prediction: { label: "I want to eat food", matchPercent: 94 },
+  selectedGestureLabel: "I want to eat",
+  prediction: { label: "I want to eat", matchPercent: 94 },
   detectedHandCount: 1,
   expectedHandCount: 1,
   trackingState: "hands-visible",
@@ -309,7 +309,7 @@ assert.match(changingHandCountFeedback.teacherNote, /changed during the gesture/
 assert.doesNotMatch(changingHandCountFeedback.teacherNote, /detected 2 hands, but/i);
 
 const eatPalmFacingResult = applyBasicGesturePredictionGuards(
-  { label: "I want to eat food", pose: "Eating gesture", fingers: [], handCount: 1, matchPercent: 94 },
+  { label: "I want to eat", pose: "Eating gesture", fingers: [], handCount: 1, matchPercent: 94 },
   makeFrames(Array.from({ length: 8 }, () => 0.35), true)
 );
 assert.equal(eatPalmFacingResult.prediction, null);
@@ -329,7 +329,7 @@ assert.match(movingBackhandNoResult.feedback, /keep the side motion/i);
 assert.match(movingBackhandNoResult.feedback, /trying to sign eat, tilt your hand slightly/i);
 
 const noPalmWithEatHintRequest = buildGestureFeedbackRequest({
-  selectedGestureLabel: "I want to eat food",
+  selectedGestureLabel: "I want to eat",
   feedbackTargetLabel: "No",
   prediction: { label: "No", matchPercent: 91 },
   detectedHandCount: 1,
@@ -366,7 +366,7 @@ const drinkPredictedForFlippedEatResult = applyBasicGesturePredictionGuards(
   makeFrames(Array.from({ length: 8 }, () => 0.35), true, ["Index", "Middle", "Ring", "Pinky"])
 );
 assert.equal(drinkPredictedForFlippedEatResult.prediction, null);
-assert.equal(drinkPredictedForFlippedEatResult.feedbackPrediction?.label, "I want to eat food");
+assert.equal(drinkPredictedForFlippedEatResult.feedbackPrediction?.label, "I want to eat");
 assert.equal(drinkPredictedForFlippedEatResult.issueCategory, "palm-orientation-mismatch");
 
 const drinkPredictedForFlippedToiletResult = applyBasicGesturePredictionGuards(
@@ -381,7 +381,7 @@ const drinkPredictedForEatShapeResult = applyBasicGesturePredictionGuards(
   { label: "I want to drink", pose: "Drinking gesture", fingers: [], handCount: 1, matchPercent: 94 },
   makeFrames(Array.from({ length: 8 }, () => 0.35), false, ["Index", "Middle", "Ring", "Pinky"])
 );
-assert.equal(drinkPredictedForEatShapeResult.prediction?.label, "I want to eat food");
+assert.equal(drinkPredictedForEatShapeResult.prediction?.label, "I want to eat");
 
 const drinkPredictedForToiletShapeResult = applyBasicGesturePredictionGuards(
   { label: "I want to drink", pose: "Drinking gesture", fingers: [], handCount: 1, matchPercent: 94 },

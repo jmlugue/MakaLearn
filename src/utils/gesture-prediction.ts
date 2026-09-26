@@ -16,7 +16,7 @@ export type DemoGesturePrediction = {
 
 export const expectedGestureHandCounts: Record<string, 1 | 2> = {
   "I want to drink": 1,
-  "I want to eat food": 1,
+  "I want to eat": 1,
   Help: 2,
   No: 1,
   "Sit down": 2,
@@ -29,6 +29,6 @@ export function getExpectedGestureHandCount(label: string): 1 | 2 | null {
   if (trimmed in expectedGestureHandCounts) return expectedGestureHandCounts[trimmed];
   if (/help/i.test(trimmed)) return 2;
   if (/sit/i.test(trimmed)) return 2;
-  if (/toilet|eat food|drink(?: water)?|yes|no/i.test(trimmed)) return 1;
+  if (/toilet|\beat(?: food)?\b|drink(?: water)?|yes|no/i.test(trimmed)) return 1;
   return null;
 }

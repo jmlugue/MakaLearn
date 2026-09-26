@@ -89,7 +89,7 @@ const starterLearningItemPromptDescriptions: Record<string, { oldDescription: st
   },
   "gesture-eat-food": {
     oldDescription: "Use when the learner wants food or needs to communicate hunger.",
-    description: "Use this gesture to ask for food."
+    description: "Use this gesture to say that the learner wants to eat."
   },
   "gesture-drink-water": {
     oldDescription: "Use when the learner wants water or needs a drink break.",

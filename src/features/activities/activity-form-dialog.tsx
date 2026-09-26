@@ -142,7 +142,9 @@ function ActivityForm({
 }) {
   const { notify } = useToast();
   const [values, setValues] = useState<ActivityFormValues>(() => initialValues(mode, lessonOfActivity));
-  const [step, setStep] = useState(mode.kind === "edit" ? 2 : 0);
+  // Editing normally starts with changing the selected cards. Opening on Review made Back → Cards → Next
+  // look like a loop because Next returned to the same screen that first appeared after pressing Edit.
+  const [step, setStep] = useState(mode.kind === "edit" ? 1 : 0);
   const [source, setSource] = useState<"own" | "lesson">(lessonOfActivity ? "lesson" : "own");
   const [error, setError] = useState("");
   const [aiNote, setAiNote] = useState("");

@@ -71,10 +71,11 @@ const gestures = [
   },
   {
     id: "gesture-eat-food",
-    label: "I want to eat food",
+    label: "I want to eat",
     fileName: "eat-food.png",
     audioFileName: "gesture-eat-food.wav",
-    description: "Use this gesture to ask for food.",
+    storedAudioFileName: "gesture-eat.wav",
+    description: "Use this gesture to say that the learner wants to eat.",
     instruction: "Keep the learner centered and check that the live hand outline follows the movement."
   },
   {

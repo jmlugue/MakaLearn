@@ -115,7 +115,7 @@ const GUIDED_SUCCESS_DELAY_MS = 2200;
 
 const fixedGestureLabels = new Set([
   "I want to go to toilet",
-  "I want to eat food",
+  "I want to eat",
   "I want to drink",
   "Help",
   "Yes",
@@ -1327,12 +1327,16 @@ export function GesturePracticeView() {
                   exit={{ opacity: 0, x: carouselDirection * -80, scale: 0.96, rotate: carouselDirection * -2 }}
                   transition={{ type: "spring", stiffness: 260, damping: 26 }}
                 >
-                  <LearnerReferenceFlipCard
-                    item={selectedGesture}
-                    flipped={referenceFlipped}
-                    onFlip={() => setReferenceFlipped((current) => !current)}
-                    onPlayAudio={playSelectedGestureAudio}
-                  />
+                  {practiceMode === "free" ? (
+                    <LearnerReferenceDetailsCard item={selectedGesture} onPlayAudio={playSelectedGestureAudio} />
+                  ) : (
+                    <LearnerReferenceFlipCard
+                      item={selectedGesture}
+                      flipped={referenceFlipped}
+                      onFlip={() => setReferenceFlipped((current) => !current)}
+                      onPlayAudio={playSelectedGestureAudio}
+                    />
+                  )}
                 </motion.div>
               </AnimatePresence>
             ) : null}
@@ -1940,6 +1944,15 @@ function ensureFixedGestureItems(items: LearningItem[]) {
   return getFixedGestureItems(items);
 }
 
+/** Free Practice keeps the useful video and audio face visible without asking the learner to flip a card. */
+function LearnerReferenceDetailsCard({ item, onPlayAudio }: { item: LearningItem; onPlayAudio: () => void }) {
+  return (
+    <div className="mx-auto h-full min-h-0 w-full max-w-[32rem]">
+      <LearnerReferenceDetails item={item} onPlayAudio={onPlayAudio} />
+    </div>
+  );
+}
+
 function LearnerReferenceFlipCard({
   item,
   flipped,
@@ -1993,32 +2006,57 @@ function LearnerReferenceFlipCard({
             </div>
           </div>
 
-          <div className="absolute inset-0 flex flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-4 shadow-[0_22px_48px_rgba(37,99,235,0.16)] [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-5">
-            <h2 className="text-center text-3xl font-black text-ink sm:text-5xl">{frontLabel}</h2>
-
-            <div className="mt-3 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:mt-4 sm:gap-3">
-              <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-2 sm:p-3">
-                <GestureVideoPreview value={item.gestureMediaUrl} label={`${item.label} gesture reference`} />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-                <div className="rounded-3xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 p-4">
-                  <AudioWaveform compact />
-                </div>
-                <Button type="button" size="lg" onClick={(event) => {
-                  event.stopPropagation();
-                  onPlayAudio();
-                }} className="min-h-16 rounded-full px-6 text-lg">
-                  <PlayCircle className="h-7 w-7" aria-hidden="true" />
-                  Play
-                </Button>
-              </div>
-              <span className="mx-auto inline-flex items-center gap-2 rounded-full bg-blue-50 px-5 py-3 text-base font-black text-blue-700 shadow-inner">
-                <RotateCcw className="h-5 w-5" aria-hidden="true" />
-                Click me
-              </span>
-            </div>
+          <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+            <LearnerReferenceDetails item={item} onPlayAudio={onPlayAudio} showFlipHint />
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function LearnerReferenceDetails({
+  item,
+  onPlayAudio,
+  showFlipHint = false
+}: {
+  item: LearningItem;
+  onPlayAudio: () => void;
+  showFlipHint?: boolean;
+}) {
+  const label = getLearnerCardLabel(item.label);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-4 shadow-[0_22px_48px_rgba(37,99,235,0.16)] sm:p-5">
+      <h2 className="text-center text-3xl font-black text-ink sm:text-5xl">{label}</h2>
+
+      <div className="mt-3 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:mt-4 sm:gap-3">
+        <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-2 sm:p-3">
+          <GestureVideoPreview value={item.gestureMediaUrl} label={`${item.label} gesture reference`} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="rounded-3xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 p-4">
+            <AudioWaveform compact />
+          </div>
+          <Button
+            type="button"
+            size="lg"
+            onClick={(event) => {
+              event.stopPropagation();
+              onPlayAudio();
+            }}
+            className="min-h-16 rounded-full px-6 text-lg"
+          >
+            <PlayCircle className="h-7 w-7" aria-hidden="true" />
+            Play
+          </Button>
+        </div>
+        {showFlipHint ? (
+          <span className="mx-auto inline-flex items-center gap-2 rounded-full bg-blue-50 px-5 py-3 text-base font-black text-blue-700 shadow-inner">
+            <RotateCcw className="h-5 w-5" aria-hidden="true" />
+            Click me
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -2307,7 +2345,7 @@ function FeedbackMascot({ success }: { success: boolean }) {
 
 function getLearnerCardLabel(label: string) {
   if (/toilet/i.test(label)) return "Toilet";
-  if (/eat food/i.test(label)) return "Eat";
+  if (/\beat(?: food)?\b/i.test(label)) return "Eat";
   if (/drink(?: water)?/i.test(label)) return "Drink";
   if (/sit/i.test(label)) return "Sit";
 
