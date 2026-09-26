@@ -157,6 +157,10 @@ export function ActivitiesView() {
   }, [notify, user.id]);
 
   const itemById = useMemo(() => new Map(learningItems.map((item) => [item.id, item])), [learningItems]);
+  const categoryNameById = useMemo(
+    () => Object.fromEntries(categories.map((category) => [category.id, category.name])),
+    [categories]
+  );
   // Others' private activities and lessons stay hidden. The read rules allow them, so this is the only filter.
   const visibleActivities = useMemo(
     () => activities.filter((activity) => canSee(activity, user) && !isRetiredActivity(activity)),
@@ -181,11 +185,15 @@ export function ActivitiesView() {
   );
   const reportProgress = useCallback((current: number, total: number) => setProgress({ current, total }), []);
 
+  // Admins view activities but do not play them (Student mode still plays).
+  const canPlay = user.role !== "admin";
   const playingActivity = isStudentMode
     ? studentActivityId === null
       ? getInitialActivity(visibleActivities, playId, requestedType)
       : visibleActivities.find((activity) => activity.id === studentActivityId)
-    : visibleActivities.find((activity) => activity.id === playId);
+    : canPlay
+      ? visibleActivities.find((activity) => activity.id === playId)
+      : undefined;
   const openActivity = visibleActivities.find((activity) => activity.id === openActivityId) ?? null;
   const editingActivity = formMode?.kind === "edit" ? formMode.activity : null;
 
@@ -205,9 +213,15 @@ export function ActivitiesView() {
   // A player link to an activity that no longer exists falls back to the library.
   useEffect(() => {
     if (!ready || isStudentMode || !playId || playingActivity) return;
+    if (!canPlay && visibleActivities.some((activity) => activity.id === playId)) {
+      // An admin following a player link sees the preview instead.
+      setOpenActivityId(playId);
+      router.replace(pathname);
+      return;
+    }
     notify({ title: "Activity not found", description: "It may have been deleted." });
     router.replace(pathname);
-  }, [isStudentMode, notify, pathname, playId, playingActivity, ready, router]);
+  }, [canPlay, isStudentMode, notify, pathname, playId, playingActivity, ready, router, visibleActivities]);
 
   function canManage(activity: Activity) {
     return user.role === "teacher" && (activity.createdBy === user.id || activity.visibility === "shared");
@@ -268,7 +282,8 @@ export function ActivitiesView() {
     const promptOverrides: Record<string, string> = Object.fromEntries(
       selected.flatMap((item) => {
         const key = getPromptStoreKey(type, item.id);
-        const prompt = values.promptInputs[key]?.trim() || getSavedQuestionPrompt(type, item, promptStore);
+        const prompt =
+          values.promptInputs[key]?.trim() || getSavedQuestionPrompt(type, item, promptStore, categoryNameById[item.categoryId]);
         return prompt ? [[key, prompt]] : [];
       })
     );
@@ -282,7 +297,7 @@ export function ActivitiesView() {
       type,
       prompt: buildDefaultActivityPrompt(type),
       learningItemIds: selected.map((item) => item.id),
-      questions: createActivityQuestions(type, selected, learningItems, promptOverrides),
+      questions: createActivityQuestions(type, selected, learningItems, promptOverrides, categoryNameById),
       // Visibility is chosen once, when the activity is made.
       visibility: previous ? previous.visibility : values.isPrivate ? "private" : "shared",
       createdBy: previous?.createdBy ?? user.id
@@ -364,7 +379,7 @@ export function ActivitiesView() {
         creator={openActivity ? creatorOf(openActivity) : undefined}
         canManage={Boolean(openActivity && canManage(openActivity))}
         onClose={() => setOpenActivityId("")}
-        onPlay={play}
+        onPlay={canPlay ? play : undefined}
         onEdit={(activity) => {
           setOpenActivityId("");
           setFormMode({ kind: "edit", activity });
@@ -433,7 +448,8 @@ export function ActivitiesView() {
           lessonOf={lessonOf}
           creatorOf={creatorOf}
           onOpen={(activity) => setOpenActivityId(activity.id)}
-          onPlay={play}
+          onPlay={canPlay ? play : undefined}
+          viewOnly={user.role !== "teacher"}
         />
       )}
 

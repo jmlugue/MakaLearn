@@ -190,7 +190,7 @@ disappears from the Media tab.
   form as a new lesson with a unique name ("X (copy)", "X (copy 2)"). A lesson name you can already see is
   refused on save.
 - Lessons show nothing about their activities (the list and count were removed on request). Activities show
-  "From (lesson)". **Make a copy** shows on every lesson; Edit and Delete only for the owner or an admin.
+  "From (lesson)". **Make a copy** shows on every lesson for teachers; Edit and Delete only for the owner (admins are view only, section 17).
 
 ### Visibility and owners
 
@@ -533,3 +533,28 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   (`src/lib/category-colors.ts`, applied in `ensurePecsManifestCategories` and Admin; the color picker is
   replaced by a note for them). Activity types and main item colors unchanged and locked. See STYLE_GUIDE.
 
+
+---
+
+## 17. Admin view only, question rules, playground pop-ups (Oct 1, not verified signed in)
+
+- **Admins are view only.** Content and Activities writes were already teacher only (UI and the Sep 25 RLS).
+  Now admins also cannot **play**: no Play on cards or the preview, a `?play=` link opens the preview, and the
+  preview demo has no "Try it yourself". Student mode still plays for everyone. Admins cannot Make a copy of a
+  lesson (supersedes section 6). Admin tour and page banners use view-only wording (`pageGuideFor`,
+  `welcomeStepsFor` in `guide-content.ts`).
+- **Question rules** (tests in `scripts/test-activity-rules.mjs`): one short sentence with a situation, and the
+  answer word never appears. Choose the picture questions were rewritten in `starter-learning-item-prompts.ts`
+  ("How do I feel when my toy breaks?"); the old ones are kept as `legacyChooseCorrectSymbolPromptsByLabel` and
+  upgraded at play time. **Bug fixed:** that upgrade used to overwrite questions teachers wrote; now only
+  built-in ones are upgraded (`isBuiltInChooseCorrectSymbolPrompt`).
+- **Teacher-made cards** get a starter question from their category (`src/utils/category-prompts.ts`), never
+  "Use ____ to talk about three." Built-in categories are read from `cat-pecs-*` ids; others name the category.
+  `createActivityQuestions` takes a `categoryNameById` map.
+- **Wrong choices:** a teacher-made card keeps its whole category out of the choices. The question text is read
+  too (`isQuestionRelatedDistractor`): cards it names, or groups it points at ("eat", "feel", "say", "who"), are
+  used only when nothing else is left. More Fill in the blank second answers in `fillBlankAlsoFits`.
+- **AI drafts:** Fill 7 to 12 words, Choose must be situational, a draft naming its answer is dropped.
+  `ACTIVITY_PROMPT_TEMPLATE_VERSION` is `activity-prompt-v3`.
+- **Playground:** a wrong Check opens an amber "TRY AGAIN" pop-up (spoken) instead of a toast and strip; right
+  keeps "GOOD JOB". Am, Is, or Are alone is no longer right. Good morning and Thank you count as expressions.

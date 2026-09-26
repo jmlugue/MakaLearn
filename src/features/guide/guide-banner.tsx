@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
 import { GuideStepsDialog } from "@/features/guide/guide-steps-dialog";
-import { pageGuides } from "@/features/guide/guide-content";
+import { pageGuideFor } from "@/features/guide/guide-content";
+import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useUserSettings } from "@/features/settings/user-settings-context";
 
 /**
@@ -13,6 +14,7 @@ import { useUserSettings } from "@/features/settings/user-settings-context";
  */
 export function GuideBanner({ pageKey }: { pageKey: string }) {
   const { preferences, loaded, guideSeen, markGuideSeen } = useUserSettings();
+  const { user } = useAuthUser();
   const reduceMotion = useReducedMotion();
   const [stepsOpen, setStepsOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -22,7 +24,7 @@ export function GuideBanner({ pageKey }: { pageKey: string }) {
     if (guideSeen.length === 0) setDismissed(false);
   }, [guideSeen]);
 
-  const guide = pageGuides[pageKey];
+  const guide = pageGuideFor(pageKey, user.role);
   const show = loaded && preferences.guideMode && Boolean(guide) && !guideSeen.includes(pageKey) && !dismissed;
 
   function retire() {

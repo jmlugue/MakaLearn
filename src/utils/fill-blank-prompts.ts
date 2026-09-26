@@ -1,4 +1,5 @@
 import { normalizePecsLabel } from "@/data/pecs-card-manifest";
+import { categoryPromptFor } from "@/utils/category-prompts";
 
 /**
  * One built-in Fill in the blank sentence per PECS card. Each gives a situation, so only one card fits the
@@ -44,10 +45,10 @@ const fillBlankPromptByLabel: Record<string, string> = {
   help: "I cannot tie my shoe. Can you ____ me?",
   rest: "I ran a lot. Now I need a ____.",
   sleep: "It is night. I close my eyes and ____.",
-  "wash hands": "Before we eat, we ____ with soap.",
+  "wash hands": "Lunch is ready. First, it is time to ____.",
   more: "I am still hungry. Can I have some ____?",
   finished: "I colored the whole picture. Now I am ____.",
-  danger: "The sign says keep out. There is ____ inside.",
+  danger: "The sign says keep out. It warns us of ____.",
   hot: "The soup just came off the stove. It is ____!",
   hurt: "I fell and scraped my knee. I am ____.",
   yes: "Do you want to play outside? I nod and say ____.",
@@ -56,6 +57,12 @@ const fillBlankPromptByLabel: Record<string, string> = {
   am: "Let me tell you about me. I ____ seven years old.",
   is: "Look at my puppy. He ____ very fluffy.",
   are: "My friends and I play together. We ____ best friends."
+};
+
+/** Sentences replaced on Oct 1 because they read oddly. Saved activities that use one get the new one. */
+const retiredFillBlankPromptByLabel: Record<string, string> = {
+  "wash hands": "Before we eat, we ____ with soap.",
+  danger: "The sign says keep out. There is ____ inside."
 };
 
 /** The longer Sep 26 sentences. Saved activities that still use one get the short sentence. */
@@ -166,14 +173,18 @@ const legacyFillBlankPromptByLabel: Record<string, string> = {
   are: "You ____ here."
 };
 
-/** For a card with no built-in sentence. The creator asks the teacher to replace it with a real sentence. */
+/** The old sentence for a card with no built-in one. It names the answer, so it is only recognised, never made. */
 export function neutralFillBlankPrompt(label: string) {
   return `Use ____ to talk about ${label}.`;
 }
 
-export function createFillBlankPromptForLabel(label: string) {
+/**
+ * The built-in sentence for a card, or for a card a teacher made, a starter sentence from its category that
+ * never names the card.
+ */
+export function createFillBlankPromptForLabel(label: string, item?: { categoryId?: string }, categoryName?: string) {
   const normalized = normalizePecsLabel(label);
-  return fillBlankPromptByLabel[normalized] ?? neutralFillBlankPrompt(label);
+  return fillBlankPromptByLabel[normalized] ?? categoryPromptFor("fill", { label, categoryId: item?.categoryId }, categoryName);
 }
 
 export function getSavedFillBlankPromptForLabel(label: string) {
@@ -207,6 +218,7 @@ export function isBuiltInFillBlankPrompt(label: string, prompt: string) {
     isGenericFillBlankPrompt(label, prompt) ||
     normalizePecsLabel(legacyFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
     normalizePecsLabel(longFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
+    normalizePecsLabel(retiredFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
     normalizePecsLabel(fillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt
   );
 }

@@ -218,3 +218,30 @@ test("every two-card result across the 50-card manifest matches the approved pai
     }
   }
 });
+
+test("one card on its own is right, except Am, Is, and Are", () => {
+  for (const card of manifest) {
+    const result = validateLabels([card.label]);
+    assert.equal(result.isValid, card.sentence_role !== "be_verb", card.label);
+  }
+});
+
+test("the owner's playground checks", () => {
+  const cases = [
+    [["Water"], true],
+    [["Good morning"], true],
+    [["Sit", "Stand"], false],
+    [["Hello", "Good morning"], false],
+    [["I", "Am", "Listen"], false],
+    [["I", "Am", "Banana"], false],
+    [["I", "Am", "Food"], false],
+    [["I", "Am", "Tired"], true],
+    [["I", "Want", "Water"], true],
+    [["I", "Want", "Eat"], false]
+  ];
+  for (const [labels, expected] of cases) {
+    assert.equal(validateLabels(labels).isValid, expected, labels.join(" "));
+  }
+  assert.equal(validateLabels(["Good morning"]).feedback, "You made an expression.");
+  assert.equal(validateLabels(["Thank you"]).feedback, "You made an expression.");
+});

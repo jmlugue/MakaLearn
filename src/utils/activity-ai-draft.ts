@@ -3,8 +3,9 @@ import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
 import { createChooseCorrectSymbolPrompt } from "@/utils/starter-learning-item-prompts";
 import type { ActivityType, LearningItem } from "@/types";
 
-// v2: Fill in the blank asks for a situation plus a full sentence. Bumping this skips drafts cached under v1.
-export const ACTIVITY_PROMPT_TEMPLATE_VERSION = "activity-prompt-v2";
+// v3: 7 to 12 word Fill sentences, situational Choose questions, and never the answer word. Bumping this
+// skips drafts cached under older versions.
+export const ACTIVITY_PROMPT_TEMPLATE_VERSION = "activity-prompt-v3";
 
 export type ActivityPromptDraftSource = "cache" | "hugging-face" | "local-fallback" | "rate-limited";
 export type DraftablePromptActivityType = Extract<ActivityType, "choose-correct-symbol" | "fill-blank">;
@@ -128,10 +129,15 @@ export function buildPromptDraftRequest(
       ? [
           "Create one fill-in-the-blank prompt for each item: a short everyday situation, then a complete sentence with exactly one ____ blank.",
           "The item label must be the only card that makes sense in the blank. Give enough context that similar words (other feelings, other foods, other actions) would be wrong.",
-          "Use correct grammar at an intermediate primary-school level, 12 to 22 words in total. Example for Angry: \"My friend took my toy without asking. I feel ____.\"",
+          "Use correct grammar at an early primary-school level, 7 to 12 words in total. Example for Angry: \"My friend took my toy. I feel ____.\"",
           "Do not write bare prompts such as \"I feel ____.\" or \"I want ____.\""
         ].join(" ")
-      : "Create one short teacher question for each item. The learner should answer by choosing the matching PECS card.";
+      : [
+          "Create one short question for each item, one sentence of at most 12 words, that gives an everyday situation.",
+          "The learner answers by choosing the matching PECS card, so the question must never contain the item label.",
+          "Only the item should answer it; similar words (other feelings, other foods, other actions) must be wrong.",
+          "Examples: Sad: \"How do I feel when my toy breaks?\" Stop: \"What do we do when the light is red?\""
+        ].join(" ");
 
   return [
     "Create reusable classroom question prompts for MakaLearn PECS/AAC learning items.",
@@ -161,14 +167,22 @@ function extractJsonObject(text: string) {
   return "";
 }
 
-function cleanPrompt(value: unknown, type: DraftablePromptActivityType) {
+function cleanPrompt(value: unknown, type: DraftablePromptActivityType, label: string) {
   if (typeof value !== "string") return "";
 
   const prompt = value.replace(/_{3,}/g, "____").replace(/\s+/g, " ").trim().slice(0, 180).trim();
   if (!prompt) return "";
   if (type === "fill-blank" && prompt.split("____").length !== 2) return "";
+  // A question that shows the answer word gives it away.
+  if (promptNamesLabel(prompt, label)) return "";
 
   return prompt;
+}
+
+function promptNamesLabel(prompt: string, label: string) {
+  const text = prompt.toLowerCase().replace(/[_-]+/g, " ");
+  const word = label.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return Boolean(word) && new RegExp(`(^|[^a-z])${word}([^a-z]|$)`).test(text);
 }
 
 export function parsePromptDraftText(
@@ -193,7 +207,7 @@ export function parsePromptDraftText(
           if (typeof entry.learningItemId !== "string") return [];
           const item = requestedById.get(entry.learningItemId);
           if (!item) return [];
-          const prompt = cleanPrompt(entry.prompt, type);
+          const prompt = cleanPrompt(entry.prompt, type, item.label);
           return prompt ? [{ learningItemId: item.id, label: item.label, prompt }] : [];
         })
       : [];

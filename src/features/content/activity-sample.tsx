@@ -26,7 +26,18 @@ const DRAG_BOXES = 3;
  * right picture (or drags each picture onto its word) and it turns green with "Correct!". "Try it yourself"
  * lets the teacher answer: one tap, or a drag in Drag and drop.
  */
-export function ActivitySample({ type, items, pool }: { type: ActivityType; items: LearningItem[]; pool: LearningItem[] }) {
+export function ActivitySample({
+  type,
+  items,
+  pool,
+  canTry = true
+}: {
+  type: ActivityType;
+  items: LearningItem[];
+  pool: LearningItem[];
+  /** False for admins, who watch the demo but do not play. */
+  canTry?: boolean;
+}) {
   const itemKey = items.map((item) => item.id).join(",");
   // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild only when the chosen cards or format change.
   const questions = useMemo(() => createActivityQuestions(type, items, pool), [type, itemKey]);
@@ -42,6 +53,7 @@ export function ActivitySample({ type, items, pool }: { type: ActivityType; item
           <p className="text-sm font-bold text-ink">{activityTypeLabels[type]}</p>
           <p className="mt-0.5 text-sm text-slate-600">{activityTypeDescriptions[type]}</p>
         </div>
+        {canTry ? (
         <button
           type="button"
           onClick={() => setMode(demo ? "try" : "demo")}
@@ -50,6 +62,7 @@ export function ActivitySample({ type, items, pool }: { type: ActivityType; item
           {demo ? <MousePointerClick className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
           {demo ? "Try it yourself" : "Watch demo"}
         </button>
+        ) : null}
       </div>
 
       {type === "drag-drop-symbol" ? (

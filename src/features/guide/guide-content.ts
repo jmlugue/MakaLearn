@@ -41,7 +41,23 @@ const teacherWelcomeSteps: GuideStep[] = [
   }
 ];
 
-/** Only admins see these, and they come after the teacher steps because an admin does both jobs. */
+/** Admins view teaching content but do not change or play it, so their tour opens with these instead. */
+const adminViewSteps: GuideStep[] = [
+  {
+    title: "See what teachers made",
+    text: "Open any material, lesson, or activity in Content and Activities. They are view only for admins.",
+    icon: Layers,
+    scene: "lesson"
+  },
+  {
+    title: "Try Student mode",
+    text: "The learner's full-screen view, with the playground, gesture practice, and activities.",
+    icon: GraduationCap,
+    scene: "student"
+  }
+];
+
+/** Only admins see these. */
 const adminWelcomeSteps: GuideStep[] = [
   {
     title: "Look after the accounts",
@@ -57,9 +73,9 @@ const adminWelcomeSteps: GuideStep[] = [
   }
 ];
 
-/** Admins get the teacher tour plus their own steps. Teachers never see the admin ones. */
+/** Admins get a view-only tour plus their own steps. Teachers never see the admin ones. */
 export function welcomeStepsFor(role: AppUser["role"]): GuideStep[] {
-  return role === "admin" ? [...teacherWelcomeSteps, ...adminWelcomeSteps] : teacherWelcomeSteps;
+  return role === "admin" ? [...adminViewSteps, ...adminWelcomeSteps] : teacherWelcomeSteps;
 }
 
 export type PageGuide = {
@@ -198,3 +214,30 @@ export const guideTips: Record<string, string> = {
   // Admin
   "admin.sections": "Usage on Home, people in Accounts, every teacher's materials in Content, and changes in the log."
 };
+
+/** View-only wording for admins on pages where teachers build and play. */
+const adminPageGuides: Record<string, PageGuide> = {
+  content: {
+    title: "Around the Content page",
+    line: "Everything teachers teach with: materials, lessons, categories, and files. View only.",
+    steps: [
+      { title: "Materials", text: "PECS cards and gestures. Open one to see its picture and hear its word.", icon: Layers, scene: "cards" },
+      { title: "Lessons", text: "A title and its cards in order.", icon: BookOpen, scene: "lesson" },
+      { title: "Categories", text: "Colour-coded groups. Open one to see everything inside it.", icon: FolderOpen, scene: "category" },
+      { title: "Media", text: "Every uploaded file, and which material uses it.", icon: ImageIcon, scene: "media" }
+    ]
+  },
+  activities: {
+    title: "Around Activities",
+    line: "Every teacher's activity. Open one to see its cards and a short demo. View only.",
+    steps: [
+      { title: "The library", text: "Every activity, with its own pictures. Filter by format or search.", icon: Layers, scene: "cards" },
+      { title: "Preview", text: "Open an activity to watch a short demo and see its cards.", icon: Shapes, scene: "activity" }
+    ]
+  }
+};
+
+/** The page guide for this role: admins get view-only wording where it differs. */
+export function pageGuideFor(pageKey: string, role: AppUser["role"]): PageGuide | undefined {
+  return (role === "admin" ? adminPageGuides[pageKey] : undefined) ?? pageGuides[pageKey];
+}

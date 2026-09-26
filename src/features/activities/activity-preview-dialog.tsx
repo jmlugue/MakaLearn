@@ -31,7 +31,8 @@ export function ActivityPreviewDialog({
   creator?: string;
   canManage: boolean;
   onClose: () => void;
-  onPlay: (activity: Activity) => void;
+  /** Left out for admins, who can only view activities. */
+  onPlay?: (activity: Activity) => void;
   onEdit: (activity: Activity) => void;
   onDelete: (activity: Activity) => void;
 }) {
@@ -59,10 +60,12 @@ export function ActivityPreviewDialog({
                 Edit
               </Button>
             ) : null}
-            <Button type="button" onClick={() => onPlay(activity)}>
-              <Play className="h-4 w-4" aria-hidden="true" />
-              Play
-            </Button>
+            {onPlay ? (
+              <Button type="button" onClick={() => onPlay(activity)}>
+                <Play className="h-4 w-4" aria-hidden="true" />
+                Play
+              </Button>
+            ) : null}
           </>
         ) : null
       }
@@ -91,7 +94,7 @@ export function ActivityPreviewDialog({
           {pecsItems.length ? (
             <div className="rounded-2xl bg-gradient-to-br from-blue-100/70 via-blue-50/70 to-sky-50/80 p-4 ring-1 ring-blue-100">
               <SectionLabel className="mb-2">How it plays</SectionLabel>
-              <ActivitySample key={activity.type} type={activity.type} items={pecsItems} pool={pool} />
+              <ActivitySample key={activity.type} type={activity.type} items={pecsItems} pool={pool} canTry={Boolean(onPlay)} />
             </div>
           ) : null}
 

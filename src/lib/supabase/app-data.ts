@@ -6,7 +6,7 @@ import {
   mapActivity,
   updateActivityRecord
 } from "@/lib/supabase/activity-records";
-import { buildActivityOptionSets, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
+import { buildActivityOptionSets, isQuestionRelatedDistractor, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
 import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
 import { createChooseCorrectSymbolPrompt } from "@/utils/starter-learning-item-prompts";
 import type {
@@ -800,7 +800,9 @@ export function createActivityQuestions(
   type: Activity["type"],
   selectedItems: LearningItem[],
   optionPool: LearningItem[] = selectedItems,
-  promptOverrides: Record<string, string> = {}
+  promptOverrides: Record<string, string> = {},
+  /** Category names by id, so a teacher's own card gets a starter question from its category. */
+  categoryNameById: Record<string, string> = {}
 ): ActivityQuestion[] {
   const usesSymbolOptions =
     type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
@@ -814,18 +816,34 @@ export function createActivityQuestions(
   const selectedValues = selectedItems.map((item) => usesSymbolOptions ? item.id : item.label);
   const fallbackValues = eligibleOptions.map((item) => usesSymbolOptions ? item.id : item.label);
   const optionValueForItem = (item: LearningItem) => usesSymbolOptions ? item.id : item.label;
+  const prompts = selectedItems.map((item) =>
+    createAdaptivePrompt(type, item, promptOverrides, categoryNameById[item.categoryId])
+  );
   const semanticExclusions = selectedItems.map((item) =>
     eligibleOptions
       .filter((candidate) => isUnsafeActivityDistractor(type, item, candidate))
       .map(optionValueForItem)
   );
-  const optionSets = buildActivityOptionSets(selectedValues, fallbackValues, Math.random(), 3, semanticExclusions);
+  // Cards the question itself points to are only used when nothing else is left.
+  const questionAvoids = selectedItems.map((item, index) =>
+    type !== "choose-correct-symbol" && type !== "fill-blank" ? [] : eligibleOptions
+      .filter((candidate) => isQuestionRelatedDistractor(prompts[index], item, candidate))
+      .map(optionValueForItem)
+  );
+  const optionSets = buildActivityOptionSets(
+    selectedValues,
+    fallbackValues,
+    Math.random(),
+    3,
+    semanticExclusions,
+    questionAvoids
+  );
 
   return selectedItems.map((item, index) => {
     if (type === "gesture-practice") {
       return {
         id: `q-${Date.now()}-${item.id}`,
-        prompt: createAdaptivePrompt(type, item, promptOverrides),
+        prompt: prompts[index],
         answer: "Completed with teacher",
         options: ["Completed with teacher", "Try again"],
         learningItemId: item.id
@@ -834,7 +852,7 @@ export function createActivityQuestions(
 
     return {
       id: `q-${Date.now()}-${item.id}`,
-      prompt: createAdaptivePrompt(type, item, promptOverrides),
+      prompt: prompts[index],
       answer: usesSymbolOptions ? item.id : item.label,
       options: optionSets[index],
       learningItemId: item.id
@@ -842,7 +860,12 @@ export function createActivityQuestions(
   });
 }
 
-function createAdaptivePrompt(type: Activity["type"], item: LearningItem, promptOverrides: Record<string, string>) {
+function createAdaptivePrompt(
+  type: Activity["type"],
+  item: LearningItem,
+  promptOverrides: Record<string, string>,
+  categoryName?: string
+) {
   const savedPrompt = promptOverrides[`${type}:${item.id}`];
   if (savedPrompt) return savedPrompt;
 
@@ -851,11 +874,11 @@ function createAdaptivePrompt(type: Activity["type"], item: LearningItem, prompt
   }
 
   if (type === "fill-blank") {
-    return createFillBlankPrompt(item);
+    return createFillBlankPromptForLabel(item.label, item, categoryName);
   }
 
   if (type === "choose-correct-symbol") {
-    return createChooseCorrectSymbolPrompt(item);
+    return createChooseCorrectSymbolPrompt(item, categoryName);
   }
 
   if (type === "drag-drop-symbol") {
@@ -865,7 +888,4 @@ function createAdaptivePrompt(type: Activity["type"], item: LearningItem, prompt
   return `Match the word "${item.label}" to its PECS card.`;
 }
 
-function createFillBlankPrompt(item: LearningItem) {
-  return createFillBlankPromptForLabel(item.label);
-}
 

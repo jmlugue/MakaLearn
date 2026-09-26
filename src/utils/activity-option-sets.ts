@@ -51,24 +51,67 @@ export const activityMeaningGroups: Record<string, string[]> = {
 
 /** Extra cards that could also finish a built-in Fill in the blank sentence, beyond its meaning groups. */
 const fillBlankAlsoFits: Record<string, string[]> = {
-  finished: ["tired"],
-  yes: ["please"]
+  // "Now I am ____." also takes any feeling.
+  finished: [...activityMeaningGroups.feelings],
+  yes: ["please"],
+  // "I need some ____." also takes help, rest, or a drink.
+  food: ["help", "rest", ...activityMeaningGroups.drink],
+  // "Now I need a ____." also takes a drink.
+  rest: [...activityMeaningGroups.drink],
+  // "I say ____." also takes a polite word (no thank you).
+  no: [...activityMeaningGroups.polite],
+  // "It is time to ____." also takes help.
+  "wash hands": ["help"]
 };
+
+/**
+ * Words in a question that point at a meaning group. "What do I want to eat today?" makes every food card a
+ * possible answer, so none of them is offered as a wrong choice.
+ */
+const questionGroupTriggers: Array<{ words: string[]; groups: string[]; labels?: string[] }> = [
+  { words: ["hungry", "eat", "eating", "lunch", "snack", "breakfast", "dinner", "tummy", "food"], groups: ["food"] },
+  { words: ["thirsty", "drink", "glass", "cup"], groups: ["drink"] },
+  // "I feel sorry" also works.
+  { words: ["feel", "feels", "feeling"], groups: ["feelings"], labels: ["sorry"] },
+  { words: ["say", "says"], groups: ["greetings", "polite", "answers"] },
+  { words: ["who"], groups: ["people"] },
+  { words: ["tired", "bed", "night"], groups: ["rest"] },
+  { words: ["soap", "pee", "wash"], groups: ["hygiene"] }
+];
 
 function meaningGroupsOf(label: string) {
   return Object.values(activityMeaningGroups).filter((group) => group.includes(label));
 }
 
+function isInAnyMeaningGroup(label: string) {
+  return meaningGroupsOf(label).length > 0;
+}
+
+function textHasWord(text: string, word: string) {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return Boolean(escaped) && new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`).test(text);
+}
+
 export function isUnsafeActivityDistractor(
   type: ActivityType,
-  answerItem: Pick<LearningItem, "label" | "sentenceRole">,
-  candidate: Pick<LearningItem, "label" | "sentenceRole">
+  answerItem: Pick<LearningItem, "label" | "sentenceRole"> & { categoryId?: string },
+  candidate: Pick<LearningItem, "label" | "sentenceRole"> & { categoryId?: string }
 ) {
   const answerLabel = normalizeLabel(answerItem.label);
   const candidateLabel = normalizeLabel(candidate.label);
 
   if (answerLabel === candidateLabel) return true;
   if (meaningGroupsOf(answerLabel).some((group) => group.includes(candidateLabel))) return true;
+
+  // A card a teacher made has no meaning group, so its category stands in for one: another card from the
+  // same category could also be right.
+  if (
+    answerItem.categoryId &&
+    answerItem.categoryId === candidate.categoryId &&
+    (!isInAnyMeaningGroup(answerLabel) || !isInAnyMeaningGroup(candidateLabel))
+  ) {
+    return true;
+  }
 
   if (type === "fill-blank") {
     // Another card with the same sentence role can often complete an open sentence too.
@@ -80,6 +123,32 @@ export function isUnsafeActivityDistractor(
 }
 
 /**
+ * True when the question text itself points at the candidate: it names the card, or it has a word such as
+ * "hungry" or "feel" that makes the candidate's group a possible answer. These cards are only offered when
+ * nothing else is left (`buildActivityOptionSets`).
+ */
+export function isQuestionRelatedDistractor(
+  questionText: string,
+  answerItem: Pick<LearningItem, "label">,
+  candidate: Pick<LearningItem, "label">
+) {
+  const text = normalizeLabel(questionText ?? "");
+  const answerLabel = normalizeLabel(answerItem.label);
+  const candidateLabel = normalizeLabel(candidate.label);
+  if (!text || answerLabel === candidateLabel) return false;
+  if (textHasWord(text, candidateLabel)) return true;
+
+  const candidateGroups = Object.entries(activityMeaningGroups)
+    .filter(([, members]) => members.includes(candidateLabel))
+    .map(([name]) => name);
+  return questionGroupTriggers.some(
+    (trigger) =>
+      trigger.words.some((word) => textHasWord(text, word)) &&
+      (trigger.groups.some((group) => candidateGroups.includes(group)) || Boolean(trigger.labels?.includes(candidateLabel)))
+  );
+}
+
+/**
  * Build one varied choice set per question. Distractors rotate through the full eligible learning-material
  * library first, while the activity's other answers are only a fallback when the library is too small.
  */
@@ -88,7 +157,9 @@ export function buildActivityOptionSets(
   fallbackOptions: string[],
   seed: number,
   choiceCount = 3,
-  excludedOptionsByQuestion: string[][] = []
+  excludedOptionsByQuestion: string[][] = [],
+  /** Options to use only when nothing else is left, such as cards the question text points at. */
+  avoidedOptionsByQuestion: string[][] = []
 ) {
   const uniqueAnswers = uniqueOptions(answers);
   const answerPool = shuffleOptions(uniqueAnswers, seed);
@@ -99,6 +170,7 @@ export function buildActivityOptionSets(
 
   return answers.map((answer, questionIndex) => {
     const excludedOptions = new Set(excludedOptionsByQuestion[questionIndex] ?? []);
+    const avoidedOptions = new Set(avoidedOptionsByQuestion[questionIndex] ?? []);
     const answerIndex = answerPool.indexOf(answer);
     const orderedAnswers = answerIndex < 0
       ? answerPool
@@ -110,9 +182,13 @@ export function buildActivityOptionSets(
       ...fallbackPool.slice(fallbackOffset),
       ...fallbackPool.slice(0, fallbackOffset)
     ];
-    const distractors = uniqueOptions([...orderedFallbacks, ...orderedAnswers])
-      .filter((value) => value !== answer && !excludedOptions.has(value))
-      .slice(0, Math.max(choiceCount - 1, 0));
+    const candidates = uniqueOptions([...orderedFallbacks, ...orderedAnswers]).filter(
+      (value) => value !== answer && !excludedOptions.has(value)
+    );
+    const distractors = [
+      ...candidates.filter((value) => !avoidedOptions.has(value)),
+      ...candidates.filter((value) => avoidedOptions.has(value))
+    ].slice(0, Math.max(choiceCount - 1, 0));
 
     return shuffleOptions([answer, ...distractors], seed + (questionIndex + 1) * 211);
   });

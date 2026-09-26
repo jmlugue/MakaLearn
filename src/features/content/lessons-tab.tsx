@@ -79,7 +79,7 @@ export function LessonsTab({
         <EmptyState
           icon={BookOpen}
           title={lessons.length ? "No lessons found" : "No lessons yet"}
-          description={lessons.length ? "Try another search." : "Use New lesson to plan the first one."}
+          description={lessons.length ? "Try another search." : canCreate ? "Use New lesson to plan the first one." : "Teachers' lessons will show here."}
         />
       )}
     </section>

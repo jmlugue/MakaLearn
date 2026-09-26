@@ -21,7 +21,8 @@ export function ActivityLibrary({
   lessonOf,
   creatorOf,
   onOpen,
-  onPlay
+  onPlay,
+  viewOnly = false
 }: {
   activities: Activity[];
   itemById: Map<string, LearningItem>;
@@ -29,7 +30,10 @@ export function ActivityLibrary({
   /** Owner name for shared activities made by someone else. */
   creatorOf: (activity: Activity) => string | undefined;
   onOpen: (activity: Activity) => void;
-  onPlay: (activity: Activity) => void;
+  /** Left out for admins, who can only view activities. */
+  onPlay?: (activity: Activity) => void;
+  /** Admins cannot create activities, so the empty state does not tell them to. */
+  viewOnly?: boolean;
 }) {
   const [filter, setFilter] = useState<LibraryFilter>("all");
   const [type, setType] = useState<ActivityType | "all">("all");
@@ -104,7 +108,7 @@ export function ActivityLibrary({
               lesson={lessonOf(activity)}
               creator={creatorOf(activity)}
               onOpen={() => onOpen(activity)}
-              onPlay={() => onPlay(activity)}
+              onPlay={onPlay ? () => onPlay(activity) : undefined}
             />
           ))}
         </div>
@@ -115,7 +119,9 @@ export function ActivityLibrary({
           description={
             activities.length
               ? "Try another search or filter."
-              : "Use Create activity to make one."
+              : viewOnly
+                ? "Teachers' activities will show here."
+                : "Use Create activity to make one."
           }
         />
       )}

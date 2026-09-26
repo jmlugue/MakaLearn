@@ -1,13 +1,68 @@
 import { normalizePecsLabel } from "@/data/pecs-card-manifest";
 import type { LearningItem } from "@/types";
+import { categoryPromptFor } from "@/utils/category-prompts";
 
+/**
+ * One Choose the picture question per built-in card: one short sentence with a situation, and the answer
+ * word never appears in it (a test checks both). Look-alike answers are kept out of the choices by
+ * `activity-option-sets.ts`.
+ */
 const chooseCorrectSymbolPromptsByLabel: Record<string, string> = {
   hello: "What do we say when we meet someone?",
-  goodbye: "What do we say when we leave or finish saying hello?",
+  goodbye: "What do we say when we leave school?",
   "good morning": "What do we say at the start of the day?",
   "thank you": "What do we say when someone helps us or gives us something?",
   please: "What polite word do we use when asking for something?",
   sorry: "What do we say when we make a mistake or hurt someone?",
+  happy: "How do I feel on my birthday?",
+  sad: "How do I feel when my toy breaks?",
+  angry: "How do I feel when someone takes my toy?",
+  scared: "How do I feel when the thunder is loud?",
+  tired: "How do I feel after playing all day?",
+  sick: "How do I feel when I have a fever?",
+  i: "Which word means me, myself?",
+  you: "Which word is for the person we talk to?",
+  mother: "Who is the woman who looks after me at home?",
+  father: "Who is the man who looks after me at home?",
+  teacher: "Who helps us learn at school?",
+  friend: "Who do I play with at recess?",
+  eat: "What do we ask to do when we are hungry?",
+  drink: "What do we ask to do when we are thirsty?",
+  food: "What do I need when my tummy is rumbling?",
+  water: "What clear drink do we have when we are thirsty?",
+  rice: "What white food do we eat with chicken?",
+  bread: "What do we spread butter on for breakfast?",
+  milk: "What white drink do we pour on cereal?",
+  banana: "What long yellow fruit do monkeys love?",
+  sit: "What do we do on the mat at story time?",
+  stand: "What do we do when it is time to line up?",
+  listen: "What do we do when the teacher reads a story?",
+  look: "What do we do when the teacher points at the board?",
+  read: "What do we do with a storybook?",
+  write: "What do we do with a pencil and paper?",
+  wait: "What do we do until it is our turn?",
+  stop: "What do we do when the light is red?",
+  toilet: "Where do I go when I need to pee?",
+  help: "What do I ask for when I cannot tie my shoe?",
+  rest: "What do I need when my body wants a break?",
+  sleep: "What do I do in bed at night?",
+  "wash hands": "What do we do with soap before we eat?",
+  more: "What do I ask for when I am still hungry?",
+  finished: "What do I say when my work is all done?",
+  danger: "What does a keep out sign warn us about?",
+  hot: "How is soup that just came off the stove?",
+  hurt: "How am I when I fall and scrape my knee?",
+  yes: "What do I say when I nod my head?",
+  no: "What do I say when I shake my head?",
+  want: "Which word do I use when I wish for a toy?",
+  am: 'Which word finishes "I ___ happy"?',
+  is: 'Which word finishes "She ___ my friend"?',
+  are: 'Which word finishes "We ___ friends"?'
+};
+
+/** The questions before Oct 1. Saved activities that still use one get the new question at play time. */
+const legacyChooseCorrectSymbolPromptsByLabel: Record<string, string> = {
+  goodbye: "What do we say when we leave or finish saying hello?",
   happy: "Which card shows feeling happy?",
   sad: "Which card shows feeling sad?",
   angry: "Which card shows feeling angry?",
@@ -120,14 +175,15 @@ function labelFromLearningItemId(itemId: string) {
     .replace(/-/g, " ");
 }
 
-export function createChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id" | "label">) {
-  const labelPrompt = chooseCorrectSymbolPromptsByLabel[normalizePecsLabel(item.label)];
-  if (labelPrompt) return labelPrompt;
-
-  const idPrompt = chooseCorrectSymbolPromptsByLabel[normalizePecsLabel(labelFromLearningItemId(item.id))];
-  if (idPrompt) return idPrompt;
-
-  return `Which card means "${item.label}"?`;
+/**
+ * The built-in question for a card, or for a card a teacher made, a starter question from its category that
+ * never names the card.
+ */
+export function createChooseCorrectSymbolPrompt(
+  item: Pick<LearningItem, "id" | "label"> & { categoryId?: string },
+  categoryName?: string
+) {
+  return getSavedChooseCorrectSymbolPrompt(item) ?? categoryPromptFor("choose", item, categoryName);
 }
 
 export function getSavedChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id" | "label">) {
@@ -139,6 +195,31 @@ export function getSavedChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id" 
 
 export function isGenericChooseCorrectSymbolPrompt(item: Pick<LearningItem, "label">, prompt: string) {
   return normalizePecsLabel(prompt) === normalizePecsLabel(`Which card means "${item.label}"?`);
+}
+
+/**
+ * True when a saved Choose question is one MakaLearn wrote (old, current, or generic), not one a teacher
+ * wrote. Only these are upgraded at play time.
+ */
+export function isBuiltInChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id" | "label">, prompt: string) {
+  const normalizedPrompt = normalizePecsLabel(prompt);
+  const labels = [normalizePecsLabel(item.label), normalizePecsLabel(labelFromLearningItemId(item.id))];
+  return (
+    isGenericChooseCorrectSymbolPrompt(item, prompt) ||
+    labels.some(
+      (label) =>
+        normalizePecsLabel(chooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt ||
+        normalizePecsLabel(legacyChooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt
+    ) ||
+    Object.values(starterLearningItemPromptDescriptions).some(
+      (entry) => normalizePecsLabel(entry.description) === normalizedPrompt
+    )
+  );
+}
+
+/** Every built-in Choose question with its card label, for tests. */
+export function chooseCorrectSymbolPromptEntries() {
+  return Object.entries(chooseCorrectSymbolPromptsByLabel).map(([label, prompt]) => ({ label, prompt }));
 }
 
 export function upgradeStarterLearningItemPrompts(items: LearningItem[]) {

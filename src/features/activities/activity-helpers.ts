@@ -1,12 +1,14 @@
 import {
+  createFillBlankPromptForLabel,
   getSavedFillBlankPromptForLabel,
   isBuiltInFillBlankPrompt,
   isGenericFillBlankPrompt
 } from "@/utils/fill-blank-prompts";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import {
+  createChooseCorrectSymbolPrompt,
   getSavedChooseCorrectSymbolPrompt,
-  getStarterLearningItemPromptDescription,
+  isBuiltInChooseCorrectSymbolPrompt,
   isGenericChooseCorrectSymbolPrompt
 } from "@/utils/starter-learning-item-prompts";
 import type { Activity, ActivityType, LearningItem } from "@/types";
@@ -74,11 +76,20 @@ export function getPromptStoreKey(type: ActivityType, learningItemId: string) {
   return `${type}:${learningItemId}`;
 }
 
-export function getSavedQuestionPrompt(type: ActivityType, item: LearningItem, promptStore: ActivityPromptStore) {
+/**
+ * The question a card starts with: the teacher's saved one, the built-in one, or for a card a teacher made,
+ * a starter from its category (`categoryName`) that never names the card.
+ */
+export function getSavedQuestionPrompt(
+  type: ActivityType,
+  item: LearningItem,
+  promptStore: ActivityPromptStore,
+  categoryName?: string
+) {
   const savedPrompt = promptStore[getPromptStoreKey(type, item.id)];
   if (savedPrompt) return savedPrompt;
-  if (type === "fill-blank") return getSavedFillBlankPromptForLabel(item.label);
-  if (type === "choose-correct-symbol") return getSavedChooseCorrectSymbolPrompt(item);
+  if (type === "fill-blank") return createFillBlankPromptForLabel(item.label, item, categoryName);
+  if (type === "choose-correct-symbol") return createChooseCorrectSymbolPrompt(item, categoryName);
   return undefined;
 }
 
@@ -121,7 +132,10 @@ export function upgradeStarterActivityPrompts(records: Activity[]) {
           const prompt = getSavedFillBlankPromptForLabel(question.answer);
           return prompt ? { ...question, prompt } : question;
         }
-        const prompt = getStarterLearningItemPromptDescription(question.learningItemId);
+        // Only built-in or generic questions are upgraded; a question a teacher wrote is kept.
+        const card = { id: question.learningItemId, label: "" };
+        if (!isBuiltInChooseCorrectSymbolPrompt(card, question.prompt)) return question;
+        const prompt = getSavedChooseCorrectSymbolPrompt(card);
         return prompt ? { ...question, prompt } : question;
       })
     };

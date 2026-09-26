@@ -45,7 +45,8 @@ export function ActivityCard({
   /** Owner name, for shared activities made by someone else. */
   creator?: string;
   onOpen: () => void;
-  onPlay: () => void;
+  /** Left out for admins, who can only view activities. */
+  onPlay?: () => void;
 }) {
   const isPrivate = activity.visibility === "private";
 
@@ -83,6 +84,7 @@ export function ActivityCard({
           ) : (
             <span />
           )}
+          {onPlay ? (
           <button
             type="button"
             onClick={onPlay}
@@ -92,6 +94,7 @@ export function ActivityCard({
             <Play className="h-4 w-4" aria-hidden="true" />
             Play
           </button>
+          ) : null}
         </span>
       </div>
     </article>

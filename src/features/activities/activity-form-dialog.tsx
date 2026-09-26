@@ -18,7 +18,6 @@ import { MaterialsStep } from "@/features/content/lesson-form-dialog";
 import { GuideTip } from "@/features/guide/guide-tip";
 import {
   MAX_ACTIVITY_LEARNING_ITEMS,
-  activityTypeDescriptions,
   activityTypeTones,
   activityTypes,
   canUseItem,
@@ -149,6 +148,7 @@ function ActivityForm({
   const [drafting, setDrafting] = useState(false);
 
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+  const categoryNameById = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories]);
   const selectedItems = values.itemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
   const lesson = values.lessonId ? lessonOfActivity ?? lessons.find((candidate) => candidate.id === values.lessonId) : undefined;
   // From a lesson: only that lesson's cards can be picked.
@@ -177,7 +177,10 @@ function ActivityForm({
     itemIds.forEach((id) => {
       const key = getPromptStoreKey(type, id);
       const item = itemById.get(id);
-      next[key] = current[key] ?? (item ? getSavedQuestionPrompt(type, item, promptStore) : undefined) ?? "";
+      next[key] =
+        current[key] ??
+        (item ? getSavedQuestionPrompt(type, item, promptStore, categoryNameById.get(item.categoryId)) : undefined) ??
+        "";
     });
     return next;
   }
@@ -345,7 +348,6 @@ function ActivityForm({
                         type="button"
                         role="radio"
                         aria-checked={selected}
-                        aria-describedby={`activity-type-${type}`}
                         onClick={() => changeType(type)}
                         className={cn(
                           "flex min-h-11 items-center gap-2 rounded-2xl border p-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
@@ -355,12 +357,7 @@ function ActivityForm({
                         <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", activityTypeTones[type].soft, activityTypeTones[type].text)}>
                           <Icon className="h-4 w-4" aria-hidden="true" />
                         </span>
-                        <span className="min-w-0">
-                          <span className="block text-sm font-bold leading-tight text-ink">{activityTypeLabels[type]}</span>
-                          <span id={`activity-type-${type}`} className="block text-xs leading-snug text-slate-500">
-                            {activityTypeDescriptions[type]}
-                          </span>
-                        </span>
+                        <span className="min-w-0 text-sm font-bold leading-tight text-ink">{activityTypeLabels[type]}</span>
                       </button>
                     );
                   })}

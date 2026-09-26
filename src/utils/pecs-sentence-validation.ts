@@ -61,8 +61,9 @@ function rolesMatch(left: SentenceRole[], right: SentenceRole[]) {
 function classifySingleCard(card: PecsSentenceCard): PecsConstructionType {
   const label = normalizeLabel(card.label);
   if (card.sentenceRole === "command") return "sentence";
+  // Good morning and Thank you are expressions, even though they are two words.
+  if (["greeting", "polite_word", "response", "safety_word"].includes(card.sentenceRole ?? "")) return "expression";
   if (label.includes(" ")) return "phrase";
-  if (["greeting", "response", "safety_word"].includes(card.sentenceRole ?? "")) return "expression";
   return "word";
 }
 
@@ -311,6 +312,10 @@ export function validatePecsSentence(
   }
 
   if (cards.length === 1) {
+    // Am, Is, and Are mean nothing on their own.
+    if (cards[0].sentenceRole === "be_verb") {
+      return { isValid: false, generatedSentence, feedback: "Add who it is about, and a word like Happy." };
+    }
     const constructionType = classifySingleCard(cards[0]);
     return validResult(constructionType, "Single Card", cards);
   }

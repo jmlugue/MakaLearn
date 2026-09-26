@@ -1,5 +1,5 @@
 import { activityUsesSymbolOptions, findPecsLearningItemForActivityValue, getActivityDisplayLabel } from "@/utils/activity-symbol-options";
-import { buildActivityOptionSets, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
+import { buildActivityOptionSets, isQuestionRelatedDistractor, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
 import { activityInstruction } from "@/features/activities/activity-helpers";
 import { normalizeLearningSpeechText } from "@/utils/speech-text";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
@@ -164,13 +164,26 @@ export function getActivityQuestionOptions(
     .filter((item): item is LearningItem => Boolean(item?.symbolImageUrl))
     .map(optionValueForItem);
   const libraryOptions = eligibleItems.map(optionValueForItem);
-  const semanticExclusions = activity.questions.map((candidateQuestion) => {
-    const answerItem = getRelatedItem(candidateQuestion, eligibleItems)
-      ?? findPecsLearningItemForActivityValue(candidateQuestion.answer, eligibleItems);
+  const answerItems = activity.questions.map(
+    (candidateQuestion) =>
+      getRelatedItem(candidateQuestion, eligibleItems)
+      ?? findPecsLearningItemForActivityValue(candidateQuestion.answer, eligibleItems)
+  );
+  const semanticExclusions = activity.questions.map((_, index) => {
+    const answerItem = answerItems[index];
     if (!answerItem) return [];
 
     return eligibleItems
       .filter((candidate) => isUnsafeActivityDistractor(activity.type, answerItem, candidate))
+      .map(optionValueForItem);
+  });
+  // Cards the question itself points at ("What do I want to eat?") are only used when nothing else is left.
+  const questionAvoids = activity.questions.map((candidateQuestion, index) => {
+    const answerItem = answerItems[index];
+    if (!answerItem || !questionTextMatters(activity.type)) return [];
+
+    return eligibleItems
+      .filter((candidate) => isQuestionRelatedDistractor(candidateQuestion.prompt, answerItem, candidate))
       .map(optionValueForItem);
   });
   const optionSets = buildActivityOptionSets(
@@ -178,11 +191,17 @@ export function getActivityQuestionOptions(
     [...savedPecsOptions, ...libraryOptions],
     shuffleSeed,
     3,
-    semanticExclusions
+    semanticExclusions,
+    questionAvoids
   );
   const questionIndex = activity.questions.findIndex((candidate) => candidate.id === question.id);
 
   return optionSets[questionIndex] ?? question.options;
+}
+
+/** Only these types show a written question; the others show the card's own word. */
+function questionTextMatters(type: Activity["type"]) {
+  return type === "choose-correct-symbol" || type === "fill-blank";
 }
 
 export function getActivityBackground(activityId: string) {

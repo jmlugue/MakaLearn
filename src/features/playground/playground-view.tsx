@@ -142,8 +142,10 @@ function canUseAudioUrl(value?: string) {
   return Boolean(value && isEmbeddableMediaUrl(value));
 }
 
-function getFeedbackTitle(result: PecsSentenceValidationResult) {
-  return result.isValid ? "Good job" : "Try again";
+/** The hint under "Try again". The plain "Try again." feedback would only repeat the title. */
+function getRetryHint(result: PecsSentenceValidationResult) {
+  const feedback = result.feedback.trim();
+  return !feedback || /^try again\.?$/i.test(feedback) ? "Try other cards or another order." : feedback;
 }
 
 function getSpeechLabel(label: string) {
@@ -176,7 +178,8 @@ export function PlaygroundView() {
   const [speaking, setSpeaking] = useState(false);
   // The card being read aloud, so Listen can highlight each card in turn.
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  // After Check, a pop-up says "Good job" or "Try again". Any change to the board closes it.
+  const [feedbackModal, setFeedbackModal] = useState<"success" | "retry" | null>(null);
   const [toolbarReady, setToolbarReady] = useState(false);
 
   useEffect(() => {
@@ -250,7 +253,7 @@ export function PlaygroundView() {
 
     setSentenceCards((current) => (current.length >= maxSentenceCards ? current : [...current, card]));
     setResult(null);
-    setShowSuccessModal(false);
+    setFeedbackModal(null);
     // Hearing the card as it lands ties the picture to the word.
     if (!speaking) void sayCard(card);
   }
@@ -258,13 +261,13 @@ export function PlaygroundView() {
   function removeCard(index: number) {
     setSentenceCards((current) => current.filter((_, cardIndex) => cardIndex !== index));
     setResult(null);
-    setShowSuccessModal(false);
+    setFeedbackModal(null);
   }
 
   function swapCards(fromIndex: number, toIndex: number) {
     setSentenceCards((current) => swapBoardItems(current, fromIndex, toIndex));
     setResult(null);
-    setShowSuccessModal(false);
+    setFeedbackModal(null);
   }
 
   function placeLibraryCard(card: PlaygroundCard, targetIndex?: number) {
@@ -275,7 +278,7 @@ export function PlaygroundView() {
 
     setSentenceCards((current) => placeLibraryItem(current, card, targetIndex, maxSentenceCards));
     setResult(null);
-    setShowSuccessModal(false);
+    setFeedbackModal(null);
     if (!speaking) void sayCard(card);
   }
 
@@ -302,16 +305,13 @@ export function PlaygroundView() {
     setResult(nextResult);
 
     if (nextResult.isValid) {
-      setShowSuccessModal(true);
+      setFeedbackModal("success");
       void speakSentenceLike();
       return;
     }
 
-    notify({
-      title: getFeedbackTitle(nextResult),
-      description: nextResult.feedback,
-      tone: "info"
-    });
+    setFeedbackModal("retry");
+    if ("speechSynthesis" in window) void speakText(`Try again. ${getRetryHint(nextResult)}`);
   }
 
   async function speakSentence() {
@@ -359,7 +359,7 @@ export function PlaygroundView() {
   function resetSentence() {
     setSentenceCards([]);
     setResult(null);
-    setShowSuccessModal(false);
+    setFeedbackModal(null);
   }
 
   function mixUpCards() {
@@ -559,26 +559,6 @@ export function PlaygroundView() {
                   </div>
 
                   <div className="mt-3 grid shrink-0 gap-3">
-                    {result ? (
-                      <div
-                        className={`flex items-start gap-3 rounded-xl border p-3 shadow-sm ${
-                          result.isValid ? "border-emerald-200 bg-emerald-50/90" : "border-amber-200 bg-amber-50/90"
-                        }`}
-                        role="status"
-                      >
-                        <span
-                          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${
-                            result.isValid ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-                          }`}
-                        >
-                          {result.isValid ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : <RotateCcw className="h-5 w-5" aria-hidden="true" />}
-                        </span>
-                        <div>
-                          <p className={`text-lg font-bold ${result.isValid ? "text-emerald-800" : "text-amber-900"}`}>{getFeedbackTitle(result)}</p>
-                          {result.feedback ? <p className={`text-sm ${result.isValid ? "text-emerald-900/80" : "text-amber-900/80"}`}>{result.feedback}</p> : null}
-                        </div>
-                      </div>
-                    ) : null}
 
                     <CardFooter className="mt-0 grid grid-cols-3 gap-2 border-t-0 pt-0">
                       <Button
@@ -614,7 +594,7 @@ export function PlaygroundView() {
                     </CardFooter>
                   </div>
                 </section>
-                {showSuccessModal ? (
+                {feedbackModal === "success" ? (
                   <div className="fixed inset-0 z-[60] grid place-items-center bg-sky-900/20 px-3 py-6">
                     <div
                       role="dialog"
@@ -649,8 +629,42 @@ export function PlaygroundView() {
                             </div>
                           ))}
                         </div>
-                        <Button type="button" className="mt-6 min-h-12 px-6" onClick={() => setShowSuccessModal(false)}>
+                        <Button type="button" className="mt-6 min-h-12 px-6" onClick={() => setFeedbackModal(null)}>
                           PLAY AGAIN
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                {feedbackModal === "retry" && result ? (
+                  <div className="fixed inset-0 z-[60] grid place-items-center bg-sky-900/20 px-3 py-6" onClick={() => setFeedbackModal(null)}>
+                    <div
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="playground-retry-title"
+                      onClick={(event) => event.stopPropagation()}
+                      className="relative max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-[1.75rem] border border-amber-200 bg-gradient-to-b from-white via-white to-amber-50 p-5 text-center shadow-[0_24px_80px_rgba(217,119,6,0.18)] sm:p-6"
+                    >
+                      <div className="relative max-h-[calc(90vh-2.5rem)] overflow-y-auto clean-scrollbar">
+                        <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-gradient-to-b from-amber-200 to-amber-300 text-amber-800 shadow-[0_12px_24px_rgba(217,119,6,0.16),inset_0_-6px_0_rgba(15,23,42,0.08)]" aria-hidden="true">
+                          <RotateCcw className="h-10 w-10" />
+                        </span>
+                        <h2 id="playground-retry-title" className="mt-4 text-4xl font-black tracking-wide text-amber-600 sm:text-5xl">
+                          TRY AGAIN
+                        </h2>
+                        <p className="mt-2 text-base font-semibold text-slate-700">{getRetryHint(result)}</p>
+                        <div className="mt-5 flex flex-wrap justify-center gap-3">
+                          {sentenceCards.map((card, index) => (
+                            <div key={`retry-${card.id}-${index}`} className="w-20 rounded-xl border border-amber-100 bg-white p-2 shadow-sm sm:w-24">
+                              <div className="grid aspect-[3/4] w-full place-items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={card.imageUrl} alt={card.label} className="h-full w-full object-contain" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <Button type="button" className="mt-6 min-h-12 bg-amber-500 px-6 hover:bg-amber-600" onClick={() => setFeedbackModal(null)}>
+                          OK, TRY AGAIN
                         </Button>
                       </div>
                     </div>
