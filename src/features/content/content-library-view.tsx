@@ -561,7 +561,12 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         )}
       </div>
 
-      <CardFormDialog open={cardFormOpen} initialKind={kind} categories={categories} onClose={() => setCardFormOpen(false)} onSubmit={addCard} />
+      <CardFormDialog
+        open={cardFormOpen}
+        initialKind={kind}
+        categories={categories}
+        knownLabels={items.map((item) => item.label)}
+        onClose={() => setCardFormOpen(false)} onSubmit={addCard} />
 
       <CardDetailDialog
         item={openItem}

@@ -577,7 +577,11 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   one (`getSavedQuestionPrompt`); a teacher's own question is kept.
 - **Uploads (Oct 1):** a wrongly named file is never refused.
   - **Add material:** any picture or sound of the right type is taken. Its name fills whatever is still blank
-    (`guessFromFileName`): `bad_emotions` gives label and category, `bad` only the label, IMG_2044 nothing.
+    (`guessFromFileName`): `happy_emotions` gives label and category, `happy` only the label, IMG_2044 nothing.
+    **The label only fills from a symbol or gesture word**: the PECS manifest, every material label (passed as
+    `knownLabels`), and a starter list of common Makaton / PECS words (`src/data/symbol-vocabulary.ts`, not
+    official Makaton; single letters left out). Random words or letters leave it blank. Categories still fill from any real
+    category name.
     Replacing or removing a file refills them from the newest remaining file name (`fillFromNames`), but only
     fields that are blank or came from a file; anything typed or picked by hand is kept.
     Category starts empty ("Pick a category"). On Save each file is renamed to the card's word_category
