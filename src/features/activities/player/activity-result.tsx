@@ -1,5 +1,6 @@
 "use client";
 
+import { Maki } from "@/features/student-mode/maki";
 import { Home, RotateCcw, Star, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StudentPictureCard, StudentResultBadge } from "@/features/activities/player/student-game-parts";
@@ -56,7 +57,9 @@ export function ActivityResultModal({
             ))}
           </div>
         ) : null}
-        <div className="relative grid max-h-[calc(92dvh-3rem)] justify-items-center gap-4 overflow-y-auto clean-scrollbar">
+        {/* Padding keeps Maki's jump and speech bubble (top) and the buttons' 3D edge (bottom) inside the scroll area. */}
+        <div className="relative grid max-h-[calc(92dvh-3rem)] justify-items-center gap-4 overflow-y-auto px-2 pb-3 pt-10 clean-scrollbar">
+          <Maki mood={allRight ? "cheer" : "encourage"} message="Great try!" size={130} label="" />
           <h2 id="activity-result-title" className={cn(studentText.popupTitle, allRight ? "text-emerald-600" : "text-blue-700")}>
             {allRight ? "Great job!" : "Good try!"}
           </h2>

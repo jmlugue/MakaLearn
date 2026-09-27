@@ -34,7 +34,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   }, [pathname]);
   const { user, loading, error } = useAuthState();
   const preloadUserId = user?.id;
-  const { isStudentMode, isStudentNavOpen, exitStudentMode, openStudentNav, closeStudentNav } = useStudentMode();
+  const { isStudentMode, isStudentNavOpen, exitStudentMode, openStudentNav, closeStudentNav, takeStudentStartRoute } = useStudentMode();
   const isStudentGestureViewport = isStudentMode && pathname === "/gesture-practice";
   useEffect(() => {
     if (!loading && !user && !error) {
@@ -44,9 +44,11 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && user && isStudentMode && !studentRouteHrefs.includes(pathname)) {
-      router.replace("/playground");
+      // Help's Go there can ask for a page (Gesture practice, Activities); otherwise Student mode starts on the playground.
+      const startAt = takeStudentStartRoute();
+      router.replace(startAt && studentRouteHrefs.includes(startAt) ? startAt : "/playground");
     }
-  }, [isStudentMode, loading, pathname, router, user]);
+  }, [isStudentMode, loading, pathname, router, takeStudentStartRoute, user]);
 
   useEffect(() => {
     if (!loading && user && !isStudentMode && studentOnlyRouteHrefs.includes(pathname)) {

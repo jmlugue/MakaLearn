@@ -67,8 +67,9 @@ function classifySingleCard(card: PecsSentenceCard): PecsConstructionType {
   return "word";
 }
 
+/** The playground asks for a phrase or a sentence, so the praise uses only those two words. */
 function validFeedback(type: PecsConstructionType) {
-  return type === "expression" ? "You made an expression." : `You made a ${type}.`;
+  return type === "sentence" ? "You made a sentence." : "You made a phrase.";
 }
 
 function validResult(

@@ -42,7 +42,7 @@ export function MobileNav() {
         })}
         <button
           type="button"
-          onClick={isStudentMode ? exitStudentMode : enterStudentMode}
+          onClick={isStudentMode ? exitStudentMode : () => enterStudentMode()}
           className={cn(tabClass, "text-slate-600 hover:bg-white/70")}
         >
           <GraduationCap className="h-5 w-5" aria-hidden="true" />

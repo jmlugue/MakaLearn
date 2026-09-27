@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { StudentModeTransition, type StudentModeSwitch } from "@/features/student-mode/student-mode-transition";
 
 // How long the switch card stays up. The route change happens underneath it.
@@ -9,7 +9,10 @@ const SWITCH_MS = 1100;
 type StudentModeContextValue = {
   isStudentMode: boolean;
   isStudentNavOpen: boolean;
-  enterStudentMode: () => void;
+  /** `startAt` opens Student mode on that page (Help's Go there) instead of the playground with the menu open. */
+  enterStudentMode: (startAt?: string) => void;
+  /** The page Student mode should open on, read once by the route guard in AppShell. */
+  takeStudentStartRoute: () => string | null;
   exitStudentMode: () => void;
   openStudentNav: () => void;
   closeStudentNav: () => void;
@@ -31,6 +34,7 @@ export function StudentModeProvider({ children }: { children: ReactNode }) {
   // when a new AppShell mounts for the destination route.
   const [isStudentNavOpen, setIsStudentNavOpen] = useState(false);
   const [switching, setSwitching] = useState<StudentModeSwitch | null>(null);
+  const startRouteRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!switching) return;
@@ -48,11 +52,20 @@ export function StudentModeProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(CLEAR_STUDENT_MODE_EVENT, handleClearStudentMode);
   }, []);
 
-  function enterStudentMode() {
+  function enterStudentMode(startAt?: string) {
+    const target = typeof startAt === "string" ? startAt : null;
+    startRouteRef.current = target;
     setSwitching("enter");
     setIsStudentMode(true);
-    setIsStudentNavOpen(true);
+    // Going straight to a page keeps the menu closed so the page is visible.
+    setIsStudentNavOpen(!target);
   }
+
+  const takeStudentStartRoute = useCallback(() => {
+    const target = startRouteRef.current;
+    startRouteRef.current = null;
+    return target;
+  }, []);
 
   function exitStudentMode() {
     setSwitching("exit");
@@ -70,8 +83,8 @@ export function StudentModeProvider({ children }: { children: ReactNode }) {
   }
 
   const value = useMemo(
-    () => ({ isStudentMode, isStudentNavOpen, enterStudentMode, exitStudentMode, openStudentNav, closeStudentNav }),
-    [isStudentMode, isStudentNavOpen]
+    () => ({ isStudentMode, isStudentNavOpen, enterStudentMode, exitStudentMode, openStudentNav, closeStudentNav, takeStudentStartRoute }),
+    [isStudentMode, isStudentNavOpen, takeStudentStartRoute]
   );
 
   return (

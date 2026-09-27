@@ -40,6 +40,8 @@ export function CategoryDialog({
   const categoryItems = category ? items.filter((item) => item.categoryId === category.id) : [];
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  // The color being picked while editing, so the pop-up's corner glow follows it.
+  const [formColor, setFormColor] = useState("");
 
   useEffect(() => setSearch(""), [category?.id]);
 
@@ -53,6 +55,7 @@ export function CategoryDialog({
       title={editing ? (category ? "Edit category" : "New category") : category?.name ?? ""}
       className="max-w-3xl"
       hideHeader
+      glowColor={glowFor(editing ? formColor : category?.color)}
       footer={
         category && !editing && canManage ? (
           <>
@@ -81,6 +84,7 @@ export function CategoryDialog({
           key={category?.id ?? "new"}
           category={category}
           saving={saving}
+          onColorChange={setFormColor}
           onCancel={() => (category ? onModeChange("view") : onClose())}
           onSubmit={async (values) => {
             setSaving(true);
@@ -157,14 +161,21 @@ export function CategoryDialog({
   );
 }
 
+/** A small hint of the category color in the pop-up's corner. Uses the stronger dot shade, since tints are pale. */
+function glowFor(color?: string) {
+  return color ? tintDot(color) : undefined;
+}
+
 function CategoryForm({
   category,
   saving,
+  onColorChange,
   onCancel,
   onSubmit
 }: {
   category: Category | null;
   saving: boolean;
+  onColorChange: (color: string) => void;
   onCancel: () => void;
   onSubmit: (values: CategoryFormValues) => void;
 }) {
@@ -175,6 +186,8 @@ function CategoryForm({
   const isPreset = categoryTints.some((tint) => tint.value.toLowerCase() === color.toLowerCase());
   // Built-in categories keep one color in Content and the playground, so it cannot be changed here.
   const fixedColor = category ? builtInCategoryColor(category.name) : undefined;
+
+  useEffect(() => onColorChange(fixedColor ?? color), [color, fixedColor, onColorChange]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

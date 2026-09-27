@@ -51,7 +51,8 @@ export function Dialog({
   children,
   footer,
   className,
-  hideHeader
+  hideHeader,
+  glowColor
 }: {
   open: boolean;
   onClose: () => void;
@@ -61,6 +62,8 @@ export function Dialog({
   footer?: ReactNode;
   className?: string;
   hideHeader?: boolean;
+  /** Tints the corner glow (a category pop-up passes its color). Defaults to the app blue. */
+  glowColor?: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -141,7 +144,13 @@ export function Dialog({
                 layer: poking out of the panel made it scrollable, so focusing a control near the right edge
                 slid the whole pop-up sideways. */}
             <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
-              <span className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.22),transparent_70%)]" />
+              <span
+                className={cn(
+                  "absolute -right-24 -top-24 h-64 w-64 rounded-full",
+                  !glowColor && "bg-[radial-gradient(circle,rgba(96,165,250,0.22),transparent_70%)]"
+                )}
+                style={glowColor ? { backgroundImage: `radial-gradient(circle, color-mix(in srgb, ${glowColor} 30%, transparent), transparent 70%)` } : undefined}
+              />
             </span>
             {hideHeader ? (
               <>

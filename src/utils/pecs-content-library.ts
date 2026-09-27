@@ -138,13 +138,19 @@ function upgradePecsItem(item: LearningItem) {
   };
 }
 
-export function ensurePecsManifestItems(records: LearningItem[]) {
+/**
+ * Upgrades built-in PECS cards and merges PECS cards that share a label into the best one (old seed rows such as
+ * item-eat and the current pecs-eat record). `builtInOnly` merges only labels from the built-in manifest: Content
+ * uses it so a teacher's own duplicate cards stay visible and can be deleted (otherwise a hidden copy stays in the
+ * database and shows in Admin). The playground and activities merge everything, so a word never shows twice.
+ */
+export function ensurePecsManifestItems(records: LearningItem[], { builtInOnly = false }: { builtInOnly?: boolean } = {}) {
   const deduplicated: LearningItem[] = [];
   const pecsIndexByLabel = new Map<string, number>();
 
   for (const sourceItem of records) {
     const item = upgradePecsItem(sourceItem);
-    if (item.contentType !== "pecs") {
+    if (item.contentType !== "pecs" || (builtInOnly && !getManifestCard(item.label))) {
       deduplicated.push(item);
       continue;
     }

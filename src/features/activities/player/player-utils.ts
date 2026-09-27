@@ -2,6 +2,7 @@ import { activityUsesSymbolOptions, findPecsLearningItemForActivityValue, getAct
 import { buildActivityOptionSets, isQuestionRelatedDistractor, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
 import { activityInstruction } from "@/features/activities/activity-helpers";
 import { normalizeLearningSpeechText } from "@/utils/speech-text";
+import { createUtterance } from "@/lib/speech";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 export type ActivityScore = {
@@ -225,8 +226,7 @@ export function speakText(text: string) {
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.88;
+    const utterance = createUtterance(text);
     utterance.onend = () => resolve();
     utterance.onerror = () => resolve();
     window.speechSynthesis.cancel();

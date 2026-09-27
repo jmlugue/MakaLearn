@@ -1,5 +1,6 @@
 "use client";
 
+import { Maki, type MakiMood } from "@/features/student-mode/maki";
 import { type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, Hand, Home, Lightbulb, Volume2, X } from "lucide-react";
@@ -22,13 +23,16 @@ export function StudentGameFrame({
   topBar,
   instruction,
   children,
-  overlay
+  overlay,
+  maki
 }: {
   activityId: string;
   topBar: ReactNode;
   instruction: string;
   children: ReactNode;
   overlay?: ReactNode;
+  /** Maki in the corner, reacting to answers. Hidden on small screens so it never covers cards. */
+  maki?: MakiMood;
 }) {
   return (
     <section
@@ -52,6 +56,11 @@ export function StudentGameFrame({
         </p>
         <div className="min-h-0">{children}</div>
       </div>
+      {maki ? (
+        <div className="pointer-events-none absolute bottom-3 left-3 z-10 hidden lg:block" aria-hidden="true">
+          <Maki mood={maki} size={170} label="" />
+        </div>
+      ) : null}
       {overlay}
     </section>
   );

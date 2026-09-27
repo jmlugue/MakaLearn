@@ -12,7 +12,6 @@ import {
   DetailNote,
   DetailRow,
   EmptyRow,
-  FilterPills,
   FilterSelect,
   logGroup,
   logRangeLabels,
@@ -21,6 +20,7 @@ import {
   Panel,
   SearchInput
 } from "@/features/admin/admin-shared";
+import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { cn } from "@/lib/utils";
 import type { AuditLog } from "@/types";
 
@@ -169,7 +169,9 @@ export function ActivitySection({
 
   return (
     <div className="w-full space-y-4">
-      <FilterPills
+      {/* Sub-menu under the Admin pills: sliding underline tabs, like PECS / Gestures in Content. */}
+      <UnderlineTabs
+        id="log-type"
         label="Log type"
         value={filter}
         onChange={onFilterChange}

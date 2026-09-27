@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Category as MediaPipeCategory, DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
 import {
@@ -13,20 +14,18 @@ import {
   Focus,
   Hand,
   ListChecks,
-  MousePointerClick,
   PlayCircle,
   RotateCw,
   RotateCcw,
   ScanLine,
   SkipForward,
-  Smile,
   Sparkles,
   Square,
   ThumbsUp,
-  Trophy,
   TriangleAlert,
   UserRound,
   Volume2,
+  X,
   XCircle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +38,9 @@ import { GuideTip } from "@/features/guide/guide-tip";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { cn } from "@/lib/utils";
+import { createUtterance } from "@/lib/speech";
+import { playCue } from "@/lib/sound-cues";
+import { Maki } from "@/features/student-mode/maki";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { createGestureDrawingUtils, loadGestureHandTracker } from "@/utils/gesture-hand-tracker";
 import {
@@ -220,7 +222,8 @@ export function GesturePracticeView() {
   const [correctiveFeedback, setCorrectiveFeedback] = useState<GestureFeedbackResponse | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [selectedGestureId, setSelectedGestureId] = useState("");
-  const [referenceFlipped, setReferenceFlipped] = useState(false);
+  // Guided practice no longer flips its card; the session code still resets this, so it stays.
+  const [, setReferenceFlipped] = useState(false);
   const [carouselDirection, setCarouselDirection] = useState(1);
   const [cameraFocusMode, setCameraFocusMode] = useState(false);
   const [showHandLandmarks, setShowHandLandmarks] = useState(true);
@@ -233,6 +236,7 @@ export function GesturePracticeView() {
   const [guidedFeedbackTitle, setGuidedFeedbackTitle] = useState("");
   const [guidedFeedbackDetail, setGuidedFeedbackDetail] = useState("");
   const [endSessionDialogOpen, setEndSessionDialogOpen] = useState(false);
+  const [leaveGuidedDialogOpen, setLeaveGuidedDialogOpen] = useState(false);
   const selectedGesture = learningItems.find((item) => item.id === selectedGestureId) ?? learningItems[0];
   const selectedGestureIndex = Math.max(
     0,
@@ -299,6 +303,8 @@ export function GesturePracticeView() {
     const audioKey = detectedGesture?.id ?? prediction.label;
     if (lastAutoAudioKeyRef.current === audioKey) return;
     lastAutoAudioKeyRef.current = audioKey;
+    // A recognized gesture (free practice) or the right one (guided) gets the happy chime.
+    playCue("correct");
 
     if (detectedGesture?.audioUrl) {
       playAudioSource(detectedGesture.audioUrl, detectedGesture.label, () => {
@@ -468,6 +474,7 @@ export function GesturePracticeView() {
     clearPrediction();
     setStatusMessage("");
     setGuidedPhaseValue("complete");
+    playCue("finish");
   }
 
   function advanceGuidedSession() {
@@ -1168,77 +1175,48 @@ export function GesturePracticeView() {
   if (isStudentMode) {
     return (
       <>
-      <section
-        className="absolute inset-2 isolate overflow-hidden rounded-[2rem] border border-white/90 bg-[#f4fbff] p-2 shadow-[0_24px_70px_rgba(37,99,235,0.14)] sm:inset-3 sm:p-3 lg:inset-4 lg:p-4"
-      >
+      {/* Full screen like the playground and activities: the background reaches every edge. */}
+      <section className="absolute inset-0 isolate flex flex-col gap-2 overflow-hidden bg-[#f4fbff] p-2 sm:gap-3 sm:p-3 lg:p-4">
         <StudentGestureImageBackground />
+        <div className="relative z-10 flex shrink-0 justify-center">
+          <div
+            className="flex flex-wrap items-center justify-center gap-1 rounded-full border border-white/90 bg-white/80 p-1.5 shadow-[0_6px_18px_rgba(37,99,235,0.1)] backdrop-blur-xl"
+            role="toolbar"
+            aria-label="Practice tools"
+          >
+            <div className="flex gap-1" role="group" aria-label="Practice mode">
+              <ToolbarPill
+                icon={Hand}
+                label="Free practice"
+                pressed={practiceMode === "free"}
+                onClick={() => {
+                  // Leaving a guided session in the middle asks first, like the End button.
+                  if (practiceMode === "guided" && guidedPhase !== "complete") setLeaveGuidedDialogOpen(true);
+                  else switchToFreePractice();
+                }}
+              />
+              <ToolbarPill icon={ListChecks} label="Guided 7" tone="sky" pressed={practiceMode === "guided"} onClick={startGuidedRun} />
+            </div>
+            <span className="mx-1 hidden h-6 w-px bg-blue-100 sm:block" aria-hidden="true" />
+            <ToolbarPill icon={Focus} label="Focus" tone="yellow" pressed={cameraFocusMode} onClick={() => setCameraFocusMode((current) => !current)} />
+            <ToolbarPill
+              icon={showHandLandmarks ? Eye : EyeOff}
+              label="Landmarks"
+              tone="green"
+              pressed={showHandLandmarks}
+              onClick={() => setShowHandLandmarks((current) => !current)}
+            />
+          </div>
+        </div>
         <div
           className={cn(
-            "relative z-10 grid h-full min-h-0 gap-2 sm:gap-3 lg:gap-4",
+            "relative z-10 grid min-h-0 flex-1 gap-2 sm:gap-3 lg:gap-4",
             cameraFocusMode
               ? "grid-rows-[minmax(0,1fr)]"
               : "grid-rows-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[1.13fr_0.87fr] xl:grid-rows-1"
           )}
         >
           <div className="flex min-h-0 min-w-0 flex-col">
-            <div className={cn("flex shrink-0 flex-wrap items-center justify-center gap-2 sm:gap-3", cameraFocusMode ? "mb-2" : "mb-3")}>
-              <div
-                className="flex rounded-full border border-white/90 bg-white/80 p-1.5 shadow-[0_10px_22px_rgba(37,99,235,0.12)] backdrop-blur-xl"
-                role="group"
-                aria-label="Practice mode"
-              >
-                <button
-                  type="button"
-                  onClick={switchToFreePractice}
-                  aria-pressed={practiceMode === "free"}
-                  className={cn(
-                    "inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-black transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200 sm:px-5",
-                    practiceMode === "free" ? "bg-blue-600 text-white shadow-md" : "text-slate-600 hover:bg-blue-50"
-                  )}
-                >
-                  <Hand className="h-5 w-5" aria-hidden="true" />
-                  Free practice
-                </button>
-                <button
-                  type="button"
-                  onClick={startGuidedRun}
-                  aria-pressed={practiceMode === "guided"}
-                  className={cn(
-                    "inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-black transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200 sm:px-5",
-                    practiceMode === "guided"
-                      ? "bg-sky-600 text-white shadow-md"
-                      : "text-slate-600 hover:bg-sky-50"
-                  )}
-                >
-                  <ListChecks className="h-5 w-5" aria-hidden="true" />
-                  Guided 7
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCameraFocusMode((current) => !current)}
-                className={cn(
-                  "inline-flex items-center gap-3 rounded-full border border-yellow-200 bg-gradient-to-b from-[#fff6a8] to-[#ffe175] font-black text-ink shadow-[0_10px_20px_rgba(250,204,21,0.2),inset_0_1px_0_rgba(255,255,255,0.8)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(250,204,21,0.25)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-yellow-200",
-                  cameraFocusMode ? "min-h-12 px-5 text-base sm:min-h-14 sm:px-7 sm:text-lg" : "min-h-14 px-7 text-lg"
-                )}
-              >
-                <Focus className="h-6 w-6" aria-hidden="true" />
-                Focus Mode
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowHandLandmarks((current) => !current)}
-                className={cn(
-                  "inline-flex items-center gap-3 rounded-full border border-blue-100 bg-white/95 font-black text-ink shadow-[0_10px_20px_rgba(37,99,235,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_26px_rgba(37,99,235,0.16)] focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200",
-                  cameraFocusMode ? "min-h-12 px-5 text-base sm:min-h-14 sm:px-7 sm:text-lg" : "min-h-14 px-7 text-lg"
-                )}
-                aria-pressed={showHandLandmarks}
-              >
-                {showHandLandmarks ? <Eye className="h-6 w-6" aria-hidden="true" /> : <EyeOff className="h-6 w-6" aria-hidden="true" />}
-                Landmarks {showHandLandmarks ? "On" : "Off"}
-              </button>
-            </div>
-
             <CameraPanel
               cameraStarted={cameraStarted}
               videoRef={videoRef}
@@ -1250,23 +1228,36 @@ export function GesturePracticeView() {
               onStartCamera={startCamera}
               onStopCamera={stopCamera}
               overlay={
-                practiceMode === "guided" ? (
-                  <GuidedCameraOverlay
-                    phase={guidedPhase}
-                    countdownValue={countdownValue}
-                    target={guidedTarget}
-                    currentIndex={guidedIndex}
-                    total={guidedQueue.length}
-                    cameraReady={cameraStarted && trackerStatus === "ready"}
-                    feedbackTitle={guidedFeedbackTitle}
-                    feedbackDetail={guidedFeedbackDetail}
-                    onReady={beginGuidedCountdown}
-                    onFeedbackAction={() => openGuidedCapture(true)}
-                    onStartCamera={startCamera}
-                    onSkip={skipGuidedGesture}
-                    onEnd={() => setEndSessionDialogOpen(true)}
-                  />
-                ) : undefined
+                <>
+                  {practiceMode === "guided" ? (
+                    <GuidedCameraOverlay
+                      phase={guidedPhase}
+                      countdownValue={countdownValue}
+                      target={guidedTarget}
+                      currentIndex={guidedIndex}
+                      total={guidedQueue.length}
+                    />
+                  ) : null}
+                  {cameraStarted && guidedPhase !== "countdown" ? (
+                    <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3" aria-hidden="true">
+                      <Maki
+                        mood={
+                          practiceMode === "guided"
+                            ? guidedPhase === "feedback"
+                              ? guidedFeedbackCorrect
+                                ? "cheer"
+                                : "encourage"
+                              : "happy"
+                            : recognizedGesture
+                              ? "cheer"
+                              : "happy"
+                        }
+                        size={cameraFocusMode ? 130 : 104}
+                        label=""
+                      />
+                    </div>
+                  ) : null}
+                </>
               }
             />
 
@@ -1275,24 +1266,16 @@ export function GesturePracticeView() {
                 practiceMode === "guided"
                   ? guidedPhase === "complete"
                     ? "Session complete"
-                    : guidedPhase === "feedback"
-                      ? guidedFeedbackCorrect
-                        ? guidedFeedbackTitle
-                        : ""
-                      : `Gesture ${Math.min(guidedIndex + 1, guidedQueue.length)} of ${guidedQueue.length}`
+                    : `Gesture ${Math.min(guidedIndex + 1, guidedQueue.length)} of ${guidedQueue.length}`
                   : recognizedGesture
                     ? "Great job!"
                     : "Ready"
               }
               detail={
                 practiceMode === "guided"
-                  ? guidedPhase === "feedback"
-                    ? guidedFeedbackCorrect
-                      ? guidedFeedbackDetail
-                      : ""
-                    : guidedTarget
-                      ? `Show: ${getLearnerCardLabel(guidedTarget.label)}`
-                      : ""
+                  ? guidedTarget && guidedPhase !== "complete"
+                    ? `Show: ${getLearnerCardLabel(guidedTarget.label)}`
+                    : ""
                   : recognizedGesture
                   ? "You did it."
                   : cameraStarted
@@ -1300,23 +1283,15 @@ export function GesturePracticeView() {
                     : ""
               }
               statusMessage={prediction ? "" : statusMessage}
-              correctiveFeedback={correctiveFeedback}
-              feedbackLoading={feedbackLoading}
-              success={practiceMode === "guided" ? guidedFeedbackCorrect : recognizedGesture}
-              feedbackOnly={practiceMode === "guided" && guidedPhase === "feedback" && !guidedFeedbackCorrect}
+              correctiveFeedback={practiceMode === "guided" ? null : correctiveFeedback}
+              feedbackLoading={practiceMode === "guided" ? false : feedbackLoading}
+              success={practiceMode === "guided" ? false : recognizedGesture}
               compact={cameraFocusMode}
             />
           </div>
 
-          <div className={cameraFocusMode ? "hidden" : "flex min-h-0 min-w-0 flex-col overflow-hidden xl:pt-10"}>
-            {practiceMode === "guided" && guidedPhase === "complete" ? (
-              <GuidedSessionSummary
-                results={guidedResults}
-                summary={guidedSummary}
-                onTryAgain={startGuidedRun}
-                onFreePractice={switchToFreePractice}
-              />
-            ) : selectedGesture ? (
+          <div className={cameraFocusMode ? "hidden" : "flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden"}>
+            {selectedGesture ? (
               <AnimatePresence custom={carouselDirection} mode="wait">
                 <motion.div
                   key={selectedGesture.id}
@@ -1330,12 +1305,7 @@ export function GesturePracticeView() {
                   {practiceMode === "free" ? (
                     <LearnerReferenceDetailsCard item={selectedGesture} onPlayAudio={playSelectedGestureAudio} />
                   ) : (
-                    <LearnerReferenceFlipCard
-                      item={selectedGesture}
-                      flipped={referenceFlipped}
-                      onFlip={() => setReferenceFlipped((current) => !current)}
-                      onPlayAudio={playSelectedGestureAudio}
-                    />
+                    <LearnerReferencePictureCard item={selectedGesture} onPlayAudio={playSelectedGestureAudio} />
                   )}
                 </motion.div>
               </AnimatePresence>
@@ -1351,8 +1321,8 @@ export function GesturePracticeView() {
               />
             ) : (
             <div className="mt-2 flex shrink-0 items-center justify-center gap-5 sm:mt-3 sm:gap-8">
-              <Button type="button" variant="secondary" size="icon" aria-label="Previous card" onClick={() => moveGesture(-1)} className="h-16 w-16 rounded-full border-4 border-white bg-white/95 text-[#19294d] shadow-[0_16px_28px_rgba(37,99,235,0.16),inset_0_2px_0_rgba(255,255,255,0.95)] sm:h-20 sm:w-20">
-                <ArrowLeft className="h-9 w-9 stroke-[3.5] sm:h-11 sm:w-11" aria-hidden="true" />
+              <Button type="button" variant="secondary" size="icon" aria-label="Previous card" onClick={() => moveGesture(-1)} className="h-14 w-14 rounded-full border border-blue-100 bg-white text-[#19294d] shadow-[0_6px_14px_rgba(37,99,235,0.12)] sm:h-16 sm:w-16">
+                <ArrowLeft className="h-7 w-7 stroke-[3] sm:h-8 sm:w-8" aria-hidden="true" />
               </Button>
               <div className="flex items-center gap-2" aria-label={`Card ${selectedGestureIndex + 1} of ${learningItems.length}`}>
                 {learningItems.map((item, index) => (
@@ -1365,14 +1335,39 @@ export function GesturePracticeView() {
                   />
                 ))}
               </div>
-              <Button type="button" variant="secondary" size="icon" aria-label="Next card" onClick={() => moveGesture(1)} className="h-16 w-16 rounded-full border-4 border-white bg-white/95 text-[#19294d] shadow-[0_16px_28px_rgba(37,99,235,0.16),inset_0_2px_0_rgba(255,255,255,0.95)] sm:h-20 sm:w-20">
-                <ArrowRight className="h-9 w-9 stroke-[3.5] sm:h-11 sm:w-11" aria-hidden="true" />
+              <Button type="button" variant="secondary" size="icon" aria-label="Next card" onClick={() => moveGesture(1)} className="h-14 w-14 rounded-full border border-blue-100 bg-white text-[#19294d] shadow-[0_6px_14px_rgba(37,99,235,0.12)] sm:h-16 sm:w-16">
+                <ArrowRight className="h-7 w-7 stroke-[3] sm:h-8 sm:w-8" aria-hidden="true" />
               </Button>
             </div>
             )}
           </div>
         </div>
       </section>
+      {practiceMode === "guided" && (guidedPhase === "ready" || guidedPhase === "feedback" || guidedPhase === "complete") ? (
+        <GuidedPopup
+          phase={guidedPhase}
+          target={guidedTarget}
+          cameraReady={cameraStarted && trackerStatus === "ready"}
+          success={guidedFeedbackCorrect}
+          feedbackTitle={guidedFeedbackTitle}
+          feedbackDetail={guidedFeedbackDetail}
+          correctiveFeedback={correctiveFeedback}
+          feedbackLoading={feedbackLoading}
+          onReady={beginGuidedCountdown}
+          onStartCamera={startCamera}
+          onTryAgain={() => openGuidedCapture(true)}
+          onSkip={skipGuidedGesture}
+          onEnd={() => setEndSessionDialogOpen(true)}
+          summary={
+            <GuidedSessionSummary
+              results={guidedResults}
+              summary={guidedSummary}
+              onTryAgain={startGuidedRun}
+              onCancel={switchToFreePractice}
+            />
+          }
+        />
+      ) : null}
       <ConfirmDialog
         open={endSessionDialogOpen}
         title="End guided practice?"
@@ -1383,6 +1378,18 @@ export function GesturePracticeView() {
         onConfirm={() => {
           setEndSessionDialogOpen(false);
           completeGuidedSession();
+        }}
+      />
+      <ConfirmDialog
+        open={leaveGuidedDialogOpen}
+        title="End guided practice?"
+        description="You will go back to free practice. This session will not be kept."
+        confirmLabel="End session"
+        tone="danger"
+        onClose={() => setLeaveGuidedDialogOpen(false)}
+        onConfirm={() => {
+          setLeaveGuidedDialogOpen(false);
+          switchToFreePractice();
         }}
       />
       </>
@@ -1419,7 +1426,7 @@ export function GesturePracticeView() {
           />
         </GuideTip>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="mt-3 flex flex-wrap gap-2">
           <TrackingMetric icon={Hand} label="Hands" value={`${detectedHandCount}/2`} valid={hasValidHands} />
           <TrackingMetric icon={UserRound} label="Camera" value={cameraStarted ? "Live" : "Off"} valid={cameraStarted} />
           <TrackingMetric icon={Eye} label="Model" value={getModelStatusLabel(modelStatus, hasValidHands)} valid={modelStatus === "ready"} />
@@ -1523,19 +1530,14 @@ export function GesturePracticeView() {
               />
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Live prediction</p>
-                <p className="mt-1 text-base font-black text-ink">{prediction?.label ?? getPredictionWaitingLabel(modelStatus, hasValidHands)}</p>
+                <p className="mt-1 truncate text-base font-black text-ink">{prediction?.label ?? getPredictionWaitingLabel(modelStatus, hasValidHands)}</p>
               </div>
-              <div className="rounded-lg border border-blue-100 bg-[#f8fbff] p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Model confidence</p>
-                <p className="mt-1 text-sm font-semibold text-ink">
-                  {prediction
-                    ? `${prediction.matchPercent}% confidence`
-                    : getConfidenceWaitingLabel(modelStatus, hasValidHands)}
-                </p>
-              </div>
+              <p className="shrink-0 text-right text-sm font-semibold text-slate-600">
+                {prediction ? `${prediction.matchPercent}% sure` : getConfidenceWaitingLabel(modelStatus, hasValidHands)}
+              </p>
             </div>
           </>
         ) : null}
@@ -1555,86 +1557,70 @@ function StudentGestureImageBackground() {
   );
 }
 
+const toolbarPressed = {
+  blue: "bg-blue-600 text-white shadow-sm",
+  sky: "bg-sky-500 text-white shadow-sm",
+  green: "bg-emerald-500 text-white shadow-sm"
+};
+
+/** One pill style for every control in the Student toolbar (mode switch, Focus, Landmarks). */
+function ToolbarPill({
+  icon: Icon,
+  label,
+  pressed,
+  tone = "blue",
+  onClick
+}: {
+  icon: typeof Hand;
+  label: string;
+  pressed: boolean;
+  /** Free practice blue, Guided 7 sky blue, Focus yellow (deeper with a ring when on), Landmarks green. */
+  tone?: "blue" | "sky" | "yellow" | "green";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={pressed}
+      className={cn(
+        "inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-black transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200 sm:px-5",
+        tone === "yellow"
+          ? cn(
+              "bg-gradient-to-b text-ink shadow-[0_6px_14px_rgba(250,204,21,0.22),inset_0_1px_0_rgba(255,255,255,0.8)] focus-visible:outline-yellow-200",
+              pressed ? "from-yellow-300 to-amber-300 ring-2 ring-amber-400" : "from-[#fff6a8] to-[#ffe175] hover:from-[#fff3a0] hover:to-[#ffd95a]"
+            )
+          : pressed
+            ? toolbarPressed[tone]
+            : cn("hover:bg-slate-50", tone === "green" ? "text-emerald-700" : "text-slate-600")
+      )}
+    >
+      <Icon className="h-5 w-5" aria-hidden="true" />
+      {label}
+    </button>
+  );
+}
+
+/** What sits on the camera during guided practice: only the countdown. */
 function GuidedCameraOverlay({
   phase,
   countdownValue,
   target,
   currentIndex,
-  total,
-  cameraReady,
-  feedbackTitle,
-  feedbackDetail,
-  onReady,
-  onFeedbackAction,
-  onStartCamera,
-  onSkip,
-  onEnd
+  total
 }: {
   phase: GuidedSessionPhase;
   countdownValue: number;
   target?: LearningItem;
   currentIndex: number;
   total: number;
-  cameraReady: boolean;
-  feedbackTitle: string;
-  feedbackDetail: string;
-  onReady: () => void;
-  onFeedbackAction: () => void;
-  onStartCamera: () => void;
-  onSkip: () => void;
-  onEnd: () => void;
 }) {
   const reduceMotion = useReducedMotion();
   const shortLabel = target ? getLearnerCardLabel(target.label) : "Gesture";
 
-  if (phase === "ready") {
-    return (
-      <div className="pointer-events-none grid h-full place-items-center bg-slate-950/55 p-4 backdrop-blur-[2px]">
-        <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          className="pointer-events-auto max-w-md rounded-[2rem] border-4 border-white/80 bg-white/95 p-5 text-center shadow-[0_24px_60px_rgba(15,23,42,0.32)] sm:p-7"
-          role="status"
-          aria-live="polite"
-        >
-          <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-[0_14px_28px_rgba(16,185,129,0.3)]">
-            <ThumbsUp className="h-10 w-10" aria-hidden="true" />
-          </span>
-          <p className="mt-4 text-sm font-black uppercase tracking-[0.18em] text-emerald-700">Guided practice</p>
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-ink sm:text-3xl">
-            {cameraReady ? "Give a thumbs up when you’re ready" : "Let’s get the camera ready"}
-          </h2>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-            {cameraReady
-              ? "Hold the thumbs-up pose for a moment, or use the button below."
-              : "Camera access is needed before the seven-gesture session can begin."}
-          </p>
-          <Button
-            type="button"
-            size="lg"
-            className="mt-5 w-full rounded-full"
-            onClick={cameraReady ? onReady : onStartCamera}
-          >
-            {cameraReady ? <ThumbsUp className="h-5 w-5" aria-hidden="true" /> : <Camera className="h-5 w-5" aria-hidden="true" />}
-            {cameraReady ? "I’m ready" : "Start camera"}
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            size="lg"
-            onClick={onEnd}
-            className="mt-3 w-full rounded-full"
-          >
-            End guided practice
-          </Button>
-        </motion.div>
-      </div>
-    );
-  }
-
   if (phase === "countdown") {
     return (
-      <div className="pointer-events-none grid h-full place-items-center bg-[#10234f]/62 p-4 backdrop-blur-[2px]" role="status" aria-live="assertive">
+      <div className="pointer-events-none grid h-full place-items-center bg-[#10234f]/55 p-4 backdrop-blur-[2px]" role="status" aria-live="assertive">
         <div className="text-center text-white">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-blue-100">
             Gesture {currentIndex + 1} of {total}
@@ -1647,7 +1633,7 @@ function GuidedCameraOverlay({
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.3 }}
               transition={{ duration: reduceMotion ? 0 : 0.35 }}
-              className="mx-auto mt-5 grid h-32 w-32 place-items-center rounded-full border-8 border-white/80 bg-white/15 text-7xl font-black shadow-[0_0_0_14px_rgba(255,255,255,0.08)] sm:h-40 sm:w-40 sm:text-8xl"
+              className="mx-auto mt-5 grid h-32 w-32 place-items-center rounded-full border-4 border-white/80 bg-white/15 text-7xl font-black sm:h-40 sm:w-40 sm:text-8xl"
             >
               {countdownValue}
             </motion.div>
@@ -1657,78 +1643,200 @@ function GuidedCameraOverlay({
     );
   }
 
-  if (phase === "complete") {
-    return (
-      <div className="pointer-events-none grid h-full place-items-center bg-slate-950/48 p-4 backdrop-blur-sm">
-        <div className="rounded-full border-2 border-white/80 bg-white/95 px-6 py-3 text-center font-black text-sky-700 shadow-xl">
-          <Trophy className="mr-2 inline h-5 w-5" aria-hidden="true" />
-          Session complete
-        </div>
+  return null;
+}
+
+/** One picture step on the get-ready card: a colored circle with a picture, a number, and a short label. */
+function ReadyStep({
+  number,
+  label,
+  tone,
+  delay,
+  children
+}: {
+  number: number;
+  label: string;
+  tone: string;
+  delay: number;
+  children: ReactNode;
+}) {
+  const reduceMotion = useReducedMotion();
+  return (
+    <motion.li
+      className="relative flex flex-col items-center gap-2 rounded-2xl bg-white px-1.5 pb-3 pt-4 shadow-[0_4px_12px_rgba(37,99,235,0.08)] ring-1 ring-blue-100"
+      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.25 + delay, duration: 0.3 }}
+    >
+      <span className="absolute -top-2.5 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full bg-blue-600 text-xs font-black text-white">
+        {number}
+      </span>
+      <span className={cn("grid h-14 w-14 place-items-center rounded-full", tone)}>{children}</span>
+      <span className="text-sm font-black leading-tight text-ink">{label}</span>
+    </motion.li>
+  );
+}
+
+/** Guided practice pop-ups (ready, feedback, summary), centered over the whole Student screen with the camera behind. */
+function GuidedPopup({
+  phase,
+  target,
+  cameraReady,
+  success,
+  feedbackTitle,
+  feedbackDetail,
+  correctiveFeedback,
+  feedbackLoading,
+  onReady,
+  onStartCamera,
+  onTryAgain,
+  onSkip,
+  onEnd,
+  summary
+}: {
+  phase: GuidedSessionPhase;
+  target?: LearningItem;
+  cameraReady: boolean;
+  success: boolean;
+  feedbackTitle: string;
+  feedbackDetail: string;
+  correctiveFeedback: GestureFeedbackResponse | null;
+  feedbackLoading: boolean;
+  onReady: () => void;
+  onStartCamera: () => void;
+  onTryAgain: () => void;
+  onSkip: () => void;
+  onEnd: () => void;
+  summary: ReactNode;
+}) {
+  const reduceMotion = useReducedMotion();
+  if (typeof document === "undefined") return null;
+  const shortLabel = target ? getLearnerCardLabel(target.label) : "Gesture";
+  const imageSrc = target ? getGestureReferenceImageSrc(target) : undefined;
+
+  const card =
+    phase === "complete" ? (
+      <div className="w-full max-w-lg">{summary}</div>
+    ) : phase === "ready" ? (
+      <div className="relative w-full max-w-md rounded-[2.25rem] border-4 border-white bg-gradient-to-b from-sky-100 via-white to-white px-6 pb-7 pt-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] sm:px-8">
+        <button
+          type="button"
+          onClick={onEnd}
+          aria-label="End guided practice"
+          title="End guided practice"
+          className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100"
+        >
+          <X className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <motion.div
+          className="flex justify-center"
+          initial={reduceMotion ? false : { scale: 0.5, y: 30, opacity: 0 }}
+          animate={{ scale: 1, y: 0, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 14 }}
+        >
+          <Maki mood={cameraReady ? "cheer" : "wave"} size={190} label="" />
+        </motion.div>
+        <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight text-ink sm:text-4xl">
+          {cameraReady ? "Thumbs up to start!" : "Let\u2019s turn on the camera!"}
+        </h2>
+        {/* How it goes, in pictures for kids who cannot read yet. */}
+        <ol className="mt-5 grid grid-cols-3 gap-2 sm:gap-3" aria-label="How it works">
+          <ReadyStep number={1} label="Hands in view" tone="bg-sky-100 text-sky-700" delay={0}>
+            <Hand className="h-8 w-8" aria-hidden="true" />
+          </ReadyStep>
+          <ReadyStep number={2} label="Watch the countdown" tone="bg-amber-100 text-amber-700" delay={0.1}>
+            <span className="text-3xl font-black leading-none">3</span>
+          </ReadyStep>
+          <ReadyStep number={3} label="Copy the sign" tone="bg-emerald-100 text-emerald-700" delay={0.2}>
+            {/* Maki's own "I love you" hand stands for "a sign". */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/maki/maki-hand.png" alt="" className="h-10 w-10 object-contain" />
+          </ReadyStep>
+        </ol>
+        <button
+          type="button"
+          onClick={cameraReady ? onReady : onStartCamera}
+          className={cn(
+            "mt-7 inline-flex min-h-16 w-full items-center justify-center gap-3 rounded-full px-6 text-xl font-black text-white transition active:translate-y-1 active:shadow-none focus-visible:outline-none focus-visible:ring-4",
+            cameraReady
+              ? "bg-emerald-500 shadow-[0_6px_0_#047857] hover:bg-emerald-600 focus-visible:ring-emerald-200"
+              : "bg-blue-600 shadow-[0_6px_0_#1e40af] hover:bg-blue-700 focus-visible:ring-blue-200"
+          )}
+        >
+          {cameraReady ? <ThumbsUp className="h-7 w-7" aria-hidden="true" /> : <Camera className="h-7 w-7" aria-hidden="true" />}
+          {cameraReady ? "I\u2019m ready!" : "Turn on camera"}
+        </button>
+      </div>
+    ) : (
+      <div
+        className={cn(
+          "w-full rounded-[2rem] border-4 bg-white/95 p-6 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] sm:p-7",
+          success ? "max-w-md border-emerald-200" : "max-w-2xl border-red-200"
+        )}
+      >
+        {success ? (
+          <>
+            <div className="flex justify-center pt-4">
+              <Maki mood="cheer" size={170} label="" />
+            </div>
+            <h2 className="mt-4 text-3xl font-black tracking-tight text-emerald-600 sm:text-4xl">{feedbackTitle}</h2>
+            <p className="mt-1 text-lg font-bold text-slate-600">{feedbackDetail || `That is ${shortLabel}.`}</p>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-center gap-4 text-left">
+              <div className="relative shrink-0">
+                <div className="grid aspect-square w-24 place-items-center overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 to-sky-100 p-1.5 ring-1 ring-blue-100 sm:w-28">
+                  {imageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={imageSrc} alt={`${shortLabel} reference`} className="h-full w-full rounded-2xl bg-white object-contain" />
+                  ) : (
+                    <Hand className="h-12 w-12 text-blue-500" aria-hidden="true" />
+                  )}
+                </div>
+                <span className="absolute -bottom-2 -right-2 grid h-9 w-9 place-items-center rounded-full border-4 border-white bg-red-500 text-white" aria-hidden="true">
+                  <RotateCcw className="h-4 w-4" />
+                </span>
+              </div>
+              <div>
+                <h2 className="text-3xl font-black tracking-tight text-red-600 sm:text-4xl">{feedbackTitle}</h2>
+                <p className="mt-1 text-lg font-bold text-slate-600">Let’s try {shortLabel} again.</p>
+              </div>
+            </div>
+            {/* The AI corrective feedback, one of MakaLearn's main features: learner message and teacher tip. */}
+            <div className="mt-5 text-left">
+              <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} flush prominent />
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <Button type="button" variant="outline" size="lg" className="rounded-full" onClick={onSkip}>
+                <SkipForward className="h-5 w-5" aria-hidden="true" />
+                Skip
+              </Button>
+              <Button type="button" size="lg" className="rounded-full" onClick={onTryAgain}>
+                <RotateCcw className="h-5 w-5" aria-hidden="true" />
+                Try again
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     );
-  }
 
-  const success = phase === "feedback" && feedbackTitle === "Great job!";
-  return (
-    <div className="pointer-events-none flex h-full flex-col justify-between p-3 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="rounded-2xl border border-white/30 bg-slate-950/70 px-4 py-3 text-white shadow-lg backdrop-blur-md">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-200">
-            Gesture {currentIndex + 1} of {total}
-          </p>
-          <p className="mt-1 text-xl font-black sm:text-2xl">Show {shortLabel}</p>
-        </div>
-        <div className="pointer-events-auto flex gap-2">
-          <button
-            type="button"
-            onClick={onSkip}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-950/70 px-4 text-sm font-bold text-white backdrop-blur-md hover:bg-slate-900 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200"
-          >
-            <SkipForward className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Skip</span>
-          </button>
-          <button
-            type="button"
-            onClick={onEnd}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-400 bg-red-600 px-4 text-sm font-bold text-white shadow-lg hover:bg-red-700 focus-visible:outline focus-visible:outline-4 focus-visible:outline-red-200"
-          >
-            <Square className="h-4 w-4 fill-current" aria-hidden="true" />
-            <span className="hidden sm:inline">End</span>
-          </button>
-        </div>
-      </div>
-
-      {phase === "feedback" ? (
-        <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          className={cn(
-            "mx-auto mb-4 max-w-lg rounded-[1.75rem] border-4 px-5 py-4 text-center shadow-2xl backdrop-blur-xl sm:px-7",
-            success ? "border-emerald-200 bg-emerald-50/95 text-emerald-950" : "border-red-300 bg-red-50/95 text-red-950"
-          )}
-          role="status"
-          aria-live="polite"
-        >
-          <p className="text-2xl font-black sm:text-3xl">{feedbackTitle}</p>
-          {feedbackDetail ? <p className="mt-1 text-sm font-semibold leading-6 sm:text-base">{feedbackDetail}</p> : null}
-          {!success ? (
-            <Button
-              type="button"
-              size="lg"
-              onClick={onFeedbackAction}
-              className="pointer-events-auto mt-4 w-full rounded-full"
-            >
-              <RotateCcw className="h-5 w-5" aria-hidden="true" />
-              Try again
-            </Button>
-          ) : null}
-        </motion.div>
-      ) : (
-        <div className="mx-auto mb-3 rounded-full border border-white/30 bg-slate-950/70 px-5 py-2 text-sm font-black text-white backdrop-blur-md">
-          Make the gesture, then hold still
-        </div>
-      )}
-    </div>
+  return createPortal(
+    <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-slate-900/25 p-4" role="dialog" aria-modal="true" aria-label="Guided practice">
+      <motion.div
+        key={phase}
+        initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="flex w-full justify-center"
+        role="status"
+        aria-live="polite"
+      >
+        {card}
+      </motion.div>
+    </div>,
+    document.body
   );
 }
 
@@ -1746,7 +1854,7 @@ function GuidedProgressPanel({
   onEnd: () => void;
 }) {
   return (
-    <div className="mt-4 rounded-[1.5rem] border border-white/90 bg-white/85 p-4 shadow-[0_14px_30px_rgba(37,99,235,0.12)] backdrop-blur-xl">
+    <div className="shrink-0 rounded-[1.5rem] border border-white/90 bg-white/85 p-3 shadow-[0_6px_18px_rgba(37,99,235,0.08)] backdrop-blur-xl">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-600">Guided 7</p>
@@ -1756,7 +1864,7 @@ function GuidedProgressPanel({
           {Math.min(currentIndex + 1, queue.length)}/{queue.length}
         </span>
       </div>
-      <ol className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
+      <ol className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-7 xl:grid-cols-4">
         {queue.map((item, index) => {
           const result = results.find((entry) => entry.gestureId === item.id);
           const complete = result?.status === "correct";
@@ -1766,7 +1874,7 @@ function GuidedProgressPanel({
             <li
               key={item.id}
               className={cn(
-                "flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold",
+                "flex min-h-10 items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs font-bold",
                 complete
                   ? "border-emerald-200 bg-emerald-50 text-emerald-800"
                   : skipped
@@ -1776,7 +1884,7 @@ function GuidedProgressPanel({
                       : "border-blue-100 bg-white/70 text-slate-500"
               )}
             >
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/90 text-xs shadow-sm">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/90 text-xs shadow-sm">
                 {complete ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : skipped ? <SkipForward className="h-4 w-4" aria-hidden="true" /> : index + 1}
               </span>
               <span className="truncate">{getLearnerCardLabel(item.label)}</span>
@@ -1784,12 +1892,12 @@ function GuidedProgressPanel({
           );
         })}
       </ol>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <Button type="button" variant="outline" size="lg" onClick={onSkip}>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button type="button" variant="outline" onClick={onSkip}>
           <SkipForward className="h-5 w-5" aria-hidden="true" />
           Skip gesture
         </Button>
-        <Button type="button" variant="danger" size="lg" onClick={onEnd}>
+        <Button type="button" variant="danger" onClick={onEnd}>
           <Square className="h-4 w-4 fill-current" aria-hidden="true" />
           End session
         </Button>
@@ -1802,27 +1910,28 @@ function GuidedSessionSummary({
   results,
   summary,
   onTryAgain,
-  onFreePractice
+  onCancel
 }: {
   results: GuidedGestureResult[];
   summary: ReturnType<typeof summarizeGuidedResults>;
   onTryAgain: () => void;
-  onFreePractice: () => void;
+  /** Closes the summary and goes back to the camera (free practice). */
+  onCancel: () => void;
 }) {
   return (
-    <div className="rounded-[2rem] border-4 border-white/90 bg-white/[0.92] p-5 shadow-[0_24px_60px_rgba(37,99,235,0.18)] backdrop-blur-xl sm:p-6">
+    <div className="rounded-[2rem] border border-white/90 bg-white/95 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur-xl sm:p-6">
       <div className="text-center">
-        <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-amber-300 to-orange-400 text-white shadow-[0_14px_28px_rgba(251,146,60,0.3)]">
-          <Trophy className="h-10 w-10" aria-hidden="true" />
-        </span>
+        <div className="flex justify-center">
+          <Maki mood="cheer" size={140} label="" />
+        </div>
         <p className="mt-4 text-xs font-black uppercase tracking-[0.2em] text-sky-600">Session summary</p>
         <h2 className="mt-1 text-3xl font-black tracking-tight text-ink">You finished your practice</h2>
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-2">
-        <SummaryMetric value={`${summary.completed}/${results.length}`} label="Completed" />
-        <SummaryMetric value={`${summary.firstTryCorrect}/${results.length}`} label="First try" />
-        <SummaryMetric value={String(summary.totalAttempts)} label="Attempts" />
+        <SummaryMetric value={`${summary.completed}/${results.length}`} label="Completed" tone="green" />
+        <SummaryMetric value={`${summary.firstTryCorrect}/${results.length}`} label="First try" tone="amber" />
+        <SummaryMetric value={String(summary.totalAttempts)} label="Attempts" tone="blue" />
       </div>
 
       <div className="mt-5 max-h-64 space-y-2 overflow-y-auto pr-1" aria-label="Gesture results">
@@ -1864,25 +1973,32 @@ function GuidedSessionSummary({
         </p>
       ) : null}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <Button type="button" size="lg" onClick={onTryAgain}>
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <Button type="button" variant="outline" size="lg" className="rounded-full" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="button" size="lg" className="rounded-full" onClick={onTryAgain}>
           <RotateCw className="h-5 w-5" aria-hidden="true" />
           Try again
-        </Button>
-        <Button type="button" variant="danger" size="lg" onClick={onFreePractice}>
-          <Hand className="h-5 w-5" aria-hidden="true" />
-          Free practice
         </Button>
       </div>
     </div>
   );
 }
 
-function SummaryMetric({ value, label }: { value: string; label: string }) {
+const summaryTones = {
+  green: { box: "border-emerald-200 bg-emerald-50", value: "text-emerald-700", label: "text-emerald-800/80" },
+  amber: { box: "border-amber-200 bg-amber-50", value: "text-amber-700", label: "text-amber-800/80" },
+  blue: { box: "border-blue-200 bg-blue-50", value: "text-blue-700", label: "text-blue-800/80" }
+};
+
+/** One number in the session summary: Completed green, First try amber, Attempts blue. */
+function SummaryMetric({ value, label, tone }: { value: string; label: string; tone: keyof typeof summaryTones }) {
+  const colors = summaryTones[tone];
   return (
-    <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-2 py-3 text-center">
-      <p className="text-xl font-black text-sky-700 sm:text-2xl">{value}</p>
-      <p className="mt-1 text-[0.68rem] font-black uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
+    <div className={cn("rounded-2xl border px-2 py-3 text-center", colors.box)}>
+      <p className={cn("text-xl font-black sm:text-2xl", colors.value)}>{value}</p>
+      <p className={cn("mt-1 text-[0.68rem] font-black uppercase tracking-wide sm:text-xs", colors.label)}>{label}</p>
     </div>
   );
 }
@@ -1953,81 +2069,32 @@ function LearnerReferenceDetailsCard({ item, onPlayAudio }: { item: LearningItem
   );
 }
 
-function LearnerReferenceFlipCard({
-  item,
-  flipped,
-  onFlip,
-  onPlayAudio
-}: {
-  item: LearningItem;
-  flipped: boolean;
-  onFlip: () => void;
-  onPlayAudio: () => void;
-}) {
-  const frontLabel = getLearnerCardLabel(item.label);
+/** Guided practice: the gesture picture, then its word and a Play button (no flip, like free practice). */
+function LearnerReferencePictureCard({ item, onPlayAudio }: { item: LearningItem; onPlayAudio: () => void }) {
+  const label = getLearnerCardLabel(item.label);
   const imageSrc = getGestureReferenceImageSrc(item);
 
   return (
-    <div className="mx-auto h-full min-h-0 w-full max-w-[32rem]">
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onFlip}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onFlip();
-          }
-        }}
-        className="group block h-full min-h-0 w-full text-left [perspective:1400px]"
-        aria-pressed={flipped}
-        aria-label={flipped ? `Hide ${item.label} media` : `Show ${item.label} video and audio`}
-      >
-        <div
-          className={`relative h-full min-h-0 rounded-[2rem] transition-transform duration-500 [transform-style:preserve-3d] ${
-            flipped ? "[transform:rotateY(180deg)]" : ""
-          }`}
-        >
-          <div className="absolute inset-0 flex flex-col overflow-hidden rounded-[2rem] border border-white/90 bg-white shadow-[0_22px_48px_rgba(37,99,235,0.16)] [backface-visibility:hidden]">
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-between gap-2 px-4 pb-3 pt-4 text-center sm:gap-3 sm:px-6 sm:pb-4 sm:pt-5">
-              <div className="relative grid min-h-0 w-full max-w-[25rem] flex-1 place-items-center overflow-hidden rounded-[2rem] bg-gradient-to-br from-blue-50 to-sky-100 p-2 sm:p-3">
-                {imageSrc ? (
-                  <GestureReferenceImage src={imageSrc} alt={`${frontLabel} reference`} />
-                ) : (
-                  <GestureFallbackIllustration />
-                )}
-              </div>
-              <div className="grid justify-items-center">
-                <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 shadow-inner">
-                  <MousePointerClick className="h-5 w-5" aria-hidden="true" />
-                  Click me
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-            <LearnerReferenceDetails item={item} onPlayAudio={onPlayAudio} showFlipHint />
-          </div>
-        </div>
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[32rem] flex-col gap-3 overflow-hidden rounded-[2rem] border border-white/90 bg-white p-3 shadow-[0_10px_28px_rgba(37,99,235,0.1)] sm:p-4">
+      <div className="relative grid min-h-0 w-full flex-1 place-items-center overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-blue-50 to-sky-100 p-2 sm:p-3">
+        {imageSrc ? <GestureReferenceImage src={imageSrc} alt={`${label} reference`} /> : <GestureFallbackIllustration />}
+      </div>
+      <div className="flex shrink-0 items-center justify-between gap-3 px-1">
+        <h2 className="min-w-0 truncate text-2xl font-black text-ink sm:text-3xl">{label}</h2>
+        <Button type="button" size="lg" onClick={onPlayAudio} className="min-h-12 shrink-0 rounded-full px-5 text-base">
+          <PlayCircle className="h-6 w-6" aria-hidden="true" />
+          Play
+        </Button>
       </div>
     </div>
   );
 }
 
-function LearnerReferenceDetails({
-  item,
-  onPlayAudio,
-  showFlipHint = false
-}: {
-  item: LearningItem;
-  onPlayAudio: () => void;
-  showFlipHint?: boolean;
-}) {
+function LearnerReferenceDetails({ item, onPlayAudio }: { item: LearningItem; onPlayAudio: () => void }) {
   const label = getLearnerCardLabel(item.label);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-4 shadow-[0_22px_48px_rgba(37,99,235,0.16)] sm:p-5">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-4 shadow-[0_10px_28px_rgba(37,99,235,0.1)] sm:p-5">
       <h2 className="text-center text-3xl font-black text-ink sm:text-5xl">{label}</h2>
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:mt-4 sm:gap-3">
@@ -2051,12 +2118,6 @@ function LearnerReferenceDetails({
             Play
           </Button>
         </div>
-        {showFlipHint ? (
-          <span className="mx-auto inline-flex items-center gap-2 rounded-full bg-blue-50 px-5 py-3 text-base font-black text-blue-700 shadow-inner">
-            <RotateCcw className="h-5 w-5" aria-hidden="true" />
-            Click me
-          </span>
-        ) : null}
       </div>
     </div>
   );
@@ -2137,8 +2198,8 @@ function LearnerFeedbackBar({
     return (
       <div
         className={cn(
-          "border border-blue-100 bg-white/80 shadow-[0_14px_32px_rgba(37,99,235,0.09)]",
-          compact ? "mt-2 rounded-2xl p-3" : "mt-4 rounded-[1.75rem] p-4"
+          "border border-blue-100 bg-white/80 shadow-[0_6px_18px_rgba(37,99,235,0.07)]",
+          compact ? "mt-2 rounded-2xl p-2.5" : "mt-3 rounded-3xl p-3"
         )}
         role="status"
         aria-live="polite"
@@ -2149,41 +2210,39 @@ function LearnerFeedbackBar({
           compact={compact}
           flush
           prominent
+          learnerOnly
         />
       </div>
     );
   }
 
+  const showFeedback = Boolean(correctiveFeedback || feedbackLoading);
+
+  // The box keeps the same height, empty or full, so the camera above it never changes size. Its height is a share
+  // of the column (capped), not a fixed size: on short or stacked layouts a fixed 12rem box left the camera
+  // only a few pixels tall. Long feedback scrolls inside the box.
   return (
     <div
       className={cn(
-        "grid border shadow-[0_14px_32px_rgba(37,99,235,0.09)] sm:grid-cols-[auto_1fr] sm:items-center",
-        compact ? "mt-2 gap-3 rounded-2xl p-3" : "mt-4 gap-4 rounded-[1.75rem] p-4",
+        "flex shrink-0 grow-0 flex-col overflow-hidden border shadow-[0_6px_18px_rgba(37,99,235,0.07)]",
+        compact ? "mt-2 min-h-[5rem] max-h-40 basis-[24%] rounded-2xl p-2.5" : "mt-3 min-h-[5.5rem] max-h-48 basis-[32%] rounded-3xl p-3",
         success ? "border-green-200 bg-green-50/90" : "border-blue-100 bg-white/80"
       )}
       role="status"
       aria-live="polite"
     >
-      <div
-        className={cn(
-          "grid place-items-center rounded-full border-4 shadow-inner",
-          compact ? "h-16 w-16" : "h-20 w-20",
-          success ? "border-green-400 bg-lime-200" : "border-blue-200 bg-skywash"
-        )}
-      >
-        <FeedbackMascot success={success} />
-      </div>
-      <div className="min-w-0">
-        <p className={cn("font-black", compact ? "text-2xl" : "text-3xl", success ? "text-green-700" : "text-ink")}>{stateLabel}</p>
-        {detail ? <p className={cn("mt-1 font-bold text-slate-700", compact ? "text-sm" : "text-base")}>{detail}</p> : null}
-        {statusMessage ? <p className={cn("mt-1 line-clamp-2 text-sm text-slate-600", compact ? "leading-5" : "leading-6")}>{statusMessage}</p> : null}
-        <CorrectiveFeedbackPanel
-          feedback={correctiveFeedback}
-          loading={feedbackLoading}
-          compact={compact}
-          prominent
-        />
-      </div>
+      {showFeedback ? (
+        <div className="min-h-0 flex-1 overflow-y-auto clean-scrollbar">
+          {/* The AI corrective feedback in full: For learner and Teacher guide. */}
+          <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} compact={compact} flush prominent />
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col justify-center px-1">
+          <p className={cn("font-black leading-tight", compact ? "text-2xl" : "text-3xl", success ? "text-green-700" : "text-ink")}>{stateLabel}</p>
+          {detail ? <p className={cn("mt-1 font-bold text-slate-700", compact ? "text-base" : "text-lg")}>{detail}</p> : null}
+          {statusMessage ? <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">{statusMessage}</p> : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -2193,13 +2252,16 @@ function CorrectiveFeedbackPanel({
   loading,
   compact = false,
   flush = false,
-  prominent = false
+  prominent = false,
+  learnerOnly = false
 }: {
   feedback: GestureFeedbackResponse | null;
   loading: boolean;
   compact?: boolean;
   flush?: boolean;
   prominent?: boolean;
+  /** Student mode: only the learner message, no Teacher guide. */
+  learnerOnly?: boolean;
 }) {
   if (!feedback && !loading) return null;
 
@@ -2235,7 +2297,7 @@ function CorrectiveFeedbackPanel({
         !flush && "mt-3",
         prominent
           ? cn(
-              "border-2 shadow-[0_14px_32px_rgba(15,23,42,0.14)]",
+              "border shadow-sm",
               learnerSuccess ? "border-emerald-300" : "border-red-300"
             )
           : "border border-blue-100 shadow-sm",
@@ -2245,16 +2307,18 @@ function CorrectiveFeedbackPanel({
       <div
         className={cn(
           "grid divide-y divide-slate-200",
-          prominent
-            ? "md:grid-cols-[1.05fr_0.95fr] md:divide-x md:divide-y-0"
-            : "sm:grid-cols-2 sm:divide-x sm:divide-y-0"
+          learnerOnly
+            ? ""
+            : prominent
+              ? "md:grid-cols-[1.05fr_0.95fr] md:divide-x md:divide-y-0"
+              : "sm:grid-cols-2 sm:divide-x sm:divide-y-0"
         )}
       >
         <div
           className={cn(
-            prominent ? (compact ? "p-4 sm:p-5" : "p-5 sm:p-6") : compact ? "p-3" : "p-4",
+            prominent ? (compact ? "p-3 sm:p-4" : "p-4 sm:p-5") : compact ? "p-3" : "p-4",
             learnerSuccess ? "bg-emerald-50" : "bg-red-50",
-            prominent && (learnerSuccess ? "border-l-8 border-emerald-500" : "border-l-8 border-red-500")
+            prominent && (learnerSuccess ? "border-l-4 border-emerald-500" : "border-l-4 border-red-500")
           )}
         >
           {prominent ? (
@@ -2288,14 +2352,14 @@ function CorrectiveFeedbackPanel({
           <p
             className={cn(
               "font-black",
-              prominent ? "mt-3 text-2xl leading-8 sm:text-3xl sm:leading-9" : "mt-1 text-xl leading-7",
+              prominent ? "mt-2 text-xl leading-7 sm:text-2xl sm:leading-8" : "mt-1 text-xl leading-7",
               learnerSuccess ? "text-emerald-950" : "text-red-950"
             )}
           >
             {feedback?.learnerMessage ?? "Preparing feedback..."}
           </p>
         </div>
-        <div className={prominent ? (compact ? "p-4 sm:p-5" : "p-5 sm:p-6") : compact ? "p-3" : "p-4"}>
+        <div className={cn(learnerOnly && "hidden", prominent ? (compact ? "p-4 sm:p-5" : "p-5 sm:p-6") : compact ? "p-3" : "p-4")}>
           <p className={cn("font-black uppercase tracking-wide text-slate-500", prominent ? "text-xs sm:text-sm" : "text-[0.7rem]")}>
             Teacher guide
           </p>
@@ -2320,26 +2384,6 @@ function FeedbackWaveDots() {
         />
       ))}
     </span>
-  );
-}
-
-function FeedbackMascot({ success }: { success: boolean }) {
-  return (
-    <div className={`relative h-14 w-14 rounded-full shadow-[inset_0_-5px_0_rgba(15,23,42,0.08)] ${success ? "bg-gradient-to-b from-lime-300 to-green-300" : "bg-gradient-to-b from-blue-100 to-blue-200"}`}>
-      <span className="absolute left-3.5 top-4 h-2.5 w-2.5 rounded-full bg-ink" />
-      <span className="absolute right-3.5 top-4 h-2.5 w-2.5 rounded-full bg-ink" />
-      {success ? (
-        <>
-          <span className="absolute left-1/2 top-7 h-4 w-8 -translate-x-1/2 rounded-b-full border-b-4 border-green-800" />
-          <Sparkles className="absolute -right-1 -top-1 h-5 w-5 fill-yellow-300 text-yellow-300" aria-hidden="true" />
-        </>
-      ) : (
-        <>
-          <span className="absolute left-1/2 top-8 h-1.5 w-7 -translate-x-1/2 rounded-full bg-blue-700" />
-          <Smile className="absolute -right-1 -top-1 h-5 w-5 text-blue-400" aria-hidden="true" />
-        </>
-      )}
-    </div>
   );
 }
 
@@ -2453,14 +2497,16 @@ function CameraPanel({
             aria-hidden="true"
           />
           <div className={`absolute inset-4 border border-dashed border-white/35 ${playful ? "rounded-[1.35rem]" : "rounded-lg"}`} />
-          <div className="absolute bottom-3 left-3 rounded-full bg-slate-950/70 px-4 py-2 text-xs font-black text-white">
+          {/* Top right, diagonally opposite Maki in the bottom-left corner. */}
+          <div className="absolute right-3 top-3 rounded-full bg-slate-950/70 px-4 py-2 text-xs font-black text-white">
             {trackerStatus === "loading"
               ? "Preparing hand tracking..."
               : `${detectedHandCount} hand${detectedHandCount === 1 ? "" : "s"} visible`}
           </div>
         </div>
       ) : null}
-      {overlay ? <div className="absolute inset-0 z-20">{overlay}</div> : null}
+      {/* Clicks pass through to the camera (Camera on / off): Maki and the countdown sit here in every mode. */}
+      {overlay ? <div className="pointer-events-none absolute inset-0 z-20">{overlay}</div> : null}
     </div>
   );
 }
@@ -2477,12 +2523,10 @@ function TrackingMetric({
   valid: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-white/80 bg-white/60 p-3 shadow-sm backdrop-blur-xl">
-      <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-        <Icon className={valid ? "h-4 w-4 text-green-600" : "h-4 w-4 text-orange-500"} aria-hidden="true" />
-        {label}
-      </div>
-      <p className="mt-2 text-2xl font-black text-ink">{value}</p>
+    <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white/70 px-3 py-1.5 text-sm">
+      <Icon className={valid ? "h-4 w-4 text-green-600" : "h-4 w-4 text-orange-500"} aria-hidden="true" />
+      <span className="font-semibold text-slate-500">{label}</span>
+      <span className="font-black text-ink">{value}</span>
     </div>
   );
 }
@@ -2655,9 +2699,7 @@ function speakAudioCuePlaceholder(text: string, onError: () => void) {
   }
 
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.85;
-  utterance.pitch = 1;
+  const utterance = createUtterance(text);
   utterance.volume = 0.85;
   utterance.onerror = onError;
   window.speechSynthesis.speak(utterance);

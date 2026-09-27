@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check, CheckCircle2, Library, RotateCcw, Volume2, X, XCircle } from "lucide-react";
+import { Check, CheckCircle2, Library, RotateCcw, Volume2, X, XCircle } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ import {
 } from "@/features/activities/player/player-utils";
 import { SymbolOption } from "@/features/activities/player/player-parts";
 import { activityInstruction } from "@/features/activities/activity-helpers";
+import { FEEDBACK_MS, WRONG_MS } from "@/features/activities/player/student-theme";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 type TeacherPlayerProps = {
@@ -41,10 +43,15 @@ const panelClass =
 
 /** Pause on the last answer before the score opens by itself. */
 const SCORE_DELAY_MS = 1200;
+/** How long a right answer stays on screen before the next question (a little quicker than Student mode). */
+const RIGHT_MS = Math.min(FEEDBACK_MS, 1200);
 
 /**
- * The teacher's player: plain blue glass, one question at a time, Check then Next, and a score pop-up at the
- * end. Student mode keeps the game-style player; this one is for running and checking an activity quickly.
+ * The teacher's player: plain blue glass look, same rules as Student mode.
+ * - Match and Fill in the blank: one tap answers. Right turns green; wrong shakes, turns red, and the right card
+ *   turns green. Then the next question comes by itself. One try per question.
+ * - Drag and drop: a card only stays on its own word. A wrong drop shakes and the card goes back.
+ * The score pop-up opens by itself at the end.
  */
 export function TeacherPlayer(props: TeacherPlayerProps) {
   if (props.activity.type === "drag-drop-symbol") return <DragDropBoard {...props} />;
@@ -53,8 +60,9 @@ export function TeacherPlayer(props: TeacherPlayerProps) {
 
 function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, onScore, onRestart, onExit, onProgress }: TeacherPlayerProps) {
   const questions = activity.questions;
+  const reduceMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [shakeKey, setShakeKey] = useState(0);
   const [optionShuffleSeed] = useState(() => Math.random());
   const question = questions[Math.min(index, Math.max(questions.length - 1, 0))];
   const options = useMemo(
@@ -62,59 +70,74 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
     [activity, learningItems, optionShuffleSeed, question]
   );
   const selected = question ? answers[question.id] : undefined;
-  const isChecked = question ? Boolean(checked[question.id]) : false;
-  const last = index >= questions.length - 1;
-  const answeredCount = Object.keys(checked).length;
+  const answered = Boolean(selected);
+  const answeredCount = questions.filter((candidate) => answers[candidate.id]).length;
 
   useEffect(() => {
     onProgress(answeredCount, questions.length);
   }, [answeredCount, onProgress, questions.length]);
 
-  // The score opens on its own once the last answer is checked, after a moment to see the green and red cards.
-  // A ref keeps the timer from restarting each time the parent passes a new onScore.
-  const finished = last && isChecked;
+  // A ref keeps the latest onScore, and the timer is cleared if the player closes.
   const scoreRef = useRef(onScore);
   useEffect(() => {
     scoreRef.current = onScore;
   });
-  useEffect(() => {
-    if (!finished || result) return undefined;
-    const timer = window.setTimeout(() => scoreRef.current(), SCORE_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [finished, result]);
+  const timerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+  }, []);
 
   if (!question) return <EmptyNote />;
+
+  function pick(option: string) {
+    if (!question || answers[question.id] || result) return;
+    const right = option === question.answer;
+    chooseAnswer(question.id, option);
+    if (!right) setShakeKey((current) => current + 1);
+    const lastQuestion = index >= questions.length - 1;
+    timerRef.current = window.setTimeout(() => {
+      if (lastQuestion) scoreRef.current();
+      else setIndex((current) => current + 1);
+    }, right ? RIGHT_MS : WRONG_MS);
+  }
+
+  const right = answered && selected === question.answer;
 
   return (
     <div className="space-y-5">
       <StepTracker
         current={index}
         steps={questions.map((candidate) =>
-          !checked[candidate.id] ? "open" : answers[candidate.id] === candidate.answer ? "right" : "wrong"
+          !answers[candidate.id] ? "open" : answers[candidate.id] === candidate.answer ? "right" : "wrong"
         )}
       />
       <QuestionPrompt activity={activity} question={question} learningItems={learningItems} selected={selected} />
 
-      <div className={cn("grid gap-4", options.length <= 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
+      <motion.div
+        key={`${question.id}-${shakeKey}`}
+        className={cn("grid gap-4", options.length <= 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}
+        animate={shakeKey && !reduceMotion && answered && !right ? { x: [0, -10, 10, -6, 6, 0] } : undefined}
+        transition={{ duration: 0.35 }}
+      >
         {options.map((option) => {
           const picked = selected === option;
           const correct = option === question.answer;
-          const state = !isChecked ? (picked ? "picked" : "idle") : correct ? "correct" : picked ? "wrong" : "idle";
+          const state = !answered ? "idle" : correct ? "correct" : picked ? "wrong" : "idle";
           return (
             <button
               key={option}
               type="button"
-              disabled={isChecked}
+              disabled={answered}
               aria-pressed={picked}
               aria-label={`Choose ${getDisplayLabel(option, learningItems)} card`}
-              onClick={() => chooseAnswer(question.id, option)}
+              onClick={() => pick(option)}
               className={cn(
-                "group relative flex min-w-0 flex-col gap-2 rounded-3xl border-2 bg-white p-2.5 text-center shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
-                state === "idle" && "border-white hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_16px_32px_rgba(37,99,235,0.16)]",
-                state === "picked" && "border-blue-600 ring-4 ring-blue-100",
-                state === "correct" && "border-green-500 ring-4 ring-green-100",
+                "group relative flex min-w-0 flex-col gap-2 rounded-3xl border-2 bg-white p-2.5 text-center shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition duration-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
+                state === "idle" && !answered && "border-white hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_16px_32px_rgba(37,99,235,0.16)]",
+                state === "idle" && answered && "border-white opacity-60",
+                state === "correct" && "scale-105 border-green-500 ring-4 ring-green-100",
                 state === "wrong" && "border-red-400 ring-4 ring-red-100",
-                isChecked && "cursor-default"
+                answered && "cursor-default"
               )}
             >
               <PictureWell value={option} learningItems={learningItems} tone={state} />
@@ -123,21 +146,13 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
             </button>
           );
         })}
-      </div>
+      </motion.div>
 
-      <ActionBar status={isChecked ? (last ? "All done. Your score is coming up." : "") : selected ? "Press Check." : "Pick an answer."} tone="neutral">
-        {!isChecked ? (
-          <Button type="button" disabled={!selected} onClick={() => setChecked((current) => ({ ...current, [question.id]: true }))}>
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            Check
-          </Button>
-        ) : last ? null : (
-          // After the last Check the score pop-up opens by itself. No button here, so it cannot be skipped by accident.
-          <Button type="button" onClick={() => setIndex((current) => current + 1)}>
-            Next
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        )}
+      <ActionBar
+        status={!answered ? "Tap the right picture." : right ? "Correct!" : "The right card is green."}
+        tone={!answered ? "neutral" : right ? "good" : "bad"}
+      >
+        {null}
       </ActionBar>
 
       <ScoreDialog result={result} onRestart={onRestart} onExit={onExit} />
@@ -263,23 +278,40 @@ function ActionBar({ status, tone, children }: { status: string; tone: "neutral"
 
 function DragDropBoard({ activity, learningItems, answers, result, dragged, setDragged, chooseAnswer, onScore, onRestart, onExit, onProgress }: TeacherPlayerProps) {
   const questions = activity.questions;
+  const reduceMotion = useReducedMotion();
   const [seed] = useState(() => Math.random());
+  const [shake, setShake] = useState<{ id: string; key: number } | null>(null);
   const cards = useMemo(
     () => shuffleOptions([...new Set(questions.map((question) => question.answer))], seed),
     [questions, seed]
   );
   const placedCount = questions.filter((question) => answers[question.id]).length;
   const tray = cards.filter((card) => !questions.some((question) => answers[question.id] === card));
+  const allPlaced = questions.length > 0 && placedCount === questions.length;
 
   useEffect(() => {
     onProgress(placedCount, questions.length);
   }, [onProgress, placedCount, questions.length]);
 
+  // Every card is placed on its own word, so the score opens by itself (everything counts as right).
+  const scoreRef = useRef(onScore);
+  useEffect(() => {
+    scoreRef.current = onScore;
+  });
+  useEffect(() => {
+    if (!allPlaced || result) return undefined;
+    const timer = window.setTimeout(() => scoreRef.current(), SCORE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [allPlaced, result]);
+
   if (!questions.length) return <EmptyNote />;
 
+  /** A card only stays on its own word. A wrong one shakes the box and goes back to the tray. */
   function place(questionId: string) {
-    if (!dragged || result) return;
-    chooseAnswer(questionId, dragged);
+    const target = questions.find((question) => question.id === questionId);
+    if (!dragged || result || !target || answers[questionId]) return;
+    if (dragged === target.answer) chooseAnswer(questionId, dragged);
+    else setShake({ id: questionId, key: Date.now() });
     setDragged("");
   }
 
@@ -290,73 +322,77 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {questions.map((question) => {
             const answer = answers[question.id];
-            const tone = !result || !answer ? "idle" : answer === question.answer ? "correct" : "wrong";
+            const shaking = shake?.id === question.id;
             return (
-              <button
-                key={question.id}
+              <motion.button
+                key={shaking ? `${question.id}-${shake.key}` : question.id}
                 type="button"
-                onClick={() => (answer && !result ? chooseAnswer(question.id, "") : place(question.id))}
+                disabled={Boolean(answer)}
+                onClick={() => place(question.id)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
                   place(question.id);
                 }}
-                aria-label={answer ? `Remove card from ${question.prompt}` : `Place card on ${question.prompt}`}
+                animate={shaking && !reduceMotion ? { x: [0, -10, 10, -6, 6, 0] } : undefined}
+                transition={{ duration: 0.35 }}
+                aria-label={answer ? `${question.prompt}: done` : `Place card on ${question.prompt}`}
                 className={cn(
                   "flex min-w-0 flex-col items-center gap-2 rounded-3xl border-2 p-2 text-center transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
-                  tone === "idle" && (dragged ? "border-dashed border-blue-400 bg-blue-50/70" : "border-dashed border-blue-200 bg-white/80"),
-                  tone === "correct" && "border-green-500 bg-green-50",
-                  tone === "wrong" && "border-red-400 bg-red-50"
+                  answer
+                    ? "cursor-default border-green-500 bg-green-50"
+                    : shaking
+                      ? "border-red-400 bg-red-50"
+                      : dragged
+                        ? "border-dashed border-blue-400 bg-blue-50/70"
+                        : "border-dashed border-blue-200 bg-white/80"
                 )}
               >
                 <span className="max-w-full break-words rounded-xl bg-blue-600 px-2.5 py-1 text-sm font-bold uppercase leading-tight text-white">
                   {question.prompt}
                 </span>
                 {answer ? (
-                  <PictureWell value={answer} learningItems={learningItems} tone={tone} />
+                  <PictureWell value={answer} learningItems={learningItems} tone="correct" />
                 ) : (
                   <span className="grid aspect-[3/4] w-full max-w-[13rem] place-items-center rounded-2xl text-xs font-semibold text-blue-300">Drop here</span>
                 )}
-              </button>
+              </motion.button>
             );
           })}
         </div>
       </div>
 
-      {!result ? (
+      {!result && tray.length ? (
         <div className={cn(panelClass, "p-4")}>
           <SectionLabel>Cards</SectionLabel>
-          {tray.length ? (
-            <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
-              {tray.map((card) => (
-                <button
-                  key={card}
-                  type="button"
-                  draggable
-                  onDragStart={() => setDragged(card)}
-                  onClick={() => setDragged(dragged === card ? "" : card)}
-                  aria-pressed={dragged === card}
-                  aria-label={`Pick ${getDisplayLabel(card, learningItems)} card`}
-                  className={cn(
-                    "rounded-3xl border-2 bg-white p-2 shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
-                    dragged === card ? "border-blue-600 ring-4 ring-blue-100" : "border-white hover:-translate-y-0.5 hover:border-blue-300"
-                  )}
-                >
-                  <PictureWell value={card} learningItems={learningItems} />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 text-sm font-semibold text-slate-500">All cards are placed.</p>
-          )}
+          <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+            {tray.map((card) => (
+              <button
+                key={card}
+                type="button"
+                draggable
+                onDragStart={() => setDragged(card)}
+                onDragEnd={() => setDragged("")}
+                onClick={() => setDragged(dragged === card ? "" : card)}
+                aria-pressed={dragged === card}
+                aria-label={`Pick ${getDisplayLabel(card, learningItems)} card`}
+                className={cn(
+                  "rounded-3xl border-2 bg-white p-2 shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
+                  dragged === card ? "border-blue-600 ring-4 ring-blue-100" : "border-white hover:-translate-y-0.5 hover:border-blue-300"
+                )}
+              >
+                <PictureWell value={card} learningItems={learningItems} />
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
 
-      <ActionBar status={dragged ? "Now pick its word." : "Click a card, then its word. Or drag it."} tone="neutral">
-        <Button type="button" disabled={placedCount === 0 || Boolean(result)} onClick={() => onScore()}>
-          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-          Check
-        </Button>
+      <ActionBar
+        status={allPlaced ? "All done. Your score is coming up." : dragged ? "Now pick its word." : "Drag each card onto its word, or click a card, then its word."}
+        tone={allPlaced ? "good" : "neutral"}
+      >
+        {null}
       </ActionBar>
 
       <ScoreDialog result={result} onRestart={onRestart} onExit={onExit} />

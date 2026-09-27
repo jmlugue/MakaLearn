@@ -242,6 +242,6 @@ test("the owner's playground checks", () => {
   for (const [labels, expected] of cases) {
     assert.equal(validateLabels(labels).isValid, expected, labels.join(" "));
   }
-  assert.equal(validateLabels(["Good morning"]).feedback, "You made an expression.");
-  assert.equal(validateLabels(["Thank you"]).feedback, "You made an expression.");
+  assert.equal(validateLabels(["Good morning"]).feedback, "You made a phrase.");
+  assert.equal(validateLabels(["Thank you"]).feedback, "You made a phrase.");
 });

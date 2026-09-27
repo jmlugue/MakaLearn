@@ -76,6 +76,9 @@ export function ActivitiesView() {
   // `activityId` is the older link format; it opens the player too.
   const playId = searchParams.get("play") ?? searchParams.get("activityId") ?? "";
   const requestedType = getValidActivityType(searchParams.get("type") ?? undefined);
+  // Help's Go there (/activities?create=1) opens the creator once, for teachers.
+  const wantsCreate = searchParams.get("create") === "1";
+  const createLinkHandled = useRef(false);
 
   const [ready, setReady] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -87,6 +90,12 @@ export function ActivitiesView() {
 
   const [openActivityId, setOpenActivityId] = useState("");
   const [formMode, setFormMode] = useState<ActivityFormMode | null>(null);
+
+  useEffect(() => {
+    if (!ready || !wantsCreate || createLinkHandled.current || user.role !== "teacher") return;
+    createLinkHandled.current = true;
+    setFormMode({ kind: "new" });
+  }, [ready, user.role, wantsCreate]);
   const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null);
   const [deleting, setDeleting] = useState(false);
 

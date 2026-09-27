@@ -30,6 +30,8 @@ import {
   WRONG_MS,
   studentInstruction
 } from "@/features/activities/player/student-theme";
+import { playCue } from "@/lib/sound-cues";
+import type { MakiMood } from "@/features/student-mode/maki";
 import type { Activity, LearningItem } from "@/types";
 
 type StudentActivityPlayerProps = {
@@ -82,6 +84,8 @@ function StudentRound({
   const [firstTryRight, setFirstTryRight] = useState<Record<string, boolean>>({});
   const [eliminated, setEliminated] = useState<Record<string, string[]>>({});
   const [feedback, setFeedback] = useState<AnswerFeedback | null>(null);
+  const [makiMood, setMakiMood] = useState<MakiMood>("happy");
+  const makiTimer = useRef<number | null>(null);
   const [hintFor, setHintFor] = useState("");
   const [shake, setShake] = useState<{ id: string; key: number } | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -168,8 +172,18 @@ function StudentRound({
     later(() => setFeedback(null), ms);
   }
 
+  /** Maki cheers or encourages for a moment, then goes back to happy. */
+  function react(mood: MakiMood, ms: number) {
+    setMakiMood(mood);
+    if (makiTimer.current) window.clearTimeout(makiTimer.current);
+    makiTimer.current = window.setTimeout(() => setMakiMood("happy"), ms);
+  }
+
   function finishRound() {
-    later(() => setPhase("done"), SCORE_DELAY_MS);
+    later(() => {
+      setPhase("done");
+      playCue("finish");
+    }, SCORE_DELAY_MS);
   }
 
   /**
@@ -184,7 +198,11 @@ function StudentRound({
     setAnswers((current) => ({ ...current, [question.id]: option }));
     setFirstTryRight((current) => ({ ...current, [question.id]: right }));
     setHintFor("");
-    if (right) showFeedback({ tone: "correct", title: "Correct!" }, `Correct! ${word}.`, FEEDBACK_MS);
+    react(right ? "cheer" : "encourage", wait);
+    if (right) {
+      playCue("correct");
+      showFeedback({ tone: "correct", title: "Correct!" }, `Correct! ${word}.`, FEEDBACK_MS);
+    }
     later(() => {
       if (index + 1 >= questions.length) finishRound();
       else setIndex(index + 1);
@@ -202,11 +220,14 @@ function StudentRound({
     if (right) {
       const nextAnswers = { ...answers, [questionId]: value };
       setAnswers(nextAnswers);
+      playCue("correct");
+      react("cheer", FEEDBACK_MS);
       setFirstTryRight((current) => ({ ...current, [questionId]: true }));
       if (hintFor === questionId) setHintFor("");
       if (questions.every((candidate) => nextAnswers[candidate.id])) finishRound();
     } else {
       setShake({ id: questionId, key: Date.now() });
+      react("encourage", WRONG_MS);
     }
     return right;
   }
@@ -266,6 +287,7 @@ function StudentRound({
   return (
     <StudentGameFrame
       activityId={activity.id}
+      maki={phase === "play" ? makiMood : undefined}
       instruction={instruction}
       overlay={overlay}
       topBar={

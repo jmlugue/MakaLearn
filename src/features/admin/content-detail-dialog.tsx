@@ -71,6 +71,7 @@ export function ItemDetailDialog({
   const [label, setLabel] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
+  // Not shown (materials have a description only); kept so saving leaves an older value as it was.
   const [instruction, setInstruction] = useState("");
   const [tags, setTags] = useState("");
   const [labelError, setLabelError] = useState("");
@@ -193,10 +194,6 @@ export function ItemDetailDialog({
               <Label htmlFor="admin-item-description">Description</Label>
               <Textarea id="admin-item-description" value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-20" />
             </div>
-            <div>
-              <Label htmlFor="admin-item-instruction">Instruction</Label>
-              <Textarea id="admin-item-instruction" value={instruction} onChange={(event) => setInstruction(event.target.value)} className="min-h-20" />
-            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
                 Cancel
@@ -251,7 +248,6 @@ export function ItemDetailDialog({
             </div>
 
             {current.description ? <DetailNote label="Description">{current.description}</DetailNote> : null}
-            {current.instruction ? <DetailNote label="Instruction">{current.instruction}</DetailNote> : null}
 
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               {canManage ? (

@@ -108,7 +108,7 @@ export function Sidebar() {
         <GuideTip id="nav.student">
           <button
             type="button"
-            onClick={isStudentMode ? exitStudentMode : enterStudentMode}
+            onClick={isStudentMode ? exitStudentMode : () => enterStudentMode()}
             className={cn(itemBaseClass, itemIdleClass)}
           >
             <GraduationCap className="h-5 w-5 shrink-0" aria-hidden="true" />

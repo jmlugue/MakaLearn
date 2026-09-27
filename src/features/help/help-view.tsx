@@ -1,117 +1,119 @@
-import { ChevronDown, HelpCircle } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { ArrowRight, ChevronDown, HelpCircle, PlayCircle, RotateCcw, SearchX } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/common/toast-provider";
+import { useAuthState } from "@/features/auth/use-auth-user";
+import { SearchInput } from "@/features/admin/admin-shared";
+import { GuideStepsDialog } from "@/features/guide/guide-steps-dialog";
+import { HelpDemoDialog } from "@/features/help/help-demo";
+import { contentHelpDemos } from "@/features/help/help-demo-scenes";
+import { moreHelpDemos } from "@/features/help/help-demo-more";
 
-const manualSections = [
-  {
-    title: "Start a class session",
-    steps: [
-      "Sign in with a teacher or admin account.",
-      "Open Content to review the PECS cards and gesture records for the session.",
-      "Use Student Mode when the learner should only access Playground, Gesture Practice, and Activities."
-    ]
-  },
-  {
-    title: "Add or update learning content",
-    steps: [
-      "Open Content, then choose PECS or Gestures on the content board.",
-      "Use Add PECS card or Add gesture for new cards, or Edit on a card to change its label, category, and description.",
-      "Attach a picture and audio from the upload controls. Name each file word_category, like eat_food.png."
-    ]
-  },
-  {
-    title: "Create lessons",
-    steps: [
-      "Open Lessons and choose New lesson.",
-      "Type a title and, if you like, a short description.",
-      "Pick the cards in the order you want to teach them. They fill the lesson order tray.",
-      "Choose Private to me when you save a new lesson to keep it to yourself. Shared lessons can be opened by every teacher, who can use Make a copy to adapt one."
-    ]
-  },
-  {
-    title: "Run practice",
-    steps: [
-      "Add activities to a lesson from Activities: choose Create activity, then pick the lesson under Part of a lesson. A lesson can hold many activities. Find and play them in Activities, where they show From (lesson).",
-      "For gesture lessons, choose Practice gesture from the saved lesson. In Student Mode, use Free practice for open recognition or Guided 7 for a shuffled seven-gesture session.",
-      "Guided 7 waits for a thumbs-up, counts down before each new gesture, and retries the same prompt until it is recognized or skipped.",
-      "Use Playground when the learner needs to build a PECS/AAC sentence from cards.",
-      "One card is accepted as a valid Playground sentence when the learner is practising a single response."
-    ]
-  },
-  {
-    title: "Admin workflow",
-    steps: [
-      "Admin accounts see the Admin tab at the top of navigation.",
-      "Use Admin to review teacher accounts, content activity, uploads, and development tools.",
-      "Use Content and Activities to verify shared classroom materials before teachers use them."
-    ]
-  }
-];
+/** Help topic id to its Show me animation. Every guide has one; a topic without one would open the step cards. */
+const helpDemos = { ...contentHelpDemos, ...moreHelpDemos };
+import { helpFaqsFor, helpTopicsFor, matchesHelp, type HelpTopic } from "@/features/help/help-content";
+import { useUserSettings } from "@/features/settings/user-settings-context";
+import { useStudentMode } from "@/features/student-mode/student-mode-context";
 
-const faqs = [
-  {
-    question: "Why did my gesture lesson open Gesture Practice instead of Activities?",
-    answer: "Gesture lessons are practised in Gesture Practice, so they do not create Activity Library records."
-  },
-  {
-    question: "What is the difference between a lesson and an activity?",
-    answer: "A lesson is the plan: a title, a short description, and the cards in order. Activities are how the learner practises them. A lesson can hold many activities, added from the Activities page, and an activity can also stand on its own. Scores show at the end of an activity but are not saved."
-  },
-  {
-    question: "Where do I find an activity after creating it?",
-    answer: "Open Activities. Every activity is in the library. From lessons shows each lesson's activity, Private shows the ones only you can see, and the type filter shows one format."
-  },
-  {
-    question: "Why is some media shown as placeholder content?",
-    answer: "The app does not include official Makaton symbols or audio yet. Replace placeholders with approved classroom materials."
-  },
-  {
-    question: "Can learners sign in by themselves?",
-    answer: "No. In this MVP, teachers sign in and select guided classroom modes for learners."
-  },
-  {
-    question: "What is Student Mode for?",
-    answer: "Student Mode hides teacher editing tools and keeps the learner in Playground, Gesture Practice, and Activities."
-  },
-  {
-    question: "Are Guided 7 gesture results saved?",
-    answer: "No. Gesture practice is never saved. Guided 7 shows a short summary at the end of the session, then it is gone."
-  },
-  {
-    question: "Why does MakaLearn use Supabase?",
-    answer: "Supabase is the persistence layer for auth, storage, and database records. Demo records are seed data for setup and testing."
-  }
-];
+const goThereClass =
+  "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-blue-200/80 bg-white/60 px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300";
 
+/**
+ * Help: searchable guides, a Go there button for each, and FAQs. Show me plays an animated copy of the real screens
+ * for guides that have one (`helpDemos`); the rest open as short animated steps.
+ */
 export function HelpView() {
+  const { user } = useAuthState();
+  const { resetGuide } = useUserSettings();
+  const { enterStudentMode } = useStudentMode();
+  const { notify } = useToast();
+  const [search, setSearch] = useState("");
+  const [openTopic, setOpenTopic] = useState<HelpTopic | null>(null);
+  const role = user?.role ?? "teacher";
+
+  const topics = helpTopicsFor(role).filter((topic) =>
+    matchesHelp(search, topic.title, topic.summary, ...topic.steps.flatMap((step) => [step.title, step.text]))
+  );
+  const faqs = helpFaqsFor(role).filter((faq) => matchesHelp(search, faq.question, faq.answer));
+
+  async function replayTour() {
+    const ok = await resetGuide();
+    notify(
+      ok
+        ? { title: "Tour reset", description: "The welcome tour and page intros will show again.", tone: "success" }
+        : { title: "Tour reset on this device", description: "It could not be saved to your account.", tone: "info" }
+    );
+  }
+
   return (
     <>
-      <PageHeader title="Help" icon={HelpCircle} />
+      <PageHeader
+        title="Help"
+        icon={HelpCircle}
+        actions={
+          <Button type="button" variant="outline" size="sm" onClick={replayTour}>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Replay tour
+          </Button>
+        }
+      />
 
-      <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-lg border border-blue-100 bg-white/80 p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-ink">Manual</h2>
-          <div className="mt-5 space-y-6">
-            {manualSections.map((section) => (
-              <section key={section.title} className="border-t border-blue-100 pt-5 first:border-t-0 first:pt-0">
-                <h3 className="text-base font-bold text-ink">{section.title}</h3>
-                <ol className="mt-3 space-y-2">
-                  {section.steps.map((step, index) => (
-                    <li key={step} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3 text-sm leading-6 text-slate-700">
-                      <span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-600 text-xs font-bold text-white">
-                        {index + 1}
-                      </span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            ))}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <SearchInput label="Search help" placeholder="Search help" value={search} onChange={setSearch} />
+      </div>
+
+      <section aria-labelledby="help-howtos">
+        <h2 id="help-howtos" className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
+          Guides
+        </h2>
+        {topics.length ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {topics.map((topic) => {
+              const Icon = topic.icon;
+              return (
+                <article
+                  key={topic.id}
+                  className="flex flex-col rounded-2xl border border-white/80 bg-white/75 p-4 shadow-soft backdrop-blur-xl"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenTopic(topic)}
+                    className="flex flex-1 items-start gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+                  >
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700">
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-base font-bold text-ink">{topic.title}</span>
+                      <span className="mt-0.5 block text-sm leading-5 text-slate-600">{topic.summary}</span>
+                    </span>
+                  </button>
+                  <div className="mt-4 flex gap-2">
+                    <Button type="button" size="sm" onClick={() => setOpenTopic(topic)}>
+                      <PlayCircle className="h-4 w-4" aria-hidden="true" />
+                      Show me
+                    </Button>
+                    <GoThere topic={topic} onStudentMode={enterStudentMode} />
+                  </div>
+                </article>
+              );
+            })}
           </div>
-        </div>
+        ) : (
+          <NoMatches />
+        )}
+      </section>
 
-        <div className="rounded-lg border border-blue-100 bg-white/80 p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-ink">FAQs</h2>
-          <div className="mt-4 divide-y divide-blue-100">
+      <section aria-labelledby="help-faqs" className="mt-8">
+        <h2 id="help-faqs" className="mb-3 text-xs font-bold uppercase tracking-[0.08em] text-slate-500">
+          Frequently asked questions
+        </h2>
+        {faqs.length ? (
+          <div className="divide-y divide-blue-100 rounded-2xl border border-white/80 bg-white/75 px-5 py-1 shadow-soft backdrop-blur-xl">
             {faqs.map((item) => (
               <details key={item.question} className="group py-3">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-ink">
@@ -122,8 +124,58 @@ export function HelpView() {
               </details>
             ))}
           </div>
-        </div>
+        ) : (
+          <NoMatches />
+        )}
       </section>
+
+      <HelpDemoDialog
+        open={Boolean(openTopic && helpDemos[openTopic.id])}
+        title={openTopic?.title ?? ""}
+        scenes={openTopic ? helpDemos[openTopic.id] ?? [] : []}
+        goThere={openTopic ? <GoThere topic={openTopic} onStudentMode={enterStudentMode} primary /> : null}
+        onClose={() => setOpenTopic(null)}
+      />
+      <GuideStepsDialog
+        open={Boolean(openTopic && !helpDemos[openTopic.id])}
+        title={openTopic?.title ?? ""}
+        steps={openTopic?.steps ?? []}
+        onClose={() => setOpenTopic(null)}
+      />
     </>
+  );
+}
+
+/**
+ * Opens the page. Student mode pages (Playground, Gesture practice, Student mode activities) turn Student mode on and
+ * open there. `primary` is the solid version used at the end of a Show me.
+ */
+function GoThere({ topic, onStudentMode, primary = false }: { topic: HelpTopic; onStudentMode: (startAt?: string) => void; primary?: boolean }) {
+  const className = primary
+    ? "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+    : goThereClass;
+  const content = (
+    <>
+      Go there
+      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+    </>
+  );
+  return topic.studentStart ? (
+    <button type="button" className={className} onClick={() => onStudentMode(topic.studentStart === "menu" ? undefined : topic.studentStart)}>
+      {content}
+    </button>
+  ) : (
+    <Link href={topic.href} className={className}>
+      {content}
+    </Link>
+  );
+}
+
+function NoMatches() {
+  return (
+    <div className="grid place-items-center rounded-2xl border-2 border-dashed border-blue-200 bg-white/50 py-8 text-center">
+      <SearchX className="h-7 w-7 text-blue-300" aria-hidden="true" />
+      <p className="mt-2 text-sm font-semibold text-slate-500">Nothing matches. Try another word.</p>
+    </div>
   );
 }

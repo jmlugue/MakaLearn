@@ -1,15 +1,23 @@
 "use client";
 
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Check, Compass, Contrast, Loader2, RotateCcw, Settings as SettingsIcon, Type, Volume2, Wind } from "lucide-react";
+import { Check, Compass, Contrast, Gauge, Loader2, Mic, Play, RotateCcw, Settings as SettingsIcon, Type, Volume2, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Select } from "@/components/ui/form";
 import { PageHeader } from "@/components/layout/page-header";
 import { cn } from "@/lib/utils";
+import { canSpeak, createUtterance, goodVoices, readVoicePrefs, saveVoicePrefs, voiceLabel, type VoiceSpeed } from "@/lib/speech";
 import { type Preferences, type TextSize, useUserSettings } from "@/features/settings/user-settings-context";
 
 type SaveState = "idle" | "saving" | "saved";
+
+const speeds: { value: VoiceSpeed; label: string }[] = [
+  { value: "slow", label: "Slow" },
+  { value: "normal", label: "Normal" },
+  { value: "fast", label: "Fast" }
+];
 
 const textSizes: { value: TextSize; label: string }[] = [
   { value: "default", label: "Default" },
@@ -58,63 +66,138 @@ export function SettingsView() {
         }
       />
 
-      {/* Two groups side by side on desktop so the page uses the full width. */}
+      {/* Two columns on desktop, each stacked on its own, so a tall group never leaves a gap beside it. */}
       <div className="grid items-start gap-4 xl:grid-cols-2">
-        <SettingsGroup title="Display">
-          <SettingsRow icon={Type} label="Text size" hint="Makes text bigger across the app.">
-            <SegmentedControl
-              label="Text size"
-              options={textSizes}
-              value={preferences.textSize}
-              disabled={!loaded}
-              onChange={(value) => save({ textSize: value })}
-            />
-          </SettingsRow>
-          <SettingsRow icon={Contrast} label="High contrast" hint="Stronger borders and plain backgrounds.">
-            <Switch
-              label="High contrast"
-              checked={preferences.highContrast}
-              disabled={!loaded}
-              onChange={(value) => save({ highContrast: value })}
-            />
-          </SettingsRow>
-        </SettingsGroup>
+        <div className="grid gap-4">
+          <SettingsGroup title="Display">
+            <SettingsRow icon={Type} label="Text size" hint="Makes text bigger across the app.">
+              <SegmentedControl
+                label="Text size"
+                options={textSizes}
+                value={preferences.textSize}
+                disabled={!loaded}
+                onChange={(value) => save({ textSize: value })}
+              />
+            </SettingsRow>
+            <SettingsRow icon={Contrast} label="High contrast" hint="Stronger borders and plain backgrounds.">
+              <Switch
+                label="High contrast"
+                checked={preferences.highContrast}
+                disabled={!loaded}
+                onChange={(value) => save({ highContrast: value })}
+              />
+            </SettingsRow>
+          </SettingsGroup>
 
-        <SettingsGroup title="Motion and sound">
-          <SettingsRow icon={Wind} label="Reduce motion" hint="Turns off animations and slides.">
-            <Switch
-              label="Reduce motion"
-              checked={preferences.reduceMotion}
-              disabled={!loaded}
-              onChange={(value) => save({ reduceMotion: value })}
-            />
-          </SettingsRow>
-          <SettingsRow icon={Volume2} label="Audio guidance" hint="Plays spoken cues during practice.">
-            <Switch
-              label="Audio guidance"
-              checked={preferences.audioGuidance}
-              disabled={!loaded}
-              onChange={(value) => save({ audioGuidance: value })}
-            />
-          </SettingsRow>
-        </SettingsGroup>
+          <SettingsGroup title="Guidance">
+            <SettingsRow icon={Compass} label="Guide mode" hint="Explains a control when you hover it.">
+              <Switch
+                label="Guide mode"
+                checked={preferences.guideMode}
+                disabled={!loaded}
+                onChange={(value) => save({ guideMode: value })}
+              />
+            </SettingsRow>
+            <SettingsRow icon={RotateCcw} label="Replay the tour" hint="Shows the welcome tour and the page introductions again.">
+              <Button type="button" variant="outline" size="sm" disabled={!loaded || replaying} onClick={replay}>
+                {replaying ? "Resetting..." : "Replay"}
+              </Button>
+            </SettingsRow>
+          </SettingsGroup>
+        </div>
 
-        <SettingsGroup title="Guidance">
-          <SettingsRow icon={Compass} label="Guide mode" hint="Explains a control when you hover it.">
-            <Switch
-              label="Guide mode"
-              checked={preferences.guideMode}
-              disabled={!loaded}
-              onChange={(value) => save({ guideMode: value })}
-            />
-          </SettingsRow>
-          <SettingsRow icon={RotateCcw} label="Replay the tour" hint="Shows the welcome tour and the page introductions again.">
-            <Button type="button" variant="outline" size="sm" disabled={!loaded || replaying} onClick={replay}>
-              {replaying ? "Resetting..." : "Replay"}
-            </Button>
-          </SettingsRow>
-        </SettingsGroup>
+        <div className="grid gap-4">
+          <SettingsGroup title="Motion">
+            <SettingsRow icon={Wind} label="Reduce motion" hint="Turns off animations and slides.">
+              <Switch
+                label="Reduce motion"
+                checked={preferences.reduceMotion}
+                disabled={!loaded}
+                onChange={(value) => save({ reduceMotion: value })}
+              />
+            </SettingsRow>
+          </SettingsGroup>
+
+          <SettingsGroup title="Voice">
+            <VoiceSettings />
+          </SettingsGroup>
+        </div>
       </div>
+    </>
+  );
+}
+
+/**
+ * Voice and speed. Saved in this browser (voices differ per device), so no Saving indicator. Card audio files
+ * are not affected; this is the voice that reads questions, sentences, and cards without audio.
+ */
+function VoiceSettings() {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceURI, setVoiceURI] = useState("");
+  const [speed, setSpeed] = useState<VoiceSpeed>("normal");
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    const prefs = readVoicePrefs();
+    setVoiceURI(prefs.voiceURI);
+    setSpeed(prefs.speed);
+    if (!canSpeak()) return undefined;
+    // Browsers load their voice list a moment after the page.
+    const load = () => setVoices(goodVoices());
+    load();
+    window.speechSynthesis.addEventListener("voiceschanged", load);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
+  }, []);
+
+  /** Speaks a sample. The button turns blue while it talks. */
+  function test() {
+    if (!canSpeak()) return;
+    window.speechSynthesis.cancel();
+    const utterance = createUtterance("Hello! Let's learn together.");
+    utterance.onend = () => setTesting(false);
+    utterance.onerror = () => setTesting(false);
+    setTesting(true);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  return (
+    <>
+      <SettingsRow icon={Mic} label="Voice" hint={voices.length ? "Reads questions and sentences. Card audio stays the same." : "No voices found on this device."}>
+        <div className="flex items-center gap-2">
+          <Select
+            aria-label="Voice"
+            className="w-56 py-2"
+            value={voiceURI}
+            disabled={!voices.length}
+            onChange={(event) => {
+              setVoiceURI(event.target.value);
+              saveVoicePrefs({ voiceURI: event.target.value });
+            }}
+          >
+            <option value="">Automatic (best voice)</option>
+            {voices.map((voice) => (
+              <option key={voice.voiceURI} value={voice.voiceURI}>
+                {voiceLabel(voice)}
+              </option>
+            ))}
+          </Select>
+          <Button type="button" variant={testing ? "primary" : "outline"} size="sm" onClick={test} disabled={!voices.length} aria-pressed={testing}>
+            {testing ? <Volume2 className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+            {testing ? "Playing" : "Test"}
+          </Button>
+        </div>
+      </SettingsRow>
+      <SettingsRow icon={Gauge} label="Voice speed" hint="How fast the voice talks.">
+        <SegmentedControl
+          label="Voice speed"
+          options={speeds}
+          value={speed}
+          onChange={(value) => {
+            setSpeed(value);
+            saveVoicePrefs({ speed: value });
+          }}
+        />
+      </SettingsRow>
     </>
   );
 }

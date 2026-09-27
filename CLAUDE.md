@@ -112,7 +112,11 @@ not read `audit_logs`, so every teacher entry (logins, content, activities) had 
 **Whole-app test:** `npm run test:app:db` (dev server running) runs 33 live checks with the test accounts.
 `TEST_CREATE_ACCOUNT=1` also tests account creation and leaves a deactivated "[TEST] Created account".
 
-**The migration has NOT been run on the live database.** Verified by probing PostgREST directly:
+**Update Sep 28: the Sep 16 migration HAS now been run on live.** A read-only PostgREST probe (publishable key,
+`select=<column>&limit=0`) returns 200 for `user_settings.guide_mode`, `user_settings.guide_seen`, and
+`lessons.related_activity_id`, so Guide mode and tour dismissal save per account. The fallback below stays harmless.
+
+Earlier (Sep 16) state, kept for history: the migration had NOT been run. Verified by probing PostgREST directly:
 
 ```
 MISSING  user_settings.guide_mode
@@ -654,8 +658,9 @@ seeing they were right. Student mode only; the teacher player is unchanged.
 - **Lesson order cards:** solid blue step numbers (a lighter blue was tried and reverted) and no name under the picture, just
   the picture and a centered sound button (name kept in alt text and hover title). Shared by the lesson preview and
   the lesson form's Review.
-- **Plain page background:** the body is a plain whitish-blue fade (`globals.css`); the cyan, violet, and blue glows
-  (from June) were removed on request. The landing keeps its own shapes.
+- **Page background:** the body keeps its blue glassmorphism glows (cyan, violet, blue over a whitish-blue fade in
+  `globals.css`). A plain version was tried and reverted on request; it also flattened the landing, which relies on
+  the same background. Do not remove the glows.
 - **No category (`src/lib/no-category.ts`):** a grey "No category" choice, always last, for materials a teacher has
   not sorted yet. It is an ordinary category row with the fixed id `cat-no-category`, inserted by the teacher's
   session the first time a material is saved with it (no migration). In Add material a category left blank (the
@@ -668,3 +673,130 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   size only, no "name it" hint).
 - **Category and lesson colors:** a color hint on category cards and pop-ups was tried and reverted on request, and
   lesson colors were dropped. Categories keep their original design.
+
+---
+
+## 19. Next fixes round (Sep 27, not verified signed in)
+
+- **Category pop-up hint:** `Dialog` takes `glowColor`; the category pop-up tints its corner glow with the
+  category's color (the color being picked while editing). Category cards are unchanged.
+- **Playground:** Try again pop-up is red (was amber). Check, Listen, Clear are chunky toy buttons (taller, icon
+  above the label, darker bottom edge that presses down on tap; plain `<button>`, not the motion `Button`, so the
+  press is not overridden).
+- **Gesture practice (UI only; Julian's recognition logic untouched):** Student toolbar is one white glass bar
+  (`ToolbarPill`: Free practice, Guided 7, Focus, Landmarks). Softer borders and shadows. The feedback box under
+  the camera is smaller and shows only the learner message (`CorrectiveFeedbackPanel learnerOnly`); the teacher
+  page keeps Teacher guide, with compact status chips and one prediction box.
+- **Guided 7 pop-ups are centered** (`GuidedPopup`, portal, z-90): the thumbs-up ready card, Great job / Try again
+  (with the gesture picture, the learner message, Skip and Try again), and the session summary. The countdown
+  and light chips ("2 of 7 · Show Eat", round Skip and End) stay on the camera.
+- **Voice:** `src/lib/speech.ts` `createUtterance()` is used by every spoken line except the landing page. Settings,
+  Motion and sound: Voice (English voices on the device, best first; Automatic by default), Test, and Voice speed
+  (Slow / Normal / Fast). Saved per browser in localStorage. Card audio files are unchanged.
+- **Sound cues:** `src/lib/sound-cues.ts` makes chimes with Web Audio (no files). `correct` on a right tap or drop,
+  a playground Good job, and a recognized gesture; `finish` on the score pop-up and the guided summary. Wrong
+  answers stay silent. Always on.
+- **Help** (`help-view.tsx`, `help-content.ts`): search, How to cards that open as Guide mode steps
+  (`GuideStepsDialog`) with Go there (Student mode turns it on), a Replay the tour card, and updated FAQs. Admins
+  get view-only topics plus Accounts and Activity log.
+- **Maki the mascot** (`src/features/student-mode/maki.tsx`): the owner's design (speech bubble, chibi left hand,
+  right hand signing "I love you") redrawn as SVG so parts move. The signing hand is not drawn: it is cropped
+  from the owner's image (`public/maki/maki-hand.png`, see-through background) because drawn versions were rejected. Moods: happy, cheer, encourage (raised brows, fist
+  pump, heart; never sad), thinking (thought bubbles with "?"), wave. Reduced motion holds still. Used in: the
+  Correct! pop-up, a corner buddy during play (lg screens, cheers on right, encourages on wrong), the score pop-up,
+  playground Good job / Try again, the gesture feedback box, the guided pop-ups and summary, and the Student mode
+  switch card (waves on enter). Owner's source image: a JPG in their Downloads (`maki1.jpg`).
+- **Gesture toolbar colors:** Free practice blue, Guided 7 green, Focus yellow (as before), Landmarks violet.
+- **Guided get-ready pop-up:** Maki with a speech bubble ("Hi! Let's turn on the camera." / "Show me a thumbs up!"),
+  three round picture steps on a dotted path (Camera on, Hands in view, Thumbs up), a big 3D main button, and a real
+  End guided practice button. The summary ends with Cancel (left, back to free practice) and Try again (right).
+- **Playground:** the Student background colour under the sky picture is its own near-white (no hard line where the
+  picture ends). Check, Listen, Clear have more height so the icon and word sit in the middle.
+- **Settings:** two stacked columns (Display and Guidance left; Motion and Voice right). Voice: Voice picker with a
+  Test button that turns blue while it talks, Voice speed, then Audio guidance. The Sound effects switch was removed;
+  chimes are always on.
+- The Audio guidance switch is still saved but not used by anything (asked the owner whether to wire or remove it).
+
+### Sep 27, feedback round 2 (not verified signed in)
+
+- **Maki wrong-answer face = "cheering you on"** (owner's choice): happy eyes, warm open smile, fist pump, one
+  sparkle. The old encourage face looked like Maki agreed the answer was wrong. Corner Maki in Student activities is
+  bigger (170px, lg screens).
+- **Playground:** cards are drag only (no tap), with pointer events so a finger works: on touch a card is picked up
+  after a short hold (`TOUCH_HOLD_MS`), so a quick swipe still scrolls the card list; board cards drag to swap. Enter
+  or Space still adds a focused card (keyboard). Praise says only "You made a phrase." or "You made a sentence."
+  (`validFeedback`). Good job pop-up is green with room for Maki's jump; Try again is red with Maki cheering you on,
+  "You're doing great! Let's try one more time.", and a "Let's go!" button.
+- **Gesture (UI only):** Student screen is full screen; the toolbar spans the top so the camera and the reference card
+  line up. Guided 7 sky blue, Landmarks orange. Maki sits in the camera's bottom-left corner (the hands chip moved
+  right) and left the box under the camera. Skip and End left the camera (they are in the panel). Get-ready pop-up:
+  big animated Maki, one title, a small icon hint line, the big button, End as a round X. Great job pop-up shows only
+  Maki; Try again shows the gesture picture and the full AI corrective feedback (learner message and teacher guide,
+  `CorrectiveFeedbackPanel prominent`). Progress panel is compact.
+- **Teacher activity player follows Student rules:** Match and Fill are one tap (right green, wrong shakes and the right
+  card turns green, then the next question); Drag and drop only accepts a card on its own word, a wrong one shakes and
+  goes back; the score opens by itself.
+- **Settings:** the Audio guidance switch was removed (the app keeps talking as before; the column stays).
+- **Help:** "Guides" and "Frequently asked questions" (the old FAQ answers kept, updated), Replay tour button in the
+  header. Go there opens the exact place: `/content?open=add`, `/content?open=lesson`, `/activities?create=1`,
+  `/admin#accounts`, `/admin#activity` (new link options in the Content and Activities views, teachers only).
+
+### Sep 28, feedback round 3 (not verified signed in; supersedes round 2 where they differ)
+
+- **Escaped text bug:** `’` written inside plain JSX text shows literally ("Let’s go!"). Type the real
+  apostrophe in JSX text; escapes are only safe inside JS strings.
+- **Playground pop-ups:** the scroll area has bottom padding so the 3D button edge is not clipped.
+- **Activities Correct! pop-up** is a check or cross again (no Maki, owner's request). Maki stays in the corner and
+  on the end-of-activity result.
+- **Maki encourage = "blushing proud"** (owner's pick from two sets of drafts): eyes closed, big blush with blush
+  lines, soft smile, hand raised, and a "You can do it!" speech bubble at the upper right, close to the head (pops in
+  once). `message` prop changes the text; the activity result uses "Great try!". "Determined" was tried and rejected.
+- **Gesture (UI only, recognition untouched):** Landmarks green. No "N of 7 / Show X" chip on the camera (only the
+  countdown). Get-ready pop-up: "Thumbs up to start!" plus one instruction line, no icon row. Free practice shows the
+  full AI feedback under the camera, "For learner" and "Teacher guide" (Julian's original labels, kept by the
+  owner); guided shows it in the Try again pop-up. Free practice during a guided session asks "End guided practice?"
+  first. The guided flip card's back has a compact layout.
+- **Camera size (owner):** `CameraPanel` is as in eeff81d (an aspect-fitting attempt was reverted), except its overlay
+  layer is `pointer-events-none`: the overlay (Maki, countdown) is now passed in every mode, and without it the layer
+  covered the free practice Camera on button (guided still worked because it starts the camera from code). The camera
+  keeps one size because the feedback box under it has a constant height: a share of the column, capped (`basis-[32%]`,
+  88px to 12rem; `basis-[24%]` in focus mode); feedback fills it and scrolls inside. A fixed 12rem box was tried and
+  broke the stacked layout under 1280px wide (the camera shrank to a few pixels and could not be clicked). Get-ready card shows three picture steps (`ReadyStep`): Hands in view, Watch the countdown,
+  Copy the sign (Maki's hand picture).
+- **Playground Try again voice** says only "Try again." (the encouraging line is shown, not spoken).
+- **Activity result pop-up:** the scroll area has top and bottom padding so Maki's bubble and the buttons are not cut.
+- **Guided reference card:** no flip and no "Click me". The picture, then the word and a Play button
+  (`LearnerReferencePictureCard`). The hands chip on the camera is top right, opposite Maki (bottom left).
+- **Session summary:** same numbers as before (Completed, First try, Attempts); now green, amber, and blue.
+
+### Help Show me animations (Sep 28, checked as static frames, not signed in)
+
+- `src/features/help/help-demo.tsx`: `HelpDemoDialog`, an auto-play player like the landing "See how it works" (progress
+  bar per step, caption, hover pauses, Back / Next, Replay and Go there at the end; reduced motion shows each step
+  finished). Scenes draw on a fixed 640 x 360 stage scaled to the pop-up, so pointer points are exact. Drawing pieces:
+  `Pointer` (path of [ms, x, y, click]), `MockPage`, `MockDialog`, `MockButton`, `MockField`, `CardPic`, `MockToast`, `Pop`.
+- Every guide has one. `help-demo-scenes.tsx` (`contentHelpDemos`: Add a material, Make a lesson, Create an activity,
+  plus shared page copies) and `help-demo-more.tsx` (`moreHelpDemos`: Student mode, Playground, Gesture practice, and
+  the admin guides See teaching content, Accounts, Activity log). `help-view.tsx` merges them (kept apart to avoid a
+  circular import); a topic without a demo would fall back to `GuideStepsDialog`. When a real screen changes, update
+  its scene. Wrappers around `CardPic` need a width and height (Tailwind's img max-width).
+
+### Admin (Sep 28, not verified signed in)
+
+- Activity log type filter uses `UnderlineTabs` (like PECS / Gestures in Content); `FilterPills` was removed.
+- Admin material pop-up shows Description only (Instruction hidden in view and edit; the value is kept on save).
+- **Hidden duplicate bug:** `ensurePecsManifestItems` merges PECS cards with the same label (meant for old seed rows of
+  built-in cards). It also hid a teacher's duplicate card, so deleting the visible one left a hidden copy that Admin
+  still showed. Content now passes `{ builtInOnly: true }` so teacher duplicates show and can be deleted; the
+  playground and activities still merge everything so a word never appears twice.
+
+### Help guides, seven per role (Sep 28, not verified signed in)
+
+- Teacher: Add a material, Make a lesson, Create an activity, Student mode, Playground, Gesture practice, Student mode
+  activities. Admin: Accounts, See teaching content (Go there opens `/admin#content`), Activity log, then the same four
+  Student mode guides. Each has a Show me animation.
+- Playground, Gesture practice, and Student mode activities only open in Student mode (AppShell sends others away), so
+  Go there calls `enterStudentMode(startAt)`: the context keeps the page, and AppShell's Student mode guard opens it
+  (`takeStudentStartRoute`) instead of the playground. The Student mode guide passes no page (menu opens as usual).
+  Sidebar and mobile nav call `enterStudentMode()` with no argument (the click event must not become a page).
+- Maki's hand picture was shrunk to 180 x 173 (24 KB from 59 KB); no visible difference at 2x the largest size.

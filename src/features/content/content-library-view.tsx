@@ -45,6 +45,7 @@ import { MediaTab } from "@/features/content/media-tab";
 import type { ActivityType, AppUser, Category, LearningItem, Lesson, MediaAsset } from "@/types";
 
 type Tab = "materials" | "lessons" | "categories" | "media";
+const tabs: Tab[] = ["materials", "lessons", "categories", "media"];
 type UploadConfig = Pick<MediaAsset, "bucket" | "type">;
 
 function applyMediaUrlToItem(item: LearningItem, type: MediaAsset["type"], publicUrl: string, updatedAt: string): LearningItem {
@@ -66,10 +67,20 @@ function mediaTypeText(type: MediaAsset["type"]) {
   return "audio";
 }
 
-export function ContentLibraryView({ initialItemId }: { initialItemId?: string } = {}) {
+export function ContentLibraryView({
+  initialItemId,
+  initialTab,
+  initialOpen
+}: {
+  initialItemId?: string;
+  /** From a link such as Help's Go there: /content?tab=lessons */
+  initialTab?: string;
+  /** "add" opens Add material, "lesson" opens New lesson (teachers only). */
+  initialOpen?: string;
+} = {}) {
   const { notify } = useToast();
   const { user } = useAuthUser();
-  const [tab, setTab] = useState<Tab>("materials");
+  const [tab, setTab] = useState<Tab>(() => (tabs.includes(initialTab as Tab) ? (initialTab as Tab) : "materials"));
   const [ready, setReady] = useState(false);
   const [items, setItems] = useState<LearningItem[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -107,7 +118,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
         setItems(ensurePecsManifestItems(upgradeStarterLearningItemPrompts(data.learningItems).map((item) => ({
           ...item,
           contentType: item.contentType ?? (item.tags?.includes("gesture") ? "gesture" : "pecs")
-        }))));
+        })), { builtInOnly: true }));
         setLessons(data.lessons);
         setCategories(withNoCategory(ensurePecsManifestCategories(data.categories), user.id));
         setNoCategorySaved(data.categories.some((category) => isNoCategory(category.id)));
@@ -125,6 +136,20 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load once; the user does not change here.
   }, [notify]);
+
+  // Help's Go there (/content?open=add or ?open=lesson): open the form once content has loaded.
+  const openLinkHandled = useRef(false);
+  useEffect(() => {
+    if (!ready || !initialOpen || openLinkHandled.current || user.role !== "teacher") return;
+    openLinkHandled.current = true;
+    if (initialOpen === "add") {
+      setTab("materials");
+      setCardFormOpen(true);
+    } else if (initialOpen === "lesson") {
+      setTab("lessons");
+      setLessonMode({ kind: "new" });
+    }
+  }, [initialOpen, ready, user.role]);
 
   // Deep link from the Admin page (/content?item=<id>): open that material once content has loaded.
   const deepLinkHandled = useRef(false);

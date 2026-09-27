@@ -31,8 +31,11 @@ html {
 
 body {
   min-height: 100vh;
-  /* Plain whitish blue. The cyan, violet, and blue glows were removed on request. */
-  background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 46%, #f4fbff 100%);
+  background:
+    radial-gradient(circle at 9% 7%, rgba(34, 211, 238, 0.16), transparent 28rem),
+    radial-gradient(circle at 92% 14%, rgba(99, 102, 241, 0.14), transparent 30rem),
+    radial-gradient(circle at 55% 88%, rgba(96, 165, 250, 0.13), transparent 34rem),
+    linear-gradient(135deg, #f8fbff 0%, #eef4ff 46%, #f4fbff 100%);
   background-attachment: fixed;
   color: #172033;
   font-family: "Aptos", "Avenir Next", "Segoe UI Variable", "Segoe UI", sans-serif;

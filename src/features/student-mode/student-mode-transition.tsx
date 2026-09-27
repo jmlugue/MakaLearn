@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Maki } from "@/features/student-mode/maki";
 
 export type StudentModeSwitch = "enter" | "exit";
 
@@ -69,14 +70,25 @@ export function StudentModeTransition({ mode }: { mode: StudentModeSwitch | null
               ))
             : null}
           <div className="relative flex flex-col items-center">
-            <motion.span
-              className="grid h-28 w-28 place-items-center overflow-hidden rounded-[2rem] bg-[#fff] p-2 shadow-[0_24px_60px_rgba(15,23,42,0.28)]"
-              initial={reduceMotion ? false : { scale: 0.6, rotate: -8 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 320, damping: 16 }}
-            >
-              <Image src="/makalearn_logo_mark.png" alt="" width={160} height={160} className="h-full w-full object-contain" priority />
-            </motion.span>
+            {mode === "enter" ? (
+              // Maki waves hello when Student mode starts.
+              <motion.span
+                initial={reduceMotion ? false : { scale: 0.6, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 320, damping: 16 }}
+              >
+                <Maki mood="wave" size={190} label="" />
+              </motion.span>
+            ) : (
+              <motion.span
+                className="grid h-28 w-28 place-items-center overflow-hidden rounded-[2rem] bg-[#fff] p-2 shadow-[0_24px_60px_rgba(15,23,42,0.28)]"
+                initial={reduceMotion ? false : { scale: 0.6, rotate: -8 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 320, damping: 16 }}
+              >
+                <Image src="/makalearn_logo_mark.png" alt="" width={160} height={160} className="h-full w-full object-contain" priority />
+              </motion.span>
+            )}
             <motion.p
               className="mt-6 text-4xl font-black tracking-[-0.03em] sm:text-5xl"
               initial={reduceMotion ? false : { y: 16, opacity: 0 }}
