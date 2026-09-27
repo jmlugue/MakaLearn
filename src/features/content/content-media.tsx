@@ -81,8 +81,11 @@ export function PictureBox({
 // One shared player so starting a new sound stops the previous one.
 let currentAudio: HTMLAudioElement | null = null;
 
-/** Small round play button for an audio URL or a browser speech fallback value. */
-export function AudioButton({ value, label, className }: { value?: string; label: string; className?: string }) {
+/**
+ * Play button for an audio URL or a browser speech fallback value. Round by default; with `text` it is a pill
+ * with the icon and the text together ("Play word").
+ */
+export function AudioButton({ value, label, className, text }: { value?: string; label: string; className?: string; text?: string }) {
   const [playing, setPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -93,10 +96,15 @@ export function AudioButton({ value, label, className }: { value?: string; label
     return (
       <span
         title="No audio"
-        className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-50 text-slate-300", className)}
+        className={cn(
+          text
+            ? "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-slate-100 px-4 text-sm font-semibold text-slate-400"
+            : "grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-50 text-slate-300",
+          className
+        )}
       >
         <VolumeX className="h-4 w-4" aria-hidden="true" />
-        <span className="sr-only">No audio</span>
+        {text ? <span>No audio</span> : <span className="sr-only">No audio</span>}
       </span>
     );
   }
@@ -132,12 +140,15 @@ export function AudioButton({ value, label, className }: { value?: string; label
       onClick={play}
       aria-label={`${playing ? "Stop" : "Play"} ${label} audio`}
       className={cn(
-        "grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-700 transition hover:bg-blue-600 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-        playing && "bg-blue-600 text-white",
+        text
+          ? "inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-blue-600 px-4 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(37,99,235,0.25)] transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+          : "grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-700 transition hover:bg-blue-600 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+        playing && (text ? "bg-blue-700" : "bg-blue-600 text-white"),
         className
       )}
     >
       {playing ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
+      {text ? <span>{playing ? "Stop" : text}</span> : null}
     </button>
   );
 }

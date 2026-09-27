@@ -27,6 +27,7 @@ import {
 import { deleteMediaAssetFromSupabase, uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import { canSee, uniqueCopyTitle } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories, ensurePecsManifestItems } from "@/utils/pecs-content-library";
+import { isNoCategory, noCategory, withNoCategory } from "@/lib/no-category";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
 import { CardDetailDialog, type CardTextValues } from "@/features/content/card-detail-dialog";
 import { CardFormDialog, type NewCardFiles, type NewCardValues } from "@/features/content/card-form-dialog";
@@ -92,6 +93,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
   const [lessonMode, setLessonMode] = useState<LessonFormMode | null>(null);
   const [openLessonId, setOpenLessonId] = useState("");
   const [lessonToDelete, setLessonToDelete] = useState<Lesson | null>(null);
+  const [noCategorySaved, setNoCategorySaved] = useState(false);
   const [categoryDialog, setCategoryDialog] = useState<{ categoryId: string | null; mode: "view" | "edit" } | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [openAssetId, setOpenAssetId] = useState("");
@@ -107,7 +109,8 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
           contentType: item.contentType ?? (item.tags?.includes("gesture") ? "gesture" : "pecs")
         }))));
         setLessons(data.lessons);
-        setCategories(ensurePecsManifestCategories(data.categories));
+        setCategories(withNoCategory(ensurePecsManifestCategories(data.categories), user.id));
+        setNoCategorySaved(data.categories.some((category) => isNoCategory(category.id)));
         setMedia(data.mediaAssets);
       })
       .catch(() => {
@@ -120,6 +123,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once; the user does not change here.
   }, [notify]);
 
   // Deep link from the Admin page (/content?item=<id>): open that material once content has loaded.
@@ -202,6 +206,18 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
     return uploaded;
   }
 
+  /** "No category" is saved as a row the first time a material uses it. Another teacher may have saved it first. */
+  async function ensureCategoryRow(categoryId: string) {
+    if (!isNoCategory(categoryId) || noCategorySaved) return;
+    try {
+      await insertCategory(noCategory(user.id));
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      if (!/duplicate|already exists|23505/i.test(text)) throw error;
+    }
+    setNoCategorySaved(true);
+  }
+
   async function addCard(values: NewCardValues) {
     const draft: LearningItem = {
       id: `item-${Date.now()}`,
@@ -221,6 +237,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
 
     let saved: LearningItem | undefined;
     try {
+      await ensureCategoryRow(values.categoryId);
       saved = await insertLearningItem(draft);
       for (const upload of uploads) {
         const file = values.files[upload.key];
@@ -261,6 +278,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       updatedAt: new Date().toISOString()
     };
     try {
+      await ensureCategoryRow(values.categoryId);
       const saved = await updateLearningItemDetails(next);
       setItems((current) => current.map((candidate) => (candidate.id === item.id ? saved : candidate)));
       log("edit", "learning-item", saved.label, "Updated material details.", saved.id);
@@ -656,7 +674,7 @@ export function ContentLibraryView({ initialItemId }: { initialItemId?: string }
       <CategoryDialog
         state={categoryDialog ? { category: dialogCategory, mode: categoryDialog.mode } : null}
         items={items}
-        canManage={user.role === "teacher"}
+        canManage={user.role === "teacher" && !isNoCategory(dialogCategory?.id)}
         onClose={() => setCategoryDialog(null)}
         onModeChange={(mode) => setCategoryDialog((current) => (current ? { ...current, mode } : current))}
         onSave={saveCategory}

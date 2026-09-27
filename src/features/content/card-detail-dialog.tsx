@@ -21,7 +21,7 @@ import {
 } from "@/features/content/content-shared";
 import { cn, formatDate } from "@/lib/utils";
 import { limitLabel, sizeError } from "@/utils/media-limits";
-import { acceptFor, expectedFileName, extensionError, fileNameError } from "@/utils/media-filename";
+import { acceptFor, extensionError, fileNameError } from "@/utils/media-filename";
 import { RenameFileDialog } from "@/features/content/rename-file-dialog";
 import type { Category, LearningItem, MediaAsset } from "@/types";
 
@@ -73,8 +73,9 @@ export function CardDetailDialog({
 
   async function save() {
     if (!item) return;
-    if (!label.trim() || !categoryId || !description.trim()) {
-      setError("Add a label, category, and description.");
+    // Description is optional.
+    if (!label.trim() || !categoryId) {
+      setError("Add a label and category.");
       return;
     }
     setSaving(true);
@@ -121,9 +122,8 @@ export function CardDetailDialog({
         <div className="grid gap-5 md:grid-cols-[15rem_minmax(0,1fr)]">
           <div className={cn("self-start rounded-2xl border p-3", tone.soft, tone.border)}>
             <PictureBox value={item.symbolImageUrl} label={item.label} className="rounded-xl bg-[#fff]" inset="inset-3" textClassName="text-4xl" />
-            <div className="mt-3 flex items-center gap-2">
-              <AudioButton value={item.audioUrl} label={item.label} className="h-10 w-10" />
-              <span className="text-sm font-semibold text-slate-700">{item.audioUrl ? "Play word" : "No audio"}</span>
+            <div className="mt-3 flex justify-center">
+              <AudioButton value={item.audioUrl} label={item.label} text="Play word" />
             </div>
           </div>
 
@@ -149,7 +149,9 @@ export function CardDetailDialog({
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="edit-card-description">Description</Label>
+                  <Label htmlFor="edit-card-description">
+                    Description <span className="font-normal text-slate-500">(optional)</span>
+                  </Label>
                   <Textarea
                     id="edit-card-description"
                     className={cn(fieldClass, "min-h-20")}
@@ -241,7 +243,6 @@ function FileRow({
   const [error, setError] = useState("");
   // A picked file with the wrong name waits here while the rename pop-up is open.
   const [renaming, setRenaming] = useState<File | null>(null);
-  const example = expectedFileName(label, categoryName);
 
   async function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -281,7 +282,7 @@ function FileRow({
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-bold text-ink">{title}</span>
         <span className={cn("block text-xs", status === "error" ? "text-red-600" : "truncate text-slate-500")}>
-          {status === "error" ? error : hasValue ? fileName ?? "Stored file" : canManage ? `${empty} · name it ${example} · up to ${limitLabel(bucket)}` : empty}
+          {status === "error" ? error : hasValue ? fileName ?? "Stored file" : canManage ? `${empty} · ${bucket === "audio-files" ? "MP3, WAV, or M4A" : "PNG, JPG, or WebP"}, up to ${limitLabel(bucket)}` : empty}
         </span>
       </span>
       {canManage ? (

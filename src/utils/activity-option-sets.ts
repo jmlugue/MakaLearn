@@ -1,5 +1,6 @@
 import type { ActivityType, LearningItem } from "@/types";
 import { bankGroupsOf } from "@/utils/question-bank";
+import { isNoCategory } from "@/lib/no-category";
 
 /** Remove blanks and duplicates while preserving the first occurrence. */
 function uniqueOptions(values: string[]) {
@@ -115,6 +116,7 @@ export function isUnsafeActivityDistractor(
   // could also be right.
   if (
     answerItem.categoryId &&
+    !isNoCategory(answerItem.categoryId) &&
     answerItem.categoryId === candidate.categoryId &&
     (!isInAnyMeaningGroup(answerLabel) || !isInAnyMeaningGroup(candidateLabel))
   ) {

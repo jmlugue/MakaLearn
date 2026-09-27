@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { FileAudio, Image as ImageIcon, Plus } from "lucide-react";
+import { FileAudio, Image as ImageIcon, Info, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
@@ -14,6 +14,7 @@ import { limitLabel, mediaSizeLimits, sizeError } from "@/utils/media-limits";
 import { acceptFor, expectedFileName, extensionError, fileNameError, guessFromFileName, labelFromWord, namePart, renameFile } from "@/utils/media-filename";
 import { pecsCardManifest } from "@/data/pecs-card-manifest";
 import { symbolVocabulary } from "@/data/symbol-vocabulary";
+import { NO_CATEGORY_ID, noCategory } from "@/lib/no-category";
 import type { Category } from "@/types";
 
 export type NewCardFiles = Partial<Record<"symbol" | "audio", File>>;
@@ -144,8 +145,8 @@ function CardForm({
   /**
    * Any picture or sound of the right type is taken. Its name fills whatever is blank: `happy_emotions` gives
    * the label and category, `happy` only the label, and a name like IMG_2044 or `asdf_emotions` no label
-   * (the label only comes from a known symbol or gesture word). On Save the file is
-   * renamed to match the card (word_category), so the stored file always follows the rule.
+   * (the label only comes from a known symbol or gesture word). On Save each file is renamed to match the card
+   * (word_category), so stored files always follow the rule without the teacher renaming anything.
    */
   function stage(key: keyof NewCardFiles) {
     return (file: File) => {
@@ -180,10 +181,14 @@ function CardForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!label.trim() || !categoryId || !description.trim()) {
-      setError("Add a label, category, and description.");
+    // Description is optional.
+    if (!label.trim()) {
+      setError("Add a label.");
       return;
     }
+    // A category left blank (for example when the file name had none) goes to No category.
+    const savedCategoryId = categoryId || NO_CATEGORY_ID;
+    const savedCategoryName = categoryId ? categoryName : fileCategoryName(noCategory(""));
     // Each file is renamed to match the card (word_category) unless it already does.
     const named: NewCardFiles = {};
     for (const key of Object.keys(fileBuckets) as Array<keyof NewCardFiles>) {
@@ -195,12 +200,12 @@ function CardForm({
         setError(`${file.name}: ${problem}`);
         return;
       }
-      named[key] = fileNameError(file, bucket, label.trim(), categoryName)
-        ? renameFile(file, expectedFileName(label.trim(), categoryName), bucket)
+      named[key] = fileNameError(file, bucket, label.trim(), savedCategoryName)
+        ? renameFile(file, expectedFileName(label.trim(), savedCategoryName), bucket)
         : file;
     }
     setSaving(true);
-    const saved = await onSubmit({ kind, label: label.trim(), categoryId, description: description.trim(), files: named });
+    const saved = await onSubmit({ kind, label: label.trim(), categoryId: savedCategoryId, description: description.trim(), files: named });
     setSaving(false);
     if (saved) onClose();
   }
@@ -240,17 +245,22 @@ function CardForm({
                   setCategoryId(event.target.value);
                   setAutoCategory(false);
                 }}>
-                <option value="">Pick a category</option>
+                <option value="" disabled>
+                  Pick a category
+                </option>
                 {choices.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.name}
                   </option>
                 ))}
               </Select>
+              {categoryId ? null : <p className="mt-1 text-xs text-slate-500">Left blank, it is saved in No category.</p>}
             </div>
           </div>
           <div>
-            <Label htmlFor="card-description">Description</Label>
+            <Label htmlFor="card-description">
+              Description <span className="font-normal text-slate-500">(optional)</span>
+            </Label>
             <Textarea
               id="card-description"
               className={cn(fieldClass, "min-h-20")}
@@ -264,6 +274,8 @@ function CardForm({
           </div>
         </Box>
 
+        <FileNameNote example={example} className="md:hidden" />
+
         <Box title="Media" tone={tone.soft}>
           <FileUpload
             key="symbol"
@@ -271,7 +283,7 @@ function CardForm({
             icon={ImageIcon}
             label={kind === "pecs" ? "Card image" : "Reference image"}
             accept={acceptFor["symbol-images"]}
-            hint={`Saved as ${example}. PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
+            hint={`PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
             maxBytes={mediaSizeLimits["symbol-images"]}
             storageNote="Saved with the material."
             successMessage="Ready to save."
@@ -284,7 +296,7 @@ function CardForm({
             icon={FileAudio}
             label="Audio"
             accept={acceptFor["audio-files"]}
-            hint={`Saved as ${example}. MP3, WAV, or M4A, up to ${limitLabel("audio-files")}`}
+            hint={`MP3, WAV, or M4A, up to ${limitLabel("audio-files")}`}
             maxBytes={mediaSizeLimits["audio-files"]}
             storageNote="Plays the spoken word."
             successMessage="Ready to save."
@@ -299,6 +311,7 @@ function CardForm({
         <div className="sticky top-0 mt-12">
           <SectionLabel className="mb-2">Live preview</SectionLabel>
           <CardTile item={{ label, contentType: kind, symbolImageUrl: imagePreview, audioUrl: files.audio ? "staged" : undefined }} category={category} />
+          <FileNameNote example={example} className="mt-3" />
         </div>
       </div>
 
@@ -313,5 +326,18 @@ function CardForm({
       </div>
 
     </form>
+  );
+}
+
+/** The file name rule. Files are renamed on Save; the example follows the label and category typed so far. */
+function FileNameNote({ example, className }: { example: string; className?: string }) {
+  return (
+    <p className={cn("flex gap-2 rounded-xl bg-blue-50 p-3 text-xs leading-5 text-blue-900 ring-1 ring-blue-100", className)}>
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
+      <span>
+        Files are saved in the <span className="font-semibold">word_category</span> format, like{" "}
+        <span className="font-semibold">{example}</span>.
+      </span>
+    </p>
   );
 }

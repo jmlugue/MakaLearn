@@ -130,7 +130,7 @@ export const pageGuides: Record<string, PageGuide> = {
       },
       {
         title: "Create in three steps",
-        text: "Start from your own cards or a lesson, pick a format and up to five cards, then check the questions.",
+        text: "Pick a format, use your own cards or a lesson, choose up to five cards, then check the questions.",
         icon: Shapes,
         scene: "activity"
       },

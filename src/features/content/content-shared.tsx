@@ -351,9 +351,9 @@ export function isFixedGesture(item: LearningItem) {
 
 export function createLearningItemInstruction(contentType: ContentKind, label: string, description: string) {
   if (contentType === "gesture") {
-    return `Use the ${label} reference during guided gesture practice. ${description}`;
+    return `Use the ${label} reference during guided gesture practice. ${description}`.trim();
   }
-  return `Use the ${label} card during guided PECS practice. ${description}`;
+  return `Use the ${label} card during guided PECS practice. ${description}`.trim();
 }
 
 export function nameFor(names: Map<string, string>, id: string) {

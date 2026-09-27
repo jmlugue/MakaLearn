@@ -628,11 +628,43 @@ seeing they were right. Student mode only; the teacher player is unchanged.
 - **UI:** the loading dots are one blue (`bg-blue-600`). The `brand-*` Tailwind tokens are now unused. Cards in
   the activity and lesson creators (`MaterialsStep`, `PickedSlots` in `lesson-form-dialog.tsx`) are picture
   only; the name stays as `aria-label` and hover `title`.
-- **How it plays is a pop-up:** the creator (under Format) and the activity preview show a "Learn how it plays"
-  button (`HowItPlaysButton` in `activity-sample.tsx`) that opens the demo and "Try it yourself" in a dialog.
+- **How it plays is a pop-up:** the creator (under Activity format) and the activity preview show a "Learn how it
+  plays" card button (`HowItPlaysButton` in `activity-sample.tsx`). The pop-up keeps the original demo design (no
+  switch; one Try it yourself / Watch demo button) on the soft blue box, and the demo plays by itself.
   Admins get the demo without Try it yourself.
+- **Create activity, step 1 (renamed Format):** an "Activity format" box with the 3 types in one row, then a box
+  with a "From a lesson" checkbox that shows the lesson dropdown. The Start from tiles are gone.
+- **Add material:** "Pick a category" is a disabled placeholder, so it cannot be chosen.
 - **Student mode feedback (supersedes section 13):** Fill in the blank and Match: a right tap keeps the Correct!
   pop-up; a wrong tap has no sound and no "Not this one" / "This one!" tags, just the shake, red pick, and the
   right card growing green, then the next question. Drag and drop: a right drop only marks the box green (no
   pop-up), a wrong drop shakes and flies back with no sound, and the score counts every card as right (the
   "needed another try" arrows are gone). The demo mirrors this.
+- **Add material names:** autofill and rename on Save are unchanged (the owner chose not to block Save). Upload
+  hints show only the allowed formats and size; a blue note under the live preview (above Media on phones) says
+  "Files are saved as word_category, like eat_food." Description is optional when adding or editing.
+- **Student mode menu:** the logo inside the open menu is no longer a link (it sat where the menu button is, so a
+  second tap jumped to the playground).
+- **Student mode switch card:** keeps its bright red, yellow, green, and sky colors (a soft version was tried and
+  reverted on request; the owner wants Student mode colorful).
+- **Only one dev server:** two `next dev` servers on one folder share `.next` and corrupt it (404s, hangs). Check
+  ports 3000 to 3001 before starting one; verify on the owner's server when it is running.
+- **Material detail Play word:** the audio icon and "Play word" are one centered blue pill under the picture
+  (`AudioButton` takes an optional `text`; "No audio" shows as a grey pill).
+- **Lesson order cards:** solid blue step numbers (a lighter blue was tried and reverted) and no name under the picture, just
+  the picture and a centered sound button (name kept in alt text and hover title). Shared by the lesson preview and
+  the lesson form's Review.
+- **Plain page background:** the body is a plain whitish-blue fade (`globals.css`); the cyan, violet, and blue glows
+  (from June) were removed on request. The landing keeps its own shapes.
+- **No category (`src/lib/no-category.ts`):** a grey "No category" choice, always last, for materials a teacher has
+  not sorted yet. It is an ordinary category row with the fixed id `cat-no-category`, inserted by the teacher's
+  session the first time a material is saved with it (no migration). In Add material a category left blank (the
+  file name had none, and "Pick a category" cannot be chosen) is saved as No category; only the label is required. It cannot be edited or deleted, files are
+  named `word_no-category`, and it never makes teacher cards related in activities (test in
+  `test-question-bank.mjs`). Admin content shows it once it exists.
+- **Dropdowns:** custom lists already cap their height and scroll (lesson picker, card pickers, category "More");
+  native selects scroll on their own.
+- **Material details Files rows:** an empty slot says "No audio yet · MP3, WAV, or M4A, up to 20MB" (formats and
+  size only, no "name it" hint).
+- **Category and lesson colors:** a color hint on category cards and pop-ups was tried and reverted on request, and
+  lesson colors were dropped. Categories keep their original design.

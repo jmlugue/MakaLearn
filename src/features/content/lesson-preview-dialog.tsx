@@ -20,11 +20,11 @@ export function LessonPreviewBody({ items }: { items: LearningItem[] }) {
         {items.map((item, index) => {
           const tone = kindTone(item.contentType);
           return (
-            <li key={item.id} className={cn("relative overflow-hidden rounded-2xl border p-1.5", tone.soft, tone.border)}>
+            <li key={item.id} title={item.label} className={cn("relative overflow-hidden rounded-2xl border p-1.5", tone.soft, tone.border)}>
               <PictureBox value={item.symbolImageUrl} label={item.label} className="rounded-xl bg-[#fff]" textClassName="text-sm" />
               <span className="absolute left-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-blue-600 text-xs font-bold text-white">{index + 1}</span>
-              <div className="flex items-center gap-1.5 px-0.5 pt-1.5">
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{item.label}</span>
+              {/* Picture and sound only; the name stays in the image alt text, the sound button label, and the hover title. */}
+              <div className="flex justify-center pt-1.5">
                 <AudioButton value={item.audioUrl} label={item.label} className="h-7 w-7" />
               </div>
             </li>

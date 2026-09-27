@@ -195,9 +195,10 @@ function StudentNavigationContent({
 }) {
   return (
     <>
-      <Link href="/playground" className="mb-8 flex items-center gap-3" onClick={onNavigate}>
+      {/* Not a link: it sits where the menu button was, so a second tap must not jump to the playground. */}
+      <div className="mb-8 flex items-center gap-3">
         <BrandLogo markClassName="h-14 w-14 rounded-2xl" />
-      </Link>
+      </div>
       <nav className="grid gap-2">
         {studentNavItems.map((item) => {
           const active = pathname === item.href;

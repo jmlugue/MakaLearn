@@ -104,3 +104,12 @@ test("the rules catch what they should", () => {
   assert.deepEqual(problems("fill", "Sad", "I feel ____ because my blue balloon flew away."), []);
   assert.deepEqual(problems("fill", "I", "____ can tie my shoes by myself."), [], "I is allowed");
 });
+
+test("No category does not make teacher cards related, a real shared category does", () => {
+  const card = (label, categoryId) => ({ label, categoryId });
+  assert.equal(
+    options.isUnsafeActivityDistractor("fill-blank", card("Zorbly", "cat-no-category"), card("Blipto", "cat-no-category")),
+    false
+  );
+  assert.equal(options.isUnsafeActivityDistractor("fill-blank", card("Zorbly", "cat-toys"), card("Blipto", "cat-toys")), true);
+});

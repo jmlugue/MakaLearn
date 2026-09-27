@@ -43,7 +43,7 @@ export type ActivityFormValues = {
   lessonId?: string;
 };
 
-const stepLabels = ["Start", "Cards", "Review"];
+const stepLabels = ["Format", "Cards", "Review"];
 
 export function ActivityFormDialog({
   mode,
@@ -220,7 +220,7 @@ function ActivityForm({
   function validate(target: number) {
     if (target >= 1 && mode.kind === "new" && source === "lesson" && !lesson) {
       setStep(0);
-      setError("Pick a lesson, or start from your own cards.");
+      setError("Pick a lesson, or untick From a lesson.");
       return false;
     }
     if (target >= 2) {
@@ -315,32 +315,11 @@ function ActivityForm({
 
       <div className="mt-5 min-h-[22rem]">
         {step === 0 ? (
-          <div className="space-y-5">
-            <div>
-              <SectionLabel className="mb-2">Start from</SectionLabel>
-              {mode.kind === "new" ? (
-                <>
-                  <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Start from">
-                    <SourceTile icon={Layers} label="My own cards" selected={source === "own"} onClick={() => pickSource("own")} />
-                    <SourceTile icon={BookOpen} label="From a lesson" selected={source === "lesson"} onClick={() => pickSource("lesson")} />
-                  </div>
-                  {source === "lesson" ? (
-                    <LessonPicker lessons={lessons} itemById={itemById} value={values.lessonId} onChange={pickLesson} />
-                  ) : null}
-                </>
-              ) : (
-                <p className="flex items-center gap-2 rounded-xl bg-white/80 p-2.5 text-sm text-slate-600 ring-1 ring-blue-100">
-                  {lesson ? <BookOpen className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" /> : <Layers className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />}
-                  <span className="font-semibold text-ink">{lesson ? `From ${lesson.title}` : "My own cards"}</span>
-                  <span>Set when it was made.</span>
-                </p>
-              )}
-            </div>
-
-            <div>
-              <SectionLabel className="mb-2">Format</SectionLabel>
+          <div className="space-y-4">
+            <section className={cn("p-4", glassBoxClass)}>
+              <SectionLabel className="mb-3">Activity format</SectionLabel>
               <GuideTip id="activities.types" className="block">
-                <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Activity format">
+                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Activity format">
                   {activityTypes.map((type) => {
                     const selected = values.type === type;
                     const Icon = activityTypeIcons[type];
@@ -352,21 +331,49 @@ function ActivityForm({
                         aria-checked={selected}
                         onClick={() => changeType(type)}
                         className={cn(
-                          "flex min-h-11 items-center gap-2 rounded-2xl border p-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                          "flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border p-2.5 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
                           selected ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-blue-100 bg-white/80 hover:border-blue-300"
                         )}
                       >
-                        <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", activityTypeTones[type].soft, activityTypeTones[type].text)}>
-                          <Icon className="h-4 w-4" aria-hidden="true" />
+                        <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", activityTypeTones[type].soft, activityTypeTones[type].text)}>
+                          <Icon className="h-5 w-5" aria-hidden="true" />
                         </span>
-                        <span className="min-w-0 text-sm font-bold leading-tight text-ink">{activityTypeLabels[type]}</span>
+                        <span className="text-sm font-bold leading-tight text-ink">{activityTypeLabels[type]}</span>
                       </button>
                     );
                   })}
                 </div>
               </GuideTip>
               <HowItPlaysButton type={values.type} items={demoItems} pool={items} className="mt-3" />
-            </div>
+            </section>
+
+            <section className={cn("p-4", glassBoxClass)}>
+              {mode.kind === "new" ? (
+                <>
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={source === "lesson"}
+                      onChange={(event) => pickSource(event.target.checked ? "lesson" : "own")}
+                      className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded border-blue-300 accent-blue-600"
+                    />
+                    <span>
+                      <span className="block text-sm font-bold text-ink">From a lesson</span>
+                      <span className="block text-xs text-slate-600">Use only the cards in one of your lessons.</span>
+                    </span>
+                  </label>
+                  {source === "lesson" ? (
+                    <LessonPicker lessons={lessons} itemById={itemById} value={values.lessonId} onChange={pickLesson} />
+                  ) : null}
+                </>
+              ) : (
+                <p className="flex items-center gap-2 text-sm text-slate-600">
+                  {lesson ? <BookOpen className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" /> : <Layers className="h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />}
+                  <span className="font-semibold text-ink">{lesson ? `From ${lesson.title}` : "My own cards"}</span>
+                  <span>Set when it was made.</span>
+                </p>
+              )}
+            </section>
           </div>
         ) : null}
 
@@ -505,26 +512,6 @@ function ActivityForm({
         )}
       </div>
     </div>
-  );
-}
-
-function SourceTile({ icon: Icon, label, selected, onClick }: { icon: typeof Layers; label: string; selected: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onClick}
-      className={cn(
-        "flex min-h-12 items-center gap-2.5 rounded-2xl border p-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-        selected ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-blue-100 bg-white/80 hover:border-blue-300"
-      )}
-    >
-      <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", selected ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-600")}>
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <span className="text-sm font-bold text-ink">{label}</span>
-    </button>
   );
 }
 

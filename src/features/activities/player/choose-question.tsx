@@ -51,7 +51,7 @@ export function StudentChoiceBoard({
       <motion.div
         key={`${question.id}-${missed ? "missed" : "open"}`}
         animate={missed && !reduceMotion ? { x: [0, -14, 14, -10, 10, -5, 5, 0] } : { x: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.35 }}
         className={cn(
           "mx-auto grid h-full min-h-0 w-full max-w-6xl gap-3 sm:gap-4",
           options.length <= 2 ? "grid-cols-2" : options.length === 3 ? "grid-cols-3" : "grid-cols-2 grid-rows-2 sm:grid-cols-4 sm:grid-rows-1"
@@ -74,7 +74,7 @@ export function StudentChoiceBoard({
                 <motion.span
                   className="relative block"
                   animate={missed && isAnswer && !reduceMotion ? { scale: [1, 1, 1.1, 1.04, 1.1, 1.06] } : { scale: 1 }}
-                  transition={{ duration: 1.4, times: [0, 0.35, 0.55, 0.7, 0.85, 1] }}
+                  transition={{ duration: 0.8, times: [0, 0.35, 0.55, 0.7, 0.85, 1] }}
                 >
                 <StudentPictureCard
                   value={option}

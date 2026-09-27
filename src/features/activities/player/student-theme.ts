@@ -47,4 +47,4 @@ export function studentInstruction(type: string) {
 }
 
 /** How long a wrong answer shows the right card before the next question. */
-export const WRONG_MS = 2400;
+export const WRONG_MS = 1300;

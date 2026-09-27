@@ -2,9 +2,8 @@
 
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Check, MousePointerClick, Play, PlayCircle, Pointer, RotateCcw, X } from "lucide-react";
+import { Check, ChevronRight, MousePointerClick, Play, Pointer, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { createActivityQuestions } from "@/lib/supabase/app-data";
 import { activityTypeLabels } from "@/utils/activity-labels";
@@ -24,22 +23,26 @@ const DONE_MS = 1400;
 const DRAG_BOXES = 3;
 
 /**
- * A small copy of the Student mode game, built from the chosen cards. It plays on hover: a pointer taps the
- * right picture (or drags each picture onto its word) and it turns green. "Try it yourself" lets the teacher
- * answer: one tap, or a drag in Drag and drop. Like Student mode, only a right tap says "Correct!"; a wrong tap
- * shakes the cards and the right one grows, and Drag and drop just marks each placed card green.
+ * A small copy of the Student mode game, built from the chosen cards. The demo plays by itself (or on hover
+ * when `autoPlay` is off): a pointer taps the right picture (or drags each picture onto its word) and it turns
+ * green. "Try it yourself" lets the teacher answer: one tap, or a drag in Drag and drop. Like Student mode, only
+ * a right tap says "Correct!"; a wrong tap shakes the cards and the right one grows, and Drag and drop just
+ * marks each placed card green.
  */
 export function ActivitySample({
   type,
   items,
   pool,
-  canTry = true
+  canTry = true,
+  autoPlay = true
 }: {
   type: ActivityType;
   items: LearningItem[];
   pool: LearningItem[];
   /** False for admins, who watch the demo but do not play. */
   canTry?: boolean;
+  /** Plays without hovering (the pop-up). */
+  autoPlay?: boolean;
 }) {
   const itemKey = items.map((item) => item.id).join(",");
   // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild only when the chosen cards or format change.
@@ -57,21 +60,21 @@ export function ActivitySample({
           <p className="mt-0.5 text-sm text-slate-600">{activityTypeDescriptions[type]}</p>
         </div>
         {canTry ? (
-        <button
-          type="button"
-          onClick={() => setMode(demo ? "try" : "demo")}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-blue-200 bg-white/90 px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-white"
-        >
-          {demo ? <MousePointerClick className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
-          {demo ? "Try it yourself" : "Watch demo"}
-        </button>
+          <button
+            type="button"
+            onClick={() => setMode(demo ? "try" : "demo")}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-blue-200 bg-white/90 px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-white"
+          >
+            {demo ? <MousePointerClick className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+            {demo ? "Try it yourself" : "Watch demo"}
+          </button>
         ) : null}
       </div>
 
       {type === "drag-drop-symbol" ? (
-        <DragSample key={mode} questions={questions} pool={pool} demo={demo} />
+        <DragSample key={mode} questions={questions} pool={pool} demo={demo} autoPlay={autoPlay} />
       ) : (
-        <ChoiceSample key={mode} type={type} questions={questions} pool={pool} demo={demo} />
+        <ChoiceSample key={mode} type={type} questions={questions} pool={pool} demo={demo} autoPlay={autoPlay} />
       )}
     </div>
   );
@@ -98,20 +101,32 @@ export function HowItPlaysButton({
   const ready = items.length > 0;
   return (
     <>
-      <Button
+      <button
         type="button"
-        variant="outline"
-        size="sm"
         onClick={() => setOpen(true)}
         disabled={!ready}
-        title={ready ? undefined : "Add PECS cards with pictures in Content to see a demo."}
-        className={className}
+        className={cn(
+          "group flex w-full items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-sky-50 p-3 text-left transition",
+          "hover:border-blue-300 hover:shadow-[0_8px_24px_rgba(37,99,235,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+          "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-blue-100 disabled:hover:shadow-none",
+          className
+        )}
       >
-        <PlayCircle className="h-4 w-4 text-blue-600" aria-hidden="true" />
-        Learn how it plays
-      </Button>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue-600 text-white shadow-[0_6px_16px_rgba(37,99,235,0.35)] transition group-hover:scale-105 group-disabled:scale-100">
+          <Play className="h-4 w-4 translate-x-px fill-white" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">Learn how it plays</span>
+          <span className="block text-xs text-slate-600">
+            {ready ? "Watch a short demo, then try it yourself." : "Add PECS cards with pictures in Content to see a demo."}
+          </span>
+        </span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-blue-500 transition group-hover:translate-x-0.5" aria-hidden="true" />
+      </button>
       <Dialog open={open} onClose={() => setOpen(false)} title="How it plays" className="max-w-lg">
-        <ActivitySample key={`${type}-${items.map((item) => item.id).join(",")}`} type={type} items={items} pool={pool} canTry={canTry} />
+        <div className="rounded-2xl bg-gradient-to-br from-blue-100/70 via-blue-50/70 to-sky-50/80 p-4 ring-1 ring-blue-100">
+          <ActivitySample key={`${type}-${items.map((item) => item.id).join(",")}`} type={type} items={items} pool={pool} canTry={canTry} />
+        </div>
       </Dialog>
     </>
   );
@@ -121,6 +136,7 @@ export function HowItPlaysButton({
 function Stage({
   type,
   demo,
+  autoPlay,
   hovering,
   stageRef,
   onHover,
@@ -129,21 +145,23 @@ function Stage({
 }: {
   type: ActivityType;
   demo: boolean;
+  autoPlay: boolean;
   hovering: boolean;
   stageRef: RefObject<HTMLDivElement>;
   onHover: (hovering: boolean) => void;
   aside?: ReactNode;
   children: ReactNode;
 }) {
+  const hoverToPlay = demo && !autoPlay;
   return (
     <div
       ref={stageRef}
-      tabIndex={demo ? 0 : -1}
-      onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}
-      onFocus={() => onHover(true)}
-      onBlur={() => onHover(false)}
-      aria-label={demo ? "Activity demo. Hover or focus to play." : "Activity sample"}
+      tabIndex={hoverToPlay ? 0 : -1}
+      onMouseEnter={hoverToPlay ? () => onHover(true) : undefined}
+      onMouseLeave={hoverToPlay ? () => onHover(false) : undefined}
+      onFocus={hoverToPlay ? () => onHover(true) : undefined}
+      onBlur={hoverToPlay ? () => onHover(false) : undefined}
+      aria-label={demo ? "Activity demo" : "Activity sample"}
       className={cn(
         "relative mt-3 overflow-hidden rounded-2xl border bg-white/90 p-4 shadow-[0_10px_30px_rgba(37,99,235,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
         demo && hovering ? "border-blue-300" : "border-blue-100"
@@ -197,11 +215,11 @@ function DemoPointer({ cursor, pressed, visible, slow }: { cursor: { x: number; 
 }
 
 /** Match, Choose the picture, Fill in the blank: one question, three picture cards, one tap. */
-function ChoiceSample({ type, questions, pool, demo }: { type: ActivityType; questions: ActivityQuestion[]; pool: LearningItem[]; demo: boolean }) {
+function ChoiceSample({ type, questions, pool, demo, autoPlay }: { type: ActivityType; questions: ActivityQuestion[]; pool: LearningItem[]; demo: boolean; autoPlay: boolean }) {
   const reduceMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
-  const [hovering, setHovering] = useState(false);
+  const [hovering, setHovering] = useState(autoPlay);
   const [phase, setPhase] = useState<Phase>("idle");
   const [round, setRound] = useState(0);
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
@@ -257,6 +275,7 @@ function ChoiceSample({ type, questions, pool, demo }: { type: ActivityType; que
     <Stage
       type={type}
       demo={demo}
+      autoPlay={autoPlay}
       hovering={hovering}
       stageRef={stageRef}
       onHover={setHovering}
@@ -289,7 +308,7 @@ function ChoiceSample({ type, questions, pool, demo }: { type: ActivityType; que
       <motion.div
         key={`${question.id}-${answered && !right ? "missed" : "open"}`}
         animate={answered && !right && !reduceMotion ? { x: [0, -8, 8, -6, 6, -3, 3, 0] } : { x: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.35 }}
         className="mx-auto mt-4 grid max-w-sm grid-cols-3 gap-3"
       >
         {options.map((option, position) => {
@@ -328,13 +347,13 @@ function ChoiceSample({ type, questions, pool, demo }: { type: ActivityType; que
 }
 
 /** Drag and drop: word boxes on top, their pictures in a tray below. */
-function DragSample({ questions, pool, demo }: { questions: ActivityQuestion[]; pool: LearningItem[]; demo: boolean }) {
+function DragSample({ questions, pool, demo, autoPlay }: { questions: ActivityQuestion[]; pool: LearningItem[]; demo: boolean; autoPlay: boolean }) {
   const reduceMotion = useReducedMotion();
   const boxes = useMemo(() => questions.slice(0, DRAG_BOXES), [questions]);
   const tray = useMemo(() => shuffleOptions(boxes.map((box) => box.answer), 7), [boxes]);
   const [placed, setPlaced] = useState<Record<string, string>>({});
   const [missed, setMissed] = useState("");
-  const [hovering, setHovering] = useState(false);
+  const [hovering, setHovering] = useState(autoPlay);
   const [phase, setPhase] = useState<Phase>("idle");
   const [step, setStep] = useState(0);
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
@@ -390,6 +409,7 @@ function DragSample({ questions, pool, demo }: { questions: ActivityQuestion[]; 
     <Stage
       type="drag-drop-symbol"
       demo={demo}
+      autoPlay={autoPlay}
       hovering={hovering}
       stageRef={stageRef}
       onHover={setHovering}
