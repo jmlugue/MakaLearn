@@ -1,13 +1,14 @@
 import { normalizePecsLabel } from "@/data/pecs-card-manifest";
 import type { LearningItem } from "@/types";
 import { categoryPromptFor } from "@/utils/category-prompts";
+import { bankLabels, bankQuestions, isBankQuestion } from "@/utils/question-bank";
 
 /**
- * One Choose the picture question per built-in card: one short sentence with a situation, and the answer
- * word never appears in it (a test checks both). Look-alike answers are kept out of the choices by
- * `activity-option-sets.ts`.
+ * Choose the picture questions now come from the question bank (`src/utils/question-bank/`). The tables
+ * below are older wordings, kept only so saved activities that use one are recognised and upgraded.
  */
-const chooseCorrectSymbolPromptsByLabel: Record<string, string> = {
+/** The single question per card used until the question bank (Oct 1). */
+const octChooseCorrectSymbolPromptsByLabel: Record<string, string> = {
   hello: "What do we say when we meet someone?",
   goodbye: "What do we say when we leave school?",
   "good morning": "What do we say at the start of the day?",
@@ -190,18 +191,34 @@ function labelFromLearningItemId(itemId: string) {
  * The built-in question for a card, or for a card a teacher made, "Which picture is from (category)?", which
  * fits any card and never names it.
  */
-export function createChooseCorrectSymbolPrompt(
-  item: Pick<LearningItem, "id" | "label"> & { categoryId?: string },
-  categoryName?: string
-) {
-  return getSavedChooseCorrectSymbolPrompt(item) ?? categoryPromptFor("choose", item, categoryName);
+/** Bank questions for a card, by its label, or for a built-in card whose label was changed, by its id. */
+function bankChooseQuestions(item: Pick<LearningItem, "id" | "label">, categoryName?: string) {
+  const byLabel = bankQuestions("choose", item.label, categoryName);
+  return byLabel.length ? byLabel : bankQuestions("choose", labelFromLearningItemId(item.id), categoryName);
 }
 
-export function getSavedChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id" | "label">) {
-  const labelPrompt = chooseCorrectSymbolPromptsByLabel[normalizePecsLabel(item.label)];
-  if (labelPrompt) return labelPrompt;
+/**
+ * A question for the card, picked at random from the question bank so activities differ. A card the bank
+ * does not know gets "Which picture is from (category)?", which fits any card and never names it.
+ */
+export function createChooseCorrectSymbolPrompt(
+  item: Pick<LearningItem, "id" | "label"> & { categoryId?: string },
+  categoryName?: string,
+  random: () => number = Math.random
+) {
+  const variants = bankChooseQuestions(item, categoryName);
+  if (variants.length) return variants[Math.min(variants.length - 1, Math.floor(random() * variants.length))];
+  return categoryPromptFor("choose", item, categoryName);
+}
 
-  return chooseCorrectSymbolPromptsByLabel[normalizePecsLabel(labelFromLearningItemId(item.id))];
+/** The card's main bank question (the first one), or undefined when the bank does not know the card. */
+export function getSavedChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id" | "label">) {
+  return bankChooseQuestions(item)[0];
+}
+
+/** True when the question is one of the bank's current questions for this card. */
+export function isCurrentChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id" | "label">, prompt: string) {
+  return isBankQuestion("choose", item.label, prompt) || isBankQuestion("choose", labelFromLearningItemId(item.id), prompt);
 }
 
 export function isGenericChooseCorrectSymbolPrompt(item: Pick<LearningItem, "label">, prompt: string) {
@@ -219,19 +236,21 @@ export function isBuiltInChooseCorrectSymbolPrompt(item: Pick<LearningItem, "id"
     isGenericChooseCorrectSymbolPrompt(item, prompt) ||
     labels.some(
       (label) =>
-        normalizePecsLabel(chooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt ||
+        normalizePecsLabel(octChooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt ||
         normalizePecsLabel(legacyChooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt ||
         normalizePecsLabel(retiredChooseCorrectSymbolPromptsByLabel[label] ?? "") === normalizedPrompt
     ) ||
     Object.values(starterLearningItemPromptDescriptions).some(
       (entry) => normalizePecsLabel(entry.description) === normalizedPrompt
-    )
+    ) ||
+    isCurrentChooseCorrectSymbolPrompt(item, prompt)
   );
 }
 
 /** Every built-in Choose question with its card label, for tests. */
+/** Every bank question for the built-in cards with its card label, main ones first, for tests. */
 export function chooseCorrectSymbolPromptEntries() {
-  return Object.entries(chooseCorrectSymbolPromptsByLabel).map(([label, prompt]) => ({ label, prompt }));
+  return bankLabels().builtIn.flatMap((label) => bankQuestions("choose", label).map((prompt) => ({ label, prompt })));
 }
 
 export function upgradeStarterLearningItemPrompts(items: LearningItem[]) {
@@ -251,5 +270,5 @@ export function upgradeStarterLearningItemPrompts(items: LearningItem[]) {
 
 export function getStarterLearningItemPromptDescription(itemId: string) {
   return starterLearningItemPromptDescriptions[itemId]?.description
-    ?? chooseCorrectSymbolPromptsByLabel[normalizePecsLabel(labelFromLearningItemId(itemId))];
+    ?? octChooseCorrectSymbolPromptsByLabel[normalizePecsLabel(labelFromLearningItemId(itemId))];
 }

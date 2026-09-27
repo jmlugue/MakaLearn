@@ -381,6 +381,8 @@ export function MaterialsStep({
                 key={item.id}
                 type="button"
                 aria-pressed={selected}
+                aria-label={item.label}
+                title={item.label}
                 disabled={!selected && full}
                 onClick={() => toggle(item.id)}
                 className={cn(
@@ -388,8 +390,8 @@ export function MaterialsStep({
                   selected ? "border-blue-600 shadow-sm" : "border-transparent hover:border-blue-200"
                 )}
               >
+                {/* Picture only: the name stays for screen readers and on hover. */}
                 <PictureBox value={item.symbolImageUrl} label={item.label} className="rounded-lg bg-slate-50" inset="inset-1" textClassName="text-xs" />
-                <span className="mt-1 truncate text-xs font-semibold text-ink">{item.label}</span>
                 {selected ? (
                   <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-white">
                     <Check className="h-3 w-3" aria-hidden="true" />
@@ -456,10 +458,9 @@ function PickedSlots({ items, max, onRemove }: { items: LearningItem[]; max?: nu
                   title={`Remove ${item.label}`}
                   className="group relative block aspect-[3/4] w-full overflow-hidden rounded-xl border-2 border-blue-600 bg-[#fff] transition hover:border-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
                 >
-                  <span className="absolute inset-1.5 bottom-6">
+                  <span className="absolute inset-1.5">
                     <CardImage value={item.symbolImageUrl} label={item.label} className="text-xs" />
                   </span>
-                  <span className="absolute inset-x-1 bottom-1 truncate text-center text-xs font-semibold text-ink">{item.label}</span>
                   <span className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-blue-600 text-xs font-bold text-white group-hover:bg-red-600">
                     <span className="group-hover:hidden">{index + 1}</span>
                     <X className="hidden h-3 w-3 group-hover:block" aria-hidden="true" />

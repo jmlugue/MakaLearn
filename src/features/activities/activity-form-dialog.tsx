@@ -11,7 +11,7 @@ import { activityTypeLabels } from "@/utils/activity-labels";
 import { canDraftQuestionPrompts, type ActivityDraftResult } from "@/utils/activity-ai-draft";
 import { buildDefaultActivityTitle } from "@/utils/activity-title";
 import { SearchInput } from "@/features/admin/admin-shared";
-import { ActivitySample } from "@/features/content/activity-sample";
+import { HowItPlaysButton } from "@/features/content/activity-sample";
 import { CardImage } from "@/features/content/content-media";
 import { PopupTitle, SectionLabel, fieldClass, glassBoxClass } from "@/features/content/content-shared";
 import { MaterialsStep } from "@/features/content/lesson-form-dialog";
@@ -365,15 +365,7 @@ function ActivityForm({
                   })}
                 </div>
               </GuideTip>
-            </div>
-
-            <div className="rounded-2xl bg-gradient-to-br from-blue-100/70 via-blue-50/70 to-sky-50/80 p-4 ring-1 ring-blue-100">
-              <SectionLabel className="mb-2">How it plays</SectionLabel>
-              {demoItems.length ? (
-                <ActivitySample key={`${values.type}-${demoItems.map((item) => item.id).join(",")}`} type={values.type} items={demoItems} pool={items} />
-              ) : (
-                <p className="text-sm leading-6 text-slate-700">Add PECS cards with pictures in Content to see a demo.</p>
-              )}
+              <HowItPlaysButton type={values.type} items={demoItems} pool={items} className="mt-3" />
             </div>
           </div>
         ) : null}

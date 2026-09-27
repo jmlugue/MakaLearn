@@ -2,8 +2,10 @@
 
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Check, MousePointerClick, Play, Pointer, RotateCcw, X } from "lucide-react";
+import { Check, MousePointerClick, Play, PlayCircle, Pointer, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { createActivityQuestions } from "@/lib/supabase/app-data";
 import { activityTypeLabels } from "@/utils/activity-labels";
 import { activityTypeDescriptions } from "@/features/activities/activity-helpers";
@@ -23,8 +25,9 @@ const DRAG_BOXES = 3;
 
 /**
  * A small copy of the Student mode game, built from the chosen cards. It plays on hover: a pointer taps the
- * right picture (or drags each picture onto its word) and it turns green with "Correct!". "Try it yourself"
- * lets the teacher answer: one tap, or a drag in Drag and drop.
+ * right picture (or drags each picture onto its word) and it turns green. "Try it yourself" lets the teacher
+ * answer: one tap, or a drag in Drag and drop. Like Student mode, only a right tap says "Correct!"; a wrong tap
+ * shakes the cards and the right one grows, and Drag and drop just marks each placed card green.
  */
 export function ActivitySample({
   type,
@@ -71,6 +74,46 @@ export function ActivitySample({
         <ChoiceSample key={mode} type={type} questions={questions} pool={pool} demo={demo} />
       )}
     </div>
+  );
+}
+
+/**
+ * "Learn how it plays": opens the demo in its own pop-up, so it stays out of the way in the creator and the
+ * preview. Disabled with a hint when there are no picture cards to build it from.
+ */
+export function HowItPlaysButton({
+  type,
+  items,
+  pool,
+  canTry = true,
+  className
+}: {
+  type: ActivityType;
+  items: LearningItem[];
+  pool: LearningItem[];
+  canTry?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ready = items.length > 0;
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        disabled={!ready}
+        title={ready ? undefined : "Add PECS cards with pictures in Content to see a demo."}
+        className={className}
+      >
+        <PlayCircle className="h-4 w-4 text-blue-600" aria-hidden="true" />
+        Learn how it plays
+      </Button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="How it plays" className="max-w-lg">
+        <ActivitySample key={`${type}-${items.map((item) => item.id).join(",")}`} type={type} items={items} pool={pool} canTry={canTry} />
+      </Dialog>
+    </>
   );
 }
 
@@ -243,7 +286,12 @@ function ChoiceSample({ type, questions, pool, demo }: { type: ActivityType; que
         )}
       </div>
 
-      <div className="mx-auto mt-4 grid max-w-sm grid-cols-3 gap-3">
+      <motion.div
+        key={`${question.id}-${answered && !right ? "missed" : "open"}`}
+        animate={answered && !right && !reduceMotion ? { x: [0, -8, 8, -6, 6, -3, 3, 0] } : { x: 0 }}
+        transition={{ duration: 0.5 }}
+        className="mx-auto mt-4 grid max-w-sm grid-cols-3 gap-3"
+      >
         {options.map((option, position) => {
           const tone = state(option, position);
           return (
@@ -271,9 +319,9 @@ function ChoiceSample({ type, questions, pool, demo }: { type: ActivityType; que
             </motion.button>
           );
         })}
-      </div>
+      </motion.div>
 
-      <Feedback show={answered} right={right} />
+      <Feedback show={answered && right} />
       {demo ? <DemoPointer cursor={cursor} pressed={phase === "tap"} visible={hovering} slow={false} /> : null}
     </Stage>
   );
@@ -336,7 +384,6 @@ function DragSample({ questions, pool, demo }: { questions: ActivityQuestion[]; 
     setDragging("");
   }
 
-  const allPlaced = boxes.every((box) => placed[box.id]);
   const inTray = tray.filter((card) => !Object.values(placed).includes(card));
 
   return (
@@ -423,7 +470,6 @@ function DragSample({ questions, pool, demo }: { questions: ActivityQuestion[]; 
           <Option value={boxes[step % boxes.length].answer} learningItems={pool} />
         </motion.div>
       ) : null}
-      <Feedback show={demo ? phase === "done" : allPlaced || Boolean(missed)} right={demo || !missed} tryAgain />
       {demo ? <DemoPointer cursor={cursor} pressed={phase === "tap"} visible={hovering} slow={phase === "tap"} /> : null}
     </Stage>
   );
@@ -443,7 +489,8 @@ function SampleSentence({ prompt, filled }: { prompt: string; filled: string }) 
   );
 }
 
-function Feedback({ show, right, tryAgain = false }: { show: boolean; right: boolean; tryAgain?: boolean }) {
+/** "Correct!" under the cards after a right tap. A wrong tap shows no text. */
+function Feedback({ show }: { show: boolean }) {
   const reduceMotion = useReducedMotion();
   return (
     <div className="mt-3 flex min-h-8 justify-center">
@@ -451,14 +498,11 @@ function Feedback({ show, right, tryAgain = false }: { show: boolean; right: boo
         <motion.p
           initial={reduceMotion ? false : { opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-black text-white",
-            right ? "bg-emerald-500" : "bg-rose-500"
-          )}
+          className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-sm font-black text-white"
           role="status"
         >
-          {right ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" /> : <X className="h-4 w-4" strokeWidth={3} aria-hidden="true" />}
-          {right ? "Correct!" : tryAgain ? "Try again" : "Not this one"}
+          <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+          Correct!
         </motion.p>
       ) : null}
     </div>

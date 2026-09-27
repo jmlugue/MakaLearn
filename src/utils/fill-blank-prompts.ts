@@ -1,12 +1,15 @@
 import { normalizePecsLabel } from "@/data/pecs-card-manifest";
 import { categoryPromptFor } from "@/utils/category-prompts";
+import { bankLabels, bankQuestions, isBankQuestion, isRetiredBankFill } from "@/utils/question-bank";
 
 /**
- * One built-in Fill in the blank sentence per PECS card. Each gives a situation, so only one card fits the
- * gap (the meaning groups in `activity-option-sets.ts` keep look-alike cards out of the choices).
- * Rules: exactly one ____, a short situation then the sentence (7 to 12 words), no bare "I feel ____." prompts.
+ * Fill in the blank sentences now come from the question bank (`src/utils/question-bank/`): several per
+ * built-in card and one or more for common Makaton / PECS words. The tables below are older wordings, kept
+ * only so saved activities that use one are recognised as MakaLearn's and upgraded.
  */
-const fillBlankPromptByLabel: Record<string, string> = {
+
+/** The single sentence per card used until the question bank (Oct 1). */
+const octFillBlankPromptByLabel: Record<string, string> = {
   hello: "A new classmate comes in. I wave and say ____.",
   goodbye: "School is over. I wave and say ____.",
   "good morning": "I arrive at school. I say ____ to my teacher.",
@@ -181,21 +184,33 @@ export function neutralFillBlankPrompt(label: string) {
 }
 
 /**
- * The built-in sentence for a card, or "" for a card a teacher made: no single sentence fits every card in a
- * category, so the teacher writes it or uses Draft with AI.
+ * A sentence for the card, picked at random from the question bank so activities differ. A card the bank
+ * does not know gets "" (the teacher writes it or uses Draft with AI).
  */
-export function createFillBlankPromptForLabel(label: string, item?: { categoryId?: string }, categoryName?: string) {
-  const normalized = normalizePecsLabel(label);
-  return fillBlankPromptByLabel[normalized] ?? categoryPromptFor("fill", { label, categoryId: item?.categoryId }, categoryName);
+export function createFillBlankPromptForLabel(
+  label: string,
+  item?: { categoryId?: string },
+  categoryName?: string,
+  random: () => number = Math.random
+) {
+  const variants = bankQuestions("fill", label, categoryName);
+  if (variants.length) return variants[Math.min(variants.length - 1, Math.floor(random() * variants.length))];
+  return categoryPromptFor("fill", { label, categoryId: item?.categoryId }, categoryName);
 }
 
+/** The card's main bank sentence (the first one), or undefined when the bank does not know the card. */
 export function getSavedFillBlankPromptForLabel(label: string) {
-  return fillBlankPromptByLabel[normalizePecsLabel(label)];
+  return bankQuestions("fill", label)[0];
 }
 
-/** Every card label that has a built-in sentence. */
+/** Every built-in card label. */
 export function fillBlankPromptLabels() {
-  return Object.keys(fillBlankPromptByLabel);
+  return bankLabels().builtIn;
+}
+
+/** True when the sentence is one of the bank's current sentences for this card. */
+export function isCurrentFillBlankPrompt(label: string, prompt: string) {
+  return isBankQuestion("fill", label, prompt);
 }
 
 export function isGenericFillBlankPrompt(label: string, prompt: string) {
@@ -221,6 +236,8 @@ export function isBuiltInFillBlankPrompt(label: string, prompt: string) {
     normalizePecsLabel(legacyFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
     normalizePecsLabel(longFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
     (retiredFillBlankPromptByLabel[normalizedLabel] ?? []).some((retired) => normalizePecsLabel(retired) === normalizedPrompt) ||
-    normalizePecsLabel(fillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt
+    normalizePecsLabel(octFillBlankPromptByLabel[normalizedLabel] ?? "") === normalizedPrompt ||
+    isRetiredBankFill(label, prompt) ||
+    isBankQuestion("fill", label, prompt)
   );
 }

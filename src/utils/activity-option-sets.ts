@@ -1,4 +1,5 @@
 import type { ActivityType, LearningItem } from "@/types";
+import { bankGroupsOf } from "@/utils/question-bank";
 
 /** Remove blanks and duplicates while preserving the first occurrence. */
 function uniqueOptions(values: string[]) {
@@ -103,8 +104,15 @@ export function isUnsafeActivityDistractor(
   if (answerLabel === candidateLabel) return true;
   if (meaningGroupsOf(answerLabel).some((group) => group.includes(candidateLabel))) return true;
 
-  // A card a teacher made has no meaning group, so its category stands in for one: another card from the
-  // same category could also be right.
+  // A card a teacher made has no meaning group. The question bank's groups ("food", "feeling") stand in:
+  // bank questions shared by related words ("It is snack time. I eat a ____.") fit every word in the group.
+  if (!isInAnyMeaningGroup(answerLabel) || !isInAnyMeaningGroup(candidateLabel)) {
+    const answerGroups = bankGroupsOf(answerLabel);
+    if (bankGroupsOf(candidateLabel).some((group) => answerGroups.includes(group))) return true;
+  }
+
+  // For a card the bank does not know either, its category stands in: another card from the same category
+  // could also be right.
   if (
     answerItem.categoryId &&
     answerItem.categoryId === candidate.categoryId &&

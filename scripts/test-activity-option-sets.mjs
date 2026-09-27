@@ -2,14 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { loadTs } from "./load-ts.mjs";
 
-const source = fs.readFileSync("src/utils/activity-option-sets.ts", "utf8");
-const compiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
-}).outputText;
-const optionModule = {};
-new Function("exports", compiled)(optionModule);
-const { buildActivityOptionSets, isUnsafeActivityDistractor } = optionModule;
+const { buildActivityOptionSets, isUnsafeActivityDistractor } = loadTs("src/utils/activity-option-sets.ts");
 
 const symbolSource = fs.readFileSync("src/utils/activity-symbol-options.ts", "utf8");
 const compiledSymbols = ts.transpileModule(symbolSource, {

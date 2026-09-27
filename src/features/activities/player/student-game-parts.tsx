@@ -2,7 +2,7 @@
 
 import { type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, Hand, Home, Lightbulb, RotateCcw, Volume2, X } from "lucide-react";
+import { Check, Hand, Home, Lightbulb, Volume2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getActivityBackground } from "@/features/activities/player/player-utils";
 import { SymbolOption } from "@/features/activities/player/player-parts";
@@ -157,18 +157,17 @@ export function StudentPictureCard({
   );
 }
 
-/** Tick, cross, or (right after another try) a turn arrow in the corner of a card. */
-export function StudentResultBadge({ tone }: { tone: "correct" | "wrong" | "retry" }) {
+/** A tick or a cross in the corner of a card. */
+export function StudentResultBadge({ tone }: { tone: "correct" | "wrong" }) {
   return (
     <span
       className={cn(
         "absolute right-2 top-2 z-10 grid h-11 w-11 place-items-center rounded-full border-4 border-white text-white shadow-md sm:h-12 sm:w-12",
-        tone === "correct" ? "bg-emerald-500" : tone === "retry" ? "bg-amber-400" : "bg-rose-500"
+        tone === "correct" ? "bg-emerald-500" : "bg-rose-500"
       )}
       aria-hidden="true"
     >
       {tone === "correct" ? <Check className="h-6 w-6" strokeWidth={3.5} /> : null}
-      {tone === "retry" ? <RotateCcw className="h-6 w-6" strokeWidth={3} /> : null}
       {tone === "wrong" ? <X className="h-6 w-6" strokeWidth={3.5} /> : null}
     </span>
   );

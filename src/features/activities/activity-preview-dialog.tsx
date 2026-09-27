@@ -4,7 +4,7 @@ import { BookOpen, Lock, Pencil, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { ActivitySample } from "@/features/content/activity-sample";
+import { HowItPlaysButton } from "@/features/content/activity-sample";
 import { AudioButton, CardImage } from "@/features/content/content-media";
 import { PopupTitle, SectionLabel, deleteButtonClass, kindTone } from "@/features/content/content-shared";
 import { ActivityTypeBadge } from "@/features/activities/activity-type-badge";
@@ -92,10 +92,7 @@ export function ActivityPreviewDialog({
           </PopupTitle>
 
           {pecsItems.length ? (
-            <div className="rounded-2xl bg-gradient-to-br from-blue-100/70 via-blue-50/70 to-sky-50/80 p-4 ring-1 ring-blue-100">
-              <SectionLabel className="mb-2">How it plays</SectionLabel>
-              <ActivitySample key={activity.type} type={activity.type} items={pecsItems} pool={pool} canTry={Boolean(onPlay)} />
-            </div>
+            <HowItPlaysButton type={activity.type} items={pecsItems} pool={pool} canTry={Boolean(onPlay)} />
           ) : null}
 
           <div>

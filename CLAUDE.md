@@ -233,7 +233,7 @@ This is the current accepted behavior for every activity surface:
 - Student mode: the result pop-up adds a final "Score X / Y" once every question in the round is answered.
   Match word only moves on after a correct answer, so its final score is usually full marks.
 - Type colors are an agreed exception to the blue-first palette, accents only.
-- **Choose the word (`simple-quiz`) is retired (Sep 26)**: it was the same task as Match word to symbol. Hidden like `gesture-practice` via `retiredActivityTypes` / `isRetiredActivity` in `activity-helpers.ts`; the enum and old rows stay. Teachers make 4 types: Match word to symbol, Choose correct symbol, Fill in the blank, Drag and drop.
+- **Choose the word (`simple-quiz`) is retired (Sep 26)**: it was the same task as Match word to symbol. Hidden like `gesture-practice` via `retiredActivityTypes` / `isRetiredActivity` in `activity-helpers.ts`; the enum and old rows stay. Choose the picture was retired too on Sep 27 (section 18), so teachers make 3 types.
 
 ### Sep 26: instructions, sentences, one answer, database tests (not verified signed in)
 
@@ -554,10 +554,9 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   ("How do I feel when my toy breaks?"); the old ones are kept as `legacyChooseCorrectSymbolPromptsByLabel` and
   upgraded at play time. **Bug fixed:** that upgrade used to overwrite questions teachers wrote; now only
   built-in ones are upgraded (`isBuiltInChooseCorrectSymbolPrompt`).
-- **Teacher-made cards:** a category mixes things, actions, and words, and a teacher's card does not record
-  which it is, so no category sentence fits every card. Fill in the blank starts empty (the teacher writes it
-  or uses Draft with AI; save is blocked until it is filled). Choose asks "Which picture is from (category)?"
-  (`src/utils/category-prompts.ts`). Never "Use ____ to talk about three."
+- **Teacher-made cards:** now get questions from the question bank (section 18) when their label is a known
+  Makaton / PECS word. A card the bank does not know gets an empty Fill (the teacher writes it or uses Draft with
+  AI) and "Which picture is from (category)?" for Choose (`src/utils/category-prompts.ts`).
 - **Wrong choices:** a teacher-made card keeps its whole category out of the choices. The question text is read
   too (`isQuestionRelatedDistractor`): cards it names, or groups it points at ("eat", "feel", "say", "who"), are
   used only when nothing else is left. More Fill in the blank second answers in `fillBlankAlsoFits`.
@@ -589,3 +588,51 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   - **A material's Upload / Replace:** `RenameFileDialog` (`rename-file-dialog.tsx`) opens with the right name
     filled in; "Use this name" or edit it, and it must still match the card.
   - Wrong file types and oversized files are still refused. `FileUpload.onUpload` may resolve with a renamed file.
+
+---
+
+## 18. Question bank and rules (Sep 27, checked on a temporary page, not signed in)
+
+- **Level (owner's decision):** early primary SPED, Kinder to Grade 2 words. More than one short sentence is
+  fine; the situation must make the one right answer clear. Teacher-typed and AI-drafted questions get no
+  extra checks; the rules are for MakaLearn's own bank and are enforced by tests.
+- **Files:** `src/utils/question-bank/`
+  - `rules.ts`: `checkQuestion`. Fill has one `____`; Choose ends with `?`. Never names the answer ("I" is
+    allowed). 1 to 3 sentences, at most 10 words each, 20 in total. Words over 8 letters must be card words or
+    on a small allow list. Fill needs a situation (2 sentences, a comma, or when/after/before/because).
+    Choose is at least 5 words. No ages, likes and dislikes, scary words, or "card" / "PECS" / "symbol".
+  - `built-in.ts`: 3 Fill and 3 Choose for each of the 50 built-in cards. The first is the main one.
+  - `profiles.ts`: the group and Choose question for every word in `src/data/symbol-vocabulary.ts`; its Fill
+    sentence comes from `vocabulary-fill.ts`. Two meanings are allowed with a category `hint` ("orange" in
+    Colors uses "orange (color)": "A carrot is ____.").
+  - `index.ts`: `bankQuestions`, `isBankQuestion`, `bankGroupsOf`. Questions that fail the rules are dropped.
+- **Wiring:** `createFillBlankPromptForLabel` / `createChooseCorrectSymbolPrompt` pick a random bank question so
+  activities differ. Saved current bank questions and a teacher's own text are kept; only old MakaLearn
+  wordings upgrade (to the main question). The Oct 1 single-sentence tables stay as `octFillBlankPromptByLabel`
+  and `octChooseCorrectSymbolPromptsByLabel` for recognition only.
+- **One right answer:** words in the same bank group ("food", "feeling", "action", "color") are never wrong
+  choices for each other when a non-built-in card is involved (`activity-option-sets.ts`). Built-in pairs keep
+  `activityMeaningGroups`.
+- **Adding a word:** add it to `symbol-vocabulary.ts`, give it a profile in `profiles.ts` and a sentence in `vocabulary-fill.ts`, run `npm run test:activities`
+  (`scripts/test-question-bank.mjs` checks every question, coverage, duplicates, and groups).
+- `scripts/load-ts.mjs` loads TypeScript for the logic tests, resolving relative and `@/` imports.
+- **Choose the picture retired (Sep 27):** it overlapped with Fill in the blank. Hidden like `simple-quiz` via
+  `retiredActivityTypes`; old rows and its bank questions stay. Teachers make 3 types: Match word to symbol, Fill
+  in the blank, Drag and drop.
+- **Fill style (owner's decision, Sep 27):** one plain, natural sentence with the blank inside it ("I feel ____
+  when someone takes my toy.", "I give my ____ a hug when she comes home."). No conversations, no lead-in that
+  ends "She is my ____", no gender roles for parents. `checkFillStyle` in `rules.ts` enforces it for every bank
+  sentence (up to 12 words per sentence). The Sep 27 situation sentences are kept as `retiredBuiltInFill` so saved
+  activities upgrade. Vocabulary Fill sentences (one per word, owner approved) live in `vocabulary-fill.ts`;
+  `profiles.ts` now holds only each word's group and its retired Choose question, and joins the sentence in.
+- **UI:** the loading dots are one blue (`bg-blue-600`). The `brand-*` Tailwind tokens are now unused. Cards in
+  the activity and lesson creators (`MaterialsStep`, `PickedSlots` in `lesson-form-dialog.tsx`) are picture
+  only; the name stays as `aria-label` and hover `title`.
+- **How it plays is a pop-up:** the creator (under Format) and the activity preview show a "Learn how it plays"
+  button (`HowItPlaysButton` in `activity-sample.tsx`) that opens the demo and "Try it yourself" in a dialog.
+  Admins get the demo without Try it yourself.
+- **Student mode feedback (supersedes section 13):** Fill in the blank and Match: a right tap keeps the Correct!
+  pop-up; a wrong tap has no sound and no "Not this one" / "This one!" tags, just the shake, red pick, and the
+  right card growing green, then the next question. Drag and drop: a right drop only marks the box green (no
+  pop-up), a wrong drop shakes and flies back with no sound, and the score counts every card as right (the
+  "needed another try" arrows are gone). The demo mirrors this.

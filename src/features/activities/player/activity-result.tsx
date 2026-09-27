@@ -9,13 +9,12 @@ import type { Activity, LearningItem } from "@/types";
 /**
  * The Student mode score pop-up at the end of a round. View only, nothing is saved. Each card shows the right
  * answer with a tick when the child got it first time, a cross when not. In drag and drop every card ends up
- * right, so a card that needed another try gets an amber turn arrow instead of a cross.
+ * in its box, so every card counts as right.
  */
 export function ActivityResultModal({
   activity,
   learningItems,
   firstTryRight,
-  retries = false,
   questionIds,
   onPlayAgain,
   onHome,
@@ -27,8 +26,6 @@ export function ActivityResultModal({
   learningItems: LearningItem[];
   /** Question id to whether the first answer was right. */
   firstTryRight: Record<string, boolean>;
-  /** Drag and drop: wrong tries are retried until right. */
-  retries?: boolean;
   questionIds: string[];
   onPlayAgain: () => void;
   onHome: () => void;
@@ -61,7 +58,7 @@ export function ActivityResultModal({
         ) : null}
         <div className="relative grid max-h-[calc(92dvh-3rem)] justify-items-center gap-4 overflow-y-auto clean-scrollbar">
           <h2 id="activity-result-title" className={cn(studentText.popupTitle, allRight ? "text-emerald-600" : "text-blue-700")}>
-            {allRight ? "Great job!" : retries ? "You did it!" : "Good try!"}
+            {allRight ? "Great job!" : "Good try!"}
           </h2>
           <div className="flex items-center gap-1" aria-hidden="true">
             {questions.map((question, index) => (
@@ -72,13 +69,8 @@ export function ActivityResultModal({
             ))}
           </div>
           <p className="text-2xl font-black text-[#10285e] sm:text-3xl">
-            {retries ? `${correct} of ${total} right` : `Score ${correct} / ${total}`}
+            Score {correct} / {total}
           </p>
-          {retries && !allRight ? (
-            <p className="-mt-2 inline-flex items-center gap-2 text-lg font-bold text-slate-600">
-              <StudentResultBadgeInline /> needed another try
-            </p>
-          ) : null}
           <div className="flex flex-wrap justify-center gap-3">
             {questions.map((question) => (
               <StudentPictureCard
@@ -87,11 +79,11 @@ export function ActivityResultModal({
                 learningItems={learningItems}
                 className={cn(
                   "w-24 sm:w-28",
-                  firstTryRight[question.id] ? "border-emerald-400" : retries ? "border-amber-300" : "border-rose-300",
+                  firstTryRight[question.id] ? "border-emerald-400" : "border-rose-300",
                   highlightedQuestionId === question.id && "ring-8 ring-sky-200"
                 )}
               >
-                <StudentResultBadge tone={firstTryRight[question.id] ? "correct" : retries ? "retry" : "wrong"} />
+                <StudentResultBadge tone={firstTryRight[question.id] ? "correct" : "wrong"} />
               </StudentPictureCard>
             ))}
           </div>
@@ -114,14 +106,5 @@ export function ActivityResultModal({
         </div>
       </div>
     </div>
-  );
-}
-
-/** The amber turn arrow, inline in the legend line. */
-function StudentResultBadgeInline() {
-  return (
-    <span className="grid h-7 w-7 place-items-center rounded-full bg-amber-400 text-white" aria-hidden="true">
-      <RotateCcw className="h-4 w-4" strokeWidth={3} />
-    </span>
   );
 }

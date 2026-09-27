@@ -29,11 +29,8 @@ export const studentButton = {
 export const studentCard =
   "relative grid aspect-[3/4] min-h-0 overflow-hidden rounded-[1.5rem] border-4 bg-[#fff] p-2 text-center shadow-[0_8px_0_rgba(147,197,253,0.3),0_18px_32px_rgba(37,99,235,0.12)] transition";
 
-/** How long the Correct or Not this one pop-up stays before the next question. */
+/** How long the Correct pop-up stays before the next question. */
 export const FEEDBACK_MS = 1800;
-
-/** Drag and drop feedback is shorter, so the child can keep dragging. */
-export const DROP_FEEDBACK_MS = 1100;
 
 /** Pause after the last answer so the colors show before the score pops up. */
 export const SCORE_DELAY_MS = 400;

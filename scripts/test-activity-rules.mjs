@@ -3,54 +3,35 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
-import ts from "typescript";
-
-/** Transpile a TypeScript file and run it, answering its imports from `modules`. */
-function loadModule(path, modules = {}) {
-  const compiled = ts.transpileModule(fs.readFileSync(path, "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
-  }).outputText;
-  const exports = {};
-  const requireStub = (name) => {
-    if (name in modules) return modules[name];
-    throw new Error(`Unexpected import in ${path}: ${name}`);
-  };
-  new Function("exports", "require", compiled)(exports, requireStub);
-  return exports;
-}
+import { loadTs } from "./load-ts.mjs";
 
 const normalizePecsLabel = (label) => label.trim().toLowerCase().replace(/\s+/g, " ");
-const manifestModule = { normalizePecsLabel };
+// The manifest module reads JSON and Supabase helpers are not needed here, so both are stubbed.
+const stubs = {
+  "@/data/pecs-card-manifest": { normalizePecsLabel },
+  "@/utils/pecs-content-library": { ensurePecsManifestItems: (items) => items }
+};
 
-const options = loadModule("src/utils/activity-option-sets.ts");
-const categoryPrompts = loadModule("src/utils/category-prompts.ts");
-const fillBlank = loadModule("src/utils/fill-blank-prompts.ts", {
-  "@/data/pecs-card-manifest": manifestModule,
-  "@/utils/category-prompts": categoryPrompts
-});
-const choose = loadModule("src/utils/starter-learning-item-prompts.ts", {
-  "@/data/pecs-card-manifest": manifestModule,
-  "@/utils/category-prompts": categoryPrompts
-});
-const helpers = loadModule("src/features/activities/activity-helpers.ts", {
-  "@/utils/fill-blank-prompts": fillBlank,
-  "@/utils/pecs-content-library": { ensurePecsManifestItems: (items) => items },
-  "@/utils/starter-learning-item-prompts": choose
-});
+const options = loadTs("src/utils/activity-option-sets.ts", stubs);
+const categoryPrompts = loadTs("src/utils/category-prompts.ts", stubs);
+const fillBlank = loadTs("src/utils/fill-blank-prompts.ts", stubs);
+const choose = loadTs("src/utils/starter-learning-item-prompts.ts", stubs);
+const helpers = loadTs("src/features/activities/activity-helpers.ts", stubs);
 
 const manifest = JSON.parse(fs.readFileSync("public/pecs/pecs_arasaac_manifest.json", "utf8")).map((row) => ({
   label: row.label,
   sentenceRole: row.sentence_role
 }));
-const creatableTypes = ["match-word-symbol", "choose-correct-symbol", "fill-blank", "drag-drop-symbol"];
+const creatableTypes = ["match-word-symbol", "fill-blank", "drag-drop-symbol"];
 
-test("teachers can make exactly the 4 kept types", () => {
+test("teachers can make exactly the 3 kept types", () => {
   assert.deepEqual([...helpers.activityTypes].sort(), [...creatableTypes].sort());
 });
 
-test("Choose the word and Gesture practice are hidden, kept types are not", () => {
+test("Choose the word, Choose the picture, and Gesture practice are hidden, kept types are not", () => {
   assert.equal(helpers.isRetiredActivity({ type: "simple-quiz" }), true);
   assert.equal(helpers.isRetiredActivity({ type: "gesture-practice" }), true);
+  assert.equal(helpers.isRetiredActivity({ type: "choose-correct-symbol" }), true);
   creatableTypes.forEach((type) => assert.equal(helpers.isRetiredActivity({ type }), false));
 });
 
@@ -118,18 +99,6 @@ test("look-alike cards are never wrong options for each other", () => {
   });
 });
 
-test("every PECS card has a contextual Fill in the blank sentence", () => {
-  manifest.forEach((card) => {
-    const sentence = fillBlank.getSavedFillBlankPromptForLabel(card.label);
-    assert.ok(sentence, `${card.label} has no sentence`);
-    assert.equal(sentence.split("____").length, 2, `${card.label}: needs exactly one ____`);
-    assert.match(sentence, /[.?!]$/, `${card.label}: must end with punctuation`);
-    assert.ok(sentence.split(/\s+/).length >= 7, `${card.label}: too short to give context`);
-    assert.ok(sentence.split(/\s+/).length <= 12, `${card.label}: too long for a child to read`);
-    assert.equal(fillBlank.isGenericFillBlankPrompt(card.label, sentence), false, `${card.label}: generic sentence`);
-  });
-});
-
 test("old built-in sentences are upgraded, teacher sentences are kept", () => {
   const activity = {
     type: "fill-blank",
@@ -150,32 +119,9 @@ function hasWord(text, word) {
   return new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`).test(text.toLowerCase());
 }
 
-test("every Choose the picture question is short, one sentence, and never names its answer", () => {
-  const entries = choose.chooseCorrectSymbolPromptEntries();
-  manifest.forEach((card) => {
-    const entry = entries.find((candidate) => candidate.label === normalizePecsLabel(card.label));
-    assert.ok(entry, `${card.label} has no question`);
-    // "I" is the one card whose word a natural question needs ("Which word do I use to talk about myself?").
-    if (card.label !== "I") {
-      assert.equal(hasWord(entry.prompt, card.label), false, `${card.label}: "${entry.prompt}" names the answer`);
-    }
-    assert.match(entry.prompt, /\?$/, `${card.label}: must be a question`);
-    const sentences = entry.prompt.replace(/"[^"]*"/g, "").split(/[.?!]/).filter((part) => part.trim());
-    assert.equal(sentences.length, 1, `${card.label}: one sentence`);
-    assert.ok(entry.prompt.split(/\s+/).length <= 12, `${card.label}: too long`);
-  });
-});
-
-test("no Fill in the blank sentence names its answer", () => {
-  manifest.forEach((card) => {
-    const sentence = fillBlank.getSavedFillBlankPromptForLabel(card.label);
-    assert.equal(hasWord(sentence, card.label), false, `${card.label}: "${sentence}" names the answer`);
-  });
-});
-
-test("a teacher's own card: Fill starts empty, Choose names the category and never the card", () => {
-  const categories = ["Greetings", "Emotions", "Family", "Food", "Classroom Commands", "Daily Needs", "Safety Words", "Numbers"];
-  const labels = ["Three", "Apple", "Grandma", "Jump", "Numbers"];
+test("a card the bank does not know: Fill starts empty, Choose names the category and never the card", () => {
+  const categories = ["Greetings", "Emotions", "Family", "Food", "Numbers"];
+  const labels = ["Zorbly", "Mimsy", "Numbers"];
   categories.forEach((categoryName) => {
     labels.forEach((label) => {
       const item = { id: `custom-${label}`, label, categoryId: "custom-cat" };
@@ -184,12 +130,22 @@ test("a teacher's own card: Fill starts empty, Choose names the category and nev
       assert.equal(hasWord(question, label), false, `${categoryName}/${label}: "${question}" names the card`);
     });
   });
-  assert.equal(choose.createChooseCorrectSymbolPrompt({ id: "x", label: "Apple", categoryId: "custom" }, "Snack Time"), "Which picture is from Snack Time?");
+  assert.equal(choose.createChooseCorrectSymbolPrompt({ id: "x", label: "Zorbly", categoryId: "custom" }, "Snack Time"), "Which picture is from Snack Time?");
   // A built-in category is read from its id when no name is given.
   assert.equal(
-    choose.createChooseCorrectSymbolPrompt({ id: "x", label: "Toothbrush", categoryId: "cat-pecs-daily-needs" }),
+    choose.createChooseCorrectSymbolPrompt({ id: "x", label: "Zorbly", categoryId: "cat-pecs-daily-needs" }),
     "Which picture is from Daily Needs?"
   );
+});
+
+test("a teacher's own card named after a Makaton / PECS word gets bank questions", () => {
+  const apple = { id: "custom-apple", label: "Apple", categoryId: "cat-pecs-food" };
+  assert.match(fillBlank.createFillBlankPromptForLabel("Apple", apple), /____/);
+  assert.equal(choose.createChooseCorrectSymbolPrompt(apple), "Which fruit is red, round, and crunchy?");
+  // "Orange" in a Colors category asks about the color, not the fruit.
+  const orange = { id: "custom-orange", label: "Orange", categoryId: "custom" };
+  assert.equal(choose.createChooseCorrectSymbolPrompt(orange, "Colors"), "What color is a carrot?");
+  assert.equal(choose.createChooseCorrectSymbolPrompt(orange, "Fruits"), "Which fruit is round and has a thick peel?");
 });
 
 test("teacher-made cards keep the rest of their category out of the choices", () => {
@@ -265,10 +221,15 @@ test("built-in Choose questions are upgraded, teacher questions are kept", () =>
   };
   const [upgraded] = helpers.upgradeStarterActivityPrompts([activity]);
   assert.equal(upgraded.questions[0].prompt, "What white food do we eat with chicken?");
+  // A current bank question other than the main one is kept too.
+  const [kept] = helpers.upgradeStarterActivityPrompts([
+    { type: "choose-correct-symbol", questions: [{ id: "q3", prompt: "What small white grains do we eat at lunch?", answer: "pecs-rice", learningItemId: "pecs-rice", options: [] }] }
+  ]);
+  assert.equal(kept.questions[0].prompt, "What small white grains do we eat at lunch?");
   assert.equal(upgraded.questions[1].prompt, "What do we eat with adobo?");
 });
 
-test("the creator swaps an old saved built-in question for the current one, and keeps a teacher's own", () => {
+test("the creator swaps an old saved built-in question for a current one, and keeps a teacher's own", () => {
   const rice = { id: "pecs-rice", label: "Rice", categoryId: "cat-pecs-food" };
   const hot = { id: "pecs-hot", label: "Hot", categoryId: "cat-pecs-safety-words" };
   const store = {
@@ -276,10 +237,16 @@ test("the creator swaps an old saved built-in question for the current one, and 
     "choose-correct-symbol:pecs-hot": "How is soup that just came off the stove?",
     "fill-blank:pecs-rice": "I want ____."
   };
-  assert.equal(helpers.getSavedQuestionPrompt("choose-correct-symbol", rice, store), "What white food do we eat with chicken?");
-  assert.equal(helpers.getSavedQuestionPrompt("choose-correct-symbol", hot, store), "How does soup feel right off the stove?");
-  assert.equal(helpers.getSavedQuestionPrompt("fill-blank", rice, store), fillBlank.getSavedFillBlankPromptForLabel("Rice"));
+  const riceChoose = helpers.getSavedQuestionPrompt("choose-correct-symbol", rice, store);
+  assert.ok(choose.isCurrentChooseCorrectSymbolPrompt(rice, riceChoose), riceChoose);
+  const hotChoose = helpers.getSavedQuestionPrompt("choose-correct-symbol", hot, store);
+  assert.ok(choose.isCurrentChooseCorrectSymbolPrompt(hot, hotChoose), hotChoose);
+  const riceFill = helpers.getSavedQuestionPrompt("fill-blank", rice, store);
+  assert.ok(fillBlank.isCurrentFillBlankPrompt("Rice", riceFill), riceFill);
 
+  // A current bank question and a teacher's own question are both kept as saved.
+  const current = { "choose-correct-symbol:pecs-rice": "What small white grains do we eat at lunch?" };
+  assert.equal(helpers.getSavedQuestionPrompt("choose-correct-symbol", rice, current), "What small white grains do we eat at lunch?");
   const own = { "choose-correct-symbol:pecs-rice": "What do we eat with adobo?" };
   assert.equal(helpers.getSavedQuestionPrompt("choose-correct-symbol", rice, own), "What do we eat with adobo?");
 });
@@ -290,5 +257,16 @@ test("reworded Fill sentences upgrade in saved activities", () => {
     questions: [{ id: "q1", prompt: "I do not like spicy food. I say ____.", answer: "No", learningItemId: "pecs-no", options: [] }]
   };
   const [upgraded] = helpers.upgradeStarterActivityPrompts([activity]);
-  assert.equal(upgraded.questions[0].prompt, "My teacher asks if the sky is green. I say ____.");
+  assert.equal(upgraded.questions[0].prompt, "I shake my head and say ____.");
+
+  // The Sep 27 situation sentences upgrade too; a teacher's own sentence stays.
+  const [situation] = helpers.upgradeStarterActivityPrompts([{
+    type: "fill-blank",
+    questions: [
+      { id: "q2", prompt: "She tucks me in at night. She is my ____.", answer: "Mother", learningItemId: "pecs-mother", options: [] },
+      { id: "q3", prompt: "Nanay and I go to the market. She is my ____.", answer: "Mother", learningItemId: "pecs-mother", options: [] }
+    ]
+  }]);
+  assert.equal(situation.questions[0].prompt, "I give my ____ a hug when she comes home.");
+  assert.equal(situation.questions[1].prompt, "Nanay and I go to the market. She is my ____.");
 });

@@ -24,7 +24,6 @@ import {
   StudentTopBar
 } from "@/features/activities/player/student-game-parts";
 import {
-  DROP_FEEDBACK_MS,
   FEEDBACK_MS,
   ROUND_SIZE,
   SCORE_DELAY_MS,
@@ -41,7 +40,7 @@ type StudentActivityPlayerProps = {
 
 /**
  * Student mode game. Flow: How to play card, then one tap per question (or one drag per card), a big Correct
- * or Not this one pop-up that closes by itself, and the score pop-up at the end. Scores are view only.
+ * pop-up on a right tap that closes by itself, and the score pop-up at the end. Scores are view only.
  * Every round is a fresh `StudentRound`, so Play again resets everything.
  */
 export function StudentActivityPlayer({ activity, learningItems, onHome }: StudentActivityPlayerProps) {
@@ -174,8 +173,8 @@ function StudentRound({
   }
 
   /**
-   * One tap answers. Right: the Correct pop-up. Wrong: no pop-up, the cards shake and the right card grows
-   * and glows green. Then the next question comes by itself.
+   * One tap answers. Right: the Correct pop-up. Wrong: no pop-up and no sound, the cards shake, the pick turns
+   * red, and the right card grows and glows green. Then the next question comes by itself.
    */
   function pick(option: string) {
     if (!question || answers[question.id] || feedback) return;
@@ -186,29 +185,28 @@ function StudentRound({
     setFirstTryRight((current) => ({ ...current, [question.id]: right }));
     setHintFor("");
     if (right) showFeedback({ tone: "correct", title: "Correct!" }, `Correct! ${word}.`, FEEDBACK_MS);
-    else void speakText("Not this one. This card is the right one.");
     later(() => {
       if (index + 1 >= questions.length) finishRound();
       else setIndex(index + 1);
     }, wait);
   }
 
-  /** Drag and drop: a right card stays, a wrong one goes back. Only the first drop on a box counts. */
+  /**
+   * Drag and drop: a right card stays in its box, marked green (no pop-up). A wrong one flies back while the box
+   * shakes (no sound). Every card ends up placed, so every card counts as right in the score.
+   */
   function drop(questionId: string, value: string) {
     const target = questions.find((candidate) => candidate.id === questionId);
     if (!target || answers[questionId]) return false;
     const right = value === target.answer;
-    setFirstTryRight((current) => (questionId in current ? current : { ...current, [questionId]: right }));
     if (right) {
       const nextAnswers = { ...answers, [questionId]: value };
       setAnswers(nextAnswers);
+      setFirstTryRight((current) => ({ ...current, [questionId]: true }));
       if (hintFor === questionId) setHintFor("");
-      showFeedback({ tone: "correct", title: "Correct!" }, "Correct!", DROP_FEEDBACK_MS);
-      if (questions.every((candidate) => nextAnswers[candidate.id])) later(finishRound, DROP_FEEDBACK_MS);
+      if (questions.every((candidate) => nextAnswers[candidate.id])) finishRound();
     } else {
-      // No pop-up: the box shakes and the card flies back.
       setShake({ id: questionId, key: Date.now() });
-      void speakText("Try again.");
     }
     return right;
   }
@@ -254,7 +252,6 @@ function StudentRound({
           activity={activity}
           learningItems={learningItems}
           firstTryRight={firstTryRight}
-          retries={isDrag}
           questionIds={resultQuestionIds}
           onPlayAgain={onPlayAgain}
           onHome={onHome}

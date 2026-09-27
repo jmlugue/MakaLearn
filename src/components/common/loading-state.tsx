@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-/** Bobbing logo and three hopping dots (red, yellow, blue). Motion stops under Reduce motion. */
+/** Bobbing logo and three hopping dots in the app blue. Motion stops under Reduce motion. */
 function Loader({ size, label }: { size: "lg" | "md"; label: string }) {
   return (
     <div className="flex flex-col items-center gap-4" role="status" aria-live="polite">
@@ -14,9 +14,9 @@ function Loader({ size, label }: { size: "lg" | "md"; label: string }) {
         <Image src="/makalearn_logo_mark.png" alt="" width={128} height={128} className="h-full w-full object-contain" priority />
       </span>
       <span className="flex gap-1.5" aria-hidden="true">
-        <span className="loader-dot h-2.5 w-2.5 rounded-full bg-brand-red" />
-        <span className="loader-dot h-2.5 w-2.5 rounded-full bg-brand-yellow" />
-        <span className="loader-dot h-2.5 w-2.5 rounded-full bg-brand-blue" />
+        <span className="loader-dot h-2.5 w-2.5 rounded-full bg-blue-600" />
+        <span className="loader-dot h-2.5 w-2.5 rounded-full bg-blue-600" />
+        <span className="loader-dot h-2.5 w-2.5 rounded-full bg-blue-600" />
       </span>
       <p className="text-sm font-semibold text-slate-600">{label}</p>
     </div>

@@ -2,6 +2,7 @@ import {
   createFillBlankPromptForLabel,
   getSavedFillBlankPromptForLabel,
   isBuiltInFillBlankPrompt,
+  isCurrentFillBlankPrompt,
   isGenericFillBlankPrompt
 } from "@/utils/fill-blank-prompts";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
@@ -9,6 +10,7 @@ import {
   createChooseCorrectSymbolPrompt,
   getSavedChooseCorrectSymbolPrompt,
   isBuiltInChooseCorrectSymbolPrompt,
+  isCurrentChooseCorrectSymbolPrompt,
   isGenericChooseCorrectSymbolPrompt
 } from "@/utils/starter-learning-item-prompts";
 import type { Activity, ActivityType, LearningItem } from "@/types";
@@ -19,15 +21,11 @@ import type { Activity, ActivityType, LearningItem } from "@/types";
  * - "gesture-practice": gestures are practised with the camera on the Gestures page.
  * - "simple-quiz" (Choose the word): it showed a word and asked for its picture, the same task as Match word
  *   to symbol.
+ * - "choose-correct-symbol" (Choose the picture): overlapped with Fill in the blank; the owner kept three types.
  */
-export const activityTypes: ActivityType[] = [
-  "match-word-symbol",
-  "choose-correct-symbol",
-  "fill-blank",
-  "drag-drop-symbol"
-];
+export const activityTypes: ActivityType[] = ["match-word-symbol", "fill-blank", "drag-drop-symbol"];
 
-export const retiredActivityTypes: ActivityType[] = ["gesture-practice", "simple-quiz"];
+export const retiredActivityTypes: ActivityType[] = ["gesture-practice", "simple-quiz", "choose-correct-symbol"];
 
 export function isRetiredActivity(activity: Pick<Activity, "type">) {
   return retiredActivityTypes.includes(activity.type);
@@ -87,13 +85,17 @@ export function getSavedQuestionPrompt(
   categoryName?: string
 ) {
   const savedPrompt = promptStore[getPromptStoreKey(type, item.id)];
-  // Saving an activity remembers its questions, including built-in ones. An old built-in question is
-  // swapped for the current one, so the creator always offers the newest wording; a teacher's own is kept.
-  const savedIsBuiltIn =
+  // Saving an activity remembers its questions, including MakaLearn's own. A current bank question or a
+  // teacher's own is kept; an old MakaLearn wording is swapped for a current bank question.
+  const savedIsOld =
     savedPrompt &&
-    ((type === "fill-blank" && isBuiltInFillBlankPrompt(item.label, savedPrompt)) ||
-      (type === "choose-correct-symbol" && isBuiltInChooseCorrectSymbolPrompt(item, savedPrompt)));
-  if (savedPrompt && !savedIsBuiltIn) return savedPrompt;
+    ((type === "fill-blank" &&
+      isBuiltInFillBlankPrompt(item.label, savedPrompt) &&
+      !isCurrentFillBlankPrompt(item.label, savedPrompt)) ||
+      (type === "choose-correct-symbol" &&
+        isBuiltInChooseCorrectSymbolPrompt(item, savedPrompt) &&
+        !isCurrentChooseCorrectSymbolPrompt(item, savedPrompt)));
+  if (savedPrompt && !savedIsOld) return savedPrompt;
   if (type === "fill-blank") return createFillBlankPromptForLabel(item.label, item, categoryName);
   if (type === "choose-correct-symbol") return createChooseCorrectSymbolPrompt(item, categoryName);
   return undefined;
@@ -133,14 +135,16 @@ export function upgradeStarterActivityPrompts(records: Activity[]) {
       ...activity,
       questions: activity.questions.map((question) => {
         if (activity.type === "fill-blank") {
-          // Only built-in or generic sentences are upgraded; a sentence a teacher wrote is kept.
+          // Only old MakaLearn wordings are upgraded; current bank sentences and a teacher's own are kept.
           if (!isBuiltInFillBlankPrompt(question.answer, question.prompt)) return question;
+          if (isCurrentFillBlankPrompt(question.answer, question.prompt)) return question;
           const prompt = getSavedFillBlankPromptForLabel(question.answer);
           return prompt ? { ...question, prompt } : question;
         }
-        // Only built-in or generic questions are upgraded; a question a teacher wrote is kept.
+        // Only old MakaLearn wordings are upgraded; current bank questions and a teacher's own are kept.
         const card = { id: question.learningItemId, label: "" };
         if (!isBuiltInChooseCorrectSymbolPrompt(card, question.prompt)) return question;
+        if (isCurrentChooseCorrectSymbolPrompt(card, question.prompt)) return question;
         const prompt = getSavedChooseCorrectSymbolPrompt(card);
         return prompt ? { ...question, prompt } : question;
       })

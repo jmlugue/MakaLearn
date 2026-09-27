@@ -10,7 +10,7 @@ import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 /**
  * Match, Choose the picture, and Fill in the blank in Student mode: one question and its picture cards.
  * One tap answers. After that the right card is green, a wrong pick red, and the rest fade. On a wrong pick the
- * cards shake, the pick is tagged "Not this one", and the right card grows and glows with "This one!" (no pop-up).
+ * cards shake and the right card grows a little and glows (no pop-up, no text, no sound).
  */
 export function StudentChoiceBoard({
   activity,
@@ -76,16 +76,6 @@ export function StudentChoiceBoard({
                   animate={missed && isAnswer && !reduceMotion ? { scale: [1, 1, 1.1, 1.04, 1.1, 1.06] } : { scale: 1 }}
                   transition={{ duration: 1.4, times: [0, 0.35, 0.55, 0.7, 0.85, 1] }}
                 >
-                {missed && (isAnswer || isPicked) ? (
-                  <span
-                    className={cn(
-                      "absolute -top-4 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full border-4 border-white px-4 py-1 text-lg font-black text-white shadow-md",
-                      isAnswer ? "bg-emerald-500" : "bg-rose-500"
-                    )}
-                  >
-                    {isAnswer ? "This one!" : "Not this one"}
-                  </span>
-                ) : null}
                 <StudentPictureCard
                   value={option}
                   learningItems={learningItems}
