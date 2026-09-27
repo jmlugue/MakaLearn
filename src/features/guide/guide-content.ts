@@ -18,24 +18,25 @@ export type GuideStep = {
 
 /**
  * The welcome tour, shown once on a teacher's first sign-in. It follows the real path through the app:
- * build materials and lessons in Content, run them as an activity, then hand over in Student mode.
+ * build materials and lessons in Content, turn them into an activity, then hand over in Student mode.
+ * Every text is two or three short sentences (owner's rule).
  */
 const teacherWelcomeSteps: GuideStep[] = [
   {
     title: "Build materials and lessons",
-    text: "Make PECS cards and gestures in Content, then put them in order as a lesson.",
+    text: "In Content, make PECS cards and gestures, each with a picture and a sound. Then put cards in order as a lesson.",
     icon: Layers,
     scene: "lesson"
   },
   {
-    title: "Run an activity",
-    text: "Practise a lesson as an activity, or build your own from the cards you have made.",
+    title: "Make an activity",
+    text: "In Activities, turn your cards or a lesson into a practice game. Choose Match, Fill in the blank, or Drag and drop.",
     icon: Shapes,
     scene: "activity"
   },
   {
     title: "Hand over in Student mode",
-    text: "A simpler full-screen view for the learner, with the playground and gesture practice.",
+    text: "Student mode gives the learner a simple, child-friendly screen with the playground, gesture practice, and activities. Turn it on from the menu.",
     icon: GraduationCap,
     scene: "student"
   }
@@ -45,13 +46,13 @@ const teacherWelcomeSteps: GuideStep[] = [
 const adminViewSteps: GuideStep[] = [
   {
     title: "See what teachers made",
-    text: "Open any material, lesson, or activity in Content and Activities. They are view only for admins.",
+    text: "Open any material, lesson, or activity to view it. Admins can look, but not change or play them.",
     icon: Layers,
     scene: "lesson"
   },
   {
     title: "Try Student mode",
-    text: "The learner's full-screen view, with the playground, gesture practice, and activities.",
+    text: "Student mode is the learner's simple, child-friendly screen. It has the playground, gesture practice, and activities.",
     icon: GraduationCap,
     scene: "student"
   }
@@ -61,13 +62,13 @@ const adminViewSteps: GuideStep[] = [
 const adminWelcomeSteps: GuideStep[] = [
   {
     title: "Look after the accounts",
-    text: "Approve, deactivate, and change the role of every teacher and admin account.",
+    text: "In Admin, open Accounts to add a teacher or admin. You can also set a temporary password, or deactivate and activate an account.",
     icon: Users,
     scene: "admin"
   },
   {
     title: "See the whole picture",
-    text: "Usage at a glance, everything teachers have added, and a log of who changed what.",
+    text: "Home shows usage at a glance. The Activity log shows who signed in and what changed.",
     icon: ScrollText,
     scene: "admin"
   }
@@ -90,29 +91,29 @@ export type PageGuide = {
 export const pageGuides: Record<string, PageGuide> = {
   content: {
     title: "Around the Content page",
-    line: "Everything you teach with: materials, lessons, categories, and files.",
+    line: "Where you build what you teach: materials, lessons, categories, and files.",
     steps: [
       {
         title: "Materials",
-        text: "PECS cards and gestures. Open one to edit it, swap its media, or build a lesson from it.",
+        text: "PECS cards and gestures, each with a picture and a sound. Open one to see it, edit it, or change its files.",
         icon: Layers,
         scene: "cards"
       },
       {
         title: "Lessons",
-        text: "A title and its cards in order. Shared or private, and it can hold many activities.",
+        text: "A title and cards in the order you teach them. Choose Shared or Private when you save.",
         icon: BookOpen,
         scene: "lesson"
       },
       {
         title: "Categories",
-        text: "Colour-coded groups like Snack time. Open one to see everything inside it.",
+        text: "Colour groups like Food or Feelings. Open one to see the cards inside it.",
         icon: FolderOpen,
         scene: "category"
       },
       {
         title: "Media",
-        text: "Every uploaded file. Delete files here, and find ones no material uses any more.",
+        text: "Every uploaded file. The Linked filter finds files no material uses, so you can delete them.",
         icon: ImageIcon,
         scene: "media"
       }
@@ -120,23 +121,23 @@ export const pageGuides: Record<string, PageGuide> = {
   },
   activities: {
     title: "Around Activities",
-    line: "Your practice library. Play a lesson's activity, or build your own from your cards.",
+    line: "Your practice games. Make one from your cards or a lesson, then play it.",
     steps: [
       {
         title: "Your library",
-        text: "Every activity, with its own pictures. Each format has its own color, and you can filter by it.",
+        text: "Every activity you can see, each with its own pictures. Filter by format or search by name.",
         icon: Layers,
         scene: "cards"
       },
       {
         title: "Create in three steps",
-        text: "Pick a format, use your own cards or a lesson, choose up to five cards, then check the questions.",
+        text: "Pick a format, choose up to five cards, then check the questions. Each card comes with a ready question.",
         icon: Shapes,
         scene: "activity"
       },
       {
         title: "Play full screen",
-        text: "Play opens a simple full-screen view with a score at the end. The top bar exits, restarts, or edits.",
+        text: "Play opens the game full screen with a score at the end. The top bar can exit, restart, or edit.",
         icon: GraduationCap,
         scene: "student"
       }
@@ -148,7 +149,7 @@ export const pageGuides: Record<string, PageGuide> = {
     steps: [
       {
         title: "Show the gesture",
-        text: "Play the reference video, then hold the same sign in front of the camera.",
+        text: "Play the reference, then hold the same sign in front of the camera. MakaLearn says what it sees.",
         icon: Hand,
         scene: "gesture"
       }
@@ -156,23 +157,23 @@ export const pageGuides: Record<string, PageGuide> = {
   },
   admin: {
     title: "Around the Admin panel",
-    line: "Accounts, usage, every teacher's content, and the activity log.",
+    line: "Look after accounts and see what teachers are doing.",
     steps: [
       {
         title: "Home",
-        text: "Usage at a glance, with tiles that jump straight to what needs attention.",
+        text: "Usage at a glance: accounts, materials, lessons, and activities.",
         icon: LayoutDashboard,
         scene: "admin"
       },
       {
         title: "Accounts",
-        text: "Approve a new teacher, change a role, or deactivate an account.",
+        text: "Add an account or set a temporary password. You can also deactivate an account, and activate it again.",
         icon: Users,
         scene: "admin"
       },
       {
         title: "Content and the log",
-        text: "Everything teachers have added, and a record of who changed what.",
+        text: "View every teacher's content (view only). The Activity log shows who signed in and what changed.",
         icon: ScrollText,
         scene: "media"
       }
@@ -181,38 +182,25 @@ export const pageGuides: Record<string, PageGuide> = {
 };
 
 /**
- * Hover explanations, keyed by id. `GuideTip` looks its text up here, so a tip that loses its entry
- * simply stops rendering instead of breaking the page.
+ * Hover explanations, keyed by id. Only the important actions have one, so moving the mouse around the page
+ * does not keep opening bubbles (owner's request). `GuideTip` looks its text up here: a `GuideTip` whose id has
+ * no entry (the sidebar links, filters, and tabs) renders its child untouched.
  */
 export const guideTips: Record<string, string> = {
-  // Shell
-  "nav.content": "Your materials, lessons, categories, and uploaded files.",
-  "nav.activities": "Run a lesson as an activity, or build your own.",
-  "nav.playground": "A free space to try cards without being scored.",
-  "nav.gestures": "Practise signing in front of the camera.",
-  "nav.help": "Guides and answers to common questions.",
-  "nav.admin": "Accounts, usage, and everything teachers have added.",
-  "nav.student": "Switch to the simpler full-screen view a learner uses.",
-
-  // Content
-  "content.sections": "Switch between materials, lessons, categories, and files. The number is how many you have.",
-  "content.types": "PECS cards are pictures a learner points at. Gestures are signs they copy.",
-  "content.categories": "Show only one category. Extra categories sit in the +N more menu.",
-  "content.addMaterial": "Create a new card or gesture, with its picture and audio. Name files word_category, like eat_food.png.",
-  "content.addLesson": "Plan a lesson: a title and its cards in order. Add its activities in Activities.",
-  "content.addCategory": "Make a new colour-coded group for your materials.",
-  "content.mediaTypes": "Filter the files by kind. All shows everything that has been uploaded.",
-
-  // Activities and gesture practice
-  "activities.types": "Each format asks the learner to do something different with the same cards.",
-  "activities.create": "Build an activity from your own cards or from a lesson. A lesson can hold many.",
-  "activities.filter": "From lessons shows each lesson's activity. Private shows the ones only you can see.",
-  "activities.typeFilter": "Show one format. Each format has its own color and icon on the cards.",
-  "activities.teacherBar": "Exit to the library, start again from the first question, or edit the activity.",
-  "gesture.camera": "Your camera stays on this device. It reads your hand shape and tells you if the sign matches.",
-
-  // Admin
-  "admin.sections": "Usage on Home, people in Accounts, every teacher's materials in Content, and changes in the log."
+  "nav.student":
+    "Hands the screen to the learner. Student mode shows only the playground, gesture practice, and activities, with nothing to edit. Exit it from its menu.",
+  "content.addMaterial":
+    "Make a new PECS card or gesture. Add a picture and a sound, then pick a category. Files are saved as word_category, like eat_food.",
+  "content.addLesson":
+    "Plan a lesson: give it a title and put cards in the order you teach them. Make activities from it later in Activities.",
+  "activities.create":
+    "Build a practice game in three steps: pick a format, choose up to five cards, then check the questions. Tick From a lesson to use a lesson's cards.",
+  "activities.types":
+    "Match: tap the picture for a word. Fill in the blank: pick the picture that finishes a sentence. Drag and drop: drag each picture onto its word.",
+  "activities.teacherBar": "Exit goes back to the library. Restart plays from the first question, and Edit opens the activity.",
+  "gesture.camera": "The camera stays on this device. It reads the hand shape and says if the sign matches.",
+  "admin.sections":
+    "Home shows usage at a glance. Accounts is for managing people, Content shows every teacher's work (view only), and the Activity log shows who changed what."
 };
 
 /** View-only wording for admins on pages where teachers build and play. */
@@ -222,8 +210,8 @@ const adminPageGuides: Record<string, PageGuide> = {
     line: "Everything teachers teach with: materials, lessons, categories, and files. View only.",
     steps: [
       { title: "Materials", text: "PECS cards and gestures. Open one to see its picture and hear its word.", icon: Layers, scene: "cards" },
-      { title: "Lessons", text: "A title and its cards in order.", icon: BookOpen, scene: "lesson" },
-      { title: "Categories", text: "Colour-coded groups. Open one to see everything inside it.", icon: FolderOpen, scene: "category" },
+      { title: "Lessons", text: "A title and its cards in the order the teacher teaches them.", icon: BookOpen, scene: "lesson" },
+      { title: "Categories", text: "Colour groups like Food or Feelings. Open one to see the cards inside it.", icon: FolderOpen, scene: "category" },
       { title: "Media", text: "Every uploaded file, and which material uses it.", icon: ImageIcon, scene: "media" }
     ]
   },
@@ -231,8 +219,8 @@ const adminPageGuides: Record<string, PageGuide> = {
     title: "Around Activities",
     line: "Every teacher's activity. Open one to see its cards and a short demo. View only.",
     steps: [
-      { title: "The library", text: "Every activity, with its own pictures. Filter by format or search.", icon: Layers, scene: "cards" },
-      { title: "Preview", text: "Open an activity to watch a short demo and see its cards.", icon: Shapes, scene: "activity" }
+      { title: "The library", text: "Every activity, with its own pictures. Filter by format or search by name.", icon: Layers, scene: "cards" },
+      { title: "Preview", text: "Open an activity to see its cards. Learn how it plays shows a short demo.", icon: Shapes, scene: "activity" }
     ]
   }
 };

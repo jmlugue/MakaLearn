@@ -15,7 +15,7 @@ import {
 import { StudentChoiceBoard } from "@/features/activities/player/choose-question";
 import { StudentDragBoard } from "@/features/activities/player/drag-drop-question";
 import { ActivityResultModal } from "@/features/activities/player/activity-result";
-import { StudentIntroCard, isIntroHidden } from "@/features/activities/player/student-intro-card";
+import { StudentIntroCard } from "@/features/activities/player/student-intro-card";
 import {
   type AnswerFeedback,
   AnswerFeedbackPopup,
@@ -52,7 +52,7 @@ export function StudentActivityPlayer({ activity, learningItems, onHome }: Stude
       key={`${activity.id}-${round}`}
       activity={activity}
       learningItems={learningItems}
-      showIntro={round === 0 && !isIntroHidden(activity.id)}
+      showIntro={round === 0}
       onPlayAgain={() => setRound((current) => current + 1)}
       onHome={onHome}
     />
@@ -257,7 +257,6 @@ function StudentRound({
       <AnswerFeedbackPopup feedback={feedback} learningItems={learningItems} passThrough={isDrag} />
       {phase === "intro" ? (
         <StudentIntroCard
-          activityId={activity.id}
           type={activity.type}
           instruction={instruction}
           isListening={isListening}

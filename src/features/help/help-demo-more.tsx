@@ -60,13 +60,13 @@ import { ACTION, ACTION_CENTER, ActivitiesPage, CardGrid, ContentPage, DIALOG, i
 const tween = { type: "tween" as const, ease: [0.4, 0, 0.2, 1] as [number, number, number, number], duration: 0.6 };
 
 /** A card that follows the pointer while it is dragged. Mount it at the press so it starts on the card. */
-function Ghost({ t, path, show, word }: { t: number; path: PointerKey[]; show: boolean; word: string }) {
+function Ghost({ t, path, show, word, plain = false }: { t: number; path: PointerKey[]; show: boolean; word: string; plain?: boolean }) {
   if (!show) return null;
   let current = path[0];
   for (const key of path) if (t >= key[0]) current = key;
   return (
-    <motion.div className="pointer-events-none absolute left-0 top-0 z-40 rotate-3" initial={false} animate={{ x: current[1] - 28, y: current[2] - 37 }} transition={tween}>
-      <CardPic word={word} box={{ x: 0, y: 0, w: 56, h: 75 }} className="border-2 border-blue-400 shadow-lg" />
+    <motion.div className="pointer-events-none absolute left-0 top-0 z-40 h-[75px] w-[56px] rotate-3" initial={false} animate={{ x: current[1] - 28, y: current[2] - 37 }} transition={tween}>
+      <CardPic word={word} plain={plain} box={{ x: 0, y: 0, w: 56, h: 75 }} className="border-2 border-blue-400 shadow-lg" />
     </motion.div>
   );
 }
@@ -212,7 +212,7 @@ function StudentActivityMenu() {
 const studentScenes: DemoScene[] = [
   {
     label: "Hand over",
-    caption: "Choose Student mode in the menu. Big buttons, no editing.",
+    caption: "Choose Student mode in the menu. It gives the learner a simple, child-friendly screen.",
     duration: 5400,
     render: (t) => (
       <>
@@ -250,8 +250,8 @@ const studentScenes: DemoScene[] = [
     }
   },
   {
-    label: "Done?",
-    caption: "Open the menu and choose Exit student mode.",
+    label: "When done",
+    caption: "When done, open the menu and choose Exit student mode.",
     duration: 5000,
     render: (t) => (
       <>
@@ -362,7 +362,7 @@ const playgroundScenes: DemoScene[] = [
   },
   {
     label: "Check and Listen",
-    caption: "Check says if it makes sense. Listen reads it aloud.",
+    caption: "Press Check to see if the sentence is correct. Press Listen to hear it read aloud.",
     duration: 7000,
     render: (t) => {
       const words = ["i", "am", "happy"];
@@ -565,8 +565,21 @@ const gestureScenes: DemoScene[] = [
     )
   },
   {
-    label: "Guided 7",
-    caption: "Seven gestures in a row. Thumbs up, a countdown, then copy each sign.",
+    label: "Feedback",
+    caption: "In free practice, the AI gives corrective feedback for the learner and the teacher.",
+    duration: 5200,
+    render: (t) => (
+      <>
+        <GestureScreen mode="free" cameraOn landmarks={t >= 400} maki={t >= 1600 ? "encourage" : "happy"} feedback={t >= 1600 ? aiFeedback : undefined} />
+        <Pop show={t >= 1600} className="absolute z-20 rounded-xl bg-blue-600 px-2.5 py-1 text-[11px] font-black text-white shadow" style={{ left: 312, top: 240 }}>
+          Written by AI
+        </Pop>
+      </>
+    )
+  },
+  {
+    label: "Guided practice",
+    caption: "Guided practice is another option: the learner copies seven signs in a row, with a countdown before each.",
     duration: 7200,
     render: (t) => {
       const countdown = t >= 2600 && t < 4400 ? 3 - Math.floor((t - 2600) / 600) : undefined;
@@ -612,19 +625,6 @@ const gestureScenes: DemoScene[] = [
         </>
       );
     }
-  },
-  {
-    label: "Feedback",
-    caption: "Not quite? The AI says what to fix, for the learner and the teacher. Nothing is saved.",
-    duration: 5200,
-    render: (t) => (
-      <>
-        <GestureScreen mode="free" cameraOn landmarks={t >= 400} maki={t >= 1600 ? "encourage" : "happy"} feedback={t >= 1600 ? aiFeedback : undefined} />
-        <Pop show={t >= 1600} className="absolute z-20 rounded-xl bg-blue-600 px-2.5 py-1 text-[11px] font-black text-white shadow" style={{ left: 312, top: 240 }}>
-          Written by AI
-        </Pop>
-      </>
-    )
   }
 ];
 
@@ -786,13 +786,13 @@ function AdminHome() {
   );
 }
 
-type Account = { name: string; role: string };
+type Account = { name: string; role: string; off?: boolean };
 const accounts: Account[] = [
   { name: "Maria Cruz", role: "Teacher" },
   { name: "Jose Santos", role: "Teacher" },
   { name: "Lee Ramos", role: "Admin" }
 ];
-const rowMenu = (index: number): [number, number] => [596, 152 + index * 42];
+const rowMenu = (index: number): [number, number] => [596, 165 + index * 42];
 
 function AccountsTable({ rows, menuPressed = -1 }: { rows: Account[]; menuPressed?: number }) {
   return (
@@ -811,7 +811,9 @@ function AccountsTable({ rows, menuPressed = -1 }: { rows: Account[]; menuPresse
           <span className="w-32">
             <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", row.role === "Admin" ? "bg-indigo-100 text-indigo-700" : "bg-sky-100 text-sky-700")}>{row.role}</span>
           </span>
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Active</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", row.off ? "bg-slate-100 text-slate-500" : "bg-emerald-50 text-emerald-700")}>
+            {row.off ? "Deactivated" : "Active"}
+          </span>
           <span className={cn("absolute right-3 grid h-7 w-7 place-items-center rounded-lg text-slate-500", menuPressed === index && "bg-blue-100 text-blue-700")}>
             <MoreHorizontal className="h-4 w-4" />
           </span>
@@ -923,13 +925,12 @@ const accountScenes: DemoScene[] = [
             <AccountsTable rows={rows} menuPressed={menuOpen ? 0 : -1} />
             <MockToast show={t >= 5800} text="Password set" />
           </AdminPage>
-          <Pop show={menuOpen} className="absolute z-10 w-[190px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-[12px] font-semibold shadow-lg" style={{ left: 420, top: 168 }}>
+          <Pop show={menuOpen} className="absolute z-10 w-[190px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-[12px] font-semibold shadow-lg" style={{ left: 420, top: 176 }}>
             {[
-              { label: "Make admin", icon: ShieldCheck },
               { label: "Set temporary password", icon: KeyRound },
               { label: "Deactivate", icon: Power }
             ].map((item, index) => (
-              <p key={item.label} className={cn("flex items-center gap-2 px-3 py-1.5", index === 1 && t >= 1500 ? "bg-blue-50 text-blue-700" : index === 2 ? "text-red-600" : "text-ink")}>
+              <p key={item.label} className={cn("flex items-center gap-2 px-3 py-1.5", index === 0 && t >= 1500 ? "bg-blue-50 text-blue-700" : index === 1 ? "text-red-600" : "text-ink")}>
                 <item.icon className="h-3.5 w-3.5" /> {item.label}
               </p>
             ))}
@@ -952,8 +953,8 @@ const accountScenes: DemoScene[] = [
               [0, 400, 300],
               [400, ...rowMenu(0)],
               [900, ...rowMenu(0), true],
-              [1500, 500, 199],
-              [2000, 500, 199, true],
+              [1500, 500, 191],
+              [2000, 500, 191, true],
               [2600, 455, 205],
               [3100, 455, 205, true],
               [3600, 372, 205],
@@ -968,6 +969,92 @@ const accountScenes: DemoScene[] = [
     }
   }
 ];
+
+
+/** Row index 2 (Jose Santos): menu, confirm, then the status changes. Deactivate first, then Activate. */
+const JOSE_MENU = rowMenu(2);
+const MENU_ITEM_2: [number, number] = [500, 283];
+const CONFIRM_BUTTON: [number, number] = [460, 236];
+
+function ConfirmBox({ show, title, text, action, danger, pressed }: { show: boolean; title: string; text: string; action: string; danger: boolean; pressed: boolean }) {
+  return (
+    <Pop show={show} className="absolute inset-0 z-30">
+      <div className="absolute inset-0 bg-slate-900/25" />
+      <div className="absolute rounded-2xl border border-white bg-white p-5 shadow-2xl" style={{ left: 150, top: 110, width: 340, height: 150 }}>
+        <p className="text-[16px] font-black text-ink">{title}</p>
+        <p className="mt-1 text-[12px] font-semibold text-slate-600">{text}</p>
+        <span className="absolute bottom-4 right-[124px] flex h-8 w-20 items-center justify-center rounded-xl text-[12px] font-bold text-slate-600">Cancel</span>
+        <span className={cn("absolute bottom-4 right-5 flex h-8 w-[100px] items-center justify-center rounded-xl text-[12px] font-bold text-white transition-transform", danger ? "bg-red-600" : "bg-blue-600", pressed && "scale-95")}>
+          {action}
+        </span>
+      </div>
+    </Pop>
+  );
+}
+
+const turnOffScene: DemoScene = {
+  label: "Turn off or on",
+  caption: "Deactivate stops someone from signing in. Activate lets them back in.",
+  duration: 7600,
+  render: (t) => {
+    const off = t >= 3100 && t < 6600;
+    const rows = [newAccount, accounts[0], { ...accounts[1], off }, accounts[2]];
+    const firstMenu = t >= 1000 && t < 1900;
+    const secondMenu = t >= 4300 && t < 5100;
+    return (
+      <>
+        <AdminPage tab="Accounts" action="Add account">
+          <AccountsTable rows={rows} menuPressed={firstMenu || secondMenu ? 2 : -1} />
+          <MockToast show={t >= 3200 && t < 4200} text="Account deactivated" />
+          <MockToast show={t >= 6700} text="Account activated" />
+        </AdminPage>
+        <Pop show={firstMenu || secondMenu} className="absolute z-10 w-[190px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-[12px] font-semibold shadow-lg" style={{ left: 420, top: 260 }}>
+          <p className="flex items-center gap-2 px-3 py-1.5 text-ink">
+            <KeyRound className="h-3.5 w-3.5" /> Set temporary password
+          </p>
+          <p className={cn("flex items-center gap-2 px-3 py-1.5", secondMenu ? "text-blue-700" : "text-red-600", (t >= 1500 && firstMenu) || (t >= 4800 && secondMenu) ? "bg-blue-50" : "")}>
+            <Power className="h-3.5 w-3.5" /> {secondMenu ? "Activate" : "Deactivate"}
+          </p>
+        </Pop>
+        <ConfirmBox
+          show={t >= 2000 && t < 3100}
+          title="Deactivate Jose Santos?"
+          text="They cannot sign in until you activate them again."
+          action="Deactivate"
+          danger
+          pressed={pressedAt(t, 2800)}
+        />
+        <ConfirmBox
+          show={t >= 5300 && t < 6600}
+          title="Activate Jose Santos?"
+          text="They can sign in again."
+          action="Activate"
+          danger={false}
+          pressed={pressedAt(t, 6200)}
+        />
+        <Pointer
+          t={t}
+          path={[
+            [0, 400, 330],
+            [400, ...JOSE_MENU],
+            [900, ...JOSE_MENU, true],
+            [1300, ...MENU_ITEM_2],
+            [1800, ...MENU_ITEM_2, true],
+            [2300, ...CONFIRM_BUTTON],
+            [2800, ...CONFIRM_BUTTON, true],
+            [3700, ...JOSE_MENU],
+            [4200, ...JOSE_MENU, true],
+            [4600, ...MENU_ITEM_2],
+            [5100, ...MENU_ITEM_2, true],
+            [5700, ...CONFIRM_BUTTON],
+            [6200, ...CONFIRM_BUTTON, true],
+            [7000, 400, 330]
+          ]}
+        />
+      </>
+    );
+  }
+};
 
 const logRows = [
   { who: "Maria Cruz", text: "signed in", kind: "sign-ins", icon: LogIn, tone: "bg-blue-100 text-blue-700", time: "9:02 AM" },
@@ -1078,8 +1165,10 @@ const logScenes: DemoScene[] = [
 /* ---------- Student mode activities ---------- */
 
 const FIRST_TILE: [number, number] = [155, 180];
-const START_BUTTON: [number, number] = [405, 284];
+const START_BUTTON: [number, number] = [405, 288];
 const choiceCenter = (index: number): [number, number] => [170 + index * 110 + 48, 110 + 64];
+const trayCenter = (index: number): [number, number] => [230 + index * 90, 290];
+const boxCenter = (index: number): [number, number] => [200 + index * 120, 167];
 
 /** One Match question: the instruction, three pictures, and right / wrong marks. */
 function MatchQuestion({ word, options, picked, t, pickedAt }: { word: string; options: string[]; picked: string; t: number; pickedAt: number }) {
@@ -1133,20 +1222,24 @@ const studentActivityScenes: DemoScene[] = [
         </StudentScreen>
         <Pop show={t >= 1500} className="absolute inset-0 z-30">
           <div className="absolute inset-0 bg-slate-900/25" />
+          {/* The real How to play card: type badge, the demo, the instruction in a blue box, Listen and Start. */}
           <div className="absolute overflow-hidden rounded-3xl border-4 border-white bg-white text-center shadow-2xl" style={{ left: 120, top: 26, width: 400, height: 308 }}>
-            <div className="bg-blue-600 py-2 text-[12px] font-black uppercase tracking-wide text-blue-100">How to play</div>
-            <p className="mx-6 mt-4 rounded-2xl bg-blue-50 px-4 py-3 text-[16px] font-black text-blue-800">Tap the picture for the word.</p>
-            <div className="relative mx-auto mt-4 h-[96px] w-[230px]">
+            <span className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-violet-100 px-3 py-0.5 text-[12px] font-black text-violet-800">Match</span>
+            <div className="absolute rounded-2xl border-2 border-sky-100 bg-sky-50/80" style={{ left: 20, top: 40, width: 352, height: 104 }}>
               {["goodbye", "hello", "sorry"].map((word, index) => (
-                <CardPic key={word} word={word} plain box={{ x: index * 80, y: 0, w: 70, h: 94 }} className={index === 1 ? "border-2 border-emerald-500" : ""} />
+                <CardPic key={word} word={word} plain box={{ x: 96 + index * 56, y: 12, w: 48, h: 64 }} className={index === 1 ? "border-2 border-emerald-500" : ""} />
               ))}
             </div>
-            <span className="absolute bottom-6 left-10 flex h-11 w-[140px] items-center justify-center gap-2 rounded-2xl border-2 border-blue-200 text-[15px] font-black text-blue-800">
+            <div className="absolute rounded-2xl bg-blue-600 px-3 py-2 text-white shadow-[0_4px_0_rgba(30,64,175,0.3)]" style={{ left: 20, top: 156, width: 352, height: 72 }}>
+              <p className="text-[10px] font-black uppercase tracking-wide text-blue-100">How to play</p>
+              <p className="mt-0.5 text-[18px] font-black leading-tight">Tap the picture for &ldquo;Hello&rdquo;.</p>
+            </div>
+            <span className="absolute bottom-3 left-10 flex h-11 w-[140px] items-center justify-center gap-2 rounded-2xl border-2 border-blue-200 text-[15px] font-black text-blue-800">
               <Volume2 className="h-5 w-5" /> Listen
             </span>
             <span
               className={cn(
-                "absolute bottom-6 right-10 flex h-11 w-[150px] items-center justify-center gap-2 rounded-2xl border-4 border-white bg-blue-600 text-[15px] font-black text-white shadow-[0_5px_0_rgba(30,64,175,0.35)] transition-transform",
+                "absolute bottom-3 right-10 flex h-11 w-[150px] items-center justify-center gap-2 rounded-2xl border-4 border-white bg-blue-600 text-[15px] font-black text-white shadow-[0_5px_0_rgba(30,64,175,0.35)] transition-transform",
                 pressedAt(t, 3600) && "translate-y-1"
               )}
             >
@@ -1191,6 +1284,63 @@ const studentActivityScenes: DemoScene[] = [
     }
   },
   {
+    label: "Drag and drop",
+    caption: "In Drag and drop, drag each picture onto its word. A wrong one shakes and goes back.",
+    duration: 7400,
+    render: (t) => {
+      const words = ["eat", "drink", "sleep"];
+      // eat goes to Eat; sleep goes to Drink (wrong, back to the tray); sleep goes to Sleep.
+      const path: PointerKey[] = [
+        [0, 330, 330],
+        [300, ...trayCenter(0)],
+        [900, ...trayCenter(0), true],
+        [1000, ...boxCenter(0)],
+        [2300, ...trayCenter(2)],
+        [2900, ...trayCenter(2), true],
+        [3000, ...boxCenter(1)],
+        [3800, ...trayCenter(2)],
+        [4700, ...trayCenter(2)],
+        [5200, ...trayCenter(2), true],
+        [5300, ...boxCenter(2)],
+        [6600, 330, 330]
+      ];
+      const placed = [t >= 1700, false, t >= 6000];
+      const wrong = t >= 3700 && t < 4200;
+      const dragging = (t >= 900 && t < 1700) || (t >= 2900 && t < 4400) || (t >= 5200 && t < 6000);
+      const draggedWord = t < 2000 ? "eat" : "sleep";
+      return (
+        <div className="absolute inset-0 bg-gradient-to-b from-sky-100 to-[#f4fbff]">
+          <GameTopBar done={placed.filter(Boolean).length} total={3} />
+          <div className="absolute left-1/2 top-[52px] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-2xl bg-blue-600 px-5 py-2.5 text-[15px] font-black text-white">
+            <Hand className="h-4 w-4" /> Drag each picture onto its word.
+          </div>
+          {words.map((word, index) => (
+            <motion.div
+              key={word}
+              className={cn("absolute rounded-2xl border-4 border-dashed bg-white/80 text-center", placed[index] ? "border-solid border-emerald-500" : index === 1 && wrong ? "border-red-400" : "border-blue-200")}
+              style={{ left: 150 + index * 120, top: 104, width: 100, height: 126 }}
+              animate={index === 1 && wrong ? { x: [0, -8, 8, -5, 5, 0] } : { x: 0 }}
+              transition={{ duration: 0.35 }}
+            >
+              <span className="mt-1.5 inline-block rounded-lg bg-blue-600 px-2 py-0.5 text-[12px] font-black uppercase text-white">{word}</span>
+              {placed[index] ? <CardPic word={word} plain box={{ x: 22, y: 32, w: 50, h: 67 }} className="border-emerald-400" /> : null}
+            </motion.div>
+          ))}
+          {["eat", "drink", "sleep"].map((word, index) =>
+            (index === 0 && t >= 900) || (index === 2 && (dragging && t >= 2900 || t >= 6000)) ? null : (
+              <CardPic key={word} word={word} plain box={{ x: trayCenter(index)[0] - 28, y: trayCenter(index)[1] - 37, w: 56, h: 75 }} className="shadow-sm" />
+            )
+          )}
+          <Ghost t={t} path={path} show={dragging} word={draggedWord} plain />
+          <div className="absolute bottom-1 left-2">
+            <Maki mood={wrong || (t >= 3700 && t < 5200) ? "encourage" : t >= 1700 ? "cheer" : "happy"} size={90} label="" />
+          </div>
+          <Pointer t={t} path={path} />
+        </div>
+      );
+    }
+  },
+  {
     label: "See the score",
     caption: "Maki shows the score at the end. Play again, or go back to all activities.",
     duration: 4400,
@@ -1200,10 +1350,10 @@ const studentActivityScenes: DemoScene[] = [
         <Pop show className="absolute inset-0 z-30">
           <div className="absolute inset-0 bg-sky-950/20" />
           <div className="absolute rounded-3xl border-4 border-blue-200 bg-white text-center shadow-2xl" style={{ left: 130, top: 12, width: 380, height: 336 }}>
-            <div className="mt-8 flex justify-center">
-              <Maki mood="encourage" message="Great try!" size={96} label="" />
+            <div className="mt-5 flex justify-center">
+              <Maki mood="encourage" message="Great try!" size={78} label="" />
             </div>
-            <p className="mt-1 text-[24px] font-black text-blue-700">Good try!</p>
+            <p className="text-[22px] font-black text-blue-700">Good try!</p>
             <div className="mt-1 flex justify-center gap-1 text-[22px] leading-none">
               <span className="text-yellow-400">&#9733;</span>
               <span className="text-yellow-400">&#9733;</span>
@@ -1242,7 +1392,7 @@ export const moreHelpDemos: Record<string, DemoScene[]> = {
   playground: playgroundScenes,
   gesture: gestureScenes,
   browse: browseScenes,
-  accounts: accountScenes,
+  accounts: [...accountScenes, turnOffScene],
   log: logScenes,
   "student-activities": studentActivityScenes
 };

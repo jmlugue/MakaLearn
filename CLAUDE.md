@@ -443,7 +443,7 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   `ActivityResultModal` is Student only and takes `firstTryRight`. `match-question.tsx` was merged into
   `choose-question.tsx`; old footer, navigator, and grid helpers were removed.
 - Round 2 after testing: instructions read "Find the picture..."; How to play card has the demo and a blue
-  instruction box apart, plus "Don't show this again" (localStorage `makalearn.studentIntroHidden`, per
+  instruction box apart (a "Don't show this again" option was removed Sep 28; the card always shows; was per
   activity). Wrong taps have no pop-up: cards shake, the pick says "Not this one", the right card glows with "This one!". Drag and drop
   progress is green once placed; the score says "X of Y right" (first drops) with amber arrows for retries.
 - Not verified signed in, on a real touch tablet, or with real speech timing.
@@ -535,7 +535,7 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   `longFillBlankPromptByLabel` so saved activities using it upgrade at play time.
 - **Toasts** are top right again (top center on phones), sliding in from the right. Design unchanged.
 - **Admin Activity log:** type filters (All, Sign-ins, Content, Accounts) are category-style pills
-  (`FilterPills` in `admin-shared.tsx`); the date range stays a dropdown (`FilterSelect`).
+  (later changed to `UnderlineTabs`; `FilterPills` was removed); the date range stays a dropdown (`FilterSelect`).
 - **Gesture cards** show their name under the picture (PECS art already has the word).
 - **Student mode switch card:** entering shows red, yellow, green, and sky shapes and a four-color band;
   leaving stays plain blue. Uses standard Tailwind colors, not the `brand-*` tokens.
@@ -800,3 +800,19 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   (`takeStudentStartRoute`) instead of the playground. The Student mode guide passes no page (menu opens as usual).
   Sidebar and mobile nav call `enterStudentMode()` with no argument (the click event must not become a page).
 - Maki's hand picture was shrunk to 180 x 173 (24 KB from 59 KB); no visible difference at 2x the largest size.
+
+### Sep 29 round: How to play, Help wording, Guide mode (checked signed in as a teacher in the browser pane)
+
+- **How to play card always shows** before the first round of a Student mode activity; "Don't show this again" and its
+  localStorage list were removed on request. Play again still skips it.
+- **Help:** wording from the owner's review (Student mode purpose, "When done", Check / Listen, gesture feedback).
+  Gesture guide order: Free practice, Feedback (AI corrective feedback), Guided practice. Student mode activities has a
+  Gamepad icon and a Drag and drop step, and its score no longer overlaps the buttons. Accounts adds "Turn off or on"
+  (deactivate / activate with confirm); the row menu shows no Make admin.
+- **Guide mode:** every text rewritten to be accurate and two or three short sentences. Hover tips only on the
+  important actions (`guideTips`: Student mode, Add material, New lesson, Create activity, Activity format, the
+  player top bar, Admin sections, gesture camera). Other `GuideTip` wrappers stay but render nothing (no entry), so the
+  sidebar links, filters, and tabs no longer pop bubbles.
+- Checked in the pane: 7 teacher guides, each Show me plays with no broken pictures, Go there opens Gesture practice
+  and Student mode Activities in Student mode, How to play shows, no console errors. Admin guides not clicked
+  signed in. Student mode is memory only: a full page load leaves it (by design).

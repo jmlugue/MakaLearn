@@ -405,7 +405,7 @@ Search field: input with `pl-9` and a `Search` icon `h-4 w-4 text-slate-400` at 
 | Card | `studentCard`: 3:4, `border-4`, solid white, max `16rem` wide, same in every game and the score pop-up |
 | Buttons | `studentButton`: primary `blue-600`, secondary white with blue border, Hint white with amber border |
 | Instruction wording | "Find the picture..." (`studentInstruction`), not "Tap the...". Drag and drop: "Drag each picture onto its word." |
-| How to play card | Title, then the demo in its own light panel, then the instruction in a solid blue box, then Listen and Start, then "Don't show this again" (per activity, this browser) |
+| How to play card | Title, then the demo in its own light panel, then the instruction in a solid blue box, then Listen and Start. Always shown before the first round (Play again skips it) |
 | Flow | One tap per question. Right: big "Correct!" pop-up, next after 1.8s. Wrong: no pop-up, the cards shake, the pick is tagged "Not this one" in red, and the right card grows and glows with "This one!", next after 2.4s. Drag and drop: drag only, a wrong drop shakes the box and flies back. |
 | Drag and drop score | Placed cards are always green in the progress. Score counts first drops ("3 of 4 right"); a card that needed another try gets an amber turn arrow, not a red cross |
 | Hint | Greys out one wrong card per tap, stops at two cards left |

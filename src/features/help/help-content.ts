@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Gamepad2,
   Eye,
   FolderOpen,
   GraduationCap,
@@ -100,9 +101,9 @@ const studentMode: HelpTopic = {
   href: "/playground",
   studentStart: "menu",
   steps: [
-    { title: "Hand over", text: "Turn on Student mode from the menu. Big buttons, no editing.", icon: GraduationCap, scene: "student" },
+    { title: "Hand over", text: "Turn on Student mode from the menu. It gives the learner a simple, child-friendly screen.", icon: GraduationCap, scene: "student" },
     { title: "Three places", text: "Playground, Gesture practice, and Activities.", icon: Shapes, scene: "activity" },
-    { title: "Done?", text: "Open the menu and turn Student mode off.", icon: LogOut, scene: "student" }
+    { title: "When done", text: "Open the menu and choose Exit student mode.", icon: LogOut, scene: "student" }
   ]
 };
 
@@ -115,7 +116,7 @@ const playground: HelpTopic = {
   studentStart: "/playground",
   steps: [
     { title: "Build a phrase or sentence", text: "Drag up to 5 cards onto the board.", icon: Layers, scene: "cards" },
-    { title: "Check and Listen", text: "Check says if the sentence works. Listen reads it aloud.", icon: Volume2, scene: "student" }
+    { title: "Check and Listen", text: "Press Check to see if the sentence is correct. Press Listen to hear it read aloud.", icon: Volume2, scene: "student" }
   ]
 };
 
@@ -127,9 +128,9 @@ const gesturePractice: HelpTopic = {
   href: "/gesture-practice",
   studentStart: "/gesture-practice",
   steps: [
-    { title: "Free practice", text: "Start the camera and show a gesture. MakaLearn says what it sees.", icon: Hand, scene: "gesture" },
-    { title: "Guided 7", text: "Seven gestures in a row. Thumbs up to start, a countdown, then copy each one. Try again or skip.", icon: ListChecks, scene: "gesture" },
-    { title: "Nothing is saved", text: "It is live feedback only. No attempts are recorded.", icon: Eye, scene: "gesture" }
+    { title: "Free practice", text: "Turn on the camera and show a gesture. MakaLearn says what it sees.", icon: Hand, scene: "gesture" },
+    { title: "Feedback", text: "In free practice, the AI gives corrective feedback for the learner and the teacher.", icon: Eye, scene: "gesture" },
+    { title: "Guided practice", text: "Another option: the learner copies seven signs in a row, with a countdown before each.", icon: ListChecks, scene: "gesture" }
   ]
 };
 
@@ -137,12 +138,13 @@ const studentActivities: HelpTopic = {
   id: "student-activities",
   title: "Student mode activities",
   summary: "How learners play an activity.",
-  icon: Shapes,
+  icon: Gamepad2,
   href: "/activities",
   studentStart: "/activities",
   steps: [
     { title: "Pick an activity", text: "In Student mode, open Activities and tap a picture tile.", icon: Shapes, scene: "student" },
     { title: "Tap the answer", text: "Tap the right picture. A right answer says Correct!; a wrong one shakes and shows the right card.", icon: Layers, scene: "activity" },
+    { title: "Drag and drop", text: "Drag each picture onto its word. A wrong one shakes and goes back.", icon: Hand, scene: "activity" },
     { title: "See the score", text: "Maki shows the score at the end. Play again or pick another activity.", icon: ListChecks, scene: "activity" }
   ]
 };
@@ -155,7 +157,8 @@ const accounts: HelpTopic = {
   href: "/admin#accounts",
   steps: [
     { title: "Add an account", text: "In Admin, open Accounts and choose Add account.", icon: Users, scene: "admin" },
-    { title: "Forgotten password", text: "Reset it and give the teacher the temporary password.", icon: Users, scene: "admin" }
+    { title: "Forgotten password", text: "Set a temporary password, copy it, and give it to the teacher.", icon: Users, scene: "admin" },
+    { title: "Turn off or on", text: "Deactivate stops someone from signing in. Activate lets them back in.", icon: Users, scene: "admin" }
   ]
 };
 
