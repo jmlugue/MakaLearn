@@ -97,14 +97,31 @@ over in Student mode. Admins get two more: accounts, then the overview and activ
 
 ## 3. Database state, read this first
 
-**Sep 26, not yet run on live:** `supabase/migrations/20260926000000_service_role_private_schema.sql`.
-Activating or deactivating an account failed with "permission denied for schema private": the Sep 25
-profiles trigger calls `private.current_user_role()`, but only `authenticated` could use that schema,
-and the admin routes run as the service role. Two `grant` lines fix it. elugs (who applied the Sep 25
-migrations) should run it in the Supabase SQL Editor.
-Workaround until then: `/api/admin/account-status`, `change-role`, and `create-teacher` write the profile
-with the signed-in admin's session (`requireActiveAdmin` returns `sessionClient`), which the trigger and RLS
-allow.
+**Sep 28, reviewed account requests are live:** migrations
+`20260928004802_account_request_approval`,
+`20260928045935_allow_reviewer_history_after_profile_removal`, and the advisor-requested
+`20260928050308_index_account_request_reviewer` are applied. `/request-account` writes only a
+pending `account_requests` row through a server-only service-role route. Public Auth signup stays disabled.
+Admin > Accounts reads pending requests through admin-only RLS; approval creates and activates a teacher Auth
+account with a temporary password, while rejection creates no Auth user. `anon` has no table privileges and
+`authenticated` has select/update grants gated by the active-admin policy.
+
+**Sep 28, signup hardening complete:** hosted migration
+`20260927225337_harden_new_user_profile_defaults` is applied. `public.handle_new_user()` no longer reads role
+metadata; every newly created Auth user starts as an invited teacher, and the active-status role helper keeps
+that profile outside application authorization until a guarded admin activates it. Hosted and local Auth now
+disable public signup globally while leaving the email provider enabled for existing accounts. A hostile live
+signup returned the expected HTTP 422 `signup_disabled` response and created no user. Do not use a full
+`supabase config push` without reviewing unrelated hosted config differences.
+
+**Sep 27, live repair complete:** `supabase/migrations/20260927113744_service_role_private_schema.sql`
+was applied to the hosted project as migration `20260927113744_service_role_private_schema`.
+Activating or deactivating an account had failed with "permission denied for schema private": the Sep 25
+profiles trigger calls `private.current_user_role()`, but `service_role` could not use that schema or execute
+the helper. The live grants now allow both, and rolled-back update checks passed through the authenticated
+admin path and the service-role path. `/api/admin/account-status`, `change-role`, and `create-teacher` still
+write profiles with the signed-in admin's session (`requireActiveAdmin` returns `sessionClient`), so normal
+application updates remain subject to the admin trigger and RLS checks.
 
 **Activity log fix (Sep 26):** `insertAuditLog` no longer reads the new row back. Teachers may insert but
 not read `audit_logs`, so every teacher entry (logins, content, activities) had failed silently since Sep 25.
@@ -124,7 +141,7 @@ MISSING  user_settings.guide_seen
 MISSING  lessons.related_activity_id
 ```
 
-`supabase/migrations/20260916000000_guide_mode_and_lesson_activity.sql` holds the three
+`supabase/migrations/20260925094001_guide_mode_and_lesson_activity.sql` holds the three
 `add column if not exists` statements, mirrored into `supabase/schema.sql`. It is additive and
 idempotent. Nothing is altered or dropped.
 
@@ -168,7 +185,7 @@ Passing: `npx tsc --noEmit`, `npx next lint --dir src`, `npm run build` (clean `
 - The welcome tour appearing once and staying gone
 - Gesture camera and hand detection
 - The activity player end to end
-- AI activity draft (needs live Hugging Face and Gemini calls)
+- AI activity draft (needs a live call using the separate Gemini activity key)
 
 Do not run `npm run build` or clear `.next` while a dev server is running: it breaks that server with
 "Cannot find module './NNN.js'". Stop the dev server first, or only run tsc and lint.
@@ -380,7 +397,7 @@ card sound on tap, Listen highlight.
     Lloyd's Match (d14cf96, Jul 1) and the paged Choose (1c494ff, Sep 13). Drag and drop always had Check.
   - Result pop-up cards were blank after the `SymbolOption` change: the card box needs a set height (`h-full`).
 - **Open question: teachers editing or deleting.** The user says only admins can. Repo rules
-  (`20260903010000_fix_shared_activity_permissions.sql`) let teachers edit and delete shared activities, but
+  (`20260925093917_fix_shared_activity_permissions.sql`) let teachers edit and delete shared activities, but
   the Sep 2 rule allowed only the owner or an admin. If the live database never ran the Sep 3 migration,
   teachers are refused. Lessons are owner or admin only by design (Make a copy). Needs the user's answer and
   someone with SQL access.
@@ -564,8 +581,13 @@ seeing they were right. Student mode only; the teacher player is unchanged.
 - **Wrong choices:** a teacher-made card keeps its whole category out of the choices. The question text is read
   too (`isQuestionRelatedDistractor`): cards it names, or groups it points at ("eat", "feel", "say", "who"), are
   used only when nothing else is left. More Fill in the blank second answers in `fillBlankAlsoFits`.
-- **AI drafts:** Fill 7 to 12 words, Choose must be situational, a draft naming its answer is dropped.
-  `ACTIVITY_PROMPT_TEMPLATE_VERSION` is `activity-prompt-v3`.
+- **AI drafts:** Gemini Fill and legacy Choose drafts must be one sentence and 5 to 12 simple words. Fill has
+  exactly one blank; Choose ends in `?`. Answer leaks, unsuitable wording, unknown/duplicate IDs, and detected
+  semantic conflicts are rejected. One quota-counted retry can repair failed items or recover from a transient
+  provider error; then a checked bank prompt is used where available. Failed calls still count toward hourly/daily
+  use but only a successful draft starts the same-material cooldown. `ACTIVITY_PROMPT_TEMPLATE_VERSION` is
+  `activity-prompt-v6`. Vague or stereotyped descriptions such as calling Father the family's leader/provider are
+  rejected; approved question-bank examples are sent as the target style for direct, familiar wording.
 - **Playground:** a wrong Check opens an amber "TRY AGAIN" pop-up (spoken) instead of a toast and strip; right
   keeps "GOOD JOB". Am, Is, or Are alone is no longer right. Good morning and Thank you count as expressions.
 
@@ -597,9 +619,9 @@ seeing they were right. Student mode only; the teacher player is unchanged.
 
 ## 18. Question bank and rules (Sep 27, checked on a temporary page, not signed in)
 
-- **Level (owner's decision):** early primary SPED, Kinder to Grade 2 words. More than one short sentence is
-  fine; the situation must make the one right answer clear. Teacher-typed and AI-drafted questions get no
-  extra checks; the rules are for MakaLearn's own bank and are enforced by tests.
+- **Level (owner's decision):** early primary SPED, Kinder to Grade 2 words. Bank questions stay short and make
+  the one right answer clear. Gemini drafts receive stricter one-sentence validation before display; teacher-typed
+  questions keep the creator's lighter checks so teachers can adapt wording for an individual learner.
 - **Files:** `src/utils/question-bank/`
   - `rules.ts`: `checkQuestion`. Fill has one `____`; Choose ends with `?`. Never names the answer ("I" is
     allowed). 1 to 3 sentences, at most 10 words each, 20 in total. Words over 8 letters must be card words or

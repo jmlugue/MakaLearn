@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Copy, Eye, EyeOff, KeyRound, Mail, Power, ShieldCheck, UserPlus, UserRound, Wand2 } from "lucide-react";
+import { Check, Clock3, Copy, Eye, EyeOff, KeyRound, Mail, Power, ShieldCheck, UserPlus, UserRound, UserX, Wand2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
@@ -10,7 +10,7 @@ import { FieldError, FieldHint, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
 import { Avatar, EmptyRow, FilterSelect, Panel, RoleBadge, SearchInput, StatusBadge } from "@/features/admin/admin-shared";
 import { cn } from "@/lib/utils";
-import type { AppUser, UserRole } from "@/types";
+import type { AccountRequest, AppUser, UserRole } from "@/types";
 
 type PendingAction =
   | { kind: "role"; account: AppUser; role: UserRole }
@@ -18,8 +18,10 @@ type PendingAction =
   | { kind: "password"; account: AppUser };
 
 type RoleFilter = "all" | UserRole;
+type RequestAction = { kind: "approve" | "reject"; request: AccountRequest };
 
 const MIN_PASSWORD_LENGTH = 8;
+const REQUEST_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 export type StatusFilter = "all" | AppUser["status"];
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -35,16 +37,20 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 
 export function AccountsSection({
   users,
+  requests,
   currentUserId,
   onUserChange,
   onUserAdd,
+  onRequestReviewed,
   onLogsChanged,
   initialStatusFilter = "all"
 }: {
   users: AppUser[];
+  requests: AccountRequest[];
   currentUserId: string;
   onUserChange: (user: AppUser) => void;
   onUserAdd: (user: AppUser) => void;
+  onRequestReviewed: (request: AccountRequest) => void;
   onLogsChanged: () => void;
   initialStatusFilter?: StatusFilter;
 }) {
@@ -56,6 +62,9 @@ export function AccountsSection({
   const [working, setWorking] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [resetPassword, setResetPassword] = useState("");
+  const [requestAction, setRequestAction] = useState<RequestAction | null>(null);
+  const [requestPassword, setRequestPassword] = useState("");
+  const [requestWorking, setRequestWorking] = useState(false);
 
   useEffect(() => {
     setStatusFilter(initialStatusFilter);
@@ -123,6 +132,44 @@ export function AccountsSection({
     }
   }
 
+  async function runRequestAction() {
+    if (!requestAction) return;
+    setRequestWorking(true);
+    try {
+      if (requestAction.kind === "approve") {
+        const result = await postJson<{ user: AppUser; request: AccountRequest }>(
+          "/api/admin/account-requests/approve",
+          { requestId: requestAction.request.id, password: requestPassword }
+        );
+        onUserAdd(result.user);
+        onRequestReviewed(result.request);
+        notify({
+          title: "Account approved",
+          description: `Share the temporary password with ${result.user.name} privately.`,
+          tone: "success"
+        });
+      } else {
+        const result = await postJson<{ request: AccountRequest }>(
+          "/api/admin/account-requests/reject",
+          { requestId: requestAction.request.id }
+        );
+        onRequestReviewed(result.request);
+        notify({ title: "Request rejected", description: result.request.name, tone: "success" });
+      }
+      onLogsChanged();
+      setRequestAction(null);
+      setRequestPassword("");
+    } catch (error) {
+      notify({
+        title: "Request not updated",
+        description: error instanceof Error ? error.message : "Try again.",
+        tone: "error"
+      });
+    } finally {
+      setRequestWorking(false);
+    }
+  }
+
   const confirmCopy = pending
     ? pending.kind === "role"
       ? {
@@ -153,6 +200,54 @@ export function AccountsSection({
 
   return (
     <div className="space-y-4">
+      <section className="rounded-2xl border border-blue-100 bg-[#fff] p-4 shadow-sm sm:p-5" aria-labelledby="account-requests-title">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600">
+                <Clock3 className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 id="account-requests-title" className="text-xl font-bold text-ink">Account requests</h2>
+                <p className="text-sm text-slate-600">Approve or reject people waiting for teacher access.</p>
+              </div>
+            </div>
+          </div>
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+            {requests.length} pending
+          </span>
+        </div>
+
+        {requests.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-4 py-5 text-center text-sm text-slate-600">
+            No account requests are waiting.
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {requests.map((accountRequest) => (
+              <article key={accountRequest.id} className="rounded-2xl border border-blue-100 bg-[#fff] p-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar name={accountRequest.name} />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-ink">{accountRequest.name}</p>
+                    <p className="truncate text-sm text-slate-500">{accountRequest.email}</p>
+                    <p className="mt-1 text-xs text-slate-500">Requested {REQUEST_DATE_FORMATTER.format(new Date(accountRequest.createdAt))}</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <Button type="button" variant="outline" onClick={() => setRequestAction({ kind: "reject", request: accountRequest })}>
+                    <UserX className="h-4 w-4" aria-hidden="true" /> Reject
+                  </Button>
+                  <Button type="button" onClick={() => setRequestAction({ kind: "approve", request: accountRequest })}>
+                    <Check className="h-4 w-4" aria-hidden="true" /> Approve
+                  </Button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={search} onChange={setSearch} placeholder="Search name or email" label="Search accounts" />
         <FilterSelect
@@ -305,6 +400,54 @@ export function AccountsSection({
           onLogsChanged();
           setAddOpen(false);
         }}
+      />
+
+      <Dialog
+        open={requestAction?.kind === "approve"}
+        onClose={() => {
+          if (requestWorking) return;
+          setRequestAction(null);
+          setRequestPassword("");
+        }}
+        title="Approve teacher account"
+        description="This creates an active account. Share the temporary password privately."
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (requestPassword.length >= MIN_PASSWORD_LENGTH) runRequestAction();
+          }}
+        >
+          {requestAction?.kind === "approve" ? (
+            <AccountRow account={{ ...requestAction.request, role: "teacher", status: "invited" }} />
+          ) : null}
+          <PasswordField
+            id="request-temporary-password"
+            value={requestPassword}
+            onChange={setRequestPassword}
+            hint={`At least ${MIN_PASSWORD_LENGTH} characters. Share it privately.`}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => { setRequestAction(null); setRequestPassword(""); }} disabled={requestWorking}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={requestWorking || requestPassword.length < MIN_PASSWORD_LENGTH}>
+              {requestWorking ? "Approving..." : "Approve account"}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      <ConfirmDialog
+        open={requestAction?.kind === "reject"}
+        title={requestAction?.kind === "reject" ? `Reject ${requestAction.request.name}'s request?` : "Reject account request?"}
+        description="No sign-in account will be created. They can submit a new request later."
+        confirmLabel="Reject request"
+        tone="danger"
+        loading={requestWorking}
+        onConfirm={runRequestAction}
+        onClose={() => setRequestAction(null)}
       />
     </div>
   );

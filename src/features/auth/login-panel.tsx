@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Eye, EyeOff, Lock, Mail, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -244,7 +245,13 @@ export function LoginPanel() {
             <UserRound className="h-4 w-4" aria-hidden="true" />
             {loading ? "Signing in..." : "Sign in"}
           </Button>
-          <div className="mt-3 flex justify-end">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <Link
+              href="/request-account"
+              className="rounded text-sm font-semibold text-blue-700 hover:text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            >
+              Request an account
+            </Link>
             <button
               type="button"
               onClick={resetPassword}

@@ -12,6 +12,12 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Active sessions
 
+### 2026-09-28-supabase-gemini-pr
+- Status: active
+- Goal: Audit, commit, push, and open one PR for the completed Supabase account/auth work and Gemini activity-drafting changes currently in the working tree.
+- Files/areas: Full current diff, verification results, Git branch/commit, and PR description. No new product behavior planned.
+- Notes: The separate semantic-distractor session lists option files, which are not currently modified in this diff.
+
 ### 2026-09-25-semantic-activity-distractors
 - Status: active
 - Goal: Restore runtime semantic-conflict filtering so documented activity options never include another technically valid answer.
@@ -27,6 +33,47 @@ Use this file to coordinate work across terminal sessions in this repository. It
 -->
 
 ## Recently completed
+
+### 2026-09-28-simple-ai-family-prompts
+- Outcome: Tightened Gemini activity drafting so known materials include approved simple question-bank examples, vague praise is rejected, and family materials cannot be defined through leader/head/provider/protector authority stereotypes. The reported Father sentence is a regression case; direct wording such as `I call my dad ____.` passes. Prompt/cache version is now `activity-prompt-v6`, so earlier abstract cached drafts are not reused.
+- Files/areas: Activity AI prompt/validator, focused tests, CLAUDE, and this session board. Teacher-written prompts, question-bank content, activity options/players, and gesture recognition were unchanged.
+- Verification: `npm run test:activities` (50 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, `git diff --check`, and a live Father Gemini request passed; the live output was `I give my ____ a hug.` Build was skipped because the user's dev server is running on port 3000. Material validation still reports only the unchanged Eat/Drink duplicate-label warnings.
+
+### 2026-09-28-gemini-timeout-cooldown-fix
+- Outcome: Fixed the reported first-use activity-draft failure. Gemini now has 30 seconds instead of 12, one transient timeout/429/5xx may use the existing single quota-counted retry, and the 60-second same-material cooldown starts only after usable Gemini output. Failed requests still count toward hourly/daily limits but no longer make an immediate retry say the limit was reached. Cooldown wording now distinguishes waiting from an actual hourly/daily limit.
+- Files/areas: Activity draft API, rate-limit utility/tests, activity form notice, README/CLAUDE, and this session board. No schema, option-builder, player, or gesture-recognition changes.
+- Verification: Live `ai_usage_events` showed two approximately 12-second model failures followed by cooldown blocks, confirming the cause. `npm run test:activities` (48 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, `npm run build`, and `git diff --check` passed. Material validation still reports only the unchanged Eat/Drink duplicate-label warnings.
+
+### 2026-09-28-gemini-draft-guardrails
+- Outcome: Added SPED-friendly Gemini activity-draft grounding and strict server validation, one quota-counted repair call for only invalid/missing items, checked question-bank fallback with per-card teacher messages, complete-batch-only caching, and revised limits of 10 calls/hour, 40/day, and a 60-second same-material cooldown. Teacher-written questions retain the existing flexible checks; Match, Drag, activity options, and gesture recognition were untouched.
+- Files/areas: Activity draft utility/API/form, pure rate-limit utility, focused tests, README/CLAUDE, and this session board. Reused the existing `ai_usage_events` table, so no database migration was needed.
+- Verification: `npm run test:activities` (46 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, `npm run build`, `git diff --check`, and a direct Gemini smoke request passed. The first smoke attempt received transient HTTP 503; the immediate retry succeeded with `gemini-3.5-flash-lite` and passed local validation. Material validation still reports only the unchanged Eat/Drink duplicate-label warnings.
+
+### 2026-09-28-gemini-activity-drafting
+- Outcome: Replaced Hugging Face activity-question drafting with Gemini using the dedicated server-only `GEMINI_ACTIVITY_API_KEY` and independent `GEMINI_ACTIVITY_MODEL`. Gemini cache reads and new generation rows are provider-specific; legacy Hugging Face rows remain only as valid history. Gesture recognition and its separate corrective-feedback key/route were untouched.
+- Files/areas: Activity draft API/utility/form source handling, focused draft tests, environment/setup documentation, database types/schema, hosted migration `20260928053842_use_gemini_for_activity_drafts.sql`, and this session board.
+- Verification: Hosted default/constraint/enum and migration history verified; Supabase security advisor shows only the pre-existing leaked-password-protection warning. `npm run test:activities` (38 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, `npm run build`, and `git diff --check` passed. A live Gemini request remains pending until the user adds the new activity API key.
+
+### 2026-09-28-account-request-approval
+- Outcome: Added a public teacher account request page and admin approval queue. A submission creates only a pending database row; approval creates an active teacher Auth account with an admin-set temporary password, and rejection creates no Auth user. Duplicate or already-registered emails receive the same neutral public response. Public Supabase signup remains disabled.
+- Files/areas: `/request-account`, login and Admin Accounts UI, public/admin account-request routes, Supabase data/types/schema, three hosted migrations, focused tests, README/CLAUDE, and this session board.
+- Verification: Hosted RLS and grants confirm no anonymous table access or authenticated insert access, admin-only select/update policies, and all expected constraints/indexes. `npm run test:account-requests` (5 pass), `npm run test:auth` (4 pass), `npx tsc --noEmit`, `npm run lint`, `npm run build`, `git diff --check`, migration dry-runs/pushes, and Supabase advisors passed for the new scope. The remaining leaked-password-protection warning is an existing Auth setting.
+
+### 2026-09-28-signup-admin-hardening
+- Outcome: Closed public Supabase signup while keeping email/password sign-in enabled, and applied the hosted trigger migration so caller-controlled user metadata can never assign an active or admin profile. New Auth users default to invited teachers, inactive profiles receive no application role, admin provisioning remains guarded, and failed second-step provisioning cleans up both provisional records so the email can be retried.
+- Files/areas: Supabase Auth configuration, `supabase/config.toml`, `supabase/migrations/20260927225337_harden_new_user_profile_defaults.sql`, `supabase/schema.sql`, admin account creation, auth regression scripts, seed/setup documentation, and this session board.
+- Verification: Hosted management and public Auth settings report signup disabled, email enabled, and anonymous signup disabled. A hostile live signup returned HTTP 422 `signup_disabled` and created no user. Hosted trigger/function grants and active-status authorization helper were inspected; `npm run test:auth` (4 pass), `npx tsc --noEmit`, `npm run lint`, `npm run build`, security advisors, and both Git diff checks passed. The combined credentialed `test:auth:live` suite could not run because `TEST_ADMIN_EMAIL` is absent; its public-signup boundary was verified directly instead.
+
+### 2026-09-27-full-data-path-audit
+- Outcome: Audited the live Supabase schema, RLS, grants, storage, data integrity, and all non-account application data paths after the admin view-only change. Admin content mutations are blocked, teacher CRUD and private ownership rules work, protected data is hidden from anonymous/deactivated users, and rolled-back integration probes left no test data. Reconciled the local migration filenames with the hosted migration history; no schema or production data was changed by this audit.
+- Files/areas: Live Supabase project, Supabase-backed helpers/routes across `src/`, `supabase/migrations/`, validation scripts, and this session board.
+- Verification: `npm run test:activities` (27 pass), `npm run validate:materials`, `npx tsc --noEmit`, `npm run lint`, `npm run build`, live RLS/integrity/privilege probes, Supabase advisors, migration list, and linked dry-run passed. Signed-in application DB suites were not run because their `TEST_*` account credentials are absent.
+- Follow-up: The signup trigger still trusts user-supplied role metadata and can create an admin profile; this separate high-severity authorization issue needs remediation. Eleven unreferenced legacy Storage objects are optional cleanup candidates, and leaked-password protection remains disabled on the current Supabase plan.
+
+### 2026-09-26-admin-supabase-audit
+- Outcome: Repaired the live admin activate/deactivate failure by applying the missing `service_role` grants for the private role helper. The hosted migration is recorded as `20260927113744_service_role_private_schema`; the existing routes continue to use the signed-in admin client. The separate signup-to-admin vulnerability remains documented for follow-up.
+- Files/areas: Live Supabase grants/migration history, `src/app/api/admin/account-status/route.ts`, `src/lib/supabase/admin-guard.ts`, `supabase/migrations/20260927113744_service_role_private_schema.sql`, `CLAUDE.md`, and this session-board entry.
+- Verification: Live privilege checks returned true for private-schema usage and helper execution. Rolled-back/no-persistent-change profile update checks succeeded through both authenticated-admin and service-role execution paths. Supabase's security advisor reported only the pre-existing leaked-password-protection warning.
 
 ### 2026-09-26-free-practice-reference-card
 - Outcome: Free Practice now shows the right-side gesture media and Play controls directly, with no flip wrapper, rotation, keyboard flip behavior, or click prompt. Guided practice keeps its prior flip interaction.

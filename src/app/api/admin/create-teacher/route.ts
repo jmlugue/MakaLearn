@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     email,
     password,
     email_confirm: true,
-    user_metadata: { name, role }
+    user_metadata: { name }
   });
 
   if (createError || !created.user) {
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
   // Save the profile as the signed-in admin, not the service role. The profiles trigger calls
   // private.current_user_role(), and the service role cannot use the private schema until
-  // supabase/migrations/20260926000000_service_role_private_schema.sql is run.
+  // supabase/migrations/20260927113744_service_role_private_schema.sql is run.
   const { data: profile, error: profileError } = await admin.sessionClient
     .from("profiles")
     .upsert({
@@ -80,7 +80,30 @@ export async function POST(request: Request) {
     .single();
 
   if (profileError || !profile) {
-    return NextResponse.json({ error: profileError?.message ?? "Account profile could not be created." }, { status: 500 });
+    // Auth and the application profile are separate writes. If the trusted
+    // promotion fails, remove both provisional records so the admin can retry
+    // the same email instead of leaving an invited account stranded.
+    let cleanupFailed = false;
+
+    try {
+      const { error } = await serviceClient.from("profiles").delete().eq("id", created.user.id);
+      cleanupFailed ||= Boolean(error);
+    } catch {
+      cleanupFailed = true;
+    }
+
+    try {
+      const { error } = await serviceClient.auth.admin.deleteUser(created.user.id);
+      cleanupFailed ||= Boolean(error);
+    } catch {
+      cleanupFailed = true;
+    }
+
+    const error = cleanupFailed
+      ? "Account profile could not be created, and the incomplete account could not be fully cleaned up."
+      : profileError?.message ?? "Account profile could not be created.";
+
+    return NextResponse.json({ error }, { status: 500 });
   }
 
   await serviceClient.from("audit_logs").insert({

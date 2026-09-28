@@ -1,8 +1,10 @@
 -- MakaLearn placeholder seed data.
 -- These records mirror the local placeholder data and are not official Makaton content.
--- Create the two Supabase Auth users first, then run this file:
--- admin@makalearn.local with role metadata "admin"
--- teacher@makalearn.local with role metadata "teacher"
+-- Create the two Supabase Auth users through a trusted Auth-admin or Studio flow first,
+-- then run this file. New Auth users deliberately start as invited teachers; the
+-- updates below assign the demo roles and activate both accounts.
+-- admin@makalearn.local
+-- teacher@makalearn.local
 
 do $$
 begin

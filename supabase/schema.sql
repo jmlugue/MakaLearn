@@ -6,6 +6,7 @@ create extension if not exists pgcrypto;
 
 create type public.user_role as enum ('admin', 'teacher');
 create type public.profile_status as enum ('active', 'invited', 'deactivated');
+create type public.account_request_status as enum ('pending', 'approved', 'rejected');
 create type public.learner_status as enum ('active', 'inactive');
 create type public.preferred_learning_mode as enum ('Visual', 'Audio', 'Gesture', 'Mixed', 'Teacher-guided');
 create type public.media_asset_type as enum ('symbol-image', 'gesture-media', 'audio-file');
@@ -33,6 +34,35 @@ create table public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table public.account_requests (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text not null,
+  status public.account_request_status not null default 'pending',
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by text references public.profiles(id) on delete set null,
+  constraint account_requests_name_length check (char_length(name) between 2 and 100),
+  constraint account_requests_name_trimmed check (name = btrim(name)),
+  constraint account_requests_email_length check (char_length(email) between 3 and 254),
+  constraint account_requests_email_normalized check (email = lower(btrim(email))),
+  constraint account_requests_review_state check (
+    (status = 'pending' and reviewed_at is null and reviewed_by is null)
+    or (status in ('approved', 'rejected') and reviewed_at is not null)
+  )
+);
+
+create unique index account_requests_pending_email_unique
+on public.account_requests (lower(email))
+where status = 'pending';
+
+create index account_requests_status_created_at_idx
+on public.account_requests (status, created_at desc);
+
+create index account_requests_reviewed_by_idx
+on public.account_requests (reviewed_by)
+where reviewed_by is not null;
 
 create table public.categories (
   id text primary key default ('cat-' || gen_random_uuid()::text),
@@ -141,7 +171,7 @@ create table public.activity_prompt_generations (
   prompt_template_version text not null,
   learning_item_ids text[] not null default '{}',
   prompts jsonb not null check (jsonb_typeof(prompts) = 'array'),
-  source text not null default 'hugging-face' check (source = 'hugging-face'),
+  source text not null default 'gemini' check (source in ('hugging-face', 'gemini')),
   model text not null,
   version int not null check (version > 0),
   created_by text not null,
@@ -188,6 +218,7 @@ create index audit_logs_created_at_idx on public.audit_logs(created_at desc);
 create index audit_logs_category_action_idx on public.audit_logs(category, action);
 
 alter table public.profiles enable row level security;
+alter table public.account_requests enable row level security;
 alter table public.categories enable row level security;
 alter table public.learners enable row level security;
 alter table public.learning_items enable row level security;
@@ -207,33 +238,73 @@ stable
 security definer
 set search_path = public
 as $$
-  select role from public.profiles where id = auth.uid()::text
+  select role
+  from public.profiles
+  where id = auth.uid()::text
+    and status = 'active'
 $$;
 
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   insert into public.profiles (id, name, email, role, status)
   values (
     new.id::text,
-    coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data->>'name', pg_catalog.split_part(new.email, '@', 1)),
     new.email,
-    coalesce(new.raw_user_meta_data->>'role', 'teacher')::public.user_role,
-    'active'
+    'teacher'::public.user_role,
+    'invited'::public.profile_status
   )
   on conflict (id) do update
   set
     email = excluded.email,
     name = excluded.name,
-    updated_at = now();
+    updated_at = pg_catalog.now();
 
   return new;
 end;
 $$;
+
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+
+-- Users may edit ordinary profile fields, but account identity and authorization
+-- remain admin-controlled even if a client sends those columns directly.
+create or replace function public.protect_profile_admin_fields()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.id is distinct from old.id then
+    raise exception 'Profile IDs cannot be changed';
+  end if;
+
+  if (select auth.role()) is distinct from 'service_role'
+    and (select public.current_user_role()) is distinct from 'admin'::public.user_role
+    and (
+      new.email is distinct from old.email
+      or new.role is distinct from old.role
+      or new.status is distinct from old.status
+      or new.created_at is distinct from old.created_at
+    )
+  then
+    raise exception 'Only administrators can change account identity, role, or status';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function public.protect_profile_admin_fields() from public, anon, authenticated;
+
+drop trigger if exists protect_profile_admin_fields on public.profiles;
+create trigger protect_profile_admin_fields
+before update on public.profiles
+for each row execute function public.protect_profile_admin_fields();
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
@@ -250,6 +321,19 @@ on public.profiles for update
 to authenticated
 using (id = auth.uid()::text or public.current_user_role() = 'admin')
 with check (id = auth.uid()::text or public.current_user_role() = 'admin');
+
+revoke all on table public.account_requests from anon, authenticated;
+grant select, update on table public.account_requests to authenticated;
+grant all on table public.account_requests to service_role;
+
+create policy "Admins read account requests"
+on public.account_requests for select to authenticated
+using (public.current_user_role() = 'admin');
+
+create policy "Admins review account requests"
+on public.account_requests for update to authenticated
+using (public.current_user_role() = 'admin')
+with check (public.current_user_role() = 'admin');
 
 create policy "Admins insert profiles"
 on public.profiles for insert
@@ -352,7 +436,7 @@ begin
   end if;
 
   if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'activity_prompt_source') then
-    create type public.activity_prompt_source as enum ('hugging-face', 'local-fallback', 'manual');
+    create type public.activity_prompt_source as enum ('hugging-face', 'gemini', 'local-fallback', 'manual');
   end if;
 
   if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'ai_usage_status') then
@@ -365,6 +449,7 @@ alter type public.audit_log_category add value if not exists 'activity';
 alter type public.audit_log_category add value if not exists 'gesture';
 alter type public.audit_log_category add value if not exists 'settings';
 alter type public.audit_log_category add value if not exists 'admin';
+alter type public.activity_prompt_source add value if not exists 'gemini';
 
 alter table public.learning_items
   add column if not exists content_type public.content_type not null default 'pecs',
@@ -415,7 +500,7 @@ create table if not exists public.activity_prompt_generations (
   prompt_template_version text not null,
   learning_item_ids text[] not null default '{}',
   prompts jsonb not null check (jsonb_typeof(prompts) = 'array'),
-  source text not null default 'hugging-face' check (source = 'hugging-face'),
+  source text not null default 'gemini' check (source in ('hugging-face', 'gemini')),
   model text not null,
   version int not null check (version > 0),
   created_by text not null references public.profiles(id) on delete cascade,
@@ -609,7 +694,7 @@ alter table public.activity_prompt_generations
   add column if not exists prompt_template_version text,
   add column if not exists learning_item_ids text[] not null default '{}',
   add column if not exists prompts jsonb,
-  add column if not exists source text not null default 'hugging-face',
+  add column if not exists source text not null default 'gemini',
   add column if not exists model text not null default '',
   add column if not exists version int,
   add column if not exists created_by text references public.profiles(id) on delete cascade,

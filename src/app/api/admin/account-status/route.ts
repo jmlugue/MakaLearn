@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
   // Update as the signed-in admin, not the service role. The profiles trigger calls
   // private.current_user_role(), and the service role cannot use the private schema until
-  // supabase/migrations/20260926000000_service_role_private_schema.sql is run.
+  // supabase/migrations/20260927113744_service_role_private_schema.sql is run.
   const { data: profile, error } = await admin.sessionClient
     .from("profiles")
     .update({ status: body.status, updated_at: new Date().toISOString() })
