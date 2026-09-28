@@ -12,6 +12,18 @@ export type AppUser = {
   status: "active" | "invited" | "deactivated";
 };
 
+export type AccountRequestStatus = "pending" | "approved" | "rejected";
+
+export type AccountRequest = {
+  id: string;
+  name: string;
+  email: string;
+  status: AccountRequestStatus;
+  createdAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+};
+
 export type PreferredLearningMode =
   | "Visual"
   | "Audio"
@@ -167,7 +179,7 @@ export type ActivityPromptTemplate = {
   activityType: Extract<ActivityType, "choose-correct-symbol" | "fill-blank">;
   learningItemId: string;
   prompt: string;
-  source: "hugging-face" | "local-fallback" | "manual";
+  source: "hugging-face" | "gemini" | "local-fallback" | "manual";
   createdBy: string;
   /** Admin-seeded fallback. Teachers save their own override instead of replacing it. */
   isDefault: boolean;

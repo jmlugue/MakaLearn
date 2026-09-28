@@ -16,7 +16,7 @@ import { GuideTip } from "@/features/guide/guide-tip";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { fetchAuditLogs } from "@/lib/audit-logs";
-import { fetchMakaLearnData } from "@/lib/supabase/app-data";
+import { fetchMakaLearnData, fetchPendingAccountRequests } from "@/lib/supabase/app-data";
 import { AccountsSection, type StatusFilter } from "@/features/admin/accounts-section";
 import { ActivitySection } from "@/features/admin/activity-section";
 import { type LogFilter, type LogRange, rangeBounds } from "@/features/admin/admin-shared";
@@ -24,6 +24,7 @@ import { ContentSection, type ContentView } from "@/features/admin/content-secti
 import { OverviewSection, type OverviewJump } from "@/features/admin/overview-section";
 import type {
   Activity as ActivityRecord,
+  AccountRequest,
   AppUser,
   AuditLog,
   Category,
@@ -54,6 +55,7 @@ export function AdminPanelView() {
   const reduceMotion = useReducedMotion();
   const [section, setSection] = useState<Section>("home");
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [accountRequests, setAccountRequests] = useState<AccountRequest[]>([]);
   const [items, setItems] = useState<LearningItem[]>([]);
   const [media, setMedia] = useState<MediaAsset[]>([]);
   const [activities, setActivities] = useState<ActivityRecord[]>([]);
@@ -87,10 +89,11 @@ export function AdminPanelView() {
 
   useEffect(() => {
     let active = true;
-    fetchMakaLearnData()
-      .then((data) => {
+    Promise.all([fetchMakaLearnData(), fetchPendingAccountRequests()])
+      .then(([data, pendingRequests]) => {
         if (!active) return;
         setUsers(data.users);
+        setAccountRequests(pendingRequests);
         setItems(data.learningItems);
         setMedia(data.mediaAssets);
         setActivities(data.activities);
@@ -210,10 +213,14 @@ export function AdminPanelView() {
         {section === "accounts" ? (
           <AccountsSection
             users={users}
+            requests={accountRequests}
             currentUserId={user.id}
             initialStatusFilter={statusFilter}
             onUserChange={(changed) => setUsers((current) => current.map((account) => (account.id === changed.id ? changed : account)))}
             onUserAdd={(added) => setUsers((current) => [added, ...current.filter((account) => account.id !== added.id)])}
+            onRequestReviewed={(reviewed) => {
+              setAccountRequests((current) => current.filter((request) => request.id !== reviewed.id));
+            }}
             onLogsChanged={reloadLogs}
           />
         ) : null}

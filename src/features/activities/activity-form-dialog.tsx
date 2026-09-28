@@ -8,7 +8,11 @@ import { FieldError, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
 import { cn } from "@/lib/utils";
 import { activityTypeLabels } from "@/utils/activity-labels";
-import { canDraftQuestionPrompts, type ActivityDraftResult } from "@/utils/activity-ai-draft";
+import {
+  canDraftQuestionPrompts,
+  type ActivityDraftResult,
+  type ActivityPromptIssue
+} from "@/utils/activity-ai-draft";
 import { buildDefaultActivityTitle } from "@/utils/activity-title";
 import { SearchInput } from "@/features/admin/admin-shared";
 import { HowItPlaysButton } from "@/features/content/activity-sample";
@@ -147,6 +151,7 @@ function ActivityForm({
   const [source, setSource] = useState<"own" | "lesson">(lessonOfActivity ? "lesson" : "own");
   const [error, setError] = useState("");
   const [aiNote, setAiNote] = useState("");
+  const [aiIssuesByItem, setAiIssuesByItem] = useState<Record<string, ActivityPromptIssue>>({});
   const [drafting, setDrafting] = useState(false);
 
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -211,6 +216,7 @@ function ActivityForm({
     });
     update({ type, itemIds: kept, promptInputs: withPrompts(type, kept, {}) });
     setAiNote("");
+    setAiIssuesByItem({});
   }
 
   function defaultTitle() {
@@ -274,6 +280,7 @@ function ActivityForm({
 
     setDrafting(true);
     setAiNote("");
+    setAiIssuesByItem({});
     setError("");
     try {
       const response = await fetch("/api/activity-draft", {
@@ -288,18 +295,29 @@ function ActivityForm({
         setValues((current) => ({ ...current, promptInputs: { ...current.promptInputs, ...patch } }));
         onPromptStoreChange(patch);
       }
+      setAiIssuesByItem(
+        Object.fromEntries(
+          (draft.issues ?? [])
+            .filter((issue) => selectedItems.some((item) => item.id === issue.learningItemId))
+            .map((issue) => [issue.learningItemId, issue])
+        )
+      );
       setAiNote(draft.note || "Questions drafted. Check them before saving.");
       notify({
         title:
-          draft.source === "hugging-face"
+          draft.source === "gemini"
             ? "AI prompts ready"
             : draft.source === "cache"
               ? "Saved AI draft used"
+              : draft.source === "mixed"
+                ? "AI draft checked"
               : draft.source === "rate-limited"
-                ? "AI limit reached"
+                ? draft.rateLimit?.retryAfterSeconds
+                  ? "Please wait a moment"
+                  : "AI limit reached"
                 : "Starter prompts added",
         description: draft.note || "Questions were added for the selected cards.",
-        tone: draft.source === "hugging-face" || draft.source === "cache" ? "success" : "info"
+        tone: draft.source === "gemini" || draft.source === "cache" ? "success" : "info"
       });
     } catch {
       setAiNote("Could not draft with AI. Type the questions instead.");
@@ -471,10 +489,22 @@ function ActivityForm({
                             id={`activity-prompt-${item.id}`}
                             className={cn(fieldClass, "mt-0.5")}
                             value={value}
-                            onChange={(event) => update({ promptInputs: { ...values.promptInputs, [key]: event.target.value } })}
+                            onChange={(event) => {
+                              update({ promptInputs: { ...values.promptInputs, [key]: event.target.value } });
+                              setAiIssuesByItem((current) => {
+                                const next = { ...current };
+                                delete next[item.id];
+                                return next;
+                              });
+                            }}
                             placeholder={values.type === "fill-blank" ? "Write a sentence with ____, or use Draft with AI" : "A short question"}
                           />
                           <FieldError message={validatePromptForActivity(values.type, item, value)} />
+                          {aiIssuesByItem[item.id] ? (
+                            <p className="mt-1 text-xs font-medium text-amber-700" role="status">
+                              {aiIssuesByItem[item.id].message}
+                            </p>
+                          ) : null}
                         </div>
                       </li>
                     );

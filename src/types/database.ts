@@ -1,4 +1,5 @@
 import type {
+  AccountRequestStatus,
   ActivityType,
   AuditLogAction,
   AuditLogCategory,
@@ -46,6 +47,36 @@ export type Database = {
           status?: AppUser["status"];
           created_at?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      account_requests: {
+        Row: {
+          id: string;
+          name: string;
+          email: string;
+          status: AccountRequestStatus;
+          created_at: string;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          email: string;
+          status?: AccountRequestStatus;
+          created_at?: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          email?: string;
+          status?: AccountRequestStatus;
+          created_at?: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
         };
         Relationships: [];
       };
@@ -489,7 +520,7 @@ export type Database = {
           prompt_template_version: string;
           learning_item_ids: string[];
           prompts: Json;
-          source: "hugging-face";
+          source: "hugging-face" | "gemini";
           model: string;
           version: number;
           created_by: string;
@@ -502,7 +533,7 @@ export type Database = {
           prompt_template_version: string;
           learning_item_ids: string[];
           prompts: Json;
-          source?: "hugging-face";
+          source?: "hugging-face" | "gemini";
           model: string;
           version: number;
           created_by: string;
@@ -515,7 +546,7 @@ export type Database = {
           prompt_template_version?: string;
           learning_item_ids?: string[];
           prompts?: Json;
-          source?: "hugging-face";
+          source?: "hugging-face" | "gemini";
           model?: string;
           version?: number;
           created_by?: string;

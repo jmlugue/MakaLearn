@@ -6,9 +6,25 @@ import {
   buildPromptDraftRequest,
   canDraftQuestionPrompts,
   createLocalFallbackPromptSuggestions,
+  getUnresolvedPromptItems,
+  mergeActivityPromptSuggestions,
   parsePromptDraftText
 } from "@/utils/activity-ai-draft";
-import type { ActivityDraftResult, ActivityPromptSuggestion, DraftablePromptActivityType } from "@/utils/activity-ai-draft";
+import type {
+  ActivityDraftResult,
+  ActivityPromptDraftContext,
+  ActivityPromptIssue,
+  ActivityPromptSuggestion,
+  DraftablePromptActivityType
+} from "@/utils/activity-ai-draft";
+import {
+  ACTIVITY_DRAFT_MATERIAL_COOLDOWN_SECONDS,
+  ACTIVITY_DRAFT_PROVIDER_TIMEOUT_MS,
+  canRetryActivityDraftCall,
+  evaluateActivityDraftRateLimit
+} from "@/utils/activity-ai-rate-limit";
+import { isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
+import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import type { ActivityType, LearningItem } from "@/types";
 import type { Database } from "@/types/database";
 
@@ -21,10 +37,14 @@ const activityTypes: ActivityType[] = [
   "simple-quiz"
 ];
 const ACTIVITY_DRAFT_FEATURE = "activity-draft";
-const HOURLY_MODEL_LIMIT = 5;
-const DAILY_MODEL_LIMIT = 20;
-const MATERIAL_COOLDOWN_SECONDS = 120;
-const HUGGING_FACE_TIMEOUT_MS = 12000;
+const DEFAULT_GEMINI_ACTIVITY_MODEL = "gemini-3.5-flash-lite";
+
+class GeminiDraftRequestError extends Error {
+  constructor(message: string, readonly retryable: boolean) {
+    super(message);
+    this.name = "GeminiDraftRequestError";
+  }
+}
 
 type ActivityDraftRequest = {
   activityType?: ActivityType;
@@ -33,10 +53,12 @@ type ActivityDraftRequest = {
   regenerate?: boolean;
 };
 
-type HuggingFaceChatCompletion = {
-  choices?: Array<{
-    message?: {
-      content?: string;
+type GeminiGenerateContentResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string;
+      }>;
     };
   }>;
 };
@@ -89,13 +111,32 @@ function fallbackDraft(
   source: ActivityDraftResult["source"] = "local-fallback",
   materialHash?: string,
   status = 200,
-  rateLimit?: ActivityDraftResult["rateLimit"]
+  rateLimit?: ActivityDraftResult["rateLimit"],
+  context: ActivityPromptDraftContext = {}
 ) {
+  const suggestions = createLocalFallbackPromptSuggestions(type, items, context);
+  const fallbackIds = new Set(suggestions.map((suggestion) => suggestion.learningItemId));
+  const issues: ActivityPromptIssue[] = items.map((item) =>
+    fallbackIds.has(item.id)
+      ? {
+          learningItemId: item.id,
+          label: item.label,
+          code: "local-fallback-used",
+          message: "A checked starter prompt was used because AI was unavailable."
+        }
+      : {
+          learningItemId: item.id,
+          label: item.label,
+          code: "needs-teacher-input",
+          message: "No safe starter prompt is available. Please write this one."
+        }
+  );
   return jsonDraft(
     {
       source,
       note,
-      suggestions: createLocalFallbackPromptSuggestions(type, items),
+      suggestions,
+      issues,
       materialHash,
       rateLimit
     },
@@ -113,32 +154,12 @@ async function logAiUsage(
   }
 }
 
-function normalizeCachedPrompts(value: unknown, requestedItems: LearningItem[]): ActivityPromptSuggestion[] {
-  const requestedById = new Map(requestedItems.map((item) => [item.id, item]));
-  if (!Array.isArray(value)) return [];
-
-  return value.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const suggestion = entry as Partial<ActivityPromptSuggestion>;
-    if (typeof suggestion.learningItemId !== "string" || typeof suggestion.prompt !== "string") return [];
-    const item = requestedById.get(suggestion.learningItemId);
-    if (!item) return [];
-
-    return [
-      {
-        learningItemId: item.id,
-        label: typeof suggestion.label === "string" ? suggestion.label : item.label,
-        prompt: suggestion.prompt
-      }
-    ];
-  });
-}
-
 async function getCachedGeneration(
   supabase: SupabaseServerClient,
   type: DraftablePromptActivityType,
   materialHash: string,
-  items: LearningItem[]
+  items: LearningItem[],
+  context: ActivityPromptDraftContext
 ) {
   const { data, error } = await supabase
     .from("activity_prompt_generations")
@@ -146,6 +167,7 @@ async function getCachedGeneration(
     .eq("activity_type", type)
     .eq("material_hash", materialHash)
     .eq("prompt_template_version", ACTIVITY_PROMPT_TEMPLATE_VERSION)
+    .eq("source", "gemini")
     .order("version", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -153,8 +175,10 @@ async function getCachedGeneration(
   if (error) throw error;
   if (!data) return null;
 
-  const suggestions = normalizeCachedPrompts(data.prompts, items);
-  return suggestions.length ? { ...data, suggestions } : null;
+  const parsed = parsePromptDraftText(JSON.stringify({ prompts: data.prompts }), type, items, context);
+  return parsed.suggestions.length === items.length && !(parsed.issues?.length)
+    ? { ...data, suggestions: parsed.suggestions }
+    : null;
 }
 
 async function getLatestGenerationVersion(
@@ -176,13 +200,19 @@ async function getLatestGenerationVersion(
   return data?.version ?? 0;
 }
 
-async function countModelRequests(supabase: SupabaseServerClient, userId: string, sinceIso: string, materialHash?: string) {
+async function countUsageEvents(
+  supabase: SupabaseServerClient,
+  userId: string,
+  sinceIso: string,
+  eventType: "model-request" | "model-success",
+  materialHash?: string
+) {
   let query = supabase
     .from("ai_usage_events")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("feature", ACTIVITY_DRAFT_FEATURE)
-    .eq("event_type", "model-request")
+    .eq("event_type", eventType)
     .gte("created_at", sinceIso);
 
   if (materialHash) {
@@ -194,77 +224,95 @@ async function countModelRequests(supabase: SupabaseServerClient, userId: string
   return count ?? 0;
 }
 
-async function getRateLimitStatus(supabase: SupabaseServerClient, userId: string, materialHash: string) {
+async function getRateLimitStatus(
+  supabase: SupabaseServerClient,
+  userId: string,
+  materialHash: string,
+  ignoreMaterialCooldown = false
+) {
   const now = Date.now();
   const hourAgo = new Date(now - 60 * 60 * 1000).toISOString();
   const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
-  const cooldownAgo = new Date(now - MATERIAL_COOLDOWN_SECONDS * 1000).toISOString();
-  const [hourlyRequests, dailyRequests, recentMaterialRequests] = await Promise.all([
-    countModelRequests(supabase, userId, hourAgo),
-    countModelRequests(supabase, userId, dayAgo),
-    countModelRequests(supabase, userId, cooldownAgo, materialHash)
+  const cooldownAgo = new Date(now - ACTIVITY_DRAFT_MATERIAL_COOLDOWN_SECONDS * 1000).toISOString();
+  const [hourlyRequests, dailyRequests, recentMaterialSuccesses] = await Promise.all([
+    countUsageEvents(supabase, userId, hourAgo, "model-request"),
+    countUsageEvents(supabase, userId, dayAgo, "model-request"),
+    ignoreMaterialCooldown
+      ? Promise.resolve(0)
+      : countUsageEvents(supabase, userId, cooldownAgo, "model-success", materialHash)
   ]);
 
-  const rateLimit = {
-    hourlyLimit: HOURLY_MODEL_LIMIT,
-    dailyLimit: DAILY_MODEL_LIMIT,
-    remainingHourly: Math.max(0, HOURLY_MODEL_LIMIT - hourlyRequests),
-    remainingDaily: Math.max(0, DAILY_MODEL_LIMIT - dailyRequests)
-  };
-
-  if (hourlyRequests >= HOURLY_MODEL_LIMIT || dailyRequests >= DAILY_MODEL_LIMIT || recentMaterialRequests > 0) {
-    return {
-      allowed: false,
-      rateLimit: {
-        ...rateLimit,
-        retryAfterSeconds: recentMaterialRequests > 0 ? MATERIAL_COOLDOWN_SECONDS : undefined
-      }
-    };
-  }
-
-  return { allowed: true, rateLimit };
+  return evaluateActivityDraftRateLimit({
+    hourlyRequests,
+    dailyRequests,
+    recentMaterialSuccesses,
+    ignoreMaterialCooldown
+  });
 }
 
-async function requestHuggingFaceDraft(
-  token: string,
+async function requestGeminiDraft(
+  apiKey: string,
   model: string,
   type: DraftablePromptActivityType,
-  items: LearningItem[]
+  items: LearningItem[],
+  context: ActivityPromptDraftContext
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), HUGGING_FACE_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), ACTIVITY_DRAFT_PROVIDER_TIMEOUT_MS);
 
   try {
-    const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: "system",
-            content: "You create concise, reusable classroom question prompts for early communication learning. Return JSON only."
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [
+              {
+                text: "You create concise, reusable classroom question prompts for early communication learning. Follow every supplied constraint and return JSON only."
+              }
+            ]
           },
-          {
-            role: "user",
-            content: buildPromptDraftRequest(type, items)
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: buildPromptDraftRequest(type, items, context) }]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 700,
+            responseMimeType: "application/json"
           }
-        ],
-        temperature: 0.4,
-        max_tokens: 700
-      })
-    });
+        })
+      }
+    );
 
     if (!response.ok) {
-      throw new Error(`Hugging Face returned ${response.status}`);
+      throw new GeminiDraftRequestError(
+        `Gemini returned ${response.status}`,
+        response.status === 429 || response.status >= 500
+      );
     }
 
-    const completion = (await response.json()) as HuggingFaceChatCompletion;
-    return completion.choices?.[0]?.message?.content ?? "";
+    const completion = (await response.json()) as GeminiGenerateContentResponse;
+    return (
+      completion.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text ?? "")
+        .join("")
+        .trim() ?? ""
+    );
+  } catch (error) {
+    if (error instanceof GeminiDraftRequestError) throw error;
+    if (controller.signal.aborted) {
+      throw new GeminiDraftRequestError("Gemini activity drafting timed out.", true);
+    }
+    throw new GeminiDraftRequestError("Gemini activity drafting could not reach the provider.", true);
   } finally {
     clearTimeout(timeout);
   }
@@ -302,10 +350,11 @@ export async function POST(request: Request) {
     });
   }
 
-  const model = process.env.HUGGINGFACE_ACTIVITY_MODEL || "openai/gpt-oss-120b:fastest";
+  const model = process.env.GEMINI_ACTIVITY_MODEL?.trim() || DEFAULT_GEMINI_ACTIVITY_MODEL;
   let supabase: SupabaseServerClient;
   let userId: string;
   let missingLearningItems: LearningItem[];
+  let draftContext: ActivityPromptDraftContext;
 
   try {
     supabase = createSupabaseServerClient();
@@ -330,15 +379,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "This MakaLearn account is not active." }, { status: 403 });
     }
 
-    const { data: itemRows, error: itemError } = await supabase
-      .from("learning_items")
-      .select("*")
-      .in("id", requestedLearningItemIds)
-      .limit(5);
+    const [{ data: itemRows, error: itemError }, { data: libraryRows, error: libraryError }, { data: categoryRows, error: categoryError }] =
+      await Promise.all([
+        supabase.from("learning_items").select("*").in("id", requestedLearningItemIds).limit(5),
+        supabase.from("learning_items").select("*").eq("content_type", "pecs").not("symbol_image_url", "is", null),
+        supabase.from("categories").select("id,name")
+      ]);
 
-    if (itemError) {
-      throw itemError;
-    }
+    if (itemError) throw itemError;
+    if (libraryError) throw libraryError;
+    if (categoryError) throw categoryError;
 
     const itemById = new Map((itemRows ?? []).map((row) => [row.id, mapLearningItemRow(row)]));
     missingLearningItems = requestedLearningItemIds.flatMap((id) => {
@@ -346,9 +396,26 @@ export async function POST(request: Request) {
       return item ? [item] : [];
     });
 
-    if (!missingLearningItems.length) {
+    if (missingLearningItems.length !== requestedLearningItemIds.length) {
       return NextResponse.json({ error: "Choose learning items that exist in Supabase." }, { status: 400 });
     }
+    if (missingLearningItems.some((item) => item.contentType !== "pecs" || !item.symbolImageUrl)) {
+      return NextResponse.json({ error: "AI activity questions require PECS learning materials with pictures." }, { status: 400 });
+    }
+
+    const eligiblePecsItems = ensurePecsManifestItems((libraryRows ?? []).map(mapLearningItemRow)).filter(
+      (item) => item.contentType === "pecs" && Boolean(item.symbolImageUrl)
+    );
+    const categoryNameById = Object.fromEntries((categoryRows ?? []).map((category) => [category.id, category.name]));
+    const conflictingItemsById = Object.fromEntries(
+      missingLearningItems.map((item) => [
+        item.id,
+        eligiblePecsItems.filter(
+          (candidate) => candidate.id !== item.id && isUnsafeActivityDistractor(activityType, item, candidate)
+        )
+      ])
+    );
+    draftContext = { categoryNameById, conflictingItemsById };
   } catch (error) {
     console.error("Supabase activity draft setup failed.", error);
     return NextResponse.json({ error: "Supabase is required before drafting activity prompts." }, { status: 503 });
@@ -358,7 +425,7 @@ export async function POST(request: Request) {
 
   try {
     if (!body.regenerate) {
-      const cached = await getCachedGeneration(supabase, activityType, materialHash, missingLearningItems);
+      const cached = await getCachedGeneration(supabase, activityType, materialHash, missingLearningItems, draftContext);
       if (cached) {
         await logAiUsage(supabase, {
           user_id: userId,
@@ -393,11 +460,14 @@ export async function POST(request: Request) {
       return fallbackDraft(
         activityType,
         missingLearningItems,
-        "AI limit reached. Editable starter prompts were added.",
+        limitStatus.rateLimit.retryAfterSeconds
+          ? "A draft was just created for these materials. Wait a moment before trying again."
+          : "The hourly or daily AI limit was reached. Editable starter prompts were added.",
         "rate-limited",
         materialHash,
         200,
-        limitStatus.rateLimit
+        limitStatus.rateLimit,
+        draftContext
       );
     }
   } catch (error) {
@@ -407,13 +477,18 @@ export async function POST(request: Request) {
       missingLearningItems,
       "AI drafting could not check saved drafts or usage. Editable starter prompts were added.",
       "local-fallback",
-      materialHash
+      materialHash,
+      200,
+      undefined,
+      draftContext
     );
   }
 
-  const token = process.env.HUGGINGFACE_API_TOKEN || process.env.HF_TOKEN;
+  // This key is intentionally separate from GEMINI_API_KEY, which is reserved for
+  // gesture corrective feedback. Activity drafting cannot change gesture recognition.
+  const apiKey = process.env.GEMINI_ACTIVITY_API_KEY?.trim();
 
-  if (!token) {
+  if (!apiKey) {
     await logAiUsage(supabase, {
       user_id: userId,
       feature: ACTIVITY_DRAFT_FEATURE,
@@ -428,9 +503,15 @@ export async function POST(request: Request) {
       missingLearningItems,
       "AI questions are not available right now. Editable starter prompts were added.",
       "local-fallback",
-      materialHash
+      materialHash,
+      200,
+      undefined,
+      draftContext
     );
   }
+
+  let providerFailureLogged = false;
+  let modelRequestCount = 1;
 
   try {
     await logAiUsage(supabase, {
@@ -442,13 +523,48 @@ export async function POST(request: Request) {
       model
     });
 
-    const content = await requestHuggingFaceDraft(token, model, activityType, missingLearningItems);
-    const parsed = parsePromptDraftText(content, activityType, missingLearningItems);
-    const suggestions = parsed.suggestions.length
-      ? parsed.suggestions
-      : createLocalFallbackPromptSuggestions(activityType, missingLearningItems);
+    let content: string;
+    try {
+      content = await requestGeminiDraft(apiKey, model, activityType, missingLearningItems, draftContext);
+    } catch (error) {
+      await logAiUsage(supabase, {
+        user_id: userId,
+        feature: ACTIVITY_DRAFT_FEATURE,
+        activity_type: activityType,
+        material_hash: materialHash,
+        event_type: "model-failure",
+        model
+      });
+      providerFailureLogged = true;
 
-    if (!parsed.suggestions.length) {
+      const retryLimit = await getRateLimitStatus(supabase, userId, materialHash, true);
+      if (
+        !canRetryActivityDraftCall({
+          modelRequestCount,
+          retryable: error instanceof GeminiDraftRequestError && error.retryable,
+          rateAllowed: retryLimit.allowed
+        })
+      ) {
+        throw error;
+      }
+
+      await logAiUsage(supabase, {
+        user_id: userId,
+        feature: ACTIVITY_DRAFT_FEATURE,
+        activity_type: activityType,
+        material_hash: materialHash,
+        event_type: "model-request",
+        model
+      });
+      modelRequestCount += 1;
+      providerFailureLogged = false;
+      content = await requestGeminiDraft(apiKey, model, activityType, missingLearningItems, draftContext);
+    }
+    const parsed = parsePromptDraftText(content, activityType, missingLearningItems, draftContext);
+    let geminiSuggestions = parsed.suggestions;
+    let unresolvedItems = getUnresolvedPromptItems(missingLearningItems, geminiSuggestions);
+
+    if (unresolvedItems.length) {
       await logAiUsage(supabase, {
         user_id: userId,
         feature: ACTIVITY_DRAFT_FEATURE,
@@ -458,68 +574,155 @@ export async function POST(request: Request) {
         model
       });
 
-      return jsonDraft({
-        source: "local-fallback",
-        note: "AI questions were not usable. Editable starter prompts were added.",
-        suggestions,
-        materialHash
-      });
+      // At most one automatic retry is made per click. A transient provider retry and a wording-repair
+      // retry both consume quota, so a provider retry uses the one available retry slot.
+      const retryLimit = await getRateLimitStatus(supabase, userId, materialHash, true);
+      if (canRetryActivityDraftCall({ modelRequestCount, retryable: true, rateAllowed: retryLimit.allowed })) {
+        const retryReasonsById = Object.fromEntries(
+          unresolvedItems.map((item) => [
+            item.id,
+            parsed.issues?.find((issue) => issue.learningItemId === item.id)?.reasons ?? ["Return one valid prompt for this item."]
+          ])
+        );
+        const retryContext = { ...draftContext, retryReasonsById };
+        await logAiUsage(supabase, {
+          user_id: userId,
+          feature: ACTIVITY_DRAFT_FEATURE,
+          activity_type: activityType,
+          material_hash: materialHash,
+          event_type: "model-request",
+          model
+        });
+        modelRequestCount += 1;
+
+        try {
+          const retryContent = await requestGeminiDraft(apiKey, model, activityType, unresolvedItems, retryContext);
+          const retryParsed = parsePromptDraftText(retryContent, activityType, unresolvedItems, retryContext);
+          geminiSuggestions = mergeActivityPromptSuggestions(
+            missingLearningItems,
+            geminiSuggestions,
+            retryParsed.suggestions
+          );
+          unresolvedItems = getUnresolvedPromptItems(missingLearningItems, geminiSuggestions);
+          if (unresolvedItems.length) {
+            await logAiUsage(supabase, {
+              user_id: userId,
+              feature: ACTIVITY_DRAFT_FEATURE,
+              activity_type: activityType,
+              material_hash: materialHash,
+              event_type: "model-failure",
+              model
+            });
+          }
+        } catch (error) {
+          console.error("Gemini activity draft repair failed.", error);
+          await logAiUsage(supabase, {
+            user_id: userId,
+            feature: ACTIVITY_DRAFT_FEATURE,
+            activity_type: activityType,
+            material_hash: materialHash,
+            event_type: "model-failure",
+            model
+          });
+        }
+      }
     }
 
     let version = 0;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      version = (await getLatestGenerationVersion(supabase, activityType, materialHash)) + 1;
-      const { error: insertError } = await supabase.from("activity_prompt_generations").insert({
-        activity_type: activityType,
-        material_hash: materialHash,
-        prompt_template_version: ACTIVITY_PROMPT_TEMPLATE_VERSION,
-        learning_item_ids: missingLearningItems.map((item) => item.id),
-        prompts: suggestions,
-        source: "hugging-face",
-        model,
-        version,
-        created_by: userId
-      });
+    if (!unresolvedItems.length && geminiSuggestions.length === missingLearningItems.length) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        version = (await getLatestGenerationVersion(supabase, activityType, materialHash)) + 1;
+        const { error: insertError } = await supabase.from("activity_prompt_generations").insert({
+          activity_type: activityType,
+          material_hash: materialHash,
+          prompt_template_version: ACTIVITY_PROMPT_TEMPLATE_VERSION,
+          learning_item_ids: missingLearningItems.map((item) => item.id),
+          prompts: geminiSuggestions,
+          source: "gemini",
+          model,
+          version,
+          created_by: userId
+        });
 
-      if (!insertError) break;
-      // Another request may have claimed the same next version. Re-read and retry once.
-      if (insertError.code === "23505" && attempt === 0) continue;
-      throw insertError;
+        if (!insertError) break;
+        // Another request may have claimed the same next version. Re-read and retry once.
+        if (insertError.code === "23505" && attempt === 0) continue;
+        throw insertError;
+      }
     }
 
-    await logAiUsage(supabase, {
-      user_id: userId,
-      feature: ACTIVITY_DRAFT_FEATURE,
-      activity_type: activityType,
-      material_hash: materialHash,
-      event_type: "model-success",
-      model
-    });
+    if (geminiSuggestions.length) {
+      await logAiUsage(supabase, {
+        user_id: userId,
+        feature: ACTIVITY_DRAFT_FEATURE,
+        activity_type: activityType,
+        material_hash: materialHash,
+        event_type: "model-success",
+        model
+      });
+    }
+
+    const fallbackSuggestions = createLocalFallbackPromptSuggestions(activityType, unresolvedItems, draftContext);
+    const suggestions = mergeActivityPromptSuggestions(
+      missingLearningItems,
+      geminiSuggestions,
+      fallbackSuggestions
+    );
+    const fallbackIds = new Set(fallbackSuggestions.map((suggestion) => suggestion.learningItemId));
+    const issues: ActivityPromptIssue[] = unresolvedItems.map((item) =>
+      fallbackIds.has(item.id)
+        ? {
+            learningItemId: item.id,
+            label: item.label,
+            code: "local-fallback-used",
+            message: "Gemini wording was rejected. A checked starter prompt was used instead."
+          }
+        : {
+            learningItemId: item.id,
+            label: item.label,
+            code: "needs-teacher-input",
+            message: "Gemini wording was rejected. Please write this prompt yourself."
+          }
+    );
+    const source: ActivityDraftResult["source"] = unresolvedItems.length
+      ? geminiSuggestions.length
+        ? "mixed"
+        : "local-fallback"
+      : "gemini";
+    const note = unresolvedItems.length
+      ? `${geminiSuggestions.length} AI ${geminiSuggestions.length === 1 ? "prompt passed" : "prompts passed"}; ${unresolvedItems.length} ${unresolvedItems.length === 1 ? "item needs" : "items need"} a checked fallback or teacher review.`
+      : `${suggestions.length} reusable ${suggestions.length === 1 ? "prompt was" : "prompts were"} checked and saved in Supabase.`;
 
     return jsonDraft({
-      source: "hugging-face",
-      note: `${suggestions.length} reusable ${suggestions.length === 1 ? "prompt was" : "prompts were"} drafted and saved in Supabase.`,
+      source,
+      note,
       suggestions,
+      issues,
       materialHash,
-      version
+      version: version || undefined
     });
   } catch (error) {
-    console.error("Hugging Face activity draft failed.", error);
-    await logAiUsage(supabase, {
-      user_id: userId,
-      feature: ACTIVITY_DRAFT_FEATURE,
-      activity_type: activityType,
-      material_hash: materialHash,
-      event_type: "model-failure",
-      model
-    });
+    console.error("Gemini activity draft failed.", error);
+    if (!providerFailureLogged) {
+      await logAiUsage(supabase, {
+        user_id: userId,
+        feature: ACTIVITY_DRAFT_FEATURE,
+        activity_type: activityType,
+        material_hash: materialHash,
+        event_type: "model-failure",
+        model
+      });
+    }
 
     return fallbackDraft(
       activityType,
       missingLearningItems,
       "AI questions are not available right now. Editable starter prompts were added.",
       "local-fallback",
-      materialHash
+      materialHash,
+      200,
+      undefined,
+      draftContext
     );
   }
 }

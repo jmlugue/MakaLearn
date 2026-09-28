@@ -45,6 +45,7 @@ src/
 
 - `/` landing page
 - `/login` Supabase Auth sign-in
+- `/request-account` public teacher account request form with admin review
 - `/content` PECS and gesture content library with in-app media previews
 - `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, trained local recognition, and Gemini-first corrective feedback with template fallback
 - `/activities` PECS and gesture-practice activity library, player, manual creator, adaptive question generation, and draft helper
@@ -71,16 +72,16 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - PECS and gesture images/videos/audio can be previewed inside the website.
 - Activities can be created from PECS cards or gesture records. Gesture-practice activities use teacher-completed scoring options.
 - Activity question generation adapts to each PECS card label and description, so greetings and choices do not use request-only wording.
-- The Draft with AI button in Activity creation uses a Supabase-backed cache before calling Hugging Face. It only drafts PECS fill-in-the-blank or choose-correct-symbol prompts, and Generate new version consumes quota.
+- The Draft with AI button in Activity creation uses a Supabase-backed cache before calling Gemini with its own activity-only API key. It only drafts PECS fill-in-the-blank or legacy choose-correct-symbol prompts. Gemini text must pass one-sentence, 5-to-12-word, answer-leak, suitability, and semantic-conflict checks before it is shown. Invalid items get one quota-counted repair call; checked question-bank text is used when repair still fails.
 - Drag-and-drop answers remain visual cards after dropping, and scored incorrect answers use red feedback.
 - Saving a PECS lesson creates a related playable activity and the lesson shows an Open activity action. Gesture lessons show a Practice gesture action.
 - Activity scoring writes result summaries to Supabase and keeps the current player state in memory while an activity is open.
 - The real icon-only logo is served from `public/makalearn_logo_current.png` and used in the primary brand surfaces.
-- Admins can create teacher accounts, deactivate/reactivate teachers, change roles, monitor teacher-managed content, review uploads, and see logs through Supabase-backed flows.
+- Admins can approve or reject teacher account requests, create accounts directly, deactivate/reactivate teachers, change roles, monitor teacher-managed content, review uploads, and see logs through Supabase-backed flows.
 
 ## Auth and data
 
-MakaLearn uses Supabase Auth for admin and teacher accounts. Teacher sign-in routes to `/content`; admin sign-in routes to `/admin`.
+MakaLearn uses Supabase Auth for admin and teacher accounts. Teacher sign-in routes to `/content`; admin sign-in routes to `/admin`. Public signup remains disabled. A visitor may submit a row to `account_requests`, but no Auth user or active profile exists until an active admin approves the request and sets a temporary password. Rejection creates no login account.
 
 Development/demo records live in `supabase/seed.sql`. The app does not use `localStorage` or mock TypeScript data as real persistence for users, learners, content, uploads, activities, prompt cache, scoring, or usage limits.
 
@@ -90,13 +91,17 @@ Create `.env.local` from `.env.example`:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_ACTIVITY_API_KEY=
+GEMINI_ACTIVITY_MODEL=gemini-3.5-flash-lite
 ```
 
-For Hugging Face activity drafts, add `HUGGINGFACE_API_TOKEN` or `HF_TOKEN` with Inference Providers access. The default model is `openai/gpt-oss-120b:fastest`; set `HUGGINGFACE_ACTIVITY_MODEL` to try another Hugging Face chat-completion model.
+For activity drafts, add a separate `GEMINI_ACTIVITY_API_KEY`. `GEMINI_ACTIVITY_MODEL` defaults to `gemini-3.5-flash-lite`. The activity route sends only the selected teaching material's ID, label, category, description, instruction, tags, sentence role, and conflicting card labels plus the classroom-question rules. These reference fields are explicitly treated as untrusted data. Gemini never receives camera frames, hand landmarks, gesture predictions, learner identity, or classroom notes.
 
 For gesture corrective feedback, add `GEMINI_API_KEY`. `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`. The server sends only structured recognition data, not camera frames, images, learner identity, or classroom notes; local templates are used when Gemini is missing, slow, malformed, too long, or unsafe.
 
-AI activity drafting requires Supabase for authenticated cache and quota checks before model calls. If Supabase or Hugging Face is unavailable, the server returns editable rule-based starter prompts so the teacher can continue without spending model usage.
+AI activity drafting requires Supabase for authenticated cache and quota checks before model calls. Each user may make 10 model calls per rolling hour and 40 per rolling day, with a 60-second cooldown after a successful draft for the same material set. One automatic retry may repair invalid wording or recover from a transient provider failure; it counts as a second call and runs only when hourly and daily capacity remains. Cache hits do not consume quota; failed calls still consume hourly/daily quota but do not start the same-material cooldown. If Supabase or the activity Gemini key is unavailable, the server returns editable checked question-bank prompts where available.
 
 ## Supabase setup
 
@@ -114,12 +119,14 @@ Apply the Supabase-only migration:
 npx supabase db push
 ```
 
-Create the demo Supabase Auth users before loading seed data:
+Database migrations do not change the hosted Auth service configuration. For each hosted project, open Authentication settings and turn off **Allow new users to sign up**, while keeping the Email provider enabled so existing and administrator-provisioned accounts can still sign in. The local `supabase/config.toml` mirrors that invite-only setup with `[auth].enable_signup = false` and `[auth.email].enable_signup = true`.
 
-- `admin@makalearn.local` with user metadata role `admin`
-- `teacher@makalearn.local` with user metadata role `teacher`
+MakaLearn accounts are provisioned by administrators. Public users request teacher access from `/request-account`; admins review those requests in Admin > Accounts. Create the demo Supabase Auth users through Supabase Studio or another trusted Auth-admin flow before loading seed data:
 
-The auth trigger creates matching `profiles` rows. Then load `supabase/seed.sql` through Supabase Studio/SQL editor, or let the local CLI load it during `npx supabase db reset`.
+- `admin@makalearn.local`
+- `teacher@makalearn.local`
+
+The auth trigger creates matching profiles as invited teachers and ignores role metadata. Then load `supabase/seed.sql` through Supabase Studio/SQL editor, or let the local CLI load it during `npx supabase db reset`; the seed promotes the demo admin and activates both demo accounts. Normal application provisioning uses the guarded Admin account flow, which assigns the requested role and activates the new profile only after an active administrator is authenticated.
 
 Inventory and upload existing learning material media to Supabase Storage:
 
@@ -136,7 +143,7 @@ Planned updates before production:
 
 - Review schema, RLS, and seed data against real teacher/admin rollout needs.
 - Review the trained gesture model, Gemini corrective feedback wording, privacy controls, and teacher-supervision language before production use.
-- Review Hugging Face activity drafting for privacy, model quality, age appropriateness, quota limits, and API key handling before production use.
+- Review Gemini activity drafting for privacy, model quality, age appropriateness, quota limits, and API key handling before production use.
 - Decide whether learner profile management returns in a later phase.
 
 ## Placeholder logic notes
@@ -144,5 +151,5 @@ Planned updates before production:
 - PECS and gesture media are placeholders and must not be treated as official Makaton content.
 - `generateCorrectiveFeedbackPlaceholder` and `generateFeedbackPlaceholder` are marked for future model/AI replacement.
 - Gesture hand tracking is a presentation simulation. It accepts one or two visible hands and one person in the UI but does not perform real recognition.
-- The AI activity draft can use Hugging Face when configured, but only after Supabase cache and usage checks pass. Gesture-practice, match, drag/drop, and local scoring do not call the model.
+- The AI activity draft can use its isolated Gemini key when configured, but only after Supabase cache and usage checks pass. Gesture-practice, match, drag/drop, and local scoring do not call the activity model.
 - Playground validation is local rule-based logic, not NLP, grammar correction, or AI.

@@ -2,7 +2,8 @@
  * The rules every question in MakaLearn's question bank must pass. Written for early primary SPED learners
  * (Kinder to Grade 2 words): short, natural sentences that make the one right answer clear, and nothing unfair
  * or confusing. `scripts/test-question-bank.mjs` runs every bank question through `checkQuestion`.
- * Teacher-typed and AI-drafted questions are not checked here (the owner's decision).
+ * Bank questions and Gemini drafts use these checks. Teacher-typed questions keep the activity form's
+ * lighter validation so a teacher can adapt wording for an individual learner.
  */
 
 export type QuestionKind = "fill" | "choose";
