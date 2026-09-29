@@ -56,9 +56,9 @@ const fillBlankAlsoFits: Record<string, string[]> = {
   // "Now I am ____." also takes any feeling.
   finished: [...activityMeaningGroups.feelings],
   yes: ["please"],
-  // "I need some ____." also takes help, rest, or a drink.
+  // Older "I need some ____." also took help, rest, or a drink; kept so they stay out.
   food: ["help", "rest", ...activityMeaningGroups.drink],
-  // "Now I need a ____." also takes a drink.
+  // "I take a short ____." also takes a drink.
   rest: [...activityMeaningGroups.drink],
   // "I say ____." also takes a polite word (no thank you).
   no: [...activityMeaningGroups.polite],

@@ -12,9 +12,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   hello: {
     group: "greeting",
     fill: [
-      "I say ____ to my new classmate.",
-      "I say ____ when I see my friend.",
-      "I say ____ when I answer the phone."
+      "I say ____ when I greet someone.",
+      "I say ____ when I answer the phone.",
+      "I wave my hand and say ____ when I see my friend."
     ],
     choose: [
       "What do we say when we meet someone?",
@@ -38,9 +38,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   "good morning": {
     group: "greeting",
     fill: [
-      "I say ____ to my teacher when I get to school.",
       "I say ____ to my family when I wake up.",
-      "We say ____ at the start of the school day."
+      "I say ____ to my teacher when I get to school.",
+      "I say ____ to my classmates when I walk into our classroom."
     ],
     choose: [
       "What do we say at the start of the day?",
@@ -77,9 +77,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   sorry: {
     group: "greeting",
     fill: [
+      "I say ____ when I make a mistake.",
       "I say ____ when I bump into my friend.",
-      "I say ____ when I spill my juice.",
-      "I say ____ when I make a mistake."
+      "I say ____ when I spill my juice."
     ],
     choose: [
       "What do we say when we make a mistake?",
@@ -90,9 +90,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   happy: {
     group: "feeling",
     fill: [
-      "I feel ____ when everyone sings on my birthday.",
-      "I feel ____ when I get a gold star.",
-      "I feel ____ when I play with my friend."
+      "I feel ____ when I get a perfect score.",
+      "I feel ____ when I get a gift.",
+      "I feel ____ on my birthday."
     ],
     choose: [
       "How do I feel on my birthday?",
@@ -103,9 +103,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   sad: {
     group: "feeling",
     fill: [
-      "I feel ____ because my blue balloon flew away.",
       "I feel ____ when my toy breaks.",
-      "I feel ____ when I miss my friend."
+      "I feel ____ when I cannot play outside today.",
+      "I feel ____ when my friend cannot come to play."
     ],
     choose: [
       "How do I feel when my toy breaks?",
@@ -117,8 +117,8 @@ export const builtInQuestions: Record<string, BankEntry> = {
     group: "feeling",
     fill: [
       "I feel ____ when someone takes my toy.",
-      "I feel ____ when someone pushes me.",
-      "I feel ____ when someone breaks my blocks."
+      "I feel ____ when someone throws my bag.",
+      "I feel ____ when someone breaks my crayons."
     ],
     choose: [
       "How do I feel when someone takes my toy?",
@@ -129,9 +129,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   scared: {
     group: "feeling",
     fill: [
-      "I feel ____ when I am all alone.",
       "I feel ____ when the thunder is loud.",
-      "I feel ____ when a big dog barks at me."
+      "I feel ____ when I get lost in the mall.",
+      "I feel ____ when I see a big spider."
     ],
     choose: [
       "How do I feel when the thunder is loud?",
@@ -143,8 +143,8 @@ export const builtInQuestions: Record<string, BankEntry> = {
     group: "feeling",
     fill: [
       "I feel ____ after playing all day.",
-      "I feel ____ after a long run.",
-      "I yawn at night because I feel ____."
+      "I feel ____ when I stay up late.",
+      "I feel ____ when I wake up very early."
     ],
     choose: [
       "How do I feel after playing all day?",
@@ -155,9 +155,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   sick: {
     group: "feeling",
     fill: [
-      "I stay home from school because I feel ____.",
+      "I see the doctor when I feel ____.",
       "I feel ____ when I have a fever.",
-      "I feel ____ when I have a cough."
+      "I stay home from school when I feel ____."
     ],
     choose: [
       "How do I feel when I have a fever?",
@@ -181,9 +181,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   you: {
     group: "person",
     fill: [
-      "Do ____ want to play with me?",
-      "Can ____ help me with my bag?",
-      "Are ____ my friend?"
+      "Can ____ help me, please?",
+      "Do ____ want to play with me after lunch?",
+      "Are ____ ready to go when the bell rings?"
     ],
     choose: [
       "Which word means the person I talk to?",
@@ -233,9 +233,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   friend: {
     group: "person",
     fill: [
-      "I play with my ____ at recess.",
-      "My ____ and I share our toys.",
-      "I sit next to my ____ in class."
+      "My best ____ and I play tag at recess.",
+      "I share my toys with my best ____.",
+      "My best ____ comes to my birthday party."
     ],
     choose: [
       "Who do I play with at recess?",
@@ -272,9 +272,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   food: {
     group: "food",
     fill: [
-      "I am hungry, so I need some ____.",
-      "We buy ____ at the store.",
-      "I eat all the ____ on my plate."
+      "I eat rice, bread, and other kinds of ____.",
+      "I eat many kinds of ____ at lunch.",
+      "I buy all kinds of ____ at the store."
     ],
     choose: [
       "What do I need when my tummy is rumbling?",
@@ -389,9 +389,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   look: {
     group: "action",
     fill: [
-      "Please ____ at the board.",
       "I ____ both ways before I cross the road.",
-      "I ____ up at the birds in the sky."
+      "I ____ in the mirror when I comb my hair.",
+      "I ____ up at the sky when a plane flies by."
     ],
     choose: [
       "What do our eyes do when the teacher points?",
@@ -454,7 +454,7 @@ export const builtInQuestions: Record<string, BankEntry> = {
   toilet: {
     group: "need",
     fill: [
-      "I need to pee, so I go to the ____.",
+      "I flush the ____ after I pee.",
       "I wash my hands after I use the ____.",
       "I ask my teacher if I can use the ____."
     ],
@@ -480,9 +480,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   rest: {
     group: "action",
     fill: [
-      "I lie down for a ____ after playing.",
-      "My legs are tired, so I need a ____.",
-      "We take a short ____ after hard work."
+      "My legs are tired, so I take a short ____.",
+      "After the race, I take a ____ on the bench.",
+      "We take a quick ____ between games."
     ],
     choose: [
       "What do I need when my body wants a break?",
@@ -493,9 +493,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   sleep: {
     group: "action",
     fill: [
-      "I close my eyes and ____ at night.",
-      "I go to bed to ____.",
-      "The baby needs to ____ in the crib."
+      "At night, I get into bed and go to ____.",
+      "I brush my teeth before I go to ____.",
+      "I turn off the light when it is time to ____."
     ],
     choose: [
       "What do I do in bed at night?",
@@ -519,7 +519,7 @@ export const builtInQuestions: Record<string, BankEntry> = {
   more: {
     group: "word",
     fill: [
-      "I am still hungry, so I want ____ rice.",
+      "I am still hungry, so I want ____ food.",
       "The song is fun, so we sing it one ____ time.",
       "I want one ____ turn on the swing."
     ],
@@ -532,9 +532,9 @@ export const builtInQuestions: Record<string, BankEntry> = {
   finished: {
     group: "word",
     fill: [
-      "I colored the whole picture, and now I am ____.",
-      "I am ____ with my work.",
-      "The story is ____, so I close my book."
+      "I put my pencil down because my work is ____.",
+      "I put my crayons away when my picture is ____.",
+      "I clean up when I am ____ playing."
     ],
     choose: [
       "What do I say when my work is all done?",
@@ -572,8 +572,8 @@ export const builtInQuestions: Record<string, BankEntry> = {
     group: "feeling",
     fill: [
       "I got ____ when I fell off my bike.",
-      "My knee is ____ because I fell down.",
-      "My arm is ____ because the ball hit it."
+      "I ____ my knee when I fell down.",
+      "I ____ my arm when the ball hit it."
     ],
     choose: [
       "What am I when I fall and scrape my knee?",
@@ -669,7 +669,9 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   hello: [
     "A new classmate comes in. I wave and say ____.",
     "I see my friend at the gate. I smile and say ____.",
-    "The phone rings. I pick it up and say ____."
+    "The phone rings. I pick it up and say ____.",
+    "I say ____ to my new classmate.",
+    "I say ____ when I see my friend."
   ],
   goodbye: [
     "School is over. I wave and say ____.",
@@ -679,7 +681,8 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   "good morning": [
     "I arrive at school. I say ____ to my teacher.",
     "The sun is up and I wake up. I say ____ to Mom.",
-    "It is the start of the school day. We say ____."
+    "It is the start of the school day. We say ____.",
+    "We say ____ at the start of the school day."
   ],
   "thank you": [
     "My friend helps me. I say ____.",
@@ -699,32 +702,45 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   happy: [
     "Everyone sings on my birthday. I feel ____.",
     "I got a gold star today. I feel ____.",
-    "My friend plays with me. I smile and feel ____."
+    "My friend plays with me. I smile and feel ____.",
+    "I feel ____ when everyone sings on my birthday.",
+    "I feel ____ when I get a gold star.",
+    "I feel ____ when I play with my friend."
   ],
   sad: [
     "My balloon flew away. I feel ____.",
     "My toy is broken. I cry and feel ____.",
-    "My friend moved away. I miss her and feel ____."
+    "My friend moved away. I miss her and feel ____.",
+    "I feel ____ because my blue balloon flew away.",
+    "I feel ____ when I miss my friend."
   ],
   angry: [
     "My friend took my toy. I feel ____.",
     "Someone pushed me in line. I feel ____.",
-    "My brother broke my blocks on purpose. I feel ____."
+    "My brother broke my blocks on purpose. I feel ____.",
+    "I feel ____ when someone pushes me.",
+    "I feel ____ when someone breaks my blocks."
   ],
   scared: [
     "The thunder is so loud. I feel ____.",
     "It is very dark in my room. I feel ____.",
-    "A big dog barks at me. I feel ____."
+    "A big dog barks at me. I feel ____.",
+    "I feel ____ when I am all alone.",
+    "I feel ____ when a big dog barks at me."
   ],
   tired: [
     "I played all day. Now I feel ____.",
     "I ran around the field. Now I feel ____.",
-    "It is late at night. I yawn and feel ____."
+    "It is late at night. I yawn and feel ____.",
+    "I feel ____ after a long run.",
+    "I yawn at night because I feel ____."
   ],
   sick: [
     "I have a fever. I feel ____.",
     "My tummy hurts and my head aches. I feel ____.",
-    "I have a cough and a runny nose. I feel ____."
+    "I have a cough and a runny nose. I feel ____.",
+    "I stay home from school because I feel ____.",
+    "I feel ____ when I have a cough."
   ],
   i: [
     "I point to myself. ____ am ready to learn.",
@@ -734,7 +750,10 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   you: [
     "I point to my friend. Do ____ want to play?",
     "I give my friend a ball. This is for ____.",
-    "I ask my teacher a question. Can ____ help me?"
+    "I ask my teacher a question. Can ____ help me?",
+    "Do ____ want to play with me?",
+    "Can ____ help me with my bag?",
+    "Are ____ my friend?"
   ],
   mother: [
     "My mom cooks for us. She is my ____.",
@@ -754,7 +773,10 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   friend: [
     "At recess, I play tag with my ____.",
     "We share our snacks. You are my best ____.",
-    "We laugh and play at recess. You are my ____."
+    "We laugh and play at recess. You are my ____.",
+    "I play with my ____ at recess.",
+    "My ____ and I share our toys.",
+    "I sit next to my ____ in class."
   ],
   eat: [
     "It is lunch time. I want to ____ my sandwich.",
@@ -769,7 +791,10 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   food: [
     "My tummy is rumbling. I need some ____.",
     "It is lunch time. Mom brings us some ____.",
-    "I am very hungry. Please give me some ____."
+    "I am very hungry. Please give me some ____.",
+    "I am hungry, so I need some ____.",
+    "We buy ____ at the store.",
+    "I eat all the ____ on my plate."
   ],
   water: [
     "It is hot. Can I have a glass of ____?",
@@ -814,7 +839,9 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   look: [
     "The teacher points at the board. Please ____ at it.",
     "A bird is in the sky. ____ up at it!",
-    "Before I cross the road, I ____ both ways."
+    "Before I cross the road, I ____ both ways.",
+    "Please ____ at the board.",
+    "I ____ up at the birds in the sky."
   ],
   read: [
     "I open my book. I ____ the story.",
@@ -839,7 +866,8 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   toilet: [
     "I need to pee. I go to the ____.",
     "After I use the ____, I wash my hands.",
-    "I need to poo. Teacher, can I go to the ____?"
+    "I need to poo. Teacher, can I go to the ____?",
+    "I need to pee, so I go to the ____."
   ],
   help: [
     "I cannot tie my shoe. Can you ____ me?",
@@ -849,12 +877,18 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   rest: [
     "I ran a lot. Now I need a ____.",
     "My body feels tired after play. I lie down for a ____.",
-    "We worked hard today. Let us take a short ____."
+    "We worked hard today. Let us take a short ____.",
+    "I lie down for a ____ after playing.",
+    "My legs are tired, so I need a ____.",
+    "We take a short ____ after hard work."
   ],
   sleep: [
     "It is night. I close my eyes and ____.",
     "I am so tired. I go to bed to ____.",
-    "The baby is in the crib. Shh, the baby needs to ____."
+    "The baby is in the crib. Shh, the baby needs to ____.",
+    "I close my eyes and ____ at night.",
+    "I go to bed to ____.",
+    "The baby needs to ____ in the crib."
   ],
   "wash hands": [
     "Lunch is ready. First, we go and ____.",
@@ -864,12 +898,16 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   more: [
     "I am still hungry. Can I have some ____?",
     "The song is fun. Sing it one ____ time!",
-    "I finished my juice. May I have ____, please?"
+    "I finished my juice. May I have ____, please?",
+    "I am still hungry, so I want ____ rice."
   ],
   finished: [
     "I colored the whole picture. Now I am ____.",
     "I ate all my food. My plate is empty. I am ____.",
-    "We read the last page. The story is ____."
+    "We read the last page. The story is ____.",
+    "I colored the whole picture, and now I am ____.",
+    "I am ____ with my work.",
+    "The story is ____, so I close my book."
   ],
   danger: [
     "The sign says to keep out. It warns us of ____.",
@@ -884,7 +922,9 @@ export const retiredBuiltInFill: Record<string, string[]> = {
   hurt: [
     "I fell and scraped my knee. I am ____.",
     "The ball hit my arm. It is ____.",
-    "I bumped my head on the door. Ouch, I am ____!"
+    "I bumped my head on the door. Ouch, I am ____!",
+    "My knee is ____ because I fell down.",
+    "My arm is ____ because the ball hit it."
   ],
   yes: [
     "Do you want to play outside? I nod and say ____.",

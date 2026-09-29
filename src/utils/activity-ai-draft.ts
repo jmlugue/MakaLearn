@@ -274,8 +274,11 @@ export function validateAiActivityPrompt(
   }
 
   const namedConflicts = (context.conflictingItemsById?.[item.id] ?? []).filter((candidate) => {
-    if (type === "fill-blank" && item.sentenceRole && candidate.sentenceRole && item.sentenceRole !== candidate.sentenceRole) {
-      return false;
+    if (type === "fill-blank") {
+      // Look-alike cards (Sad for Happy, Milk for Water) are never offered as choices for this question, so a
+      // Fill sentence is only unclear when it names one ("I eat bread and ____."). A hint word such as "feel"
+      // alone would reject every sentence for every word in a group.
+      return promptNamesLabel(prompt.replace(/_{3,}/g, " "), candidate.label);
     }
     return isQuestionRelatedDistractor(prompt, item, candidate);
   });

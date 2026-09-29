@@ -176,6 +176,28 @@ test("semantic-conflict context rejects a question that points to another valid 
   assert.match(result.issues[0].reasons.join(" "), /Could also point to: Bread/);
 });
 
+test("a Fill sentence is kept when look-alikes exist, and rejected only when it names one", () => {
+  const happy = { ...material, id: "pecs-happy", label: "Happy", categoryId: "cat-emotions", sentenceRole: "feeling" };
+  const sad = { ...material, id: "pecs-sad", label: "Sad", categoryId: "cat-emotions", sentenceRole: "feeling" };
+  const context = { conflictingItemsById: { [happy.id]: [sad] } };
+  const kept = draft.parsePromptDraftText(
+    JSON.stringify({ prompts: [{ learningItemId: happy.id, prompt: "I feel ____ when I get a gift." }] }),
+    "fill-blank",
+    [happy],
+    context
+  );
+  assert.deepEqual(kept.suggestions.map((suggestion) => suggestion.prompt), ["I feel ____ when I get a gift."]);
+
+  const named = draft.parsePromptDraftText(
+    JSON.stringify({ prompts: [{ learningItemId: happy.id, prompt: "I feel ____ and not sad at my party." }] }),
+    "fill-blank",
+    [happy],
+    context
+  );
+  assert.deepEqual(named.suggestions, []);
+  assert.match(named.issues[0].reasons.join(" "), /Could also point to: Sad/);
+});
+
 test("valid first and repair-pass suggestions merge in requested order", () => {
   const second = { ...material, id: "custom-coat", label: "Coat" };
   const merged = draft.mergeActivityPromptSuggestions(

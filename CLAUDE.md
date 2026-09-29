@@ -838,3 +838,32 @@ seeing they were right. Student mode only; the teacher player is unchanged.
 - Checked in the pane: 7 teacher guides, each Show me plays with no broken pictures, Go there opens Gesture practice
   and Student mode Activities in Student mode, How to play shows, no console errors. Admin guides not clicked
   signed in. Student mode is memory only: a full page load leaves it (by design).
+
+---
+
+## 20. Sep 29: click to carry, clearer Fill sentences (checked on a temporary page, not signed in)
+
+- **Click to carry:** in the playground, Student mode Drag and drop, and the teacher player's Drag and drop, a click or
+  tap picks a card up so it follows the pointer; the next click on a slot, the board, or a word box puts it down. A
+  click anywhere else or Escape lets it go. Holding and dragging works as before. All on-screen text says drag only;
+  never mention clicking (owner's request). The teacher player's old "or click a card" line was removed. A press that moves under 6px counts as a click (`TAP_SLOP_PX`).
+- **Fill sentences** rewritten for words where another card could also fit (owner's list): hello, good morning, the
+  six feelings, you, friend, food, look, toilet, rest, sleep, finished, more ("want ____ food"), and sorry. Owner's
+  pattern (from Sorry): a simple, obvious main sentence ("I say ____ when I make a mistake."), then two short
+  situations. Keep them simple, and check no other card fits (for You, "I" must not fit). Replaced sentences moved to `retiredBuiltInFill` so saved activities upgrade.
+- **Draft with AI fix (JM's check, owner approved):** for Fill in the blank, a Gemini sentence is rejected as
+  "Could also point to" only when it names a look-alike card. Before, a hint word ("feel", "drink") rejected every
+  sentence for grouped words, so Gemini output never reached teachers (live: 0 of 3 passed; after: 2 of 3). The
+  retired Choose type keeps the old strict rule. Test in `scripts/test-activity-ai-draft.mjs`.
+- **Playground on phones (< 640px):** the card area keeps a 38rem row and the panel scrolls, so cards stay visible
+  (was 34px high). Tablets and desktop unchanged.
+- **Live tests sign teachers out:** `test:app:db` resets a teacher password and deactivates/reactivates an account,
+  which ends that account's browser sessions. Sign in again in the pane after running it.
+- **Admin (Sep 29):** Accounts refreshes pending account requests every 30 seconds and when the tab becomes visible
+  again (`admin-panel-view.tsx`; skipped while the tab is hidden). The Activity log and Home read approve / reject as
+  "Approved an account request" / "Rejected an account request" (`describeActivity`, target type `account_request`;
+  the routes still save create / edit).
+- **Draft with AI is teachers only (Sep 29):** `/api/activity-draft` returns 403 for admins (view only; AI usage is
+  only recorded for teachers, so admins had no limit). Owner kept 1 automatic Gemini retry (not more).
+- **Account requests match existing emails ignoring capitals** (`ilike` with `%` and `_` escaped) in
+  `/api/account-requests`. The owner kept the plain "Could not draft with AI" message for a lost session.

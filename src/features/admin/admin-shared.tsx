@@ -193,6 +193,7 @@ const itemTypeNames: Record<string, string> = {
   teacher_account: "Account",
   account_role: "Account role",
   account_status: "Account status",
+  account_request: "Account request",
   teacher_password: "Password"
 };
 
@@ -227,6 +228,9 @@ export function describeActivity(log: AuditLog): { sentence: string; itemType: s
       return { sentence: /to deactivated\.?$/i.test(log.detail) ? "Deactivated an account" : "Activated an account", itemType };
     case "teacher_password":
       return { sentence: "Set a temporary password", itemType };
+    case "account_request":
+      // The routes save these as create / edit; the detail says which.
+      return { sentence: /\brejected\b/i.test(log.detail) ? "Rejected an account request" : "Approved an account request", itemType };
     default: {
       const noun = nouns[log.targetType];
       const verb = verbs[log.action];

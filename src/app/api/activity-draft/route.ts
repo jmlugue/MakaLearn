@@ -371,12 +371,16 @@ export async function POST(request: Request) {
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("id,status")
+      .select("id,role,status")
       .eq("id", userId)
       .single();
 
     if (profileError || !profile || profile.status !== "active") {
       return NextResponse.json({ error: "This MakaLearn account is not active." }, { status: 403 });
+    }
+    // Admins are view only, and AI usage limits are only recorded for teachers.
+    if (profile.role !== "teacher") {
+      return NextResponse.json({ error: "Only teachers can draft activity questions with AI." }, { status: 403 });
     }
 
     const [{ data: itemRows, error: itemError }, { data: libraryRows, error: libraryError }, { data: categoryRows, error: categoryError }] =

@@ -108,6 +108,30 @@ export function AdminPanelView() {
     };
   }, [notify]);
 
+  // Requests come in from the public form, so the pending list refreshes every 30 seconds and when the admin
+  // comes back to the tab, instead of only when the page opens.
+  useEffect(() => {
+    let active = true;
+    async function refreshRequests() {
+      if (document.visibilityState === "hidden") return;
+      try {
+        const pendingRequests = await fetchPendingAccountRequests();
+        if (active) setAccountRequests(pendingRequests);
+      } catch {
+        // Keep the list already on screen.
+      }
+    }
+    const timer = window.setInterval(refreshRequests, 30_000);
+    window.addEventListener("focus", refreshRequests);
+    document.addEventListener("visibilitychange", refreshRequests);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshRequests);
+      document.removeEventListener("visibilitychange", refreshRequests);
+    };
+  }, []);
+
   const reloadActivityLogs = useCallback(async () => {
     try {
       const firstPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE, ...rangeBounds(logRange) });

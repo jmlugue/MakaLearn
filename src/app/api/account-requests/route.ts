@@ -40,8 +40,11 @@ export async function POST(request: Request) {
 
   // Existing accounts and repeated pending requests get the same neutral reply.
   // This keeps the public form from revealing which email addresses are registered.
+  // Profiles may keep an email's original capitals, so match it ignoring case. The pattern is escaped so "_" and
+  // "%" in an address are compared as plain characters.
+  const emailPattern = email.replace(/[\\%_]/g, (character) => `\\${character}`);
   const [profileResult, pendingResult] = await Promise.all([
-    serviceClient.from("profiles").select("id").eq("email", email).maybeSingle(),
+    serviceClient.from("profiles").select("id").ilike("email", emailPattern).limit(1).maybeSingle(),
     serviceClient.from("account_requests").select("id").eq("email", email).eq("status", "pending").maybeSingle()
   ]);
 

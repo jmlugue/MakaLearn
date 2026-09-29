@@ -19,13 +19,21 @@ type DragState = {
   originY: number;
   width: number;
   height: number;
+  startX: number;
+  startY: number;
   overId: string;
   returning: boolean;
+  /** Picked up with a click or tap: the card follows the pointer until the next click puts it down. */
+  carrying: boolean;
 };
+
+// A press that moves less than this is a click or tap, not a drag.
+const TAP_SLOP_PX = 6;
 
 /**
  * Drag and drop in Student mode. Cards are dragged with a finger or the mouse (pointer events, since the
- * browser's own drag and drop does not work on touch screens). Tapping does nothing: it is a drag game.
+ * browser's own drag and drop does not work on touch screens). A click or tap picks a card up so it follows
+ * the pointer, and the next click puts it down.
  * The parent decides if a drop is right: a right card stays, a wrong one flies back to the tray.
  */
 export function StudentDragBoard({
@@ -78,30 +86,59 @@ export function StudentDragBoard({
 
     function onMove(event: PointerEvent) {
       const current = latest.current.drag;
-      if (!current || event.pointerId !== current.pointerId) return;
-      event.preventDefault();
+      if (!current || (!current.carrying && event.pointerId !== current.pointerId)) return;
+      if (!current.carrying) event.preventDefault();
       setDrag({ ...current, x: event.clientX, y: event.clientY, overId: dropTargetAt(event.clientX, event.clientY) });
     }
 
     function onUp(event: PointerEvent) {
       const current = latest.current.drag;
-      if (!current || event.pointerId !== current.pointerId) return;
+      if (!current || current.carrying || event.pointerId !== current.pointerId) return;
+      if (Math.hypot(event.clientX - current.startX, event.clientY - current.startY) <= TAP_SLOP_PX) {
+        setDrag({ ...current, x: event.clientX, y: event.clientY, carrying: true });
+        return;
+      }
       const targetId = dropTargetAt(event.clientX, event.clientY);
       if (targetId && latest.current.onDrop(targetId, current.value)) setDrag(null);
       else flyBack(current);
     }
 
+    // While carrying, the next press puts the card down there. A press anywhere else sends it back.
+    function onDown(event: PointerEvent) {
+      const current = latest.current.drag;
+      if (!current?.carrying) return;
+      const targetId = dropTargetAt(event.clientX, event.clientY);
+      if (!targetId) {
+        flyBack(current);
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      swallowNextClick();
+      if (latest.current.onDrop(targetId, current.value)) setDrag(null);
+      else flyBack({ ...current, x: event.clientX, y: event.clientY });
+    }
+
+    function onKey(event: KeyboardEvent) {
+      const current = latest.current.drag;
+      if (event.key === "Escape" && current?.carrying) flyBack(current);
+    }
+
     function onCancel(event: PointerEvent) {
       const current = latest.current.drag;
-      if (current && event.pointerId === current.pointerId) flyBack(current);
+      if (current && !current.carrying && event.pointerId === current.pointerId) flyBack(current);
     }
 
     window.addEventListener("pointermove", onMove, { passive: false });
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey);
     window.addEventListener("pointercancel", onCancel);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointercancel", onCancel);
     };
   }, [dragging]);
@@ -111,7 +148,10 @@ export function StudentDragBoard({
   }, []);
 
   function startDrag(event: ReactPointerEvent<HTMLDivElement>, value: string) {
-    if (drag || (event.pointerType === "mouse" && event.button !== 0)) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    // A carried card was just sent back by this press: pressing it again only lets it go, another card is picked up.
+    if (drag && (!drag.carrying || drag.value === value)) return;
+    if (returnTimer.current) window.clearTimeout(returnTimer.current);
     event.preventDefault();
     try {
       // Keeps touch moves coming to the page even when the finger leaves the card.
@@ -131,8 +171,11 @@ export function StudentDragBoard({
       originY: rect.top,
       width: rect.width,
       height: rect.height,
+      startX: event.clientX,
+      startY: event.clientY,
       overId: "",
-      returning: false
+      returning: false,
+      carrying: false
     });
   }
 
@@ -219,6 +262,16 @@ export function StudentDragBoard({
       ) : null}
     </div>
   );
+}
+
+/** Stops the click that follows the press that put a carried card down. */
+function swallowNextClick() {
+  const stop = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  window.addEventListener("click", stop, { capture: true, once: true });
+  window.setTimeout(() => window.removeEventListener("click", stop, true), 400);
 }
 
 function columnsFor(count: number) {

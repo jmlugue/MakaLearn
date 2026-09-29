@@ -281,6 +281,9 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
   const reduceMotion = useReducedMotion();
   const [seed] = useState(() => Math.random());
   const [shake, setShake] = useState<{ id: string; key: number } | null>(null);
+  // Where a card picked up with a click follows the pointer, until it is put on a word or let go.
+  const [carry, setCarry] = useState<{ x: number; y: number } | null>(null);
+  const carrying = Boolean(carry && dragged);
   const cards = useMemo(
     () => shuffleOptions([...new Set(questions.map((question) => question.answer))], seed),
     [questions, seed]
@@ -304,6 +307,33 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
     return () => window.clearTimeout(timer);
   }, [allPlaced, result]);
 
+  useEffect(() => {
+    if (!carrying) return undefined;
+    function letGo() {
+      setCarry(null);
+      setDragged("");
+    }
+    function onMove(event: PointerEvent) {
+      setCarry({ x: event.clientX, y: event.clientY });
+    }
+    // A press on a word or a card is handled by it; anywhere else lets the carried card go.
+    function onDown(event: PointerEvent) {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest("[data-drop-word], [data-tray-card]")) letGo();
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") letGo();
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [carrying, setDragged]);
+
   if (!questions.length) return <EmptyNote />;
 
   /** A card only stays on its own word. A wrong one shakes the box and goes back to the tray. */
@@ -313,6 +343,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
     if (dragged === target.answer) chooseAnswer(questionId, dragged);
     else setShake({ id: questionId, key: Date.now() });
     setDragged("");
+    setCarry(null);
   }
 
   return (
@@ -327,6 +358,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
               <motion.button
                 key={shaking ? `${question.id}-${shake.key}` : question.id}
                 type="button"
+                data-drop-word=""
                 disabled={Boolean(answer)}
                 onClick={() => place(question.id)}
                 onDragOver={(event) => event.preventDefault()}
@@ -370,12 +402,25 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
               <button
                 key={card}
                 type="button"
+                data-tray-card=""
                 draggable
-                onDragStart={() => setDragged(card)}
+                onDragStart={() => {
+                  setCarry(null);
+                  setDragged(card);
+                }}
                 onDragEnd={() => setDragged("")}
-                onClick={() => setDragged(dragged === card ? "" : card)}
+                onClick={(event) => {
+                  if (dragged === card) {
+                    setDragged("");
+                    setCarry(null);
+                    return;
+                  }
+                  setDragged(card);
+                  // A mouse click or tap carries the card with the pointer; a key press only selects it.
+                  setCarry(event.detail > 0 ? { x: event.clientX, y: event.clientY } : null);
+                }}
                 aria-pressed={dragged === card}
-                aria-label={`Pick ${getDisplayLabel(card, learningItems)} card`}
+                aria-label={`Drag ${getDisplayLabel(card, learningItems)} card onto its word`}
                 className={cn(
                   "rounded-3xl border-2 bg-white p-2 shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
                   dragged === card ? "border-blue-600 ring-4 ring-blue-100" : "border-white hover:-translate-y-0.5 hover:border-blue-300"
@@ -389,11 +434,21 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
       ) : null}
 
       <ActionBar
-        status={allPlaced ? "All done. Your score is coming up." : dragged ? "Now pick its word." : "Drag each card onto its word, or click a card, then its word."}
+        status={allPlaced ? "All done. Your score is coming up." : "Drag each card onto its word."}
         tone={allPlaced ? "good" : "neutral"}
       >
         {null}
       </ActionBar>
+
+      {carry && dragged ? (
+        <div
+          className="pointer-events-none fixed left-0 top-0 z-[80] w-28 -translate-x-1/2 -translate-y-1/2 rotate-[-2deg] rounded-3xl border-2 border-blue-500 bg-white p-2 shadow-[0_24px_40px_rgba(37,99,235,0.3)]"
+          style={{ left: carry.x, top: carry.y }}
+          aria-hidden="true"
+        >
+          <PictureWell value={dragged} learningItems={learningItems} />
+        </div>
+      ) : null}
 
       <ScoreDialog result={result} onRestart={onRestart} onExit={onExit} />
     </div>

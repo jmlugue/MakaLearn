@@ -149,7 +149,8 @@ function canUseAudioUrl(value?: string) {
 const encouragingLine = "You\u2019re doing great! Let\u2019s try one more time.";
 
 type DragSource = { kind: "library"; card: PlaygroundCard } | { kind: "board"; index: number; card: PlaygroundCard };
-type DragState = { source: DragSource; x: number; y: number; overIndex: number | null; overBoard: boolean };
+// carrying: picked up with a click or tap, so the card follows the pointer until the next click puts it down.
+type DragState = { source: DragSource; x: number; y: number; overIndex: number | null; overBoard: boolean; carrying?: boolean };
 
 /** What is under the pointer: a board place (numbered slot) and whether it is over the board at all. */
 function hitTest(x: number, y: number) {
@@ -163,6 +164,18 @@ function hitTest(x: number, y: number) {
 
 // On touch, a card is picked up after a short hold, so a quick swipe still scrolls the card list.
 const TOUCH_HOLD_MS = 170;
+// A press that moves less than this is a click or tap, not a drag.
+const TAP_SLOP_PX = 6;
+
+/** Stops the click that follows the pointer press that put a carried card down. */
+function swallowNextClick() {
+  const stop = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  window.addEventListener("click", stop, { capture: true, once: true });
+  window.setTimeout(() => window.removeEventListener("click", stop, true), 400);
+}
 
 function getSpeechLabel(label: string) {
   return normalizeLearningSpeechText(label);
@@ -339,6 +352,10 @@ export function PlaygroundView() {
     }
 
     function onMove(event: PointerEvent) {
+      if (dragRef.current?.carrying) {
+        setDragState({ ...dragRef.current, x: event.clientX, y: event.clientY, ...hitTest(event.clientX, event.clientY) });
+        return;
+      }
       const pending = pendingRef.current;
       if (!pending || event.pointerId !== pending.pointerId) return;
       const moved = Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY);
@@ -356,20 +373,54 @@ export function PlaygroundView() {
       setDragState({ ...dragRef.current, x: event.clientX, y: event.clientY, ...hitTest(event.clientX, event.clientY) });
     }
 
-    const onUp = (event: PointerEvent) => finish(event, true);
+    function onUp(event: PointerEvent) {
+      const pending = pendingRef.current;
+      if (pending && event.pointerId === pending.pointerId && Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) <= TAP_SLOP_PX) {
+        // A click or tap: the card stays with the pointer until the next click.
+        window.clearTimeout(pending.timer);
+        pendingRef.current = null;
+        setDragState({ source: pending.source, x: event.clientX, y: event.clientY, ...hitTest(event.clientX, event.clientY), carrying: true });
+        return;
+      }
+      finish(event, true);
+    }
+
+    // While carrying, the next press puts the card down there. A press anywhere else lets it go.
+    function onDown(event: PointerEvent) {
+      const current = dragRef.current;
+      if (!current?.carrying) return;
+      setDragState(null);
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("[data-carry-ignore]")) return;
+      const { overIndex, overBoard } = hitTest(event.clientX, event.clientY);
+      if (overIndex === null && !overBoard) return;
+      event.preventDefault();
+      event.stopPropagation();
+      swallowNextClick();
+      dropDragged(current, event.clientX, event.clientY);
+    }
+
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && dragRef.current?.carrying) setDragState(null);
+    }
+
     const onCancel = (event: PointerEvent) => finish(event, false);
     // Once a card is picked up on touch, stop the page from scrolling under the finger.
     const onTouchMove = (event: TouchEvent) => {
-      if (dragRef.current) event.preventDefault();
+      if (dragRef.current && !dragRef.current.carrying) event.preventDefault();
     };
 
     window.addEventListener("pointermove", onMove, { passive: false });
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey);
     window.addEventListener("pointercancel", onCancel);
     window.addEventListener("touchmove", onTouchMove, { passive: false });
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointercancel", onCancel);
       window.removeEventListener("touchmove", onTouchMove);
     };
@@ -473,10 +524,11 @@ export function PlaygroundView() {
                   : undefined
               }
             >
-              <div className={`mx-auto grid h-full overflow-hidden rounded-2xl border border-blue-100 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
+              {/* Phones: the card list keeps room (the panel scrolls) instead of shrinking under the board. */}
+              <div className={`mx-auto grid h-full overflow-y-auto overflow-x-hidden rounded-2xl sm:overflow-hidden border border-blue-100 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
                 isStudentMode
-                  ? "max-w-none grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] bg-white/80 lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] lg:grid-rows-1"
-                  : "max-w-7xl grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] bg-white/95 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
+                  ? "max-w-none grid-rows-[minmax(38rem,1fr)_minmax(22rem,0.9fr)] bg-white/80 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] lg:grid-rows-1"
+                  : "max-w-7xl grid-rows-[minmax(38rem,1fr)_minmax(22rem,0.9fr)] bg-white/95 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
               }`}>
                 <section className={`flex min-h-0 flex-col ${isStudentMode ? "bg-[#f8fbff]/80 p-3 sm:p-4 lg:p-5" : "bg-[#f8fbff] p-3 sm:p-4"}`}>
                   <div className="shrink-0 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
@@ -621,6 +673,7 @@ export function PlaygroundView() {
                             </span>
                             <button
                               type="button"
+                              data-carry-ignore=""
                               onPointerDown={(event) => event.stopPropagation()}
                               onClick={() => removeCard(index)}
                               aria-label={`Remove ${card.label} from board`}
