@@ -8,15 +8,24 @@ import { motion, useReducedMotion } from "framer-motion";
  * so each part can move. Student mode only.
  *
  * - happy: idle and intro cards. Gentle bob, closed happy eyes.
- * - cheer: right answers and score pop-ups. Open smile, sparkles, a jump, hand up.
- * - encourage: wrong answers and Try again. Blushing proud: eyes closed, a big blush, a soft smile, the hand raised,
- *   and a "You can do it!" speech bubble at the upper right (owner's choice). Never sad.
+ * - cheer, love, party, dance: the four right-answer faces, picked at random (`maki-voice.ts`).
+ *   cheer: open smile, sparkles, a jump, hand up. love: heart eyes, hearts float up. party: party hat and confetti,
+ *   big smile, bounces. dance: sways side to side with music notes, hand waving.
+ * - encourage, wink, nod, oops: the four wrong-answer faces, picked at random (`maki-voice.ts`). All show a
+ *   speech bubble at the upper right with an encouraging line. Never sad. Right-answer faces never show a bubble.
+ *   encourage: blushing proud (eyes closed, big blush, soft smile, hand raised).
+ *   wink: one eye winks, cheeky grin, hand up, a sparkle by the wink.
+ *   nod: happy eyes, small open smile, nods, a heart floats up.
+ *   oops: a sheepish grin, a sweat drop, and his hand scratching his head.
  * - thinking: waiting. Eyes up, one brow raised, thought bubbles with a question mark.
  * - wave: hello. Body sways, the signing hand waves with motion lines.
  *
  * With reduced motion Maki holds the pose without moving.
  */
-export type MakiMood = "happy" | "cheer" | "encourage" | "thinking" | "wave";
+export type MakiMood = "happy" | "cheer" | "love" | "party" | "dance" | "encourage" | "wink" | "nod" | "oops" | "thinking" | "wave";
+
+/** Only the wrong-answer moods talk (a speech bubble), so right and wrong look different at a glance (owner's rule). */
+const talking: MakiMood[] = ["encourage", "wink", "nod", "oops"];
 
 const ink = "#1f4f8f";
 const fill = "#eef3fb";
@@ -30,10 +39,10 @@ export function Maki({
   size = 120,
   className,
   label = "Maki",
-  message = "You can do it!"
+  message
 }: {
   mood?: MakiMood;
-  /** The speech bubble text shown with the encourage mood. */
+  /** The speech bubble text for the wrong-answer moods ("You can do it!" by default). Other moods ignore it. */
   message?: string;
   /** Width in pixels. */
   size?: number;
@@ -44,11 +53,21 @@ export function Maki({
 
   const body = still
     ? undefined
-    : mood === "cheer"
+    : mood === "cheer" || mood === "party"
       ? { y: [0, -16, 0, -8, 0] }
+      : mood === "love"
+        ? { y: [0, -6, 0], scale: [1, 1.04, 1] }
+        : mood === "dance"
+          ? { rotate: [-8, 8, -8], x: [-4, 4, -4] }
       : mood === "encourage"
         ? { y: [0, -5, 0], rotate: [0, -2, 0] }
-        : mood === "wave"
+        : mood === "wink"
+          ? { y: [0, -4, 0], rotate: [0, -6, 0] }
+          : mood === "nod"
+            ? { y: [0, 6, 0, 6, 0] }
+            : mood === "oops"
+              ? { rotate: [0, 4, 0], y: [0, -3, 0] }
+              : mood === "wave"
           ? { rotate: [-4, 4, -4] }
           : mood === "thinking"
             ? { rotate: [3, 5, 3] }
@@ -69,9 +88,11 @@ export function Maki({
         initial={false}
         animate={body}
         transition={
-          mood === "cheer"
+          mood === "cheer" || mood === "party"
             ? { duration: 0.9, times: [0, 0.3, 0.55, 0.75, 1], repeat: Infinity, repeatDelay: 0.6 }
-            : { duration: mood === "wave" ? 1.6 : mood === "encourage" ? 2 : 2.6, ...loop }
+            : mood === "dance"
+              ? { duration: 0.8, ...loop }
+            : { duration: mood === "wave" ? 1.6 : mood === "nod" ? 1.4 : mood === "oops" ? 1.6 : mood === "encourage" || mood === "wink" ? 2 : 2.6, ...loop }
         }
         style={{ originX: 0.5, originY: 0.9 }}
       >
@@ -80,7 +101,14 @@ export function Maki({
         <Face mood={mood} still={still} />
         <RightHand mood={mood} still={still} />
         {mood === "cheer" ? <Sparkles still={still} /> : null}
-        {mood === "encourage" ? <SpeechBubble text={message} still={still} /> : null}
+        {mood === "love" ? <RisingHearts still={still} /> : null}
+        {mood === "party" ? <PartyHat /> : null}
+        {mood === "party" ? <Confetti still={still} /> : null}
+        {mood === "dance" ? <MusicNotes still={still} /> : null}
+        {mood === "wink" ? <WinkSparkle still={still} /> : null}
+        {mood === "nod" ? <FloatingHeart still={still} /> : null}
+        {talking.includes(mood) ? <SpeechBubble text={message ?? "You can do it!"} still={still} /> : null}
+        {mood === "oops" ? <SweatDrop still={still} /> : null}
         {mood === "thinking" ? <ThoughtBubbles still={still} /> : null}
       </motion.g>
     </svg>
@@ -171,6 +199,47 @@ function Face({ mood, still }: { mood: MakiMood; still: boolean }) {
           <HappyEyes />
           <path d="M 108 106 Q 118 114 128 106" {...line} strokeWidth={5} />
         </>
+      ) : mood === "wink" ? (
+        <>
+          {/* Left eye open and shiny, right eye a winking arc; a cheeky open grin. */}
+          <ellipse cx={92} cy={88} rx={7.5} ry={9.5} fill={ink} />
+          <circle cx={95} cy={84} r={2.8} fill="#fff" />
+          <path d="M 133 90 Q 144 80 155 90" {...line} strokeWidth={7} />
+          <OpenMouth small />
+        </>
+      ) : mood === "nod" ? (
+        <>
+          <HappyEyes />
+          <OpenMouth small />
+        </>
+      ) : mood === "oops" ? (
+        <>
+          {/* Oops: eyes squeezed shut, one brow up, a sheepish wavy grin. */}
+          <path d="M 82 86 L 96 92 L 82 98" {...line} strokeWidth={6} />
+          <path d="M 154 86 L 140 92 L 154 98" {...line} strokeWidth={6} />
+          <path d="M 80 72 Q 90 66 100 70" {...line} strokeWidth={4.5} />
+          <path d="M 104 108 Q 111 102 118 108 Q 125 114 132 108" {...line} strokeWidth={5} />
+        </>
+      ) : mood === "love" ? (
+        <>
+          {/* Heart eyes and a big smile. */}
+          {[92, 144].map((x) => (
+            <path
+              key={x}
+              d={`M ${x} 96 C ${x - 3} 92 ${x - 12} 88 ${x - 12} 82 C ${x - 12} 76 ${x - 4} 74 ${x} 80 C ${x + 4} 74 ${x + 12} 76 ${x + 12} 82 C ${x + 12} 88 ${x + 3} 92 ${x} 96 Z`}
+              fill="#f43f5e"
+              stroke={ink}
+              strokeWidth={3}
+              strokeLinejoin="round"
+            />
+          ))}
+          <OpenMouth />
+        </>
+      ) : mood === "dance" ? (
+        <>
+          <HappyEyes />
+          <OpenMouth small />
+        </>
       ) : mood === "thinking" ? (
         <>
           {/* One brow up, eyes looking up at the thought, mouth pushed to one side. */}
@@ -182,7 +251,7 @@ function Face({ mood, still }: { mood: MakiMood; still: boolean }) {
       ) : (
         <>
           <HappyEyes />
-          {mood === "cheer" ? <OpenMouth /> : mood === "wave" ? <OpenMouth small /> : <path d="M 103 104 Q 118 118 133 104" {...line} strokeWidth={5.5} />}
+          {mood === "cheer" || mood === "party" ? <OpenMouth /> : mood === "wave" ? <OpenMouth small /> : <path d="M 103 104 Q 118 118 133 104" {...line} strokeWidth={5.5} />}
         </>
       )}
     </g>
@@ -201,14 +270,16 @@ function RightHand({ mood, still }: { mood: MakiMood; still: boolean }) {
           ? undefined
           : mood === "wave"
             ? { rotate: [0, -24, 14, -24, 14, 0] }
-            : mood === "cheer"
+            : mood === "cheer" || mood === "party"
               ? { y: [0, -10, 0], rotate: [0, -8, 0] }
+              : mood === "dance"
+                ? { rotate: [0, -18, 0, 12, 0] }
               : { rotate: [0, -4, 0] }
       }
       transition={
         mood === "wave"
           ? { duration: 1.3, repeat: Infinity, repeatDelay: 0.3, ease: "easeInOut" }
-          : { duration: mood === "cheer" ? 0.9 : 3, ...loop, repeatDelay: mood === "cheer" ? 0.6 : 0 }
+          : { duration: mood === "cheer" || mood === "party" || mood === "dance" ? 0.9 : 3, ...loop, repeatDelay: mood === "cheer" || mood === "party" ? 0.6 : 0 }
       }
       style={{ originX: 0.55, originY: 1 }}
     >
@@ -238,10 +309,18 @@ function LeftHand({ mood, still }: { mood: MakiMood; still: boolean }) {
   );
   const motionFor = still
     ? undefined
-    : mood === "cheer"
+    : mood === "cheer" || mood === "party"
       ? { y: [0, -34, -34, 0], rotate: [0, -20, -20, 0] }
+      : mood === "dance"
+        ? { y: [0, -26, 0], rotate: [0, -24, 0] }
+        : mood === "love"
+          ? { y: [-8, -12, -8], rotate: [-12, -18, -12] }
       : mood === "encourage"
         ? { x: [10, 10, 10], y: [-6, -11, -6], rotate: [-30, -38, -30] }
+        : mood === "wink"
+          ? { x: [6, 6, 6], y: [-12, -16, -12], rotate: [-20, -28, -20] }
+          : mood === "oops"
+            ? { x: [26, 30, 26], y: [-62, -66, -62], rotate: [-40, -55, -40] }
         : mood === "thinking"
           ? { y: [-14, -18, -14], rotate: [-10, -14, -10] }
           : { y: [0, -3, 0] };
@@ -249,9 +328,11 @@ function LeftHand({ mood, still }: { mood: MakiMood; still: boolean }) {
     <motion.g
       animate={motionFor}
       transition={
-        mood === "cheer"
+        mood === "cheer" || mood === "party"
           ? { duration: 0.9, times: [0, 0.3, 0.7, 1], repeat: Infinity, repeatDelay: 0.6 }
-          : { duration: mood === "encourage" ? 2 : 2.6, ...loop }
+          : mood === "dance"
+            ? { duration: 0.8, ...loop }
+          : { duration: mood === "oops" ? 0.7 : mood === "encourage" || mood === "wink" ? 2 : 2.6, ...loop }
       }
       style={{ originX: 0.5, originY: 0.5 }}
     >
@@ -296,12 +377,12 @@ function Sparkles({ still }: { still: boolean }) {
   );
 }
 
-/** "You can do it!" at Maki's upper right, close to the head, with a tail pointing at him. Pops in once. */
+/** The encouraging line at Maki's upper right, close to the head, with a tail pointing at him. Pops in once. */
 function SpeechBubble({ text, still }: { text: string; still: boolean }) {
-  // About 8.4 units per character at this size, plus padding.
-  const width = Math.max(90, text.length * 8.4 + 26);
+  // About 11 units per character at this size, plus padding. Big enough to read from a child's seat.
+  const width = Math.max(110, text.length * 11.5 + 40);
   const x = 150;
-  const y = -4;
+  const y = -16;
   return (
     <motion.g
       initial={still ? false : { scale: 0, opacity: 0 }}
@@ -309,11 +390,11 @@ function SpeechBubble({ text, still }: { text: string; still: boolean }) {
       transition={{ type: "spring", stiffness: 320, damping: 16, delay: 0.15 }}
       style={{ originX: 0, originY: 1 }}
     >
-      <path d={`M ${x + 14} ${y + 30} L ${x + 2} ${y + 44} L ${x + 28} ${y + 30} Z`} fill="#fff" stroke="#2563eb" strokeWidth={3} strokeLinejoin="round" />
-      <rect x={x} y={y} width={width} height={32} rx={16} fill="#fff" stroke="#2563eb" strokeWidth={3} />
+      <path d={`M ${x + 14} ${y + 38} L ${x + 2} ${y + 54} L ${x + 30} ${y + 38} Z`} fill="#fff" stroke="#2563eb" strokeWidth={3} strokeLinejoin="round" />
+      <rect x={x} y={y} width={width} height={42} rx={21} fill="#fff" stroke="#2563eb" strokeWidth={3} />
       {/* Covers the tail's top edge so the bubble and tail read as one shape. */}
-      <rect x={x + 12} y={y + 26} width={18} height={4.5} fill="#fff" />
-      <text x={x + width / 2} y={y + 21.5} textAnchor="middle" fontSize={15} fontWeight={900} fill="#1d4ed8" fontFamily="inherit">
+      <rect x={x + 12} y={y + 33} width={20} height={5} fill="#fff" />
+      <text x={x + width / 2} y={y + 28} textAnchor="middle" fontSize={20} fontWeight={900} fill="#1d4ed8" fontFamily="inherit">
         {text}
       </text>
     </motion.g>
@@ -331,5 +412,144 @@ function ThoughtBubbles({ still }: { still: boolean }) {
         ?
       </text>
     </motion.g>
+  );
+}
+
+/** A little twinkle next to the winking eye. */
+function WinkSparkle({ still }: { still: boolean }) {
+  return (
+    <motion.path
+      d={star(172, 70, 9)}
+      fill="#facc15"
+      stroke="#eab308"
+      strokeWidth={2}
+      strokeLinejoin="round"
+      animate={still ? undefined : { scale: [0.3, 1.2, 0.3], rotate: [0, 45, 0] }}
+      transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+      style={{ originX: 0.5, originY: 0.5 }}
+    />
+  );
+}
+
+/** A heart that floats up from Maki's left and fades, again and again. */
+function FloatingHeart({ still }: { still: boolean }) {
+  return (
+    <motion.path
+      d="M 40 40 C 40 32 28 30 28 40 C 28 48 40 54 40 58 C 40 54 52 48 52 40 C 52 30 40 32 40 40 Z"
+      fill="#f472b6"
+      stroke="#db2777"
+      strokeWidth={2.5}
+      strokeLinejoin="round"
+      initial={false}
+      animate={still ? undefined : { y: [16, -14], opacity: [0, 1, 0] }}
+      transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
+    />
+  );
+}
+
+/** Little hearts that float up from both sides and fade. */
+function RisingHearts({ still }: { still: boolean }) {
+  const heart = (x: number, y: number, r: number) =>
+    `M ${x} ${y + r} C ${x - r * 0.3} ${y + r * 0.6} ${x - r} ${y + r * 0.2} ${x - r} ${y - r * 0.3} C ${x - r} ${y - r} ${x - r * 0.2} ${y - r} ${x} ${y - r * 0.4} C ${x + r * 0.2} ${y - r} ${x + r} ${y - r} ${x + r} ${y - r * 0.3} C ${x + r} ${y + r * 0.2} ${x + r * 0.3} ${y + r * 0.6} ${x} ${y + r} Z`;
+  return (
+    <g>
+      {[
+        { x: 30, y: 44, r: 9, delay: 0 },
+        { x: 196, y: 26, r: 8, delay: 0.6 },
+        { x: 60, y: 18, r: 6, delay: 1.1 }
+      ].map((item) => (
+        <motion.path
+          key={item.x}
+          d={heart(item.x, item.y, item.r)}
+          fill="#fb7185"
+          stroke="#e11d48"
+          strokeWidth={2}
+          initial={false}
+          animate={still ? undefined : { y: [10, -14], opacity: [0, 1, 0] }}
+          transition={{ duration: 1.8, delay: item.delay, repeat: Infinity, ease: "easeOut" }}
+        />
+      ))}
+    </g>
+  );
+}
+
+/** A striped party hat on top of the bubble. */
+function PartyHat() {
+  return (
+    <g transform="translate(-22 0) rotate(-22 118 30)">
+      <path d="M 100 34 L 118 -8 L 136 34 Z" fill="#a855f7" stroke={ink} strokeWidth={4} strokeLinejoin="round" />
+      <path d="M 108 16 L 128 16 M 104 26 L 132 26" stroke="#fde047" strokeWidth={4} strokeLinecap="round" />
+      <circle cx={118} cy={-10} r={6} fill="#fde047" stroke={ink} strokeWidth={3} />
+    </g>
+  );
+}
+
+/** Confetti pieces falling around Maki. */
+function Confetti({ still }: { still: boolean }) {
+  const pieces = [
+    { x: 24, color: "#f43f5e", delay: 0 },
+    { x: 60, color: "#22c55e", delay: 0.3 },
+    { x: 170, color: "#3b82f6", delay: 0.15 },
+    { x: 206, color: "#eab308", delay: 0.45 },
+    { x: 140, color: "#a855f7", delay: 0.6 }
+  ];
+  return (
+    <g>
+      {pieces.map((piece) => (
+        <motion.rect
+          key={piece.x}
+          x={piece.x}
+          y={0}
+          width={7}
+          height={11}
+          rx={2}
+          fill={piece.color}
+          initial={false}
+          animate={still ? undefined : { y: [-6, 60], rotate: [0, 200], opacity: [1, 1, 0] }}
+          transition={{ duration: 1.4, delay: piece.delay, repeat: Infinity, ease: "easeIn" }}
+          style={{ originX: 0.5, originY: 0.5 }}
+        />
+      ))}
+    </g>
+  );
+}
+
+/** Music notes bobbing beside Maki while he dances. */
+function MusicNotes({ still }: { still: boolean }) {
+  const note = (x: number, y: number) => `M ${x} ${y} L ${x} ${y - 22} L ${x + 12} ${y - 26} L ${x + 12} ${y - 6}`;
+  return (
+    <g>
+      {[
+        { x: 20, y: 60, delay: 0 },
+        { x: 200, y: 36, delay: 0.5 }
+      ].map((item) => (
+        <motion.g
+          key={item.x}
+          initial={false}
+          animate={still ? undefined : { y: [0, -10, 0], rotate: [-8, 8, -8] }}
+          transition={{ duration: 1.2, delay: item.delay, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <path d={note(item.x, item.y)} fill="none" stroke="#2563eb" strokeWidth={3.5} strokeLinejoin="round" />
+          <ellipse cx={item.x - 3} cy={item.y} rx={5} ry={4} fill="#2563eb" />
+          <ellipse cx={item.x + 9} cy={item.y - 6} rx={5} ry={4} fill="#2563eb" />
+        </motion.g>
+      ))}
+    </g>
+  );
+}
+
+/** A blue sweat drop on the side of Maki's head, for "oops". It slides down a little and comes back. */
+function SweatDrop({ still }: { still: boolean }) {
+  return (
+    <motion.path
+      d="M 172 44 C 166 54 164 60 172 64 C 180 60 178 54 172 44 Z"
+      fill="#7dd3fc"
+      stroke={ink}
+      strokeWidth={2.5}
+      strokeLinejoin="round"
+      initial={false}
+      animate={still ? undefined : { y: [0, 6, 0] }}
+      transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+    />
   );
 }

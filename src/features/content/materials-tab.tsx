@@ -45,6 +45,11 @@ export function MaterialsTab({
     const used = new Set(kindItems.map((item) => item.categoryId));
     return visibleCategories(categories).filter((category) => used.has(category.id));
   }, [categories, kindItems]);
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: kindItems.length };
+    for (const item of kindItems) counts[item.categoryId] = (counts[item.categoryId] ?? 0) + 1;
+    return counts;
+  }, [kindItems]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -88,7 +93,7 @@ export function MaterialsTab({
         <div className="min-w-0 flex-1 basis-64">
           {usedCategories.length ? (
             <GuideTip id="content.categories">
-              <CategoryPills categories={usedCategories} value={categoryId} onChange={onCategoryChange} />
+              <CategoryPills categories={usedCategories} counts={categoryCounts} value={categoryId} onChange={onCategoryChange} />
             </GuideTip>
           ) : null}
         </div>

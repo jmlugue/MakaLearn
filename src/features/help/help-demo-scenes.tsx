@@ -33,11 +33,11 @@ export const ACTION = { x: 500, y: 18, w: 120, h: 34 };
 export const ACTION_CENTER: [number, number] = [560, 35];
 const tabs = [
   { label: "Materials", x: 72, w: 92 },
-  { label: "Lessons", x: 170, w: 80 },
-  { label: "Categories", x: 256, w: 96 },
-  { label: "Media", x: 358, w: 70 }
+  { label: "Collections", x: 170, w: 100 },
+  { label: "Categories", x: 276, w: 96 },
+  { label: "Media", x: 378, w: 70 }
 ];
-const LESSONS_TAB: [number, number] = [210, 79];
+const LESSONS_TAB: [number, number] = [220, 79];
 
 /** `action` is the header button; admins (view only) get none. */
 export function ContentPage({ tab, action, actionPressed, children }: { tab: string; action?: string; actionPressed?: boolean; children?: React.ReactNode }) {
@@ -319,17 +319,17 @@ function SlotsAndLibrary({ picked, slots, label, t, tapTimes }: { picked: number
 
 const lessonScenes: DemoScene[] = [
   {
-    label: "New lesson",
-    caption: "In Content, open Lessons and choose New lesson.",
+    label: "New collection",
+    caption: "In Content, open Collections and choose New collection.",
     duration: 4600,
     render: (t) => (
       <>
-        <ContentPage tab={t >= 1300 ? "Lessons" : "Materials"} action={t >= 1300 ? "New lesson" : "Add material"} actionPressed={pressedAt(t, 2600)}>
+        <ContentPage tab={t >= 1300 ? "Collections" : "Materials"} action={t >= 1300 ? "New collection" : "Add material"} actionPressed={pressedAt(t, 2600)}>
           {t >= 1300 ? <LessonList rows={lessonRows} /> : <CardGrid words={startWords} />}
         </ContentPage>
-        <MockDialog show={t >= 2900} box={DIALOG} title="New lesson" steps={lessonSteps} step={0}>
+        <MockDialog show={t >= 2900} box={DIALOG} title="New collection" steps={lessonSteps} step={0}>
           <MockLabel x={20} y={60}>Title</MockLabel>
-          <MockField box={{ x: 20, y: 76, w: 420, h: 34 }} value="" placeholder="Lesson title" />
+          <MockField box={{ x: 20, y: 76, w: 420, h: 34 }} value="" placeholder="Collection title" />
         </MockDialog>
         <Pointer t={t} path={[[0, 330, 260], [500, ...LESSONS_TAB], [1200, ...LESSONS_TAB, true], [1900, ...ACTION_CENTER], [2600, ...ACTION_CENTER, true]]} />
       </>
@@ -345,16 +345,16 @@ const lessonScenes: DemoScene[] = [
       const picked = taps.filter((time) => t >= time + 100).length;
       return (
         <>
-          <ContentPage tab="Lessons" action="New lesson">
+          <ContentPage tab="Collections" action="New collection">
             <LessonList rows={lessonRows} />
           </ContentPage>
-          <MockDialog show box={DIALOG} title="New lesson" steps={lessonSteps} step={onCards ? 1 : 0}>
+          <MockDialog show box={DIALOG} title="New collection" steps={lessonSteps} step={onCards ? 1 : 0}>
             {onCards ? (
-              <SlotsAndLibrary picked={picked} slots={4} label="Lesson order" t={t} tapTimes={taps} />
+              <SlotsAndLibrary picked={picked} slots={4} label="Collection order" t={t} tapTimes={taps} />
             ) : (
               <>
                 <MockLabel x={20} y={60}>Title</MockLabel>
-                <MockField box={{ x: 20, y: 76, w: 420, h: 34 }} value={typed("Feelings", t, 1100, 120)} placeholder="Lesson title" focused={t >= 900} />
+                <MockField box={{ x: 20, y: 76, w: 420, h: 34 }} value={typed("Feelings", t, 1100, 120)} placeholder="Collection title" focused={t >= 900} />
                 <MockLabel x={20} y={124}>Description (optional)</MockLabel>
                 <MockField box={{ x: 20, y: 140, w: 420, h: 60 }} value="" />
               </>
@@ -385,17 +385,17 @@ const lessonScenes: DemoScene[] = [
   },
   {
     label: "Save",
-    caption: "Choose Shared or Private, then Save lesson.",
+    caption: "Choose Shared or Private, then Save collection.",
     duration: 5600,
     render: (t) => {
       const shared = t >= 1100;
       return (
         <>
-          <ContentPage tab="Lessons" action="New lesson">
+          <ContentPage tab="Collections" action="New collection">
             <LessonList rows={t >= 2900 ? [{ title: "Feelings", words: ["happy", "sad", "angry"] }, ...lessonRows] : lessonRows} />
-            <MockToast show={t >= 3000} text="Lesson saved" />
+            <MockToast show={t >= 3000} text="Collection saved" />
           </ContentPage>
-          <MockDialog show={t < 2700} box={DIALOG} title="New lesson" steps={lessonSteps} step={2}>
+          <MockDialog show={t < 2700} box={DIALOG} title="New collection" steps={lessonSteps} step={2}>
             <p className="absolute left-5 top-14 text-[15px] font-black text-ink">Feelings</p>
             {["happy", "sad", "angry"].map((word, index) => (
               <span key={word} className="absolute" style={{ left: 20 + index * 70, top: 82, width: 60, height: 80 }}>
@@ -409,7 +409,7 @@ const lessonScenes: DemoScene[] = [
               <span className={cn("flex h-8 w-[100px] items-center justify-center rounded-full text-[12px] font-bold", shared ? "bg-slate-100 text-slate-500" : "bg-blue-600 text-white")}>Private</span>
             </div>
             <MockButton box={{ x: 340, y: 270, w: 100, h: 32 }} pressed={pressedAt(t, 2400)}>
-              Save lesson
+              Save collection
             </MockButton>
           </MockDialog>
           <Pointer t={t} path={[[0, 330, 260], [500, ...inDialog(70, 212)], [1000, ...inDialog(70, 212), true], [1800, ...inDialog(390, 286)], [2400, ...inDialog(390, 286), true], [3300, 300, 150]]} />
@@ -484,7 +484,7 @@ const activityPickCenter = (index: number): [number, number] => inDialog(20 + in
 const activityScenes: DemoScene[] = [
   {
     label: "Format",
-    caption: "Choose Create activity, then a format. Tick From a lesson to use its cards.",
+    caption: "Choose Create activity, then a format. Tick From a collection to use its cards.",
     duration: 6000,
     render: (t) => {
       const chosen = t >= 2700;
@@ -513,7 +513,7 @@ const activityScenes: DemoScene[] = [
               <span className={cn("absolute left-4 top-[18px] grid h-[18px] w-[18px] place-items-center rounded border-2", ticked ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white")}>
                 {ticked ? <Check className="h-3 w-3" strokeWidth={4} /> : null}
               </span>
-              <span className="absolute left-10 top-[17px] text-[13px] font-bold text-ink">From a lesson</span>
+              <span className="absolute left-10 top-[17px] text-[13px] font-bold text-ink">From a collection</span>
               <Pop show={ticked} className="absolute left-4 top-[44px] flex h-7 w-[260px] items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 text-[12px] font-semibold text-ink">
                 <span className="flex items-center gap-1.5">
                   <Check className="h-3.5 w-3.5 text-blue-600" /> Feelings

@@ -185,8 +185,8 @@ export function logGroup(log: AuditLog): Exclude<LogFilter, "all"> | "other" {
 const itemTypeNames: Record<string, string> = {
   session: "",
   "learning-item": "Learning item",
-  "lesson-draft": "Lesson draft",
-  lesson: "Lesson",
+  "lesson-draft": "Collection draft",
+  lesson: "Collection",
   category: "Category",
   activity: "Activity",
   media: "Media file",
@@ -199,7 +199,7 @@ const itemTypeNames: Record<string, string> = {
 
 const nouns: Record<string, string> = {
   "learning-item": "a learning item",
-  lesson: "a lesson",
+  lesson: "a collection",
   category: "a category",
   activity: "an activity"
 };
@@ -215,7 +215,7 @@ export function describeActivity(log: AuditLog): { sentence: string; itemType: s
 
   switch (log.targetType) {
     case "lesson-draft":
-      return { sentence: "Generated a lesson draft", itemType };
+      return { sentence: "Generated a collection draft", itemType };
     case "media":
       return { sentence: log.action === "delete" ? "Deleted a file" : "Uploaded a file", itemType };
     case "teacher_account":

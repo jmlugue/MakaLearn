@@ -24,7 +24,9 @@ import {
   StudentTopBar
 } from "@/features/activities/player/student-game-parts";
 import {
+  ENCOURAGE_MS,
   FEEDBACK_MS,
+  MAX_TRIES,
   ROUND_SIZE,
   SCORE_DELAY_MS,
   WRONG_MS,
@@ -32,6 +34,7 @@ import {
 } from "@/features/activities/player/student-theme";
 import { playCue } from "@/lib/sound-cues";
 import type { MakiMood } from "@/features/student-mode/maki";
+import { cheerAfterRight, encourageAfterWrong } from "@/features/student-mode/maki-voice";
 import type { Activity, LearningItem } from "@/types";
 
 type StudentActivityPlayerProps = {
@@ -79,9 +82,16 @@ function StudentRound({
   const [seed] = useState(() => Math.random());
   const [phase, setPhase] = useState<"intro" | "play" | "done">(showIntro ? "intro" : "play");
   const [index, setIndex] = useState(0);
-  /** Choice games: the card picked. Drag and drop: the card placed (always the right one). */
+  /** Choice games: the card that ended the question. Drag and drop: the card in the box (always the right one). */
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [firstTryRight, setFirstTryRight] = useState<Record<string, boolean>>({});
+  /** Right within three tries: counts in the score. */
+  const [scored, setScored] = useState<Record<string, boolean>>({});
+  /** Right on the first try: fills a star. */
+  const [firstTry, setFirstTry] = useState<Record<string, boolean>>({});
+  /** Wrong guesses so far: per question in the choice games, per card in Drag and drop. */
+  const [misses, setMisses] = useState<Record<string, number>>({});
+  const [pickShake, setPickShake] = useState<{ option: string; key: number } | null>(null);
+  const [makiLine, setMakiLine] = useState("");
   const [eliminated, setEliminated] = useState<Record<string, string[]>>({});
   const [feedback, setFeedback] = useState<AnswerFeedback | null>(null);
   const [makiMood, setMakiMood] = useState<MakiMood>("happy");
@@ -124,8 +134,7 @@ function StudentRound({
   const hintLeft = hintState === "ready";
 
   const steps: StepState[] = questions.map((candidate, position) => {
-    // Drag and drop: a placed card is always right, so its circle is green even after a retry.
-    if (answers[candidate.id]) return isDrag || firstTryRight[candidate.id] ? "correct" : "wrong";
+    if (answers[candidate.id]) return scored[candidate.id] ? "correct" : "wrong";
     if (!isDrag && position === index) return "current";
     return "todo";
   });
@@ -168,13 +177,14 @@ function StudentRound({
 
   function showFeedback(next: Omit<AnswerFeedback, "key">, spoken: string, ms: number) {
     setFeedback({ ...next, key: Date.now() });
-    void speakText(spoken);
+    if (spoken) void speakText(spoken);
     later(() => setFeedback(null), ms);
   }
 
   /** Maki cheers or encourages for a moment, then goes back to happy. */
-  function react(mood: MakiMood, ms: number) {
+  function react(mood: MakiMood, ms: number, line = "") {
     setMakiMood(mood);
+    setMakiLine(line);
     if (makiTimer.current) window.clearTimeout(makiTimer.current);
     makiTimer.current = window.setTimeout(() => setMakiMood("happy"), ms);
   }
@@ -186,23 +196,20 @@ function StudentRound({
     }, SCORE_DELAY_MS);
   }
 
-  /**
-   * One tap answers. Right: the Correct pop-up. Wrong: no pop-up and no sound, the cards shake, the pick turns
-   * red, and the right card grows and glows green. Then the next question comes by itself.
-   */
-  function pick(option: string) {
-    if (!question || answers[question.id] || feedback) return;
-    const right = option === question.answer;
-    const word = getDisplayLabel(question.answer, learningItems);
-    const wait = right ? FEEDBACK_MS : WRONG_MS;
-    setAnswers((current) => ({ ...current, [question.id]: option }));
-    setFirstTryRight((current) => ({ ...current, [question.id]: right }));
-    setHintFor("");
-    react(right ? "cheer" : "encourage", wait);
-    if (right) {
-      playCue("correct");
-      showFeedback({ tone: "correct", title: "Correct!" }, `Correct! ${word}.`, FEEDBACK_MS);
-    }
+  /** The card's own audio file, so the word after "Correct" is the same recording as on the PECS card. */
+  function cardAudio(value: string) {
+    const item = learningItems.find((candidate) => candidate.id === value || candidate.label === value);
+    const url = item?.audioUrl?.trim() ?? "";
+    return /^(\/|https?:)/.test(url) ? url : undefined;
+  }
+
+  /** A wrong guess: the buzz, then Maki shows one of his encouraging faces and says a line. */
+  function encourage() {
+    const next = encourageAfterWrong();
+    react(next.mood, ENCOURAGE_MS, next.line);
+  }
+
+  function nextQuestion(wait: number) {
     later(() => {
       if (index + 1 >= questions.length) finishRound();
       else setIndex(index + 1);
@@ -210,24 +217,70 @@ function StudentRound({
   }
 
   /**
-   * Drag and drop: a right card stays in its box, marked green (no pop-up). A wrong one flies back while the box
-   * shakes (no sound). Every card ends up placed, so every card counts as right in the score.
+   * Three guesses per question. Right (on any try): the Correct pop-up, and it counts in the score. Wrong: the buzz
+   * and Maki's encouragement, the card shakes and flashes red. The third wrong guess marks the question wrong: the pick
+   * turns red and the right card glows green, then the next question comes by itself.
+   */
+  function pick(option: string) {
+    if (!question || answers[question.id] || feedback) return;
+    const id = question.id;
+    const tries = misses[id] ?? 0;
+    setHintFor("");
+    if (option === question.answer) {
+      setAnswers((current) => ({ ...current, [id]: option }));
+      setScored((current) => ({ ...current, [id]: true }));
+      setFirstTry((current) => ({ ...current, [id]: tries === 0 }));
+      // The chime, then Maki cheers with one of his happy faces and a line, then the card's word.
+      const cheer = cheerAfterRight(getDisplayLabel(question.answer, learningItems), cardAudio(question.answer));
+      react(cheer.mood, FEEDBACK_MS);
+      showFeedback({ tone: "correct", title: "Correct!" }, "", FEEDBACK_MS);
+      nextQuestion(FEEDBACK_MS);
+      return;
+    }
+    encourage();
+    setMisses((current) => ({ ...current, [id]: tries + 1 }));
+    if (tries + 1 >= MAX_TRIES) {
+      setAnswers((current) => ({ ...current, [id]: option }));
+      setScored((current) => ({ ...current, [id]: false }));
+      setFirstTry((current) => ({ ...current, [id]: false }));
+      nextQuestion(ENCOURAGE_MS);
+      return;
+    }
+    // The wrong card shakes and flashes red, then can be picked again (owner's choice: never greyed out).
+    const key = Date.now();
+    setPickShake({ option, key });
+    later(() => setPickShake((current) => (current?.key === key ? null : current)), 700);
+  }
+
+  /**
+   * Drag and drop, three tries per card (owner's choice). Each card remembers its own tries, even if the child moves
+   * on to another card and comes back. A right drop stays in its box, marked green, and counts in the score. A wrong
+   * one flies back while the box shakes, with the buzz and Maki's encouragement. After a card's third wrong drop it
+   * goes to its own box by itself, marked red, and that box counts as wrong.
    */
   function drop(questionId: string, value: string) {
     const target = questions.find((candidate) => candidate.id === questionId);
     if (!target || answers[questionId]) return false;
     const right = value === target.answer;
-    if (right) {
-      const nextAnswers = { ...answers, [questionId]: value };
+    const tries = misses[value] ?? 0;
+    const place = (boxId: string, card: string, good: boolean) => {
+      const nextAnswers = { ...answers, [boxId]: card };
       setAnswers(nextAnswers);
-      playCue("correct");
-      react("cheer", FEEDBACK_MS);
-      setFirstTryRight((current) => ({ ...current, [questionId]: true }));
-      if (hintFor === questionId) setHintFor("");
+      setScored((current) => ({ ...current, [boxId]: good }));
+      setFirstTry((current) => ({ ...current, [boxId]: good && tries === 0 }));
+      if (hintFor === boxId) setHintFor("");
       if (questions.every((candidate) => nextAnswers[candidate.id])) finishRound();
+    };
+    if (right) {
+      const cheer = cheerAfterRight(getDisplayLabel(value, learningItems), cardAudio(value));
+      react(cheer.mood, FEEDBACK_MS);
+      place(questionId, value, true);
     } else {
       setShake({ id: questionId, key: Date.now() });
-      react("encourage", WRONG_MS);
+      encourage();
+      setMisses((current) => ({ ...current, [value]: tries + 1 }));
+      const home = questions.find((candidate) => candidate.answer === value && !answers[candidate.id]);
+      if (tries + 1 >= MAX_TRIES && home) place(home.id, value, false);
     }
     return right;
   }
@@ -271,7 +324,8 @@ function StudentRound({
         <ActivityResultModal
           activity={activity}
           learningItems={learningItems}
-          firstTryRight={firstTryRight}
+          scored={scored}
+          firstTry={firstTry}
           questionIds={resultQuestionIds}
           onPlayAgain={onPlayAgain}
           onHome={onHome}
@@ -287,6 +341,7 @@ function StudentRound({
     <StudentGameFrame
       activityId={activity.id}
       maki={phase === "play" ? makiMood : undefined}
+      makiLine={makiLine}
       instruction={instruction}
       overlay={overlay}
       topBar={
@@ -310,6 +365,7 @@ function StudentRound({
           dimmedCards={hintFor ? eliminated[hintFor] ?? [] : []}
           beingReadId={readingId}
           shake={shake}
+          missed={questions.filter((candidate) => answers[candidate.id] && !scored[candidate.id]).map((candidate) => candidate.id)}
           onDrop={drop}
         />
       ) : question ? (
@@ -322,6 +378,7 @@ function StudentRound({
           locked={Boolean(answers[question.id])}
           eliminated={eliminated[question.id] ?? []}
           beingRead={readingId === question.id}
+          shake={pickShake}
           onPick={pick}
         />
       ) : null}

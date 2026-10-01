@@ -35,13 +35,14 @@ import {
   type PecsManifestCard
 } from "@/data/pecs-card-manifest";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
-import { placeLibraryItem, swapBoardItems } from "@/utils/playground-board";
+import { placeLibraryItem } from "@/utils/playground-board";
 import { validatePecsSentence, type PecsSentenceValidationResult } from "@/utils/pecs-sentence-validation";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import { normalizeLearningSpeechText } from "@/utils/speech-text";
 import { createUtterance } from "@/lib/speech";
 import { playCue } from "@/lib/sound-cues";
 import { Maki } from "@/features/student-mode/maki";
+import { encourageAfterWrong, pickCheer, sayMakiLine, type MakiReaction } from "@/features/student-mode/maki-voice";
 import type { LearningItem } from "@/types";
 
 type PlaygroundCard = PecsManifestCard & {
@@ -148,9 +149,9 @@ function canUseAudioUrl(value?: string) {
 /** Shown (not spoken; the voice says only "Try again.") after a wrong Check. About the next try, not the mistake. */
 const encouragingLine = "You\u2019re doing great! Let\u2019s try one more time.";
 
-type DragSource = { kind: "library"; card: PlaygroundCard } | { kind: "board"; index: number; card: PlaygroundCard };
-// carrying: picked up with a click or tap, so the card follows the pointer until the next click puts it down.
-type DragState = { source: DragSource; x: number; y: number; overIndex: number | null; overBoard: boolean; carrying?: boolean };
+// Only library cards are dragged: board cards stay in order (a tap on the red X removes one).
+type DragSource = { kind: "library"; card: PlaygroundCard };
+type DragState = { source: DragSource; x: number; y: number; overIndex: number | null; overBoard: boolean };
 
 /** What is under the pointer: a board place (numbered slot) and whether it is over the board at all. */
 function hitTest(x: number, y: number) {
@@ -166,16 +167,6 @@ function hitTest(x: number, y: number) {
 const TOUCH_HOLD_MS = 170;
 // A press that moves less than this is a click or tap, not a drag.
 const TAP_SLOP_PX = 6;
-
-/** Stops the click that follows the pointer press that put a carried card down. */
-function swallowNextClick() {
-  const stop = (event: MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-  window.addEventListener("click", stop, { capture: true, once: true });
-  window.setTimeout(() => window.removeEventListener("click", stop, true), 400);
-}
 
 function getSpeechLabel(label: string) {
   return normalizeLearningSpeechText(label);
@@ -211,6 +202,8 @@ export function PlaygroundView() {
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   // After Check, a pop-up says "Good job" or "Try again". Any change to the board closes it.
   const [feedbackModal, setFeedbackModal] = useState<"success" | "retry" | null>(null);
+  /** Maki's face and line for the last Check (right or wrong), shown on the board and in the pop-up. */
+  const [makiReaction, setMakiReaction] = useState<MakiReaction | null>(null);
   const [toolbarReady, setToolbarReady] = useState(false);
 
   useEffect(() => {
@@ -295,12 +288,6 @@ export function PlaygroundView() {
     setFeedbackModal(null);
   }
 
-  function swapCards(fromIndex: number, toIndex: number) {
-    setSentenceCards((current) => swapBoardItems(current, fromIndex, toIndex));
-    setResult(null);
-    setFeedbackModal(null);
-  }
-
   function placeLibraryCard(card: PlaygroundCard, targetIndex?: number) {
     if (targetIndex === undefined && sentenceCards.length >= maxSentenceCards) {
       notify({ title: "The board is full", description: "Remove a card to add another.", tone: "info" });
@@ -330,13 +317,10 @@ export function PlaygroundView() {
   }
 
   function dropDragged(state: DragState, x: number, y: number) {
+    // Anywhere on the board counts, and the card always goes to the next empty place (owner's rule): a card
+    // dropped on a filled place is never swapped in, and board cards are not reordered.
     const { overIndex, overBoard } = hitTest(x, y);
-    if (state.source.kind === "library") {
-      if (overIndex !== null) placeLibraryCard(state.source.card, overIndex);
-      else if (overBoard) placeLibraryCard(state.source.card);
-      return;
-    }
-    if (overIndex !== null && overIndex !== state.source.index && overIndex < sentenceCards.length) swapCards(state.source.index, overIndex);
+    if (state.source.kind === "library" && (overIndex !== null || overBoard)) placeLibraryCard(state.source.card);
   }
 
   // While a card is held, follow the pointer anywhere on the page until it is let go.
@@ -352,10 +336,6 @@ export function PlaygroundView() {
     }
 
     function onMove(event: PointerEvent) {
-      if (dragRef.current?.carrying) {
-        setDragState({ ...dragRef.current, x: event.clientX, y: event.clientY, ...hitTest(event.clientX, event.clientY) });
-        return;
-      }
       const pending = pendingRef.current;
       if (!pending || event.pointerId !== pending.pointerId) return;
       const moved = Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY);
@@ -376,51 +356,29 @@ export function PlaygroundView() {
     function onUp(event: PointerEvent) {
       const pending = pendingRef.current;
       if (pending && event.pointerId === pending.pointerId && Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY) <= TAP_SLOP_PX) {
-        // A click or tap: the card stays with the pointer until the next click.
+        // A click or tap adds the card straight to the next empty place.
         window.clearTimeout(pending.timer);
         pendingRef.current = null;
-        setDragState({ source: pending.source, x: event.clientX, y: event.clientY, ...hitTest(event.clientX, event.clientY), carrying: true });
+        setDragState(null);
+        if (pending.source.kind === "library") placeLibraryCard(pending.source.card);
         return;
       }
       finish(event, true);
     }
 
-    // While carrying, the next press puts the card down there. A press anywhere else lets it go.
-    function onDown(event: PointerEvent) {
-      const current = dragRef.current;
-      if (!current?.carrying) return;
-      setDragState(null);
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest("[data-carry-ignore]")) return;
-      const { overIndex, overBoard } = hitTest(event.clientX, event.clientY);
-      if (overIndex === null && !overBoard) return;
-      event.preventDefault();
-      event.stopPropagation();
-      swallowNextClick();
-      dropDragged(current, event.clientX, event.clientY);
-    }
-
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && dragRef.current?.carrying) setDragState(null);
-    }
-
     const onCancel = (event: PointerEvent) => finish(event, false);
     // Once a card is picked up on touch, stop the page from scrolling under the finger.
     const onTouchMove = (event: TouchEvent) => {
-      if (dragRef.current && !dragRef.current.carrying) event.preventDefault();
+      if (dragRef.current) event.preventDefault();
     };
 
     window.addEventListener("pointermove", onMove, { passive: false });
     window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onKey);
     window.addEventListener("pointercancel", onCancel);
     window.addEventListener("touchmove", onTouchMove, { passive: false });
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointerdown", onDown, true);
-      window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointercancel", onCancel);
       window.removeEventListener("touchmove", onTouchMove);
     };
@@ -432,15 +390,19 @@ export function PlaygroundView() {
     const nextResult = validatePecsSentence(sentenceCards, approvedCardIds);
     setResult(nextResult);
 
+    // Maki's voice (owner's request): right is the chime, Maki's line, then the sentence read aloud; wrong is the buzz
+    // and one of Maki's encouraging lines.
     if (nextResult.isValid) {
       setFeedbackModal("success");
       playCue("correct");
-      void speakSentenceLike();
+      const cheer = pickCheer();
+      setMakiReaction(cheer);
+      sayMakiLine(cheer, () => void speakSentenceLike());
       return;
     }
 
     setFeedbackModal("retry");
-    if ("speechSynthesis" in window) void speakText("Try again.");
+    setMakiReaction(encourageAfterWrong());
   }
 
   async function speakSentence() {
@@ -565,6 +527,9 @@ export function PlaygroundView() {
                             >
                               <CategoryIcon className="h-4 w-4" aria-hidden="true" />
                               {category}
+                              <span className="rounded-full bg-white/70 px-1.5 text-xs font-black">
+                                {category === allCategoriesLabel ? orderedCards.length : orderedCards.filter((card) => card.category === category).length}
+                              </span>
                             </button>
                           );
                         })}
@@ -595,7 +560,7 @@ export function PlaygroundView() {
                                 }
                               }}
                               onContextMenu={(event) => event.preventDefault()}
-                              aria-label={`Drag ${card.label} to the board`}
+                              aria-label={`Add ${card.label} to the board`}
                               className={`group cursor-grab touch-pan-y select-none rounded-lg border border-blue-100 bg-white p-2 text-left shadow-sm transition [-webkit-touch-callout:none] hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-soft focus:outline-none focus:ring-4 focus:ring-blue-100 active:cursor-grabbing ${
                                 drag?.source.kind === "library" && drag.source.card.id === card.id ? "opacity-40" : ""
                               }`}
@@ -620,10 +585,16 @@ export function PlaygroundView() {
                     className={dropZoneClass}
                     aria-label="Sentence card drop area"
                   >
+                    {/* Maki sits in the board's bottom-left grass corner (a free spot, away from the truck and the cards). */}
+                    {isStudentMode ? (
+                      <div className="pointer-events-none absolute bottom-[3%] left-[2%] z-10 w-[64px] sm:w-[84px] lg:w-[96px]" aria-hidden="true">
+                        <Maki mood={sentenceCards.length ? "happy" : "wave"} size={96} label="" className="h-auto w-full" />
+                      </div>
+                    ) : null}
                     {/* User-provided board artwork for the student playground drop area. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/playground-drop-area.png"
+                      src="/playground-drop-area.webp"
                       alt=""
                       className="pointer-events-none absolute inset-0 h-full w-full select-none object-fill"
                       draggable={false}
@@ -643,7 +614,7 @@ export function PlaygroundView() {
                                 isNext
                                   ? `border-blue-400 bg-white/80 text-blue-500 ${isDraggingCard ? "scale-105" : ""}`
                                   : "border-blue-200/80 bg-white/45 text-blue-200"
-                              } ${drag && drag.overIndex === index ? "scale-110 border-blue-500 bg-blue-50 ring-4 ring-blue-200" : ""}`}
+                              } ${drag && isNext && (drag.overBoard || drag.overIndex !== null) ? "scale-110 border-blue-500 bg-blue-50 ring-4 ring-blue-200" : ""}`}
                               aria-label={isNext ? `Place ${index + 1}, the next card goes here` : `Place ${index + 1}, empty`}
                             >
                               {index + 1}
@@ -657,12 +628,9 @@ export function PlaygroundView() {
                             key={`${card.id}-${index}`}
                             data-slot-index={index}
                             style={slotStyle}
-                            onPointerDown={(event) => beginDrag(event, { kind: "board", index, card })}
                             onContextMenu={(event) => event.preventDefault()}
-                            className={`relative cursor-grab touch-none select-none rounded-lg border bg-white shadow-sm transition [-webkit-touch-callout:none] hover:-translate-y-0.5 hover:border-red-300 hover:shadow-soft ${
+                            className={`relative select-none rounded-lg border bg-white shadow-sm transition [-webkit-touch-callout:none] hover:-translate-y-0.5 hover:border-red-300 hover:shadow-soft ${
                               isSpeaking ? "-translate-y-1.5 border-blue-500 ring-4 ring-blue-200" : "border-blue-100"
-                            } ${drag?.source.kind === "board" && drag.source.index === index ? "opacity-40" : ""} ${
-                              drag && drag.overIndex === index && !(drag.source.kind === "board" && drag.source.index === index) ? "ring-4 ring-blue-300" : ""
                             }`}
                           >
                             <span className="grid w-full place-items-center rounded-lg p-1.5">
@@ -673,7 +641,6 @@ export function PlaygroundView() {
                             </span>
                             <button
                               type="button"
-                              data-carry-ignore=""
                               onPointerDown={(event) => event.stopPropagation()}
                               onClick={() => removeCard(index)}
                               aria-label={`Remove ${card.label} from board`}
@@ -743,7 +710,7 @@ export function PlaygroundView() {
                       <div className="relative max-h-[calc(90vh-2.5rem)] overflow-y-auto px-1 pb-3 clean-scrollbar">
                         {/* Top padding leaves room for Maki's jump and stars inside the scroll area. */}
                         <div className="flex justify-center pt-6" aria-hidden="true">
-                          <Maki mood="cheer" size={150} label="" />
+                          <Maki mood={makiReaction?.mood ?? "cheer"} size={150} label="" />
                         </div>
                         <h2 id="playground-success-title" className="mt-4 flex items-center justify-center gap-3 text-4xl font-black tracking-wide text-emerald-600 sm:text-5xl">
                           <Star className="h-8 w-8 fill-yellow-300 text-yellow-400 sm:h-10 sm:w-10" aria-hidden="true" />
@@ -784,7 +751,7 @@ export function PlaygroundView() {
                     >
                       <div className="relative max-h-[calc(90vh-2.5rem)] overflow-y-auto px-1 pb-3 clean-scrollbar">
                         <div className="flex justify-center pt-6" aria-hidden="true">
-                          <Maki mood="encourage" size={150} label="" />
+                          <Maki mood={makiReaction?.mood ?? "encourage"} message={makiReaction?.line} size={150} label="" />
                         </div>
                         <h2 id="playground-retry-title" className="mt-4 text-4xl font-black tracking-wide text-red-600 sm:text-5xl">
                           TRY AGAIN

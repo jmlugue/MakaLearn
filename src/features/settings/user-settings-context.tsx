@@ -26,9 +26,20 @@ type UserSettingsContextValue = {
   guideSeen: string[];
   /** Records that a guide key has been shown, so it does not come back. */
   markGuideSeen: (key: string) => Promise<void>;
-  /** Clears every seen key, so the tour and the page intros play again. */
+  /** Clears every seen key, so the tour and the page intros play again. Hidden activities stay hidden. */
   resetGuide: () => Promise<boolean>;
+  /** Activities this teacher hid from Student mode (the eye icon on an activity card). */
+  hiddenActivityIds: string[];
+  setActivityHidden: (activityId: string, hidden: boolean) => Promise<void>;
 };
+
+/**
+ * Hidden-from-Student-mode activities are saved in the same per-account list as the Guide mode keys
+ * (`user_settings.guide_seen`), as "hide-activity:<id>". That list already exists on the live database, so the eye
+ * icon needs no database change (owner's choice, Sep 30). It is per teacher: each teacher decides what their own
+ * Student mode shows. Replaying the tour keeps these entries.
+ */
+const HIDDEN_ACTIVITY_PREFIX = "hide-activity:";
 
 const defaultPreferences: Preferences = {
   textSize: "default",
@@ -222,11 +233,28 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
     [saveGuideSeen]
   );
 
-  const resetGuide = useCallback(() => saveGuideSeen([]), [saveGuideSeen]);
+  const resetGuide = useCallback(
+    () => saveGuideSeen(guideSeenRef.current.filter((key) => key.startsWith(HIDDEN_ACTIVITY_PREFIX))),
+    [saveGuideSeen]
+  );
+
+  const hiddenActivityIds = useMemo(
+    () => guideSeen.filter((key) => key.startsWith(HIDDEN_ACTIVITY_PREFIX)).map((key) => key.slice(HIDDEN_ACTIVITY_PREFIX.length)),
+    [guideSeen]
+  );
+
+  const setActivityHidden = useCallback(
+    async (activityId: string, hidden: boolean) => {
+      const key = `${HIDDEN_ACTIVITY_PREFIX}${activityId}`;
+      const others = guideSeenRef.current.filter((entry) => entry !== key);
+      await saveGuideSeen(hidden ? [...others, key] : others);
+    },
+    [saveGuideSeen]
+  );
 
   const value = useMemo(
-    () => ({ preferences, loaded, updatePreferences, guideSeen, markGuideSeen, resetGuide }),
-    [guideSeen, loaded, markGuideSeen, preferences, resetGuide, updatePreferences]
+    () => ({ preferences, loaded, updatePreferences, guideSeen, markGuideSeen, resetGuide, hiddenActivityIds, setActivityHidden }),
+    [guideSeen, hiddenActivityIds, loaded, markGuideSeen, preferences, resetGuide, setActivityHidden, updatePreferences]
   );
 
   return (

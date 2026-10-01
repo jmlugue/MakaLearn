@@ -9,8 +9,9 @@ import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 /**
  * Match, Choose the picture, and Fill in the blank in Student mode: one question and its picture cards.
- * One tap answers. After that the right card is green, a wrong pick red, and the rest fade. On a wrong pick the
- * cards shake and the right card grows a little and glows (no pop-up, no text, no sound).
+ * Three guesses: a wrong pick shakes and flashes red, then can be tapped again (only Hint takes cards away). When the
+ * question is done the right card is green; after three wrong picks the last pick is red, the cards shake, and
+ * the right card grows a little and glows.
  */
 export function StudentChoiceBoard({
   activity,
@@ -21,6 +22,7 @@ export function StudentChoiceBoard({
   locked,
   eliminated,
   beingRead,
+  shake,
   onPick
 }: {
   activity: Activity;
@@ -32,6 +34,8 @@ export function StudentChoiceBoard({
   locked: boolean;
   /** Wrong cards taken away by Hint. */
   eliminated: string[];
+  /** The card just picked wrongly, so it shakes before fading. */
+  shake?: { option: string; key: number } | null;
   beingRead: boolean;
   onPick: (option: string) => void;
 }) {
@@ -61,9 +65,15 @@ export function StudentChoiceBoard({
           const isAnswer = option === question.answer;
           const isPicked = option === picked;
           const removed = eliminated.includes(option);
-          const tone = locked ? (isAnswer ? "correct" : isPicked ? "wrong" : "faded") : removed ? "removed" : "idle";
+          const flashing = !locked && shake?.option === option;
+          const tone = locked ? (isAnswer ? "correct" : isPicked ? "wrong" : "faded") : removed ? "removed" : flashing ? "wrong" : "idle";
           return (
-            <div key={`${question.id}-${option}`} className="grid min-h-0 place-items-center [container-type:size]">
+            <motion.div
+              key={`${question.id}-${option}-${shake?.option === option ? shake.key : 0}`}
+              className="grid min-h-0 place-items-center [container-type:size]"
+              animate={shake?.option === option && !reduceMotion ? { x: [0, -12, 12, -8, 8, -4, 4, 0] } : { x: 0 }}
+              transition={{ duration: 0.4 }}
+            >
               <button
                 type="button"
                 disabled={locked || removed}
@@ -90,11 +100,11 @@ export function StudentChoiceBoard({
                   )}
                 >
                   {tone === "correct" ? <StudentResultBadge tone="correct" /> : null}
-                  {tone === "wrong" ? <StudentResultBadge tone="wrong" /> : null}
+                  {tone === "wrong" && locked ? <StudentResultBadge tone="wrong" /> : null}
                 </StudentPictureCard>
                 </motion.span>
               </button>
-            </div>
+            </motion.div>
           );
         })}
       </motion.div>

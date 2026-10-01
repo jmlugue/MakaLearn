@@ -276,7 +276,7 @@ export function ItemDetailDialog({
         open={confirmDelete}
         onClose={deleting ? () => undefined : () => setConfirmDelete(false)}
         title={`Delete ${current.label}?`}
-        description="This removes the learning item for everyone. Lessons and activities that use it may be affected."
+        description="This removes the learning item for everyone. Collections and activities that use it may be affected."
         footer={
           <>
             <Button type="button" variant="ghost" onClick={() => setConfirmDelete(false)} disabled={deleting}>

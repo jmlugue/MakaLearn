@@ -78,7 +78,7 @@ function LessonScene({ still }: { still: boolean }) {
         animate={still ? {} : { borderColor: ["#93c5fd", "#2563eb", "#93c5fd"] }}
         transition={still ? { duration: 0 } : { repeat: Infinity, duration: 2.4 }}
       >
-        <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Lesson</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Collection</p>
         <p className="mt-1 text-sm font-semibold text-ink">Snack time</p>
       </motion.div>
     </div>

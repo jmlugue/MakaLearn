@@ -526,7 +526,7 @@ export function OverviewSection({
 
       {/* Activities & lessons: two clickable rows with icon, count, and a plain description */}
       <Tile index={3} className="xl:col-span-3">
-        <TileHeader icon={GraduationCap} title="Activities & lessons" />
+        <TileHeader icon={GraduationCap} title="Activities & collections" />
         <div className="mt-3 space-y-2">
           <Link
             href="/activities"
@@ -564,7 +564,7 @@ export function OverviewSection({
               <BookOpenCheck className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-bold text-ink">Lessons</span>
+              <span className="block text-sm font-bold text-ink">Collections</span>
               <span className="block truncate text-xs text-slate-500">
                 Plans made from cards
               </span>

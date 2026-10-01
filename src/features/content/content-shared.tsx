@@ -153,15 +153,18 @@ const GAP = 8;
 /**
  * Category filter pills on a single row. Pills that do not fit move into a "+N more" menu with search.
  * A selected category from the menu is swapped into the row so the choice stays visible.
+ * `counts` (category id to number, "all" for the total) adds a count to each pill, like the tabs above.
  */
 export function CategoryPills({
   categories,
   value,
-  onChange
+  onChange,
+  counts
 }: {
   categories: Category[];
   value: string;
   onChange: (value: string) => void;
+  counts?: Record<string, number>;
 }) {
   const options = useMemo(() => [{ id: "all", name: "All", color: "", description: "", createdBy: "" } as Category, ...categories], [categories]);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -211,21 +214,33 @@ export function CategoryPills({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-0 overflow-hidden" aria-hidden="true">
         <div ref={measureRef} className="invisible absolute left-0 top-0 flex gap-2 whitespace-nowrap">
           {options.map((option) => (
-            <Pill key={option.id} category={option} selected={false} onClick={() => undefined} tabIndex={-1} />
+            <Pill key={option.id} category={option} count={counts?.[option.id]} selected={false} onClick={() => undefined} tabIndex={-1} />
           ))}
         </div>
       </div>
       <div className="flex gap-2" role="group" aria-label="Filter by category">
         {visible.map((option) => (
-          <Pill key={option.id} category={option} selected={option.id === value} onClick={() => onChange(option.id)} />
+          <Pill key={option.id} category={option} count={counts?.[option.id]} selected={option.id === value} onClick={() => onChange(option.id)} />
         ))}
-        {hidden.length ? <MorePill categories={hidden} onSelect={onChange} /> : null}
+        {hidden.length ? <MorePill categories={hidden} counts={counts} onSelect={onChange} /> : null}
       </div>
     </div>
   );
 }
 
-function Pill({ category, selected, onClick, tabIndex }: { category: Category; selected: boolean; onClick: () => void; tabIndex?: number }) {
+function Pill({
+  category,
+  count,
+  selected,
+  onClick,
+  tabIndex
+}: {
+  category: Category;
+  count?: number;
+  selected: boolean;
+  onClick: () => void;
+  tabIndex?: number;
+}) {
   return (
     <button
       type="button"
@@ -241,11 +256,14 @@ function Pill({ category, selected, onClick, tabIndex }: { category: Category; s
         <span className={cn("h-2.5 w-2.5 rounded-full", selected && "ring-2 ring-white/70")} style={{ backgroundColor: tintDot(category.color) }} />
       ) : null}
       {category.name}
+      {count !== undefined ? (
+        <span className={cn("rounded-full px-1.5 text-xs font-bold", selected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500")}>{count}</span>
+      ) : null}
     </button>
   );
 }
 
-function MorePill({ categories, onSelect }: { categories: Category[]; onSelect: (id: string) => void }) {
+function MorePill({ categories, counts, onSelect }: { categories: Category[]; counts?: Record<string, number>; onSelect: (id: string) => void }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -323,6 +341,9 @@ function MorePill({ categories, onSelect }: { categories: Category[]; onSelect: 
                   >
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tintDot(category.color) }} />
                     <span className="truncate">{category.name}</span>
+                    {counts?.[category.id] !== undefined ? (
+                      <span className="ml-auto rounded-full bg-slate-100 px-1.5 text-xs font-bold text-slate-500">{counts[category.id]}</span>
+                    ) : null}
                   </button>
                 ))}
                 {!matches.length ? <p className="px-2.5 py-3 text-sm text-slate-400">No match.</p> : null}

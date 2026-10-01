@@ -57,25 +57,25 @@ const addMaterial: HelpTopic = {
 
 const makeLesson: HelpTopic = {
   id: "lesson",
-  title: "Make a lesson",
+  title: "Make a collection",
   summary: "Cards in the order you teach them.",
   icon: BookOpen,
   href: "/content?open=lesson",
   steps: [
-    { title: "New lesson", text: "In Content, open Lessons and choose New lesson. Give it a title.", icon: BookOpen, scene: "lesson" },
-    { title: "Cards in order", text: "Tap cards to fill the lesson order, first to last.", icon: Layers, scene: "cards" },
-    { title: "Shared or private", text: "Choose when you save. Other teachers can Make a copy of a shared lesson.", icon: Users, scene: "lesson" }
+    { title: "New collection", text: "In Content, open Collections and choose New collection. Give it a title.", icon: BookOpen, scene: "lesson" },
+    { title: "Cards in order", text: "Tap cards to fill the collection order, first to last.", icon: Layers, scene: "cards" },
+    { title: "Shared or private", text: "Choose when you save. Other teachers can Make a copy of a shared collection.", icon: Users, scene: "lesson" }
   ]
 };
 
 const createActivity: HelpTopic = {
   id: "activity",
   title: "Create an activity",
-  summary: "Practise cards as a game.",
+  summary: "Practice cards as a game.",
   icon: Shapes,
   href: "/activities?create=1",
   steps: [
-    { title: "Pick a format", text: "Match, Fill in the blank, or Drag and drop. Tick From a lesson to use its cards.", icon: Shapes, scene: "activity" },
+    { title: "Pick a format", text: "Match, Fill in the blank, or Drag and drop. Tick From a collection to use its cards.", icon: Shapes, scene: "activity" },
     { title: "Choose cards", text: "Pick up to 5 cards. Each one gets a ready question.", icon: Layers, scene: "cards" },
     { title: "Save and play", text: "Check the questions, save, then press Play.", icon: ListChecks, scene: "activity" }
   ]
@@ -88,7 +88,7 @@ const browseContent: HelpTopic = {
   icon: Eye,
   href: "/admin#content",
   steps: [
-    { title: "Content", text: "In Admin, open Content to view every teacher's materials, lessons, and media. You can look, not change.", icon: Layers, scene: "lesson" },
+    { title: "Content", text: "In Admin, open Content to view every teacher's materials, collections, and media. You can look, not change.", icon: Layers, scene: "lesson" },
     { title: "Activities", text: "Open an activity to view its cards and a short demo.", icon: Shapes, scene: "activity" }
   ]
 };
@@ -115,7 +115,7 @@ const playground: HelpTopic = {
   href: "/playground",
   studentStart: "/playground",
   steps: [
-    { title: "Build a phrase or sentence", text: "Drag up to 5 cards onto the board.", icon: Layers, scene: "cards" },
+    { title: "Build a phrase or sentence", text: "Click or drag up to 5 cards onto the board. They go in order.", icon: Layers, scene: "cards" },
     { title: "Check and Listen", text: "Press Check to see if the sentence is correct. Press Listen to hear it read aloud.", icon: Volume2, scene: "student" }
   ]
 };
@@ -143,9 +143,9 @@ const studentActivities: HelpTopic = {
   studentStart: "/activities",
   steps: [
     { title: "Pick an activity", text: "In Student mode, open Activities and tap a picture tile.", icon: Shapes, scene: "student" },
-    { title: "Tap the answer", text: "Tap the right picture. A right answer says Correct!; a wrong one shakes and shows the right card.", icon: Layers, scene: "activity" },
-    { title: "Drag and drop", text: "Drag each picture onto its word. A wrong one shakes and goes back.", icon: Hand, scene: "activity" },
-    { title: "See the score", text: "Maki shows the score at the end. Play again or pick another activity.", icon: ListChecks, scene: "activity" }
+    { title: "Tap the answer", text: "Tap the right picture. There are three tries: a wrong one buzzes and Maki cheers the learner on.", icon: Layers, scene: "activity" },
+    { title: "Drag and drop", text: "Drag each picture onto its word. A wrong one goes back. Each card has three tries.", icon: Hand, scene: "activity" },
+    { title: "See the score", text: "Right within three tries counts. Stars show first-try answers.", icon: ListChecks, scene: "activity" }
   ]
 };
 
@@ -182,15 +182,15 @@ export function helpTopicsFor(role: AppUser["role"]): HelpTopic[] {
 // The questions from the old Help page are kept (updated to today's app), plus newer ones.
 const sharedFaqs: HelpFaq[] = [
   {
-    question: "What is the difference between a lesson and an activity?",
-    answer: "A lesson is the plan: a title, a short description, and the cards in order. Activities are how the learner practises them. A lesson can hold many activities, made in Activities with From a lesson ticked, and an activity can also stand on its own."
+    question: "What is the difference between a collection and an activity?",
+    answer: "A collection is the plan: a title, a short description, and the cards in order. Activities are how the learner practises them. A collection can hold many activities, made in Activities with From a collection ticked, and an activity can also stand on its own."
   },
   {
     question: "Where do I find an activity after creating it?",
-    answer: "Open Activities. Every activity is in the library. From lessons shows each lesson's activities, Private shows the ones only you can see, and the type filter shows one format."
+    answer: "Open Activities. Every activity is in the library. From collections shows each collection's activities, Private shows the ones only you can see, and the type filter shows one format."
   },
   {
-    question: "Why did my gesture lesson open Gesture practice instead of Activities?",
+    question: "Why did my gesture collection open Gesture practice instead of Activities?",
     answer: "Gestures are practised with the camera in Gesture practice, so they do not make activities. Activities use PECS cards."
   },
   {

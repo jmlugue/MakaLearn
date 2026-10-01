@@ -458,7 +458,7 @@ export function ContentLibraryView({
     try {
       saved = previous ? await updateLesson(next, previous) : await insertLesson(next);
     } catch (error) {
-      notify({ title: "Lesson not saved", description: errorText(error, "The lesson could not be saved."), tone: "error" });
+      notify({ title: "Collection not saved", description: errorText(error, "The collection could not be saved."), tone: "error" });
       return false;
     }
 
@@ -468,13 +468,13 @@ export function ContentLibraryView({
       "lesson",
       saved.title,
       previous
-        ? "Updated a lesson."
+        ? "Updated a collection."
         : mode.kind === "copy"
-          ? `Copied the lesson "${mode.source.title}".`
-          : "Created a lesson.",
+          ? `Copied the collection "${mode.source.title}".`
+          : "Created a collection.",
       saved.id
     );
-    notify({ title: previous ? "Lesson updated" : mode.kind === "copy" ? "Copy saved" : "Lesson saved", tone: "success" });
+    notify({ title: previous ? "Collection updated" : mode.kind === "copy" ? "Copy saved" : "Collection saved", tone: "success" });
     return true;
   }
 
@@ -484,12 +484,12 @@ export function ContentLibraryView({
     try {
       await deleteLesson(lessonToDelete.id);
       setLessons((current) => current.filter((lesson) => lesson.id !== lessonToDelete.id));
-      log("delete", "lesson", lessonToDelete.title, "Deleted a lesson.", lessonToDelete.id);
-      notify({ title: "Lesson deleted", tone: "success" });
+      log("delete", "lesson", lessonToDelete.title, "Deleted a collection.", lessonToDelete.id);
+      notify({ title: "Collection deleted", tone: "success" });
       setLessonToDelete(null);
       setOpenLessonId("");
     } catch (error) {
-      notify({ title: "Delete failed", description: errorText(error, "The lesson could not be deleted."), tone: "error" });
+      notify({ title: "Delete failed", description: errorText(error, "The collection could not be deleted."), tone: "error" });
     } finally {
       setDeleting(false);
     }
@@ -549,7 +549,7 @@ export function ContentLibraryView({
 
   const sections: Array<{ value: Tab; label: string; count: number; icon: LucideIcon }> = [
     { value: "materials", label: "Materials", count: items.length, icon: Layers },
-    { value: "lessons", label: "Lessons", count: lessons.length, icon: BookOpen },
+    { value: "lessons", label: "Collections", count: lessons.length, icon: BookOpen },
     { value: "categories", label: "Categories", count: shownCategories.length, icon: FolderOpen },
     { value: "media", label: "Media", count: media.length, icon: ImageIcon }
   ];
@@ -687,9 +687,9 @@ export function ContentLibraryView({
 
       <ConfirmDialog
         open={Boolean(lessonToDelete)}
-        title={`Delete ${lessonToDelete?.title ?? "lesson"}?`}
-        description="The lesson is removed. Its materials and activities stay."
-        confirmLabel="Delete lesson"
+        title={`Delete ${lessonToDelete?.title ?? "collection"}?`}
+        description="The collection is removed. Its materials and activities stay."
+        confirmLabel="Delete collection"
         tone="danger"
         loading={deleting}
         onConfirm={confirmDeleteLesson}

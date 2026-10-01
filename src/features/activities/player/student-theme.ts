@@ -22,7 +22,8 @@ export const studentButton = {
   base: "inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl px-4 text-lg font-black transition focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5",
   primary: "border-4 border-white bg-blue-600 text-white shadow-[0_6px_0_rgba(30,64,175,0.35)] hover:bg-blue-700",
   secondary: "border-2 border-blue-200 bg-[#fff] text-blue-800 shadow-[0_6px_0_rgba(147,197,253,0.4)] hover:bg-blue-50",
-  hint: "border-2 border-amber-300 bg-[#fff] text-amber-800 shadow-[0_6px_0_rgba(251,191,36,0.35)] hover:bg-amber-50"
+  hint: "border-2 border-amber-300 bg-[#fff] text-amber-800 shadow-[0_6px_0_rgba(251,191,36,0.35)] hover:bg-amber-50",
+  exit: "border-4 border-white bg-red-500 text-white shadow-[0_6px_0_rgba(185,28,28,0.4)] hover:bg-red-600"
 } as const;
 
 /** The same 3:4 card look everywhere: choices, the drag tray, drop boxes, and the result pop-up. */
@@ -48,3 +49,9 @@ export function studentInstruction(type: string) {
 
 /** How long a wrong answer shows the right card before the next question. */
 export const WRONG_MS = 1300;
+
+/** Guesses per question (per box in Drag and drop). The last wrong guess marks it wrong and moves on. */
+export const MAX_TRIES = 3;
+
+/** How long Maki shows an encouraging face and line after a wrong guess. */
+export const ENCOURAGE_MS = 2400;

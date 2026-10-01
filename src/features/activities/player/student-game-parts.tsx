@@ -1,9 +1,10 @@
 "use client";
 
 import { Maki, type MakiMood } from "@/features/student-mode/maki";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, Hand, Home, Lightbulb, Volume2, X } from "lucide-react";
+import { Check, Hand, Lightbulb, LogOut, Volume2, X } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { getActivityBackground } from "@/features/activities/player/player-utils";
 import { SymbolOption } from "@/features/activities/player/player-parts";
@@ -24,7 +25,8 @@ export function StudentGameFrame({
   instruction,
   children,
   overlay,
-  maki
+  maki,
+  makiLine
 }: {
   activityId: string;
   topBar: ReactNode;
@@ -33,6 +35,8 @@ export function StudentGameFrame({
   overlay?: ReactNode;
   /** Maki in the corner, reacting to answers. Hidden on small screens so it never covers cards. */
   maki?: MakiMood;
+  /** What Maki says in his bubble after a wrong answer. */
+  makiLine?: string;
 }) {
   return (
     <section
@@ -57,8 +61,9 @@ export function StudentGameFrame({
         <div className="min-h-0">{children}</div>
       </div>
       {maki ? (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 hidden lg:block" aria-hidden="true">
-          <Maki mood={maki} size={170} label="" />
+        // Bigger on bigger screens (owner's request); the bubble grows with him. Still hidden below lg.
+        <div className="pointer-events-none absolute bottom-3 left-3 z-10 hidden w-[190px] lg:block xl:w-[230px] 2xl:w-[260px]" aria-hidden="true">
+          <Maki mood={maki} message={makiLine || undefined} size={260} label="" className="h-auto w-full" />
         </div>
       ) : null}
       {overlay}
@@ -66,7 +71,7 @@ export function StudentGameFrame({
   );
 }
 
-/** Home on the left (after the student menu logo), progress in the middle, Hint and Listen on the right. */
+/** Exit on the left (after the student menu logo, asks first), progress in the middle, Hint and Listen on the right. */
 export function StudentTopBar({
   steps,
   onHome,
@@ -83,12 +88,24 @@ export function StudentTopBar({
   onListen: () => void;
   isListening: boolean;
 }) {
+  const [confirmExit, setConfirmExit] = useState(false);
   return (
     <header className="flex flex-wrap items-center justify-between gap-2 pl-[3.75rem] sm:gap-3 sm:pl-16">
-      <button type="button" className={cn(studentButton.base, studentButton.secondary)} onClick={onHome} aria-label="All activities">
-        <Home className="h-6 w-6" aria-hidden="true" />
-        <span className="hidden sm:inline">Activities</span>
+      <button type="button" className={cn(studentButton.base, studentButton.exit)} onClick={() => setConfirmExit(true)} aria-label="Exit">
+        <LogOut className="h-6 w-6" aria-hidden="true" />
+        <span className="hidden sm:inline">Exit</span>
       </button>
+      <ConfirmDialog
+        open={confirmExit}
+        title="Exit this activity?"
+        description="Your answers in this round will not be kept."
+        confirmLabel="Exit"
+        onConfirm={() => {
+          setConfirmExit(false);
+          onHome();
+        }}
+        onClose={() => setConfirmExit(false)}
+      />
       <div className="order-last flex w-full justify-center lg:order-none lg:w-auto">
         <StudentProgressDots steps={steps} />
       </div>

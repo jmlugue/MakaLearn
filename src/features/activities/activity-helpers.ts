@@ -47,7 +47,7 @@ export const activityTypeDescriptions: Record<ActivityType, string> = {
   "choose-correct-symbol": "Read a question, tap the picture that answers it.",
   "fill-blank": "Read a sentence, tap the picture that finishes it.",
   "drag-drop-symbol": "Drag each picture onto its word.",
-  "gesture-practice": "Practise gestures with the teacher.",
+  "gesture-practice": "Practice gestures with the teacher.",
   "simple-quiz": "Pick the right word."
 };
 
@@ -118,7 +118,7 @@ export function validatePromptForActivity(type: ActivityType, item: LearningItem
 }
 
 export function getActivityTypeDraftText(type: ActivityType) {
-  if (type === "gesture-practice") return "Draft with AI is not used for gesture practice.";
+  if (type === "gesture-practice") return "Inspire me with AI is not used for gesture practice.";
   if (type === "match-word-symbol" || type === "drag-drop-symbol") {
     return "This format uses the cards directly, so no AI call is needed.";
   }

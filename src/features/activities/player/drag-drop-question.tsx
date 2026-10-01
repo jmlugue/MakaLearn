@@ -43,6 +43,7 @@ export function StudentDragBoard({
   trayCards,
   hintTargetId,
   dimmedCards,
+  missed = [],
   beingReadId,
   shake,
   onDrop
@@ -57,6 +58,8 @@ export function StudentDragBoard({
   dimmedCards: string[];
   beingReadId: string;
   shake: { id: string; key: number } | null;
+  /** Boxes whose three tries ran out: the right card is shown there, marked wrong. */
+  missed?: string[];
   /** Returns true when the card belongs there. */
   onDrop: (questionId: string, value: string) => boolean;
 }) {
@@ -184,6 +187,7 @@ export function StudentDragBoard({
       <div className={cn("mx-auto grid h-full min-h-0 w-full max-w-6xl gap-2 sm:gap-4", boxColumnsFor(questions.length))}>
         {questions.map((question) => {
           const card = placed[question.id];
+          const failed = Boolean(card) && missed.includes(question.id);
           const over = drag?.overId === question.id;
           const hinted = hintTargetId === question.id && !card;
           return (
@@ -192,7 +196,7 @@ export function StudentDragBoard({
               data-drop-id={question.id}
               className={cn(
                 "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-[1.75rem] border-4 bg-white/80 p-2 shadow-[0_8px_0_rgba(147,197,253,0.25)] transition-colors sm:p-3",
-                card ? "border-emerald-400 bg-emerald-50/90" : over ? "border-blue-500 bg-blue-50" : hinted ? "border-amber-400 ring-8 ring-amber-100" : "border-white",
+                failed ? "border-rose-300 bg-rose-50/90" : card ? "border-emerald-400 bg-emerald-50/90" : over ? "border-blue-500 bg-blue-50" : hinted ? "border-amber-400 ring-8 ring-amber-100" : "border-white",
                 beingReadId === question.id && "ring-8 ring-sky-200"
               )}
               animate={shake?.id === question.id && !reduceMotion ? { x: [0, -10, 10, -6, 6, 0] } : { x: 0 }}
@@ -203,8 +207,8 @@ export function StudentDragBoard({
               </span>
               <div className="grid min-h-0 place-items-center [container-type:size]">
                 {card ? (
-                  <StudentPictureCard value={card} learningItems={learningItems} className="w-[min(100cqw,75cqh,16rem)] border-emerald-500">
-                    <StudentResultBadge tone="correct" />
+                  <StudentPictureCard value={card} learningItems={learningItems} className={cn("w-[min(100cqw,75cqh,16rem)]", failed ? "border-rose-400" : "border-emerald-500")}>
+                    <StudentResultBadge tone={failed ? "wrong" : "correct"} />
                   </StudentPictureCard>
                 ) : (
                   <span

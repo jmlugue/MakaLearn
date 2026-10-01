@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Layers, Loader2, Lock, RotateCcw, Sparkles, Users } from "lucide-react";
+import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Layers, Loader2, Lock, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label } from "@/components/ui/form";
@@ -226,7 +226,7 @@ function ActivityForm({
   function validate(target: number) {
     if (target >= 1 && mode.kind === "new" && source === "lesson" && !lesson) {
       setStep(0);
-      setError("Pick a lesson, or untick From a lesson.");
+      setError("Pick a collection, or untick From a collection.");
       return false;
     }
     if (target >= 2) {
@@ -262,7 +262,7 @@ function ActivityForm({
       });
       if (invalid) {
         const prompt = values.promptInputs[getPromptStoreKey(values.type, invalid.id)]?.trim() ?? "";
-        setError(`${invalid.label}: ${prompt ? validatePromptForActivity(values.type, invalid, prompt) : "Add a question, or use Draft with AI."}`);
+        setError(`${invalid.label}: ${prompt ? validatePromptForActivity(values.type, invalid, prompt) : "Add a question, or use Inspire me with AI."}`);
         return;
       }
     }
@@ -320,7 +320,7 @@ function ActivityForm({
         tone: draft.source === "gemini" || draft.source === "cache" ? "success" : "info"
       });
     } catch {
-      setAiNote("Could not draft with AI. Type the questions instead.");
+      setAiNote("Could not get ideas from AI. Type the questions instead.");
     } finally {
       setDrafting(false);
     }
@@ -376,8 +376,8 @@ function ActivityForm({
                       className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded border-blue-300 accent-blue-600"
                     />
                     <span>
-                      <span className="block text-sm font-bold text-ink">From a lesson</span>
-                      <span className="block text-xs text-slate-600">Use only the cards in one of your lessons.</span>
+                      <span className="block text-sm font-bold text-ink">From a collection</span>
+                      <span className="block text-xs text-slate-600">Use only the cards in one of your collections.</span>
                     </span>
                   </label>
                   {source === "lesson" ? (
@@ -412,7 +412,7 @@ function ActivityForm({
               kinds={["pecs"]}
               max={MAX_ACTIVITY_LEARNING_ITEMS}
               tray="slots"
-              emptyText={lesson ? "This lesson has no cards with pictures." : "No cards with pictures match."}
+              emptyText={lesson ? "This collection has no cards with pictures." : "No cards with pictures match."}
             />
           </div>
         ) : null}
@@ -458,12 +458,10 @@ function ActivityForm({
                   <Button type="button" size="sm" variant="secondary" onClick={() => draftWithAi(everyCardHasQuestion)} disabled={drafting}>
                     {drafting ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    ) : everyCardHasQuestion ? (
-                      <RotateCcw className="h-4 w-4 text-blue-600" aria-hidden="true" />
                     ) : (
                       <Sparkles className="h-4 w-4 text-blue-600" aria-hidden="true" />
                     )}
-                    {drafting ? "Drafting..." : everyCardHasQuestion ? "Try again with AI" : "Draft with AI"}
+                    {drafting ? "Thinking..." : "Inspire me with AI"}
                   </Button>
                 </div>
                 {aiNote ? (
@@ -497,7 +495,7 @@ function ActivityForm({
                                 return next;
                               });
                             }}
-                            placeholder={values.type === "fill-blank" ? "Write a sentence with ____, or use Draft with AI" : "A short question"}
+                            placeholder={values.type === "fill-blank" ? "Write a sentence with ____, or use Inspire me with AI" : "A short question"}
                           />
                           <FieldError message={validatePromptForActivity(values.type, item, value)} />
                           {aiIssuesByItem[item.id] ? (
@@ -629,7 +627,7 @@ function LessonPicker({
             <span className="grid h-10 w-10 place-items-center rounded-lg bg-blue-50 text-blue-600">
               <BookOpen className="h-4 w-4" aria-hidden="true" />
             </span>
-            Pick a lesson
+            Pick a collection
           </span>
         )}
         <ChevronDown className={cn("h-5 w-5 shrink-0 text-blue-600 transition", open && "rotate-180")} aria-hidden="true" />
@@ -637,8 +635,8 @@ function LessonPicker({
 
       {open ? (
         <div id="activity-lesson-list" className="mt-2 rounded-2xl border border-blue-100 bg-[#fff] p-2 shadow-[0_12px_30px_rgba(37,99,235,0.12)]">
-          <SearchInput label="Search lessons" placeholder="Search lessons" value={search} onChange={setSearch} />
-          <ul className="clean-scrollbar mt-2 max-h-56 space-y-1 overflow-y-auto" aria-label="Lessons">
+          <SearchInput label="Search collections" placeholder="Search collections" value={search} onChange={setSearch} />
+          <ul className="clean-scrollbar mt-2 max-h-56 space-y-1 overflow-y-auto" aria-label="Collections">
             {visible.map((lesson) => {
               const selected = lesson.id === value;
               return (
@@ -662,7 +660,7 @@ function LessonPicker({
               );
             })}
             {!visible.length ? (
-              <li className="py-6 text-center text-sm text-slate-500">{lessons.length ? "No lessons match." : "No lessons yet. Make one in Content."}</li>
+              <li className="py-6 text-center text-sm text-slate-500">{lessons.length ? "No collections match." : "No collections yet. Make one in Content."}</li>
             ) : null}
           </ul>
         </div>

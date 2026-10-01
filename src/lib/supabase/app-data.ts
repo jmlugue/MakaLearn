@@ -898,7 +898,7 @@ function createAdaptivePrompt(
   if (savedPrompt) return savedPrompt;
 
   if (type === "gesture-practice") {
-    return `Practise "${item.label}" with teacher guidance.`;
+    return `Practice "${item.label}" with teacher guidance.`;
   }
 
   if (type === "fill-blank") {

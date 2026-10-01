@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Lock, Pencil, Play, Trash2 } from "lucide-react";
+import { BookOpen, Lock, MonitorPlay, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -62,8 +62,8 @@ export function ActivityPreviewDialog({
             ) : null}
             {onPlay ? (
               <Button type="button" onClick={() => onPlay(activity)}>
-                <Play className="h-4 w-4" aria-hidden="true" />
-                Play
+                <MonitorPlay className="h-4 w-4" aria-hidden="true" />
+                Preview
               </Button>
             ) : null}
           </>

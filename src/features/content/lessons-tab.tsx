@@ -43,9 +43,9 @@ export function LessonsTab({
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <SearchInput label="Search lessons" placeholder="Search lessons or cards" value={search} onChange={setSearch} />
+        <SearchInput label="Search collections" placeholder="Search collections or cards" value={search} onChange={setSearch} />
         <div className="w-44">
-          <Select aria-label="Sort lessons" value={sort} onChange={(event) => setSort(event.target.value as SortOrder)}>
+          <Select aria-label="Sort collections" value={sort} onChange={(event) => setSort(event.target.value as SortOrder)}>
             {(Object.keys(sortLabels) as SortOrder[]).map((key) => (
               <option key={key} value={key}>
                 {sortLabels[key]}
@@ -57,7 +57,7 @@ export function LessonsTab({
           <GuideTip id="content.addLesson">
             <Button className="ml-auto" onClick={onNewLesson}>
               <BookPlus className="h-4 w-4" aria-hidden="true" />
-              New lesson
+              New collection
             </Button>
           </GuideTip>
         ) : null}
@@ -78,8 +78,8 @@ export function LessonsTab({
       ) : (
         <EmptyState
           icon={BookOpen}
-          title={lessons.length ? "No lessons found" : "No lessons yet"}
-          description={lessons.length ? "Try another search." : canCreate ? "Use New lesson to plan the first one." : "Teachers' lessons will show here."}
+          title={lessons.length ? "No collections found" : "No collections yet"}
+          description={lessons.length ? "Try another search." : canCreate ? "Use New collection to plan the first one." : "Teachers' collections will show here."}
         />
       )}
     </section>

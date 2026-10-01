@@ -31,7 +31,7 @@ export default function LoginPage() {
               </span>
             </div>
             <p className="mt-8 max-w-md text-lg font-semibold leading-8 text-blue-50">
-              Your Makaton lessons, activities, and sign practice, all in one place.
+              Your Makaton collections, activities, and sign practice, all in one place.
             </p>
             <div className="mt-9 space-y-3">
               {accountUses.map((item) => (

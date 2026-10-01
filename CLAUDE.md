@@ -867,3 +867,92 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   only recorded for teachers, so admins had no limit). Owner kept 1 automatic Gemini retry (not more).
 - **Account requests match existing emails ignoring capitals** (`ilike` with `%` and `_` escaped) in
   `/api/account-requests`. The owner kept the plain "Could not draft with AI" message for a lost session.
+
+---
+
+## 21. Advisor revisions (Sep 30, not verified signed in; supersedes earlier notes where they differ)
+
+- **Lesson is now "Collection" on screen.** Every visible word (Content tab, buttons, forms, toasts, activity creator
+  "From a collection", Help, Guide mode, Admin, login line). Code names, routes (`?open=lesson`), ids, and database
+  tables still say lesson. New log lines say "Created a collection." (older rows keep their text).
+- **Category filter pills show counts** (`CategoryPills` takes `counts`; "All" is the total for the PECS or Gestures tab).
+- **Draft with AI is "Inspire me with AI"** ("Thinking..." while it works; "Try again with AI" unchanged).
+- **Teacher Play is "Preview"** (`MonitorPlay` icon; the eye icon is kept free for the planned Student mode show/hide).
+- **Student mode activity top bar:** "Activities" is now **Exit** (`LogOut` icon) and asks "Exit this activity?" first.
+- **Three guesses per question** (Student mode and teacher Preview; `MAX_TRIES` in `player/student-theme.ts`). A wrong
+  pick buzzes, shakes, and fades out; right on any try counts in the score; the third wrong pick marks it wrong (red
+  pick, right card green) and moves on. Drag and drop: three tries per box, then the right card is put there in red.
+  Result pop-up: score = right within three tries; **stars = first-try answers** (owner's choice).
+- **Wrong answers are no longer silent** (supersedes sections 13, 18, 19): `playCue("wrong")` is a soft square-wave
+  "uh-uh", then Maki reacts. `src/features/student-mode/maki-voice.ts`: four wrong faces (`encourage`, `wink`, `nod`,
+  `starry` in `maki.tsx`) and six lines, random without repeats, spoken from clips in `public/maki/voice/` made with the
+  free Microsoft **Ana** voice (edge-tts, `en-US-AnaNeural`, owner's pick). Fallback: device voice at pitch 1.6.
+  Adding a line: generate a clip with `python -m edge_tts --voice en-US-AnaNeural --rate=-5% --text "..." --write-media
+  public/maki/voice/<name>.mp3` and add it to `encouragingLines`.
+- **Maki is bigger** in the activity corner (190px lg, 230px xl, 260px 2xl) and on the gesture camera; his speech
+  bubble is bigger (20 unit text).
+- **Playground:** a click or tap adds a card straight to the next empty place; every drop goes to the next empty place
+  (never swapped into a chosen slot); board cards are not reordered (red X removes one). Click to carry is gone from the
+  playground only (Drag and drop activities keep it). On-screen text may now say "click or drag" (supersedes section 20).
+  The board picture's subtitle was repainted on the owner's artwork: "Click or drag cards here."
+  (`public/playground-drop-area.webp`, 99 KB; the 1.6 MB PNG was removed).
+- **Gesture practice (UI only; recognition untouched):**
+  - The feedback box takes the height its words need and never scrolls; the camera shrinks (floor `min-h-[11rem]`).
+    Supersedes the Sep 28 fixed-share box.
+  - Guided practice: no Try again pop-up. A wrong gesture shows the full AI feedback under the camera with Skip and
+    Try again. The Great job pop-up stays.
+  - `HoldProgressBar`: "Hold your sign still until the bar fills." with a bar that fills over the 2 second hold. It reads
+    `stablePoseStartedAtRef` and shows while the status says "Hold still"; the seconds text is hidden.
+  - Wrong gesture (a non-correct AI feedback in Student mode): the buzz, then Maki's face and line.
+  - Get-ready card: a picture strip joined by arrows (camera frame with Maki's hand, a 3-2-1 countdown, the first
+    gesture's picture), no number badges.
+  - Progress: a level path (S shaped road, Start flag to Finish trophy, one circle per gesture).
+  - Summary: one star per gesture (gold when done) and a picture grid with tick, skip, or dash. The Completed / First
+    try / Attempts numbers are gone (fits the no-attempts rule).
+- **Pending:** the Student mode show/hide eye needs one new activities column (Julian or someone with SQL access); the
+  owner is sorting out database access first. Help animations for Student mode activities still show the old wrong-tap
+  visuals (captions updated).
+
+### Sep 30, round 2 (owner review; supersedes the round above where they differ)
+
+- **Match and Fill:** a wrong card is never greyed out; it shakes and flashes red, then can be tapped again (each tap
+  counts). Only Hint removes cards. Same in the teacher Preview.
+- **Drag and drop: three tries per card**, remembered even when the child switches cards. After a card's third wrong
+  drop it goes to its own box in red (Student mode and teacher Preview).
+- **Exit button is red** (`studentButton.exit`). "Inspire me with AI" always (no "Try again with AI" label).
+  "Practise" became "Practice" on screen.
+- **Maki:** voice is Ana pitched down to sound like a young boy (`--pitch=-18Hz`, owner's pick). 9 wrong lines (adds
+  "Oops! Try again!", "Oopsie! So close!", "Uh-oh! You can do it!") and 6 right lines ("Great job!", "You did it!",
+  "Awesome!", "Yay!", "Super!", "Well done!"). Right faces: cheer, love (heart eyes), party (hat, confetti), dance
+  (music notes). A right answer: chime, Maki's line, then the card's word (`cheerAfterRight`). Right-answer moods show
+  a bubble only when given a message.
+- **Playground:** Maki sits in the board's bottom-left grass corner (Student mode, waves while the board is empty);
+  Good job and Try again use his voice and random faces. Board text: "Click or drag your cards here."
+- **Show/hide eye (built, no database change):** teachers only, top right of each activity card. Saved per teacher as
+  `hide-activity:<id>` in `user_settings.guide_seen` (`hiddenActivityIds`, `setActivityHidden` in
+  `user-settings-context.tsx`). Hidden activities are dimmed with "Hidden in Student mode" and left out of that
+  teacher's Student mode menu. Replay tour keeps them.
+- **Gesture:** hold bar is green; Teacher guide text smaller; free practice in Student mode opens a Great job pop-up
+  on a recognized gesture (closes after 2.6s); guided wrong has no Try again: lower the hands and raise them to try
+  again (same `openGuidedCapture(true)` the button used), Skip stays. Journey is a sandy road over hills with gesture
+  picture stickers, gold stars when done, and Maki standing on the current stop. Summary has 5 stars:
+  round(done / total x 5).
+- **Gesture animations (`src/features/gesture/gesture-motion.tsx`):** the reference cards and Great job pop-ups play
+  `gesture-media/gesture-motions/<gesture id>.webm` from Supabase Storage when it exists (one storage list call per
+  page load), else the picture. The videos are made outside the repo with `C:\Users\James\Documents\MakaLearn-tools\
+  gesture-recorder.html` (records hand, head, and shoulder points only, replays them as a cartoon child, saves WebM)
+  and uploaded with `upload-gesture-motions.mjs` in the same folder (service role key from `.env.local`). The owner
+  asked that nothing about them live in the repo.
+
+### Oct 1 (owner review of round 2)
+
+- **Right answers never show a speech bubble**; only the wrong faces talk (`talking` in `maki.tsx`), so right and wrong
+  look different. Maki still says his line out loud on right answers.
+- **Star eyes replaced by "oops"** (squeezed eyes, one brow up, wavy grin, sweat drop, hand to head). Wrong faces:
+  encourage, wink, nod, oops.
+- **Right answer timing:** chime, then the card's word at once (the card's own audio file when it has one, else the
+  device voice), then Maki's line after the word (`cheerAfterRight(word, audioUrl)`).
+- **Category counts everywhere there is a category filter:** Content materials, the card picker in the collection and
+  activity creators, and the playground categories.
+- Hiding an activity shows no toast. The gesture Great job pop-up shows only Maki (no gesture picture). Start and
+  Finish are drawn inside the journey road with room around the stops.

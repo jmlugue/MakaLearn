@@ -15,7 +15,7 @@ const chipClass = "inline-flex items-center gap-1 rounded-full bg-white/80 px-2 
 export function LessonPreviewBody({ items }: { items: LearningItem[] }) {
   return (
     <div className={cn("p-4", glassBoxClass)}>
-      <SectionLabel>Lesson order</SectionLabel>
+      <SectionLabel>Collection order</SectionLabel>
       <ol className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
         {items.map((item, index) => {
           const tone = kindTone(item.contentType);

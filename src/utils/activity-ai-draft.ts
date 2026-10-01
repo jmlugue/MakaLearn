@@ -66,7 +66,7 @@ export function buildDefaultActivityPrompt(type: ActivityType) {
     "choose-correct-symbol": "Choose the PECS card that answers each prompt.",
     "fill-blank": "Complete each sentence with the missing PECS word.",
     "drag-drop-symbol": "Drag each PECS card to its matching word.",
-    "gesture-practice": "Practise each gesture with teacher guidance.",
+    "gesture-practice": "Practice each gesture with teacher guidance.",
     "simple-quiz": "Answer each question with teacher guidance."
   };
 

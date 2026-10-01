@@ -33,9 +33,9 @@ export type LessonFormValues = {
 const stepLabels = ["Details", "Cards", "Review"];
 
 function formTitle(mode: LessonFormMode | null) {
-  if (mode?.kind === "edit") return "Edit lesson";
+  if (mode?.kind === "edit") return "Edit collection";
   if (mode?.kind === "copy") return "Make a copy";
-  return "New lesson";
+  return "New collection";
 }
 
 export function LessonFormDialog({
@@ -135,7 +135,7 @@ function LessonForm({
     }
     if (target >= 1 && taken.has(values.title.trim().toLowerCase())) {
       setStep(0);
-      setError("A lesson with this name already exists. Pick another name.");
+      setError("A collection with this name already exists. Pick another name.");
       return false;
     }
     if (target >= 2 && !selectedItems.length) {
@@ -230,7 +230,7 @@ function LessonForm({
         ) : (
           <Button type="button" onClick={submit} disabled={saving}>
             <Check className="h-4 w-4" aria-hidden="true" />
-            {saving ? "Saving..." : mode.kind === "edit" ? "Save changes" : "Save lesson"}
+            {saving ? "Saving..." : mode.kind === "edit" ? "Save changes" : "Save collection"}
           </Button>
         )}
       </div>
@@ -333,6 +333,8 @@ export function MaterialsStep({
   const kindItems = items.filter((item) => item.contentType === kind);
   const used = new Set(kindItems.map((item) => item.categoryId));
   const usedCategories = visibleCategories(categories).filter((category) => used.has(category.id));
+  const categoryCounts: Record<string, number> = { all: kindItems.length };
+  for (const item of kindItems) categoryCounts[item.categoryId] = (categoryCounts[item.categoryId] ?? 0) + 1;
   const query = search.trim().toLowerCase();
   const visible = kindItems.filter((item) => (categoryId === "all" || item.categoryId === categoryId) && (!query || item.label.toLowerCase().includes(query)));
   const selectedItems = selectedIds.map((id) => items.find((item) => item.id === id)).filter((item): item is LearningItem => Boolean(item));
@@ -371,7 +373,7 @@ export function MaterialsStep({
           ) : null}
           <SearchInput label="Search materials" placeholder="Search" value={search} onChange={setSearch} />
         </div>
-        {usedCategories.length > 1 ? <CategoryPills categories={usedCategories} value={categoryId} onChange={setCategoryId} /> : null}
+        {usedCategories.length > 1 ? <CategoryPills categories={usedCategories} counts={categoryCounts} value={categoryId} onChange={setCategoryId} /> : null}
 
         <div className={cn("grid max-h-[16rem] grid-cols-3 gap-2 overflow-y-auto rounded-2xl p-2 clean-scrollbar sm:grid-cols-4 md:grid-cols-6", tone.soft)}>
           {visible.map((item) => {
@@ -434,7 +436,7 @@ function PickedSlots({ items, max, onRemove }: { items: LearningItem[]; max?: nu
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-blue-100 bg-[#fff] p-3 sm:flex-row sm:items-center">
       <div className="flex items-center justify-between gap-2 sm:w-24 sm:flex-col sm:items-start">
-        <p className="text-sm font-semibold text-slate-700">{max === undefined ? "Lesson order" : "Picked"}</p>
+        <p className="text-sm font-semibold text-slate-700">{max === undefined ? "Collection order" : "Picked"}</p>
         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", items.length ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}>
           {max === undefined ? `${items.length} ${items.length === 1 ? "card" : "cards"}` : `${items.length} of ${max}`}
         </span>

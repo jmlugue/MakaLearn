@@ -23,14 +23,14 @@ export type GuideStep = {
  */
 const teacherWelcomeSteps: GuideStep[] = [
   {
-    title: "Build materials and lessons",
-    text: "In Content, make PECS cards and gestures, each with a picture and a sound. Then put cards in order as a lesson.",
+    title: "Build materials and collections",
+    text: "In Content, make PECS cards and gestures, each with a picture and a sound. Then put cards in order as a collection.",
     icon: Layers,
     scene: "lesson"
   },
   {
     title: "Make an activity",
-    text: "In Activities, turn your cards or a lesson into a practice game. Choose Match, Fill in the blank, or Drag and drop.",
+    text: "In Activities, turn your cards or a collection into a practice game. Choose Match, Fill in the blank, or Drag and drop.",
     icon: Shapes,
     scene: "activity"
   },
@@ -46,7 +46,7 @@ const teacherWelcomeSteps: GuideStep[] = [
 const adminViewSteps: GuideStep[] = [
   {
     title: "See what teachers made",
-    text: "Open any material, lesson, or activity to view it. Admins can look, but not change or play them.",
+    text: "Open any material, collection, or activity to view it. Admins can look, but not change or play them.",
     icon: Layers,
     scene: "lesson"
   },
@@ -91,7 +91,7 @@ export type PageGuide = {
 export const pageGuides: Record<string, PageGuide> = {
   content: {
     title: "Around the Content page",
-    line: "Where you build what you teach: materials, lessons, categories, and files.",
+    line: "Where you build what you teach: materials, collections, categories, and files.",
     steps: [
       {
         title: "Materials",
@@ -100,7 +100,7 @@ export const pageGuides: Record<string, PageGuide> = {
         scene: "cards"
       },
       {
-        title: "Lessons",
+        title: "Collections",
         text: "A title and cards in the order you teach them. Choose Shared or Private when you save.",
         icon: BookOpen,
         scene: "lesson"
@@ -121,7 +121,7 @@ export const pageGuides: Record<string, PageGuide> = {
   },
   activities: {
     title: "Around Activities",
-    line: "Your practice games. Make one from your cards or a lesson, then play it.",
+    line: "Your practice games. Make one from your cards or a collection, then play it.",
     steps: [
       {
         title: "Your library",
@@ -161,7 +161,7 @@ export const pageGuides: Record<string, PageGuide> = {
     steps: [
       {
         title: "Home",
-        text: "Usage at a glance: accounts, materials, lessons, and activities.",
+        text: "Usage at a glance: accounts, materials, collections, and activities.",
         icon: LayoutDashboard,
         scene: "admin"
       },
@@ -192,9 +192,9 @@ export const guideTips: Record<string, string> = {
   "content.addMaterial":
     "Make a new PECS card or gesture. Add a picture and a sound, then pick a category. Files are saved as word_category, like eat_food.",
   "content.addLesson":
-    "Plan a lesson: give it a title and put cards in the order you teach them. Make activities from it later in Activities.",
+    "Plan a collection: give it a title and put cards in the order you teach them. Make activities from it later in Activities.",
   "activities.create":
-    "Build a practice game in three steps: pick a format, choose up to five cards, then check the questions. Tick From a lesson to use a lesson's cards.",
+    "Build a practice game in three steps: pick a format, choose up to five cards, then check the questions. Tick From a collection to use a collection's cards.",
   "activities.types":
     "Match: tap the picture for a word. Fill in the blank: pick the picture that finishes a sentence. Drag and drop: drag each picture onto its word.",
   "activities.teacherBar": "Exit goes back to the library. Restart plays from the first question, and Edit opens the activity.",
@@ -207,10 +207,10 @@ export const guideTips: Record<string, string> = {
 const adminPageGuides: Record<string, PageGuide> = {
   content: {
     title: "Around the Content page",
-    line: "Everything teachers teach with: materials, lessons, categories, and files. View only.",
+    line: "Everything teachers teach with: materials, collections, categories, and files. View only.",
     steps: [
       { title: "Materials", text: "PECS cards and gestures. Open one to see its picture and hear its word.", icon: Layers, scene: "cards" },
-      { title: "Lessons", text: "A title and its cards in the order the teacher teaches them.", icon: BookOpen, scene: "lesson" },
+      { title: "Collections", text: "A title and its cards in the order the teacher teaches them.", icon: BookOpen, scene: "lesson" },
       { title: "Categories", text: "Colour groups like Food or Feelings. Open one to see the cards inside it.", icon: FolderOpen, scene: "category" },
       { title: "Media", text: "Every uploaded file, and which material uses it.", icon: ImageIcon, scene: "media" }
     ]

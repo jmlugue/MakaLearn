@@ -340,7 +340,7 @@ function GameButton({ y, tone, pressed, icon: Icon, label }: { y: number; tone: 
 const playgroundScenes: DemoScene[] = [
   {
     label: "Build a sentence",
-    caption: "Drag up to 5 cards onto the board.",
+    caption: "Click or drag up to 5 cards onto the board.",
     duration: 5800,
     render: (t) => {
       const placed = drags.filter((drag) => t >= drag.at + 1400).map((drag) => libraryWords[drag.card]);
@@ -654,7 +654,7 @@ const HOW_IT_PLAYS: [number, number] = inDialog(105, 267);
 const browseScenes: DemoScene[] = [
   {
     label: "Content",
-    caption: "In Admin, open Content to view every teacher's materials, lessons, and media. View only.",
+    caption: "In Admin, open Content to view every teacher's materials, collections, and media. View only.",
     duration: 5800,
     render: (t) => (
       <>
@@ -774,7 +774,7 @@ function AdminHome() {
       {[
         ["Teachers", "6"],
         ["Materials", "58"],
-        ["Lessons", "12"],
+        ["Collections", "12"],
         ["Activities", "21"]
       ].map(([label, value], index) => (
         <div key={label} className="absolute rounded-2xl border border-white bg-white/85 px-4 py-3 shadow-sm" style={{ left: 72 + index * 138, top: 112, width: 128, height: 76 }}>
@@ -1059,7 +1059,7 @@ const turnOffScene: DemoScene = {
 const logRows = [
   { who: "Maria Cruz", text: "signed in", kind: "sign-ins", icon: LogIn, tone: "bg-blue-100 text-blue-700", time: "9:02 AM" },
   { who: "Maria Cruz", text: "added the material Eat", kind: "content", icon: Layers, tone: "bg-emerald-100 text-emerald-700", time: "9:10 AM" },
-  { who: "Jose Santos", text: "edited the lesson Feelings", kind: "content", icon: Pencil, tone: "bg-amber-100 text-amber-700", time: "10:24 AM" },
+  { who: "Jose Santos", text: "edited the collection Feelings", kind: "content", icon: Pencil, tone: "bg-amber-100 text-amber-700", time: "10:24 AM" },
   { who: "Lee Ramos", text: "added the account Ana Reyes", kind: "accounts", icon: UserPlus, tone: "bg-indigo-100 text-indigo-700", time: "11:40 AM" }
 ];
 const logTabs = [
@@ -1138,11 +1138,11 @@ const logScenes: DemoScene[] = [
         <AdminPage tab="Activity log">
           <LogScreen filter="Content" range="Today" rowPressed={pressedAt(t, 1200) ? 1 : -1} />
         </AdminPage>
-        <MockDialog show={t >= 1500} box={{ x: 120, y: 40, w: 400, h: 280 }} title="Edited a lesson">
+        <MockDialog show={t >= 1500} box={{ x: 120, y: 40, w: 400, h: 280 }} title="Edited a collection">
           <div className="absolute divide-y divide-slate-100 rounded-2xl border border-blue-100 bg-white text-[12px]" style={{ left: 20, top: 60, width: 360, height: 150 }}>
             {[
               ["Who", "Jose Santos (Teacher)"],
-              ["What", "Edited a lesson"],
+              ["What", "Edited a collection"],
               ["Item", "Feelings"],
               ["When", "Today, 10:24 AM"]
             ].map(([label, value]) => (
@@ -1253,7 +1253,7 @@ const studentActivityScenes: DemoScene[] = [
   },
   {
     label: "Tap the answer",
-    caption: "Tap the right picture. Right says Correct!; a wrong tap shakes and the right card turns green.",
+    caption: "Tap the right picture. Three tries: a wrong tap buzzes, fades out, and Maki cheers them on.",
     duration: 7200,
     render: (t) => {
       const second = t >= 3000;
@@ -1285,7 +1285,7 @@ const studentActivityScenes: DemoScene[] = [
   },
   {
     label: "Drag and drop",
-    caption: "In Drag and drop, drag each picture onto its word. A wrong one shakes and goes back.",
+    caption: "In Drag and drop, drag each picture onto its word. A wrong one goes back. Each card has three tries.",
     duration: 7400,
     render: (t) => {
       const words = ["eat", "drink", "sleep"];

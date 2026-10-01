@@ -13,6 +13,7 @@ import { GuideBanner } from "@/features/guide/guide-banner";
 import { GuideTip } from "@/features/guide/guide-tip";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
+import { useUserSettings } from "@/features/settings/user-settings-context";
 import { StudentActivityPlayer } from "@/features/activities/student-activity-player";
 import { StudentActivityMenu } from "@/features/activities/student-activity-menu";
 import { ActivityPlayerScreen } from "@/features/activities/player/activity-player-screen";
@@ -196,6 +197,7 @@ export function ActivitiesView() {
 
   // Admins view activities but do not play them (Student mode still plays).
   const canPlay = user.role !== "admin";
+  const { hiddenActivityIds, setActivityHidden } = useUserSettings();
   const playingActivity = isStudentMode
     ? studentActivityId === null
       ? getInitialActivity(visibleActivities, playId, requestedType)
@@ -411,7 +413,7 @@ export function ActivitiesView() {
         title={`Delete ${activityToDelete?.title ?? "activity"}?`}
         description={
           deleteLesson
-            ? `It is one of the activities of ${deleteLesson.title}. The lesson stays.`
+            ? `It is one of the activities of ${deleteLesson.title}. The collection stays.`
             : "This removes the activity and its questions."
         }
         confirmLabel="Delete activity"
@@ -429,7 +431,12 @@ export function ActivitiesView() {
     if (!visibleActivities.length) {
       return <EmptyState icon={PlayCircle} title="No activities yet" description="Ask your teacher to add an activity." />;
     }
-    return <StudentActivityMenu activities={visibleActivities} learningItems={learningItems} onPlay={setStudentActivityId} />;
+    // The teacher's eye icon: activities they hid do not show in their Student mode.
+    const studentActivities = visibleActivities.filter((activity) => !hiddenActivityIds.includes(activity.id));
+    if (!studentActivities.length) {
+      return <EmptyState icon={PlayCircle} title="No activities yet" description="Ask your teacher to add an activity." />;
+    }
+    return <StudentActivityMenu activities={studentActivities} learningItems={learningItems} onPlay={setStudentActivityId} />;
   }
 
   return (
@@ -459,6 +466,15 @@ export function ActivitiesView() {
           onOpen={(activity) => setOpenActivityId(activity.id)}
           onPlay={canPlay ? play : undefined}
           viewOnly={user.role !== "teacher"}
+          hiddenIds={hiddenActivityIds}
+          onToggleStudents={
+            user.role === "teacher"
+              ? (activity) => {
+                  const hide = !hiddenActivityIds.includes(activity.id);
+                  void setActivityHidden(activity.id, hide);
+                }
+              : undefined
+          }
         />
       )}
 

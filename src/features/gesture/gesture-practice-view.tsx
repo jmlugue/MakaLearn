@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Category as MediaPipeCategory, DrawingUtils, HandLandmarker } from "@mediapipe/tasks-vision";
@@ -16,11 +16,11 @@ import {
   ListChecks,
   PlayCircle,
   RotateCw,
-  RotateCcw,
   ScanLine,
   SkipForward,
   Sparkles,
   Square,
+  Star,
   ThumbsUp,
   TriangleAlert,
   UserRound,
@@ -41,6 +41,8 @@ import { cn } from "@/lib/utils";
 import { createUtterance } from "@/lib/speech";
 import { playCue } from "@/lib/sound-cues";
 import { Maki } from "@/features/student-mode/maki";
+import { encourageAfterWrong, pickCheer, type Encouragement } from "@/features/student-mode/maki-voice";
+import { GestureMotion } from "@/features/gesture/gesture-motion";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { createGestureDrawingUtils, loadGestureHandTracker } from "@/utils/gesture-hand-tracker";
 import {
@@ -255,6 +257,51 @@ export function GesturePracticeView() {
   const guidedFeedbackCorrect = Boolean(
     guidedPhase === "feedback" && prediction && guidedTarget && labelsMatch(prediction.label, guidedTarget.label)
   );
+  // The hold bar replaces the "Hold still, N seconds" text (display only; it reads the existing timer).
+  const holding = statusMessage.startsWith("Hold still") && !prediction;
+  const guidedWrong = practiceMode === "guided" && guidedPhase === "feedback" && !guidedFeedbackCorrect;
+
+  // A wrong gesture in Student mode: the buzz, then Maki shows an encouraging face and says a line, as in activities.
+  const [encouragement, setEncouragement] = useState<Encouragement | null>(null);
+  useEffect(() => {
+    if (!isStudentMode || !correctiveFeedback || correctiveFeedback.issueCategory === "correct") {
+      setEncouragement(null);
+      return undefined;
+    }
+    setEncouragement(encourageAfterWrong());
+    const timer = window.setTimeout(() => setEncouragement(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [correctiveFeedback, isStudentMode]);
+
+  // Guided, after a wrong gesture: no Try again button (owner's request). When the learner lowers their hands and
+  // raises them again, the same gesture is watched again. This calls the same function the old button did.
+  const handsDownAfterWrongRef = useRef(false);
+  useEffect(() => {
+    if (!guidedWrong) {
+      handsDownAfterWrongRef.current = false;
+      return;
+    }
+    if (trackingState !== "hands-visible") {
+      handsDownAfterWrongRef.current = true;
+      return;
+    }
+    if (handsDownAfterWrongRef.current) {
+      handsDownAfterWrongRef.current = false;
+      openGuidedCapture(true);
+    }
+    // openGuidedCapture reads refs only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guidedWrong, trackingState]);
+
+  // Free practice in Student mode: a recognized gesture opens the Great job pop-up (like guided), then it closes.
+  const [freeSuccess, setFreeSuccess] = useState<LearningItem | null>(null);
+  const closeFreeSuccess = useCallback(() => setFreeSuccess(null), []);
+  useEffect(() => {
+    if (!isStudentMode || practiceMode !== "free" || !prediction) return;
+    setFreeSuccess(detectedGesture ?? null);
+    // Only when a new gesture is recognized.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prediction]);
 
   useEffect(() => {
     showHandLandmarksRef.current = showHandLandmarks;
@@ -1239,27 +1286,37 @@ export function GesturePracticeView() {
                     />
                   ) : null}
                   {cameraStarted && guidedPhase !== "countdown" ? (
-                    <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3" aria-hidden="true">
+                    <div
+                      className={cn(
+                        "absolute bottom-2 left-2 sm:bottom-3 sm:left-3",
+                        cameraFocusMode ? "w-[150px] sm:w-[190px]" : "w-[120px] sm:w-[150px] xl:w-[165px]"
+                      )}
+                      aria-hidden="true"
+                    >
                       <Maki
                         mood={
-                          practiceMode === "guided"
-                            ? guidedPhase === "feedback"
+                          encouragement
+                            ? encouragement.mood
+                            : practiceMode === "guided"
                               ? guidedFeedbackCorrect
                                 ? "cheer"
-                                : "encourage"
-                              : "happy"
-                            : recognizedGesture
-                              ? "cheer"
-                              : "happy"
+                                : "happy"
+                              : recognizedGesture
+                                ? "cheer"
+                                : "happy"
                         }
-                        size={cameraFocusMode ? 130 : 104}
+                        message={encouragement?.line}
+                        size={190}
                         label=""
+                        className="h-auto w-full"
                       />
                     </div>
                   ) : null}
                 </>
               }
             />
+
+            {cameraStarted && guidedPhase !== "complete" ? <HoldProgressBar active={holding} startedAtRef={stablePoseStartedAtRef} /> : null}
 
             <LearnerFeedbackBar
               stateLabel={
@@ -1282,11 +1339,25 @@ export function GesturePracticeView() {
                     ? "Keep your hands inside the box."
                     : ""
               }
-              statusMessage={prediction ? "" : statusMessage}
-              correctiveFeedback={practiceMode === "guided" ? null : correctiveFeedback}
-              feedbackLoading={practiceMode === "guided" ? false : feedbackLoading}
+              statusMessage={prediction || holding ? "" : statusMessage}
+              correctiveFeedback={practiceMode === "guided" && !guidedWrong ? null : correctiveFeedback}
+              feedbackLoading={practiceMode === "guided" && !guidedWrong ? false : feedbackLoading}
               success={practiceMode === "guided" ? false : recognizedGesture}
               compact={cameraFocusMode}
+              actions={
+                guidedWrong ? (
+                  <>
+                    <p className="flex items-center gap-2 rounded-2xl bg-sky-50 px-3 py-2 text-sm font-black text-sky-800">
+                      <Hand className="h-5 w-5 shrink-0" aria-hidden="true" />
+                      Hands down, then show it again.
+                    </p>
+                    <Button type="button" variant="outline" size="lg" className="rounded-full" onClick={skipGuidedGesture}>
+                      <SkipForward className="h-5 w-5" aria-hidden="true" />
+                      Skip
+                    </Button>
+                  </>
+                ) : null
+              }
             />
           </div>
 
@@ -1343,23 +1414,20 @@ export function GesturePracticeView() {
           </div>
         </div>
       </section>
-      {practiceMode === "guided" && (guidedPhase === "ready" || guidedPhase === "feedback" || guidedPhase === "complete") ? (
+      <FreeSuccessPopup item={practiceMode === "free" ? freeSuccess : null} onClose={closeFreeSuccess} />
+      {practiceMode === "guided" && (guidedPhase === "ready" || (guidedPhase === "feedback" && guidedFeedbackCorrect) || guidedPhase === "complete") ? (
         <GuidedPopup
           phase={guidedPhase}
           target={guidedTarget}
           cameraReady={cameraStarted && trackerStatus === "ready"}
-          success={guidedFeedbackCorrect}
           feedbackTitle={guidedFeedbackTitle}
           feedbackDetail={guidedFeedbackDetail}
-          correctiveFeedback={correctiveFeedback}
-          feedbackLoading={feedbackLoading}
           onReady={beginGuidedCountdown}
           onStartCamera={startCamera}
-          onTryAgain={() => openGuidedCapture(true)}
-          onSkip={skipGuidedGesture}
           onEnd={() => setEndSessionDialogOpen(true)}
           summary={
             <GuidedSessionSummary
+              queue={guidedQueue}
               results={guidedResults}
               summary={guidedSummary}
               onTryAgain={startGuidedRun}
@@ -1468,7 +1536,8 @@ export function GesturePracticeView() {
                 </motion.span>
               </AnimatePresence>
             </div>
-            {statusMessage ? <p className="mt-1 text-sm leading-5 text-slate-600">{statusMessage}</p> : null}
+            {statusMessage && !holding ? <p className="mt-1 text-sm leading-5 text-slate-600">{statusMessage}</p> : null}
+            {cameraStarted ? <HoldProgressBar active={holding} startedAtRef={stablePoseStartedAtRef} compact /> : null}
             <RecognizedGestureMessage prediction={prediction} compact />
             <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} compact />
           </div>
@@ -1646,73 +1715,84 @@ function GuidedCameraOverlay({
   return null;
 }
 
-/** One picture step on the get-ready card: a colored circle with a picture, a number, and a short label. */
-function ReadyStep({
-  number,
-  label,
-  tone,
-  delay,
-  children
-}: {
-  number: number;
-  label: string;
-  tone: string;
-  delay: number;
-  children: ReactNode;
-}) {
+/**
+ * One picture on the get-ready strip: a big round picture and a short label, no badges or boxes. The pictures are
+ * joined by arrows, so the order reads without numbers.
+ */
+function ReadyStep({ label, delay, last = false, children }: { label: string; delay: number; last?: boolean; children: ReactNode }) {
   const reduceMotion = useReducedMotion();
   return (
     <motion.li
-      className="relative flex flex-col items-center gap-2 rounded-2xl bg-white px-1.5 pb-3 pt-4 shadow-[0_4px_12px_rgba(37,99,235,0.08)] ring-1 ring-blue-100"
-      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+      className="relative flex flex-1 flex-col items-center gap-2"
+      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25 + delay, duration: 0.3 }}
     >
-      <span className="absolute -top-2.5 left-1/2 grid h-6 w-6 -translate-x-1/2 place-items-center rounded-full bg-blue-600 text-xs font-black text-white">
-        {number}
+      <span className="grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-white shadow-[0_6px_0_rgba(147,197,253,0.45)] ring-4 ring-sky-100">
+        {children}
       </span>
-      <span className={cn("grid h-14 w-14 place-items-center rounded-full", tone)}>{children}</span>
       <span className="text-sm font-black leading-tight text-ink">{label}</span>
+      {last ? null : (
+        <ArrowRight className="absolute -right-3 top-8 h-5 w-5 text-sky-400" strokeWidth={3} aria-hidden="true" />
+      )}
     </motion.li>
   );
 }
 
-/** Guided practice pop-ups (ready, feedback, summary), centered over the whole Student screen with the camera behind. */
+/** The countdown picture on the get-ready strip: 3, 2, 1 in turn. */
+function CountdownPicture() {
+  const reduceMotion = useReducedMotion();
+  const [value, setValue] = useState(3);
+  useEffect(() => {
+    if (reduceMotion) return undefined;
+    const timer = window.setInterval(() => setValue((current) => (current === 1 ? 3 : current - 1)), 900);
+    return () => window.clearInterval(timer);
+  }, [reduceMotion]);
+  return (
+    <AnimatePresence mode="wait">
+      <motion.span
+        key={value}
+        initial={reduceMotion ? false : { scale: 0.4, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={reduceMotion ? undefined : { scale: 1.4, opacity: 0 }}
+        transition={{ duration: 0.25 }}
+        className="text-4xl font-black text-amber-500"
+      >
+        {value}
+      </motion.span>
+    </AnimatePresence>
+  );
+}
+
+/**
+ * Guided practice pop-ups (ready, Great job, summary), centered over the whole Student screen with the camera behind.
+ * A wrong gesture has no pop-up: its feedback, Skip, and Try again show under the camera, as in free practice.
+ */
 function GuidedPopup({
   phase,
   target,
   cameraReady,
-  success,
   feedbackTitle,
   feedbackDetail,
-  correctiveFeedback,
-  feedbackLoading,
   onReady,
   onStartCamera,
-  onTryAgain,
-  onSkip,
   onEnd,
   summary
 }: {
   phase: GuidedSessionPhase;
   target?: LearningItem;
   cameraReady: boolean;
-  success: boolean;
   feedbackTitle: string;
   feedbackDetail: string;
-  correctiveFeedback: GestureFeedbackResponse | null;
-  feedbackLoading: boolean;
   onReady: () => void;
   onStartCamera: () => void;
-  onTryAgain: () => void;
-  onSkip: () => void;
   onEnd: () => void;
   summary: ReactNode;
 }) {
   const reduceMotion = useReducedMotion();
   if (typeof document === "undefined") return null;
   const shortLabel = target ? getLearnerCardLabel(target.label) : "Gesture";
-  const imageSrc = target ? getGestureReferenceImageSrc(target) : undefined;
+  const firstImageSrc = target ? getGestureReferenceImageSrc(target) : undefined;
 
   const card =
     phase === "complete" ? (
@@ -1739,18 +1819,26 @@ function GuidedPopup({
         <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight text-ink sm:text-4xl">
           {cameraReady ? "Thumbs up to start!" : "Let\u2019s turn on the camera!"}
         </h2>
-        {/* How it goes, in pictures for kids who cannot read yet. */}
-        <ol className="mt-5 grid grid-cols-3 gap-2 sm:gap-3" aria-label="How it works">
-          <ReadyStep number={1} label="Hands in view" tone="bg-sky-100 text-sky-700" delay={0}>
-            <Hand className="h-8 w-8" aria-hidden="true" />
+        {/* How it goes, in pictures for kids who cannot read yet: hands in the camera, the countdown, the first sign. */}
+        <ol className="mt-6 flex items-start justify-between gap-3" aria-label="How it works">
+          <ReadyStep label="Hands in view" delay={0}>
+            <span className="relative grid h-full w-full place-items-center bg-slate-800">
+              <span className="absolute inset-2.5 rounded-xl border-2 border-dashed border-white/50" />
+              {/* Maki's own hand, inside a little camera frame. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/maki/maki-hand.png" alt="" className="relative h-11 w-11 object-contain" />
+            </span>
           </ReadyStep>
-          <ReadyStep number={2} label="Watch the countdown" tone="bg-amber-100 text-amber-700" delay={0.1}>
-            <span className="text-3xl font-black leading-none">3</span>
+          <ReadyStep label="Watch the countdown" delay={0.1}>
+            <CountdownPicture />
           </ReadyStep>
-          <ReadyStep number={3} label="Copy the sign" tone="bg-emerald-100 text-emerald-700" delay={0.2}>
-            {/* Maki's own "I love you" hand stands for "a sign". */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/maki/maki-hand.png" alt="" className="h-10 w-10 object-contain" />
+          <ReadyStep label="Copy the sign" delay={0.2} last>
+            {firstImageSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={firstImageSrc} alt="" className="h-full w-full object-contain p-1.5" />
+            ) : (
+              <Hand className="h-9 w-9 text-emerald-600" aria-hidden="true" />
+            )}
           </ReadyStep>
         </ol>
         <button
@@ -1768,58 +1856,7 @@ function GuidedPopup({
         </button>
       </div>
     ) : (
-      <div
-        className={cn(
-          "w-full rounded-[2rem] border-4 bg-white/95 p-6 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] sm:p-7",
-          success ? "max-w-md border-emerald-200" : "max-w-2xl border-red-200"
-        )}
-      >
-        {success ? (
-          <>
-            <div className="flex justify-center pt-4">
-              <Maki mood="cheer" size={170} label="" />
-            </div>
-            <h2 className="mt-4 text-3xl font-black tracking-tight text-emerald-600 sm:text-4xl">{feedbackTitle}</h2>
-            <p className="mt-1 text-lg font-bold text-slate-600">{feedbackDetail || `That is ${shortLabel}.`}</p>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center justify-center gap-4 text-left">
-              <div className="relative shrink-0">
-                <div className="grid aspect-square w-24 place-items-center overflow-hidden rounded-3xl bg-gradient-to-br from-blue-50 to-sky-100 p-1.5 ring-1 ring-blue-100 sm:w-28">
-                  {imageSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imageSrc} alt={`${shortLabel} reference`} className="h-full w-full rounded-2xl bg-white object-contain" />
-                  ) : (
-                    <Hand className="h-12 w-12 text-blue-500" aria-hidden="true" />
-                  )}
-                </div>
-                <span className="absolute -bottom-2 -right-2 grid h-9 w-9 place-items-center rounded-full border-4 border-white bg-red-500 text-white" aria-hidden="true">
-                  <RotateCcw className="h-4 w-4" />
-                </span>
-              </div>
-              <div>
-                <h2 className="text-3xl font-black tracking-tight text-red-600 sm:text-4xl">{feedbackTitle}</h2>
-                <p className="mt-1 text-lg font-bold text-slate-600">Let’s try {shortLabel} again.</p>
-              </div>
-            </div>
-            {/* The AI corrective feedback, one of MakaLearn's main features: learner message and teacher tip. */}
-            <div className="mt-5 text-left">
-              <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} flush prominent />
-            </div>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <Button type="button" variant="outline" size="lg" className="rounded-full" onClick={onSkip}>
-                <SkipForward className="h-5 w-5" aria-hidden="true" />
-                Skip
-              </Button>
-              <Button type="button" size="lg" className="rounded-full" onClick={onTryAgain}>
-                <RotateCcw className="h-5 w-5" aria-hidden="true" />
-                Try again
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
+      <GestureSuccessCard item={target} title={feedbackTitle} detail={feedbackDetail || `That is ${shortLabel}.`} />
     );
 
   return createPortal(
@@ -1840,6 +1877,67 @@ function GuidedPopup({
   );
 }
 
+/** Great job: only Maki, big and happy (owner's request: no gesture picture here). */
+function GestureSuccessCard({ title, detail }: { item?: LearningItem; title: string; detail: string }) {
+  // One of Maki's happy faces, picked when the pop-up opens (no voice: the gesture's own audio plays).
+  const [mood] = useState(() => pickCheer().mood);
+  return (
+    <div className="w-full max-w-md rounded-[2rem] border-4 border-emerald-200 bg-white/95 p-6 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] sm:p-7">
+      <div className="flex justify-center pt-6">
+        <Maki mood={mood} size={200} label="" />
+      </div>
+      <h2 className="mt-4 text-3xl font-black tracking-tight text-emerald-600 sm:text-4xl">{title}</h2>
+      <p className="mt-1 text-lg font-bold text-slate-600">{detail}</p>
+    </div>
+  );
+}
+
+/** Free practice Great job pop-up: opens on a recognized gesture and closes by itself. */
+function FreeSuccessPopup({ item, onClose }: { item: LearningItem | null; onClose: () => void }) {
+  const reduceMotion = useReducedMotion();
+  useEffect(() => {
+    if (!item) return undefined;
+    const timer = window.setTimeout(onClose, 2600);
+    return () => window.clearTimeout(timer);
+  }, [item, onClose]);
+  if (!item || typeof document === "undefined") return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-slate-900/25 p-4" role="status" aria-live="polite" onClick={onClose}>
+      <motion.div
+        key={item.id}
+        initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="flex w-full justify-center"
+      >
+        <GestureSuccessCard item={item} title="Great job!" detail={`That is ${getLearnerCardLabel(item.label)}.`} />
+      </motion.div>
+    </div>,
+    document.body
+  );
+}
+
+// Where the seven stops sit on the level path (viewBox 380 x 176): four along the top, three back along the bottom.
+// The road starts at the Start flag (left of stop 1) and ends at the Finish trophy (left of stop 7), with room so
+// neither touches a stop.
+const LEVEL_W = 380;
+const LEVEL_H = 176;
+const levelSpots = [
+  [92, 46],
+  [166, 46],
+  [240, 46],
+  [314, 46],
+  [270, 130],
+  [192, 130],
+  [114, 130]
+] as const;
+const levelRoad = "M 36 46 L 314 46 C 370 46 370 130 314 130 L 46 130";
+
+/**
+ * Guided progress as a game level path (like Candy Crush), drawn for children: a sandy road over green hills from a
+ * Start flag to a Finish trophy. Each stop is a round sticker with that gesture's picture. Done stops get a gold star,
+ * a skipped one an amber arrow, and a small Maki stands on the current stop and bounces.
+ */
 function GuidedProgressPanel({
   queue,
   results,
@@ -1853,46 +1951,111 @@ function GuidedProgressPanel({
   onSkip: () => void;
   onEnd: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
+  const spot = levelSpots[Math.min(currentIndex, levelSpots.length - 1)];
   return (
-    <div className="shrink-0 rounded-[1.5rem] border border-white/90 bg-white/85 p-3 shadow-[0_6px_18px_rgba(37,99,235,0.08)] backdrop-blur-xl">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-600">Guided 7</p>
-          <p className="mt-1 font-black text-ink">Your gesture journey</p>
-        </div>
-        <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-black text-sky-700">
-          {Math.min(currentIndex + 1, queue.length)}/{queue.length}
-        </span>
+    <div className="shrink-0 overflow-hidden rounded-[1.75rem] border-4 border-white bg-gradient-to-b from-sky-200 via-sky-100 to-emerald-100 p-3 shadow-[0_8px_0_rgba(147,197,253,0.35)]">
+      <p className="text-center text-lg font-black text-blue-900">Your gesture journey</p>
+      <div className="relative mx-auto mt-1 w-full max-w-md">
+        <svg viewBox={`0 0 ${LEVEL_W} ${LEVEL_H}`} className="block h-auto w-full" role="img" aria-label={`Gesture ${Math.min(currentIndex + 1, queue.length)} of ${queue.length}`}>
+          <defs>
+            {queue.slice(0, levelSpots.length).map((item, index) => (
+              <clipPath key={item.id} id={`level-clip-${index}`}>
+                <circle cx={levelSpots[index][0]} cy={levelSpots[index][1]} r={17} />
+              </clipPath>
+            ))}
+          </defs>
+          {/* Hills and a little sun. */}
+          <circle cx={330} cy={16} r={11} fill="#fde047" />
+          <ellipse cx={70} cy={176} rx={140} ry={58} fill="#86efac" />
+          <ellipse cx={290} cy={180} rx={150} ry={62} fill="#4ade80" opacity={0.7} />
+          <ellipse cx={180} cy={92} rx={60} ry={14} fill="#bbf7d0" opacity={0.8} />
+          {/* The road. */}
+          <path d={levelRoad} fill="none" stroke="#e7c58a" strokeWidth={30} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={levelRoad} fill="none" stroke="#fde68a" strokeWidth={22} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={levelRoad} fill="none" stroke="#fff" strokeWidth={3} strokeDasharray="7 10" strokeLinecap="round" />
+          {/* Start: a flag where the road begins. */}
+          <g>
+            <line x1={36} y1={18} x2={36} y2={58} stroke="#7c2d12" strokeWidth={4} strokeLinecap="round" />
+            <path d="M 38 19 L 62 27 L 38 36 Z" fill="#ef4444" stroke="#b91c1c" strokeWidth={2} strokeLinejoin="round" />
+            <text x={36} y={72} textAnchor="middle" fontSize={11} fontWeight={900} fill="#1e3a8a">START</text>
+          </g>
+          {/* Finish: a trophy where the road ends. */}
+          <g transform="translate(46 130)">
+            <path d="M -13 -20 L 13 -20 L 10 -4 Q 0 6 -10 -4 Z" fill="#facc15" stroke="#b45309" strokeWidth={2.5} strokeLinejoin="round" />
+            <path d="M -13 -16 Q -22 -14 -14 -6 M 13 -16 Q 22 -14 14 -6" fill="none" stroke="#b45309" strokeWidth={2.5} strokeLinecap="round" />
+            <rect x={-3} y={2} width={6} height={7} fill="#b45309" />
+            <rect x={-10} y={9} width={20} height={5} rx={2} fill="#b45309" />
+            <text x={0} y={30} textAnchor="middle" fontSize={11} fontWeight={900} fill="#92400e">FINISH</text>
+          </g>
+          {queue.slice(0, levelSpots.length).map((item, index) => {
+            const [x, y] = levelSpots[index];
+            const status = results.find((entry) => entry.gestureId === item.id)?.status;
+            const done = status === "correct";
+            const skipped = status === "skipped";
+            const current = index === currentIndex && !done && !skipped;
+            const src = getGestureReferenceImageSrc(item);
+            const ring = done ? "#10b981" : skipped ? "#f59e0b" : current ? "#2563eb" : "#cbd5e1";
+            return (
+              <g key={item.id}>
+                <title>{`${index + 1}. ${getLearnerCardLabel(item.label)}`}</title>
+                {current && !reduceMotion ? (
+                  <motion.circle
+                    cx={x}
+                    cy={y}
+                    r={24}
+                    fill="#93c5fd"
+                    initial={false}
+                    animate={{ r: [22, 31, 22], opacity: [0.7, 0, 0.7] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
+                  />
+                ) : null}
+                <circle cx={x} cy={y + 4} r={22} fill="rgba(15,23,42,0.15)" />
+                <circle cx={x} cy={y} r={22} fill={ring} />
+                <circle cx={x} cy={y} r={18} fill="#fff" />
+                {src ? (
+                  <image
+                    href={src}
+                    x={x - 17}
+                    y={y - 17}
+                    width={34}
+                    height={34}
+                    preserveAspectRatio="xMidYMid slice"
+                    clipPath={`url(#level-clip-${index})`}
+                    opacity={done || skipped || current ? 1 : 0.45}
+                  />
+                ) : (
+                  <text x={x} y={y + 6} textAnchor="middle" fontSize={16} fontWeight={900} fill="#64748b">
+                    {index + 1}
+                  </text>
+                )}
+                {done ? (
+                  <path d={star(x + 16, y - 16, 10)} fill="#facc15" stroke="#fff" strokeWidth={2.5} strokeLinejoin="round" />
+                ) : skipped ? (
+                  <g>
+                    <circle cx={x + 16} cy={y - 16} r={9} fill="#f59e0b" stroke="#fff" strokeWidth={2.5} />
+                    <path d={`M ${x + 12} ${y - 20} l 5 4 l -5 4`} fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                  </g>
+                ) : null}
+              </g>
+            );
+          })}
+        </svg>
+        {/* Maki stands on the current stop. */}
+        {spot && currentIndex < queue.length ? (
+          <motion.div
+            className="pointer-events-none absolute w-[18%] -translate-x-1/2"
+            style={{ left: `${(spot[0] / LEVEL_W) * 100}%`, top: `${((spot[1] - 60) / LEVEL_H) * 100}%` }}
+            initial={false}
+            animate={reduceMotion ? undefined : { y: [0, -5, 0] }}
+            transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+            aria-hidden="true"
+          >
+            <Maki mood="happy" size={80} label="" className="h-auto w-full" />
+          </motion.div>
+        ) : null}
       </div>
-      <ol className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-7 xl:grid-cols-4">
-        {queue.map((item, index) => {
-          const result = results.find((entry) => entry.gestureId === item.id);
-          const complete = result?.status === "correct";
-          const skipped = result?.status === "skipped";
-          const current = index === currentIndex;
-          return (
-            <li
-              key={item.id}
-              className={cn(
-                "flex min-h-10 items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs font-bold",
-                complete
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : skipped
-                    ? "border-amber-200 bg-amber-50 text-amber-800"
-                    : current
-                      ? "border-sky-300 bg-sky-50 text-sky-800 shadow-sm"
-                      : "border-blue-100 bg-white/70 text-slate-500"
-              )}
-            >
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/90 text-xs shadow-sm">
-                {complete ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : skipped ? <SkipForward className="h-4 w-4" aria-hidden="true" /> : index + 1}
-              </span>
-              <span className="truncate">{getLearnerCardLabel(item.label)}</span>
-            </li>
-          );
-        })}
-      </ol>
-      <div className="mt-3 grid grid-cols-2 gap-2">
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <Button type="button" variant="outline" onClick={onSkip}>
           <SkipForward className="h-5 w-5" aria-hidden="true" />
           Skip gesture
@@ -1906,72 +2069,103 @@ function GuidedProgressPanel({
   );
 }
 
+/** A five-point star path, for the level path's done badges. */
+function star(cx: number, cy: number, r: number) {
+  const points = Array.from({ length: 10 }, (_, index) => {
+    const radius = index % 2 === 0 ? r : r * 0.45;
+    const angle = (Math.PI / 5) * index - Math.PI / 2;
+    return `${cx + radius * Math.cos(angle)} ${cy + radius * Math.sin(angle)}`;
+  });
+  return `M ${points.join(" L ")} Z`;
+}
+
+/**
+ * The end of guided practice: stars and pictures, few numbers (advisor's request). Five stars, filled by the share of
+ * gestures done. Each gesture shows its picture with a tick (done), a skip mark, or a dash (not reached).
+ */
 function GuidedSessionSummary({
+  queue,
   results,
   summary,
   onTryAgain,
   onCancel
 }: {
+  queue: LearningItem[];
   results: GuidedGestureResult[];
   summary: ReturnType<typeof summarizeGuidedResults>;
   onTryAgain: () => void;
   /** Closes the summary and goes back to the camera (free practice). */
   onCancel: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
+  const allDone = results.length > 0 && summary.completed === results.length;
+  // Always five stars: done / total x 5, rounded (7 of 7 = 5, 5 of 7 = 4, 1 of 7 = 1). Only finished gestures count.
+  const stars = results.length ? Math.round((summary.completed / results.length) * 5) : 0;
   return (
-    <div className="rounded-[2rem] border border-white/90 bg-white/95 p-5 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur-xl sm:p-6">
-      <div className="text-center">
-        <div className="flex justify-center">
-          <Maki mood="cheer" size={140} label="" />
-        </div>
-        <p className="mt-4 text-xs font-black uppercase tracking-[0.2em] text-sky-600">Session summary</p>
-        <h2 className="mt-1 text-3xl font-black tracking-tight text-ink">You finished your practice</h2>
+    <div className="rounded-[2rem] border-4 border-white bg-gradient-to-b from-sky-50 via-white to-white p-5 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] sm:p-6">
+      <div className="flex justify-center pt-2">
+        <Maki mood={allDone ? "party" : "cheer"} size={150} label="" />
+      </div>
+      <h2 className={cn("mt-3 text-3xl font-black tracking-tight sm:text-4xl", allDone ? "text-emerald-600" : "text-blue-700")}>
+        {allDone ? "Great job!" : "Good practice!"}
+      </h2>
+
+      <div className="mt-3 flex justify-center gap-1.5" aria-label={`${stars} of 5 stars`}>
+        {Array.from({ length: 5 }, (_, index) => (
+          <motion.span
+            key={index}
+            initial={reduceMotion ? false : { scale: 0, rotate: -30 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.2 + index * 0.1, type: "spring", stiffness: 380, damping: 14 }}
+          >
+            <Star
+              className={cn("h-11 w-11 sm:h-12 sm:w-12", index < stars ? "fill-yellow-300 text-yellow-400" : "fill-white text-yellow-200")}
+              aria-hidden="true"
+            />
+          </motion.span>
+        ))}
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-2">
-        <SummaryMetric value={`${summary.completed}/${results.length}`} label="Completed" tone="green" />
-        <SummaryMetric value={`${summary.firstTryCorrect}/${results.length}`} label="First try" tone="amber" />
-        <SummaryMetric value={String(summary.totalAttempts)} label="Attempts" tone="blue" />
-      </div>
-
-      <div className="mt-5 max-h-64 space-y-2 overflow-y-auto pr-1" aria-label="Gesture results">
-        {results.map((result, index) => {
-          const latestAttempt = result.attempts[result.attempts.length - 1];
+      <ul className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-7" aria-label="Gestures">
+        {results.map((result) => {
+          const item = queue.find((entry) => entry.id === result.gestureId);
+          const src = item ? getGestureReferenceImageSrc(item) : undefined;
+          const label = getLearnerCardLabel(result.gestureLabel);
           return (
-            <div key={result.gestureId} className="flex items-center gap-3 rounded-xl border border-blue-100 bg-[#f8fbff] p-3">
+            <li key={result.gestureId} className="flex flex-col items-center gap-1">
               <span
                 className={cn(
-                  "grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-black",
-                  result.status === "correct"
-                    ? "bg-emerald-100 text-emerald-700"
-                    : result.status === "skipped"
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-slate-100 text-slate-500"
+                  "relative grid aspect-square w-full place-items-center rounded-2xl border-2 bg-white p-1",
+                  result.status === "correct" ? "border-emerald-300" : result.status === "skipped" ? "border-amber-200" : "border-slate-200 opacity-60"
                 )}
               >
-                {result.status === "correct" ? <CheckCircle2 className="h-5 w-5" aria-hidden="true" /> : index + 1}
+                {src ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={src} alt="" className="h-full w-full object-contain" />
+                ) : (
+                  <Hand className="h-7 w-7 text-blue-400" aria-hidden="true" />
+                )}
+                <span
+                  className={cn(
+                    "absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full border-2 border-white text-white",
+                    result.status === "correct" ? "bg-emerald-500" : result.status === "skipped" ? "bg-amber-400" : "bg-slate-300"
+                  )}
+                  aria-label={result.status === "correct" ? "Done" : result.status === "skipped" ? "Skipped" : "Not reached"}
+                >
+                  {result.status === "correct" ? (
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  ) : result.status === "skipped" ? (
+                    <SkipForward className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : (
+                    <span className="h-0.5 w-2.5 rounded bg-white" aria-hidden="true" />
+                  )}
+                </span>
               </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-black text-ink">{getLearnerCardLabel(result.gestureLabel)}</p>
-                <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                  {result.status === "correct"
-                    ? `${result.attempts.length} attempt${result.attempts.length === 1 ? "" : "s"}`
-                    : result.status === "skipped"
-                      ? "Skipped"
-                      : "Not attempted"}
-                  {latestAttempt?.predictedLabel ? ` · Last recognized: ${getLearnerCardLabel(latestAttempt.predictedLabel)}` : ""}
-                </p>
-              </div>
-            </div>
+              <span className="line-clamp-1 text-[0.7rem] font-bold text-slate-600">{label}</span>
+            </li>
           );
         })}
-      </div>
-
-      {summary.skipped ? (
-        <p className="mt-3 text-center text-sm font-semibold text-amber-800">
-          {summary.skipped} gesture{summary.skipped === 1 ? " was" : "s were"} skipped.
-        </p>
-      ) : null}
+      </ul>
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         <Button type="button" variant="outline" size="lg" className="rounded-full" onClick={onCancel}>
@@ -1986,19 +2180,54 @@ function GuidedSessionSummary({
   );
 }
 
-const summaryTones = {
-  green: { box: "border-emerald-200 bg-emerald-50", value: "text-emerald-700", label: "text-emerald-800/80" },
-  amber: { box: "border-amber-200 bg-amber-50", value: "text-amber-700", label: "text-amber-800/80" },
-  blue: { box: "border-blue-200 bg-blue-50", value: "text-blue-700", label: "text-blue-800/80" }
-};
+/**
+ * Fills over the 2 seconds the learner holds a sign still before it is checked. It only reads the existing hold timer
+ * (`stablePoseStartedAtRef`); recognition timing is unchanged. The line above it is the instruction.
+ */
+function HoldProgressBar({
+  active,
+  startedAtRef,
+  compact = false
+}: {
+  active: boolean;
+  startedAtRef: RefObject<number>;
+  compact?: boolean;
+}) {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    if (!active) {
+      setProgress(0);
+      return undefined;
+    }
+    let frame = 0;
+    const tick = () => {
+      const start = startedAtRef.current ?? 0;
+      setProgress(start ? Math.min(1, (performance.now() - start) / STABLE_POSE_AUTO_PREDICT_DELAY_MS) : 0);
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [active, startedAtRef]);
 
-/** One number in the session summary: Completed green, First try amber, Attempts blue. */
-function SummaryMetric({ value, label, tone }: { value: string; label: string; tone: keyof typeof summaryTones }) {
-  const colors = summaryTones[tone];
   return (
-    <div className={cn("rounded-2xl border px-2 py-3 text-center", colors.box)}>
-      <p className={cn("text-xl font-black sm:text-2xl", colors.value)}>{value}</p>
-      <p className={cn("mt-1 text-[0.68rem] font-black uppercase tracking-wide sm:text-xs", colors.label)}>{label}</p>
+    <div className={cn("shrink-0 rounded-2xl border border-blue-100 bg-white/85", compact ? "mt-2 px-2.5 py-2" : "mt-2 px-3 py-2")}>
+      <p className={cn("flex items-center gap-1.5 font-black text-ink", compact ? "text-xs" : "text-sm")}>
+        <Hand className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+        Hold your sign still until the bar fills.
+      </p>
+      <div
+        className={cn("mt-1.5 overflow-hidden rounded-full bg-emerald-100", compact ? "h-2" : "h-3")}
+        role="progressbar"
+        aria-label="Hold still"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress * 100)}
+      >
+        <div
+          className={cn("h-full rounded-full", progress >= 1 ? "bg-emerald-600" : "bg-gradient-to-r from-emerald-400 to-green-500")}
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
     </div>
   );
 }
@@ -2077,7 +2306,10 @@ function LearnerReferencePictureCard({ item, onPlayAudio }: { item: LearningItem
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[32rem] flex-col gap-3 overflow-hidden rounded-[2rem] border border-white/90 bg-white p-3 shadow-[0_10px_28px_rgba(37,99,235,0.1)] sm:p-4">
       <div className="relative grid min-h-0 w-full flex-1 place-items-center overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-blue-50 to-sky-100 p-2 sm:p-3">
-        {imageSrc ? <GestureReferenceImage src={imageSrc} alt={`${label} reference`} /> : <GestureFallbackIllustration />}
+        <GestureMotion
+          id={item.id}
+          fallback={imageSrc ? <GestureReferenceImage src={imageSrc} alt={`${label} reference`} /> : <GestureFallbackIllustration />}
+        />
       </div>
       <div className="flex shrink-0 items-center justify-between gap-3 px-1">
         <h2 className="min-w-0 truncate text-2xl font-black text-ink sm:text-3xl">{label}</h2>
@@ -2099,7 +2331,7 @@ function LearnerReferenceDetails({ item, onPlayAudio }: { item: LearningItem; on
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:mt-4 sm:gap-3">
         <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-2 sm:p-3">
-          <GestureVideoPreview value={item.gestureMediaUrl} label={`${item.label} gesture reference`} />
+          <GestureMotion id={item.id} fallback={<GestureVideoPreview value={item.gestureMediaUrl} label={`${item.label} gesture reference`} />} />
         </div>
         <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
           <div className="rounded-3xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 p-4">
@@ -2183,7 +2415,8 @@ function LearnerFeedbackBar({
   feedbackLoading,
   success,
   feedbackOnly = false,
-  compact = false
+  compact = false,
+  actions
 }: {
   stateLabel: string;
   detail: string;
@@ -2193,6 +2426,8 @@ function LearnerFeedbackBar({
   success: boolean;
   feedbackOnly?: boolean;
   compact?: boolean;
+  /** Buttons under the feedback (guided practice: Skip and Try again). */
+  actions?: ReactNode;
 }) {
   if (feedbackOnly) {
     return (
@@ -2218,23 +2453,23 @@ function LearnerFeedbackBar({
 
   const showFeedback = Boolean(correctiveFeedback || feedbackLoading);
 
-  // The box keeps the same height, empty or full, so the camera above it never changes size. Its height is a share
-  // of the column (capped), not a fixed size: on short or stacked layouts a fixed 12rem box left the camera
-  // only a few pixels tall. Long feedback scrolls inside the box.
+  // The box takes the height its words need and never scrolls; the camera above it shrinks to make room
+  // (Julian's original behaviour, restored on the owner's request, Sep 30).
   return (
     <div
       className={cn(
-        "flex shrink-0 grow-0 flex-col overflow-hidden border shadow-[0_6px_18px_rgba(37,99,235,0.07)]",
-        compact ? "mt-2 min-h-[5rem] max-h-40 basis-[24%] rounded-2xl p-2.5" : "mt-3 min-h-[5.5rem] max-h-48 basis-[32%] rounded-3xl p-3",
+        "flex shrink-0 flex-col border shadow-[0_6px_18px_rgba(37,99,235,0.07)]",
+        compact ? "mt-2 min-h-[5rem] rounded-2xl p-2.5" : "mt-3 min-h-[5.5rem] rounded-3xl p-3",
         success ? "border-green-200 bg-green-50/90" : "border-blue-100 bg-white/80"
       )}
       role="status"
       aria-live="polite"
     >
       {showFeedback ? (
-        <div className="min-h-0 flex-1 overflow-y-auto clean-scrollbar">
+        <div>
           {/* The AI corrective feedback in full: For learner and Teacher guide. */}
           <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} compact={compact} flush prominent />
+          {actions ? <div className="mt-3 grid grid-cols-2 gap-3">{actions}</div> : null}
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col justify-center px-1">
@@ -2359,11 +2594,9 @@ function CorrectiveFeedbackPanel({
             {feedback?.learnerMessage ?? "Preparing feedback..."}
           </p>
         </div>
-        <div className={cn(learnerOnly && "hidden", prominent ? (compact ? "p-4 sm:p-5" : "p-5 sm:p-6") : compact ? "p-3" : "p-4")}>
-          <p className={cn("font-black uppercase tracking-wide text-slate-500", prominent ? "text-xs sm:text-sm" : "text-[0.7rem]")}>
-            Teacher guide
-          </p>
-          <p className={cn("font-semibold text-slate-700", prominent ? "mt-2 text-base leading-7 sm:text-lg sm:leading-8" : "mt-1 text-sm leading-6")}>
+        <div className={cn(learnerOnly && "hidden", prominent ? "p-3 sm:p-4" : compact ? "p-3" : "p-4")}>
+          <p className="text-[0.7rem] font-black uppercase tracking-wide text-slate-500">Teacher guide</p>
+          <p className={cn("font-semibold text-slate-700", prominent ? "mt-1 text-sm leading-6" : "mt-1 text-sm leading-6")}>
             {feedback?.teacherNote ?? "Checking the attempt details."}
           </p>
         </div>
@@ -2436,7 +2669,7 @@ function CameraPanel({
     <div
       className={cn(
         "relative overflow-hidden border border-slate-700/70 bg-ink shadow-inner",
-        fillAvailable ? "mt-2 min-h-0 flex-1" : "mt-5",
+        fillAvailable ? "mt-2 min-h-[11rem] flex-1" : "mt-5",
         playful ? "rounded-[1.75rem] p-1 ring-4 ring-white/70" : "rounded-2xl",
         cameraStarted && "camera-live-glow"
       )}

@@ -18,7 +18,8 @@ import {
 } from "@/features/activities/player/player-utils";
 import { SymbolOption } from "@/features/activities/player/player-parts";
 import { activityInstruction } from "@/features/activities/activity-helpers";
-import { FEEDBACK_MS, WRONG_MS } from "@/features/activities/player/student-theme";
+import { FEEDBACK_MS, MAX_TRIES, WRONG_MS } from "@/features/activities/player/student-theme";
+import { playCue } from "@/lib/sound-cues";
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 
 type TeacherPlayerProps = {
@@ -45,12 +46,15 @@ const panelClass =
 const SCORE_DELAY_MS = 1200;
 /** How long a right answer stays on screen before the next question (a little quicker than Student mode). */
 const RIGHT_MS = Math.min(FEEDBACK_MS, 1200);
+/** Saved as the answer of a Drag and drop box whose tries ran out, so it scores as wrong. */
+const MISSED = "__missed__";
 
 /**
  * The teacher's player: plain blue glass look, same rules as Student mode.
- * - Match and Fill in the blank: one tap answers. Right turns green; wrong shakes, turns red, and the right card
- *   turns green. Then the next question comes by itself. One try per question.
- * - Drag and drop: a card only stays on its own word. A wrong drop shakes and the card goes back.
+ * - Match and Fill in the blank: three guesses. A wrong pick buzzes, shakes, and flashes red. Right on any try turns
+ *   green and counts. The third wrong pick turns red and the right card green. Then the next question comes by itself.
+ * - Drag and drop: a card only stays on its own word, three tries per card. A wrong drop buzzes, shakes, and the
+ *   card goes back. After its third, the card is shown on its own word in red and that word counts as wrong.
  * The score pop-up opens by itself at the end.
  */
 export function TeacherPlayer(props: TeacherPlayerProps) {
@@ -64,6 +68,9 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
   const [index, setIndex] = useState(0);
   const [shakeKey, setShakeKey] = useState(0);
   const [optionShuffleSeed] = useState(() => Math.random());
+  /** Wrong picks so far per question. A wrong card flashes red and can be tapped again. */
+  const [struck, setStruck] = useState<Record<string, string[]>>({});
+  const [flash, setFlash] = useState("");
   const question = questions[Math.min(index, Math.max(questions.length - 1, 0))];
   const options = useMemo(
     () => question ? getActivityQuestionOptions(activity, question, learningItems, optionShuffleSeed) : [],
@@ -92,8 +99,20 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
   function pick(option: string) {
     if (!question || answers[question.id] || result) return;
     const right = option === question.answer;
+    const wrongSoFar = struck[question.id] ?? [];
+    if (!right) {
+      playCue("wrong");
+      setShakeKey((current) => current + 1);
+      if (wrongSoFar.length + 1 < MAX_TRIES) {
+        setStruck((current) => ({ ...current, [question.id]: [...wrongSoFar, option] }));
+        setFlash(option);
+        window.setTimeout(() => setFlash((current) => (current === option ? "" : current)), 700);
+        return;
+      }
+    } else {
+      playCue("correct");
+    }
     chooseAnswer(question.id, option);
-    if (!right) setShakeKey((current) => current + 1);
     const lastQuestion = index >= questions.length - 1;
     timerRef.current = window.setTimeout(() => {
       if (lastQuestion) scoreRef.current();
@@ -102,6 +121,8 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
   }
 
   const right = answered && selected === question.answer;
+  const struckHere = struck[question.id] ?? [];
+  const triesLeft = MAX_TRIES - struckHere.length;
 
   return (
     <div className="space-y-5">
@@ -122,7 +143,7 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
         {options.map((option) => {
           const picked = selected === option;
           const correct = option === question.answer;
-          const state = !answered ? "idle" : correct ? "correct" : picked ? "wrong" : "idle";
+          const state = !answered ? (flash === option ? "wrong" : "idle") : correct ? "correct" : picked ? "wrong" : "idle";
           return (
             <button
               key={option}
@@ -149,8 +170,16 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
       </motion.div>
 
       <ActionBar
-        status={!answered ? "Tap the right picture." : right ? "Correct!" : "The right card is green."}
-        tone={!answered ? "neutral" : right ? "good" : "bad"}
+        status={
+          !answered
+            ? struckHere.length
+              ? `Not this one. ${triesLeft} ${triesLeft === 1 ? "try" : "tries"} left.`
+              : "Tap the right picture."
+            : right
+              ? "Correct!"
+              : "The right card is green."
+        }
+        tone={!answered ? (struckHere.length ? "bad" : "neutral") : right ? "good" : "bad"}
       >
         {null}
       </ActionBar>
@@ -281,6 +310,8 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
   const reduceMotion = useReducedMotion();
   const [seed] = useState(() => Math.random());
   const [shake, setShake] = useState<{ id: string; key: number } | null>(null);
+  /** Wrong drops so far per card (a card remembers its tries). */
+  const [misses, setMisses] = useState<Record<string, number>>({});
   // Where a card picked up with a click follows the pointer, until it is put on a word or let go.
   const [carry, setCarry] = useState<{ x: number; y: number } | null>(null);
   const carrying = Boolean(carry && dragged);
@@ -289,14 +320,15 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
     [questions, seed]
   );
   const placedCount = questions.filter((question) => answers[question.id]).length;
-  const tray = cards.filter((card) => !questions.some((question) => answers[question.id] === card));
+  // A card leaves the tray once its word is done, including a word whose tries ran out.
+  const tray = cards.filter((card) => !questions.some((question) => answers[question.id] && question.answer === card));
   const allPlaced = questions.length > 0 && placedCount === questions.length;
 
   useEffect(() => {
     onProgress(placedCount, questions.length);
   }, [onProgress, placedCount, questions.length]);
 
-  // Every card is placed on its own word, so the score opens by itself (everything counts as right).
+  // Every word is done (right, or out of tries), so the score opens by itself.
   const scoreRef = useRef(onScore);
   useEffect(() => {
     scoreRef.current = onScore;
@@ -336,12 +368,21 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
 
   if (!questions.length) return <EmptyNote />;
 
-  /** A card only stays on its own word. A wrong one shakes the box and goes back to the tray. */
+  /** A card only stays on its own word. A wrong one shakes the box and goes back; after its third wrong drop the card goes to its own word in red. */
   function place(questionId: string) {
     const target = questions.find((question) => question.id === questionId);
     if (!dragged || result || !target || answers[questionId]) return;
-    if (dragged === target.answer) chooseAnswer(questionId, dragged);
-    else setShake({ id: questionId, key: Date.now() });
+    if (dragged === target.answer) {
+      playCue("correct");
+      chooseAnswer(questionId, dragged);
+    } else {
+      playCue("wrong");
+      setShake({ id: questionId, key: Date.now() });
+      const tries = (misses[dragged] ?? 0) + 1;
+      setMisses((current) => ({ ...current, [dragged]: tries }));
+      const home = questions.find((question) => question.answer === dragged && !answers[question.id]);
+      if (tries >= MAX_TRIES && home) chooseAnswer(home.id, MISSED);
+    }
     setDragged("");
     setCarry(null);
   }
@@ -353,6 +394,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {questions.map((question) => {
             const answer = answers[question.id];
+            const missed = answer === MISSED;
             const shaking = shake?.id === question.id;
             return (
               <motion.button
@@ -371,7 +413,9 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
                 aria-label={answer ? `${question.prompt}: done` : `Place card on ${question.prompt}`}
                 className={cn(
                   "flex min-w-0 flex-col items-center gap-2 rounded-3xl border-2 p-2 text-center transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
-                  answer
+                  missed
+                    ? "cursor-default border-red-400 bg-red-50"
+                    : answer
                     ? "cursor-default border-green-500 bg-green-50"
                     : shaking
                       ? "border-red-400 bg-red-50"
@@ -384,7 +428,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
                   {question.prompt}
                 </span>
                 {answer ? (
-                  <PictureWell value={answer} learningItems={learningItems} tone="correct" />
+                  <PictureWell value={missed ? question.answer : answer} learningItems={learningItems} tone={missed ? "wrong" : "correct"} />
                 ) : (
                   <span className="grid aspect-[3/4] w-full max-w-[13rem] place-items-center rounded-2xl text-xs font-semibold text-blue-300">Drop here</span>
                 )}
@@ -492,7 +536,7 @@ function ScoreDialog({ result, onRestart, onExit }: { result: ActivityScore | nu
           {result?.correct ?? 0} of {total} correct
         </p>
         <p className={cn("mt-1 text-sm font-semibold", tone === "green" ? "text-green-700" : tone === "yellow" ? "text-yellow-700" : "text-red-600")}>
-          {tone === "green" ? "All correct." : tone === "yellow" ? "Go over the missed ones together." : "Practise the cards again, then retry."}
+          {tone === "green" ? "All correct." : tone === "yellow" ? "Go over the missed ones together." : "Practice the cards again, then retry."}
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
           <Button type="button" variant="outline" onClick={onExit}>

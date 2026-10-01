@@ -22,7 +22,9 @@ export function ActivityLibrary({
   creatorOf,
   onOpen,
   onPlay,
-  viewOnly = false
+  viewOnly = false,
+  hiddenIds,
+  onToggleStudents
 }: {
   activities: Activity[];
   itemById: Map<string, LearningItem>;
@@ -34,6 +36,10 @@ export function ActivityLibrary({
   onPlay?: (activity: Activity) => void;
   /** Admins cannot create activities, so the empty state does not tell them to. */
   viewOnly?: boolean;
+  /** Activities this teacher hid from Student mode. */
+  hiddenIds?: string[];
+  /** Teachers only: the eye icon on each card. */
+  onToggleStudents?: (activity: Activity) => void;
 }) {
   const [filter, setFilter] = useState<LibraryFilter>("all");
   const [type, setType] = useState<ActivityType | "all">("all");
@@ -67,7 +73,7 @@ export function ActivityLibrary({
           onChange={setFilter}
           options={[
             { value: "all", label: "All", count: activities.length, icon: Layers },
-            { value: "lessons", label: "From lessons", count: fromLessons.length, icon: BookOpen },
+            { value: "lessons", label: "From collections", count: fromLessons.length, icon: BookOpen },
             { value: "private", label: "Private", count: privateOnes.length, icon: Lock }
           ]}
         />
@@ -109,6 +115,8 @@ export function ActivityLibrary({
               creator={creatorOf(activity)}
               onOpen={() => onOpen(activity)}
               onPlay={onPlay ? () => onPlay(activity) : undefined}
+              hiddenFromStudents={hiddenIds?.includes(activity.id)}
+              onToggleStudents={onToggleStudents ? () => onToggleStudents(activity) : undefined}
             />
           ))}
         </div>
