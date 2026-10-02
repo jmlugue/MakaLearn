@@ -2,18 +2,17 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   ACTIVITY_PROMPT_TEMPLATE_VERSION,
+  activityPromptDraftTemperature,
   buildActivityPromptMaterialHash,
   buildPromptDraftRequest,
   canDraftQuestionPrompts,
-  createLocalFallbackPromptSuggestions,
+  completeActivityPromptSuggestions,
   getUnresolvedPromptItems,
-  mergeActivityPromptSuggestions,
   parsePromptDraftText
 } from "@/utils/activity-ai-draft";
 import type {
   ActivityDraftResult,
   ActivityPromptDraftContext,
-  ActivityPromptIssue,
   ActivityPromptSuggestion,
   DraftablePromptActivityType
 } from "@/utils/activity-ai-draft";
@@ -21,7 +20,8 @@ import {
   ACTIVITY_DRAFT_MATERIAL_COOLDOWN_SECONDS,
   ACTIVITY_DRAFT_PROVIDER_TIMEOUT_MS,
   canRetryActivityDraftCall,
-  evaluateActivityDraftRateLimit
+  evaluateActivityDraftRateLimit,
+  shouldIgnoreActivityDraftMaterialCooldown
 } from "@/utils/activity-ai-rate-limit";
 import { isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
@@ -50,6 +50,7 @@ type ActivityDraftRequest = {
   activityType?: ActivityType;
   learningItems?: LearningItem[];
   missingLearningItemIds?: string[];
+  currentPromptByItemId?: Record<string, unknown>;
   regenerate?: boolean;
 };
 
@@ -100,6 +101,19 @@ function getRequestedLearningItemIds(body: ActivityDraftRequest) {
   return Array.from(new Set(rawIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0))).slice(0, 5);
 }
 
+function getPreviousPromptById(body: ActivityDraftRequest, requestedIds: string[]) {
+  if (!body.regenerate || !body.currentPromptByItemId || typeof body.currentPromptByItemId !== "object") return {};
+
+  return Object.fromEntries(
+    requestedIds.flatMap((id) => {
+      const value = body.currentPromptByItemId?.[id];
+      if (typeof value !== "string") return [];
+      const prompt = value.replace(/\s+/g, " ").trim().slice(0, 180).trim();
+      return prompt ? [[id, prompt] as const] : [];
+    })
+  );
+}
+
 function jsonDraft(draft: ActivityDraftResult, status = 200) {
   return NextResponse.json(draft, { status });
 }
@@ -114,23 +128,7 @@ function fallbackDraft(
   rateLimit?: ActivityDraftResult["rateLimit"],
   context: ActivityPromptDraftContext = {}
 ) {
-  const suggestions = createLocalFallbackPromptSuggestions(type, items, context);
-  const fallbackIds = new Set(suggestions.map((suggestion) => suggestion.learningItemId));
-  const issues: ActivityPromptIssue[] = items.map((item) =>
-    fallbackIds.has(item.id)
-      ? {
-          learningItemId: item.id,
-          label: item.label,
-          code: "local-fallback-used",
-          message: "A checked starter prompt was used because AI was unavailable."
-        }
-      : {
-          learningItemId: item.id,
-          label: item.label,
-          code: "needs-teacher-input",
-          message: "No safe starter prompt is available. Please write this one."
-        }
-  );
+  const { suggestions, issues } = completeActivityPromptSuggestions(type, items, [], context);
   return jsonDraft(
     {
       source,
@@ -285,7 +283,7 @@ async function requestGeminiDraft(
             }
           ],
           generationConfig: {
-            temperature: 0.2,
+            temperature: activityPromptDraftTemperature(context),
             maxOutputTokens: 700,
             responseMimeType: "application/json"
           }
@@ -419,7 +417,11 @@ export async function POST(request: Request) {
         )
       ])
     );
-    draftContext = { categoryNameById, conflictingItemsById };
+    draftContext = {
+      categoryNameById,
+      conflictingItemsById,
+      previousPromptById: getPreviousPromptById(body, requestedLearningItemIds)
+    };
   } catch (error) {
     console.error("Supabase activity draft setup failed.", error);
     return NextResponse.json({ error: "Supabase is required before drafting activity prompts." }, { status: 503 });
@@ -450,7 +452,12 @@ export async function POST(request: Request) {
       }
     }
 
-    const limitStatus = await getRateLimitStatus(supabase, userId, materialHash);
+    const limitStatus = await getRateLimitStatus(
+      supabase,
+      userId,
+      materialHash,
+      shouldIgnoreActivityDraftMaterialCooldown(body.regenerate)
+    );
     if (!limitStatus.allowed) {
       await logAiUsage(supabase, {
         user_id: userId,
@@ -565,8 +572,8 @@ export async function POST(request: Request) {
       content = await requestGeminiDraft(apiKey, model, activityType, missingLearningItems, draftContext);
     }
     const parsed = parsePromptDraftText(content, activityType, missingLearningItems, draftContext);
-    let geminiSuggestions = parsed.suggestions;
-    let unresolvedItems = getUnresolvedPromptItems(missingLearningItems, geminiSuggestions);
+    const geminiSuggestions = parsed.suggestions;
+    const unresolvedItems = getUnresolvedPromptItems(missingLearningItems, geminiSuggestions);
 
     if (unresolvedItems.length) {
       await logAiUsage(supabase, {
@@ -577,59 +584,6 @@ export async function POST(request: Request) {
         event_type: "model-failure",
         model
       });
-
-      // At most one automatic retry is made per click. A transient provider retry and a wording-repair
-      // retry both consume quota, so a provider retry uses the one available retry slot.
-      const retryLimit = await getRateLimitStatus(supabase, userId, materialHash, true);
-      if (canRetryActivityDraftCall({ modelRequestCount, retryable: true, rateAllowed: retryLimit.allowed })) {
-        const retryReasonsById = Object.fromEntries(
-          unresolvedItems.map((item) => [
-            item.id,
-            parsed.issues?.find((issue) => issue.learningItemId === item.id)?.reasons ?? ["Return one valid prompt for this item."]
-          ])
-        );
-        const retryContext = { ...draftContext, retryReasonsById };
-        await logAiUsage(supabase, {
-          user_id: userId,
-          feature: ACTIVITY_DRAFT_FEATURE,
-          activity_type: activityType,
-          material_hash: materialHash,
-          event_type: "model-request",
-          model
-        });
-        modelRequestCount += 1;
-
-        try {
-          const retryContent = await requestGeminiDraft(apiKey, model, activityType, unresolvedItems, retryContext);
-          const retryParsed = parsePromptDraftText(retryContent, activityType, unresolvedItems, retryContext);
-          geminiSuggestions = mergeActivityPromptSuggestions(
-            missingLearningItems,
-            geminiSuggestions,
-            retryParsed.suggestions
-          );
-          unresolvedItems = getUnresolvedPromptItems(missingLearningItems, geminiSuggestions);
-          if (unresolvedItems.length) {
-            await logAiUsage(supabase, {
-              user_id: userId,
-              feature: ACTIVITY_DRAFT_FEATURE,
-              activity_type: activityType,
-              material_hash: materialHash,
-              event_type: "model-failure",
-              model
-            });
-          }
-        } catch (error) {
-          console.error("Gemini activity draft repair failed.", error);
-          await logAiUsage(supabase, {
-            user_id: userId,
-            feature: ACTIVITY_DRAFT_FEATURE,
-            activity_type: activityType,
-            material_hash: materialHash,
-            event_type: "model-failure",
-            model
-          });
-        }
-      }
     }
 
     let version = 0;
@@ -666,36 +620,21 @@ export async function POST(request: Request) {
       });
     }
 
-    const fallbackSuggestions = createLocalFallbackPromptSuggestions(activityType, unresolvedItems, draftContext);
-    const suggestions = mergeActivityPromptSuggestions(
+    const { suggestions, fallbackSuggestions, missingItems, issues } = completeActivityPromptSuggestions(
+      activityType,
       missingLearningItems,
       geminiSuggestions,
-      fallbackSuggestions
+      draftContext
     );
-    const fallbackIds = new Set(fallbackSuggestions.map((suggestion) => suggestion.learningItemId));
-    const issues: ActivityPromptIssue[] = unresolvedItems.map((item) =>
-      fallbackIds.has(item.id)
-        ? {
-            learningItemId: item.id,
-            label: item.label,
-            code: "local-fallback-used",
-            message: "Gemini wording was rejected. A checked starter prompt was used instead."
-          }
-        : {
-            learningItemId: item.id,
-            label: item.label,
-            code: "needs-teacher-input",
-            message: "Gemini wording was rejected. Please write this prompt yourself."
-          }
-    );
-    const source: ActivityDraftResult["source"] = unresolvedItems.length
+    const source: ActivityDraftResult["source"] = fallbackSuggestions.length || missingItems.length
       ? geminiSuggestions.length
         ? "mixed"
         : "local-fallback"
       : "gemini";
-    const note = unresolvedItems.length
-      ? `${geminiSuggestions.length} AI ${geminiSuggestions.length === 1 ? "prompt passed" : "prompts passed"}; ${unresolvedItems.length} ${unresolvedItems.length === 1 ? "item needs" : "items need"} a checked fallback or teacher review.`
-      : `${suggestions.length} reusable ${suggestions.length === 1 ? "prompt was" : "prompts were"} checked and saved in Supabase.`;
+    const promptName = activityType === "fill-blank" ? "sentence" : "question";
+    const note = missingItems.length
+      ? `${suggestions.length} ${suggestions.length === 1 ? promptName : `${promptName}s`} ready; ${missingItems.length} still ${missingItems.length === 1 ? "needs" : "need"} your wording.`
+      : `${suggestions.length} ${suggestions.length === 1 ? promptName : `${promptName}s`} ready. Check ${suggestions.length === 1 ? "it" : "them"} before saving.`;
 
     return jsonDraft({
       source,

@@ -583,11 +583,18 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   used only when nothing else is left. More Fill in the blank second answers in `fillBlankAlsoFits`.
 - **AI drafts:** Gemini Fill and legacy Choose drafts must be one sentence and 5 to 12 simple words. Fill has
   exactly one blank; Choose ends in `?`. Answer leaks, unsuitable wording, unknown/duplicate IDs, and detected
-  semantic conflicts are rejected. One quota-counted retry can repair failed items or recover from a transient
-  provider error; then a checked bank prompt is used where available. Failed calls still count toward hourly/daily
-  use but only a successful draft starts the same-material cooldown. `ACTIVITY_PROMPT_TEMPLATE_VERSION` is
-  `activity-prompt-v6`. Vague or stereotyped descriptions such as calling Father the family's leader/provider are
-  rejected; approved question-bank examples are sent as the target style for direct, familiar wording.
+  semantic conflicts are rejected. Invalid wording no longer spends a repair call or shows a provider-rejection
+  notice: a checked bank prompt silently fills the row where available. The one quota-counted retry is reserved for
+  transient provider failures. Failed calls still count toward hourly/daily use but only a successful draft starts
+  the same-material cooldown. `ACTIVITY_PROMPT_TEMPLATE_VERSION` is `activity-prompt-v8`; its instructions ask for
+  a same-response self-check and an approved example when original wording cannot satisfy every rule. Vague or
+  stereotyped descriptions such as calling Father the family's leader/provider are rejected.
+- **Fill draft locks (Oct 2):** each sentence input has a lock at its right edge. Locked rows stay editable but are
+  excluded from Inspire me with AI, so a teacher's wording is not overwritten. Lock state lasts for the open form
+  only and is not saved with the activity. A repeat click explicitly regenerates every unlocked sentence and bypasses
+  the 60-second same-material cooldown; the hourly and daily model-call limits still apply. The current unlocked
+  wording is sent as untrusted reference data that Gemini must replace with a different situation. Identical model
+  output is rejected, and the checked fallback also chooses a different bank sentence.
 - **Playground:** a wrong Check opens an amber "TRY AGAIN" pop-up (spoken) instead of a toast and strip; right
   keeps "GOOD JOB". Am, Is, or Are alone is no longer right. Good morning and Thank you count as expressions.
 

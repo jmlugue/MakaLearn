@@ -4,9 +4,9 @@ import { bankQuestions } from "@/utils/question-bank";
 import { checkFillStyle, checkQuestion, sentencesOf } from "@/utils/question-bank/rules";
 import type { ActivityType, LearningItem } from "@/types";
 
-// v6 rejects vague or stereotyped descriptions and gives Gemini approved bank examples as a simple-language
-// target. The version bump prevents earlier abstract drafts from being reused.
-export const ACTIVITY_PROMPT_TEMPLATE_VERSION = "activity-prompt-v6";
+// v8 includes the current sentence during explicit regeneration so Gemini and the checked fallback can both
+// guarantee a different suggestion instead of returning the wording already shown in the form.
+export const ACTIVITY_PROMPT_TEMPLATE_VERSION = "activity-prompt-v8";
 
 export type ActivityPromptDraftSource = "cache" | "gemini" | "mixed" | "local-fallback" | "rate-limited";
 export type DraftablePromptActivityType = Extract<ActivityType, "choose-correct-symbol" | "fill-blank">;
@@ -22,7 +22,6 @@ export type ActivityPromptIssueCode =
   | "duplicate-output"
   | "unknown-item"
   | "invalid-prompt"
-  | "local-fallback-used"
   | "needs-teacher-input";
 
 export type ActivityPromptIssue = {
@@ -36,7 +35,7 @@ export type ActivityPromptIssue = {
 export type ActivityPromptDraftContext = {
   categoryNameById?: Record<string, string>;
   conflictingItemsById?: Record<string, LearningItem[]>;
-  retryReasonsById?: Record<string, string[]>;
+  previousPromptById?: Record<string, string>;
 };
 
 export type ActivityDraftResult = {
@@ -135,9 +134,56 @@ export function createLocalFallbackPromptSuggestions(
 ): ActivityPromptSuggestion[] {
   const kind = type === "fill-blank" ? "fill" : "choose";
   return items.flatMap((item) => {
-    const prompt = bankQuestions(kind, item.label, context.categoryNameById?.[item.categoryId])[0];
+    const prompts = bankQuestions(kind, item.label, context.categoryNameById?.[item.categoryId]);
+    const previous = comparablePrompt(context.previousPromptById?.[item.id]);
+    const prompt = prompts.find((candidate) => comparablePrompt(candidate) !== previous) ?? prompts[0];
     return prompt ? [{ learningItemId: item.id, label: item.label, prompt }] : [];
   });
+}
+
+/** Regeneration uses a little more variety; validation and checked fallbacks still guard the result. */
+export function activityPromptDraftTemperature(context: ActivityPromptDraftContext = {}) {
+  return Object.values(context.previousPromptById ?? {}).some((prompt) => Boolean(prompt.trim())) ? 0.5 : 0.2;
+}
+
+/**
+ * Completes a partial model response with the checked question bank. A teacher only needs to intervene when
+ * neither the model nor the local bank can supply a usable prompt; internal provider rejections stay internal.
+ */
+export function completeActivityPromptSuggestions(
+  type: DraftablePromptActivityType,
+  items: LearningItem[],
+  modelSuggestions: ActivityPromptSuggestion[],
+  context: ActivityPromptDraftContext = {}
+) {
+  const unresolvedItems = getUnresolvedPromptItems(items, modelSuggestions);
+  const fallbackSuggestions = createLocalFallbackPromptSuggestions(type, unresolvedItems, context);
+  const suggestions = mergeActivityPromptSuggestions(items, modelSuggestions, fallbackSuggestions);
+  const missingItems = getUnresolvedPromptItems(items, suggestions);
+  const promptName = type === "fill-blank" ? "sentence" : "question";
+  const issues: ActivityPromptIssue[] = missingItems.map((item) => ({
+    learningItemId: item.id,
+    label: item.label,
+    code: "needs-teacher-input",
+    message: `Add a ${promptName} for this material before saving.`
+  }));
+
+  return { suggestions, fallbackSuggestions, missingItems, issues };
+}
+
+/** Picks only unlocked rows. Existing unlocked text is regenerated once every unlocked row has text. */
+export function selectActivityPromptDraftTargets(
+  itemIds: string[],
+  promptByItemId: Record<string, string>,
+  lockedItemIds: Iterable<string>
+) {
+  const locked = new Set(lockedItemIds);
+  const unlockedItemIds = itemIds.filter((id) => !locked.has(id));
+  const regenerate = unlockedItemIds.length > 0 && unlockedItemIds.every((id) => promptByItemId[id]?.trim());
+  return {
+    itemIds: regenerate ? unlockedItemIds : unlockedItemIds.filter((id) => !promptByItemId[id]?.trim()),
+    regenerate
+  };
 }
 
 export function buildPromptDraftRequest(
@@ -173,8 +219,8 @@ export function buildPromptDraftRequest(
       item.label,
       context.categoryNameById?.[item.categoryId]
     ).slice(0, 2),
-    labelsThatMustNotAlsoFit: (context.conflictingItemsById?.[item.id] ?? []).map((candidate) => candidate.label),
-    repairReasons: context.retryReasonsById?.[item.id] ?? []
+    currentPromptToReplace: context.previousPromptById?.[item.id] || null,
+    labelsThatMustNotAlsoFit: (context.conflictingItemsById?.[item.id] ?? []).map((candidate) => candidate.label)
   }));
 
   return [
@@ -183,11 +229,14 @@ export function buildPromptDraftRequest(
     "Use concrete, familiar English for SPED learners at Kinder to Grade 2 level.",
     "Use literal everyday actions and direct relationship words. Prefer wording a young learner hears at home or school.",
     "Approved simple examples show the intended reading level. You may copy their clear style, but do not make the wording harder.",
+    "When currentPromptToReplace is present, write a meaningfully different everyday situation. Never repeat it or only change punctuation.",
+    "If you cannot make a new sentence that follows every rule, use an approvedSimpleExamples sentence that differs from currentPromptToReplace.",
     "Avoid praise words and vague descriptions. Never describe a person as the family leader, head, boss, provider, protector, or authority.",
     "Avoid idioms, conversations, abstract wording, age assumptions, personal preferences, frightening topics, stereotypes, and wording about cards, PECS, symbols, or the app.",
     "Bad Father example: \"The kind leader of our family is ____.\" Good Father example: \"I call my dad ____.\"",
     "Do not claim this is official Makaton content.",
     promptInstruction,
+    "Before returning JSON, silently check that every prompt follows every rule above. Fix any failed prompt in this same response.",
     "Return exactly one result for every requested learningItemId, with no extra IDs and no duplicate IDs.",
     "Return only valid JSON with exactly this shape:",
     '{"prompts":[{"learningItemId":"item id","prompt":"question text"}]}',
@@ -215,6 +264,10 @@ function extractJsonObject(text: string) {
 function normalizePrompt(value: unknown) {
   if (typeof value !== "string") return "";
   return value.replace(/_{3,}/g, "____").replace(/\s+/g, " ").trim().slice(0, 180).trim();
+}
+
+function comparablePrompt(value: unknown) {
+  return normalizePrompt(value).toLowerCase().replace(/[.!?]+$/g, "").trim();
 }
 
 function promptNamesLabel(prompt: string, label: string) {
@@ -257,6 +310,10 @@ export function validateAiActivityPrompt(
       .filter(Boolean)
   );
   const reasons = checkQuestion(kind, item.label, prompt, knownWords);
+  const previousPrompt = context.previousPromptById?.[item.id];
+  if (previousPrompt && comparablePrompt(prompt) === comparablePrompt(previousPrompt)) {
+    reasons.push("Use a different sentence from the current one.");
+  }
   if (sentencesOf(prompt).length !== 1) reasons.push("Use exactly one sentence.");
   const wordCount = wordsOf(prompt).length;
   if (wordCount < 5 || wordCount > 12) reasons.push("Use 5 to 12 words.");

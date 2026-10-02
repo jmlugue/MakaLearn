@@ -46,7 +46,7 @@ test("a failed request consumes quota without triggering the same-material coold
   assert.equal(result.rateLimit.retryAfterSeconds, undefined);
 });
 
-test("internal repair ignores cooldown but still obeys request capacity", () => {
+test("a transient provider retry ignores cooldown but still obeys request capacity", () => {
   assert.equal(
     rate.evaluateActivityDraftRateLimit({
       hourlyRequests: 1,
@@ -65,6 +65,29 @@ test("internal repair ignores cooldown but still obeys request capacity", () => 
     }).allowed,
     false
   );
+});
+
+test("an explicit regeneration bypasses only the same-material cooldown", () => {
+  assert.equal(rate.shouldIgnoreActivityDraftMaterialCooldown(true), true);
+  assert.equal(rate.shouldIgnoreActivityDraftMaterialCooldown(false), false);
+  assert.equal(rate.shouldIgnoreActivityDraftMaterialCooldown(undefined), false);
+
+  const regenerated = rate.evaluateActivityDraftRateLimit({
+    hourlyRequests: 2,
+    dailyRequests: 2,
+    recentMaterialSuccesses: 1,
+    ignoreMaterialCooldown: rate.shouldIgnoreActivityDraftMaterialCooldown(true)
+  });
+  assert.equal(regenerated.allowed, true);
+
+  const quotaReached = rate.evaluateActivityDraftRateLimit({
+    hourlyRequests: 10,
+    dailyRequests: 2,
+    recentMaterialSuccesses: 1,
+    ignoreMaterialCooldown: rate.shouldIgnoreActivityDraftMaterialCooldown(true)
+  });
+  assert.equal(quotaReached.allowed, false);
+  assert.equal(quotaReached.rateLimit.retryAfterSeconds, undefined);
 });
 
 test("one click gets at most one quota-counted retry", () => {

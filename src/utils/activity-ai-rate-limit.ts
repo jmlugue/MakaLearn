@@ -5,6 +5,11 @@ export const ACTIVITY_DRAFT_DAILY_LIMIT = 40;
 export const ACTIVITY_DRAFT_MATERIAL_COOLDOWN_SECONDS = 60;
 export const ACTIVITY_DRAFT_PROVIDER_TIMEOUT_MS = 30000;
 
+/** A deliberate repeat click may regenerate immediately; hourly and daily limits still apply. */
+export function shouldIgnoreActivityDraftMaterialCooldown(regenerate: unknown) {
+  return regenerate === true;
+}
+
 export function canRetryActivityDraftCall({
   modelRequestCount,
   retryable,

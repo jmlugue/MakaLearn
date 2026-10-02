@@ -28,7 +28,7 @@ const material = {
 };
 
 test("Gemini activity drafts use a provider-separated prompt version", () => {
-  assert.equal(draft.ACTIVITY_PROMPT_TEMPLATE_VERSION, "activity-prompt-v6");
+  assert.equal(draft.ACTIVITY_PROMPT_TEMPLATE_VERSION, "activity-prompt-v8");
   assert.notEqual(
     draft.buildActivityPromptMaterialHash("fill-blank", [material]),
     draft.buildActivityPromptMaterialHash("fill-blank", [material], "activity-prompt-v3")
@@ -44,11 +44,25 @@ test("the activity prompt gives Gemini strict classroom-question instructions", 
   assert.match(prompt, /untrusted teaching data/i);
   assert.match(prompt, /idioms/i);
   assert.match(prompt, /approvedSimpleExamples/);
+  assert.match(prompt, /approvedSimpleExamples sentence that differs/i);
+  assert.match(prompt, /Fix any failed prompt in this same response/i);
   assert.match(prompt, /The kind leader of our family/);
   assert.match(prompt, /I call my dad/);
   assert.match(prompt, /Return only valid JSON/i);
   assert.match(prompt, /custom-umbrella/);
   assert.match(prompt, /Used to stay dry in rain/);
+});
+
+test("regeneration tells Gemini which sentence must change and uses more variation", () => {
+  const current = "Rain falls outside, so I carry my ____.";
+  const context = { previousPromptById: { [material.id]: current } };
+  const prompt = draft.buildPromptDraftRequest("fill-blank", [material], context);
+
+  assert.match(prompt, /currentPromptToReplace/);
+  assert.match(prompt, /meaningfully different everyday situation/i);
+  assert.match(prompt, new RegExp(current.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.equal(draft.activityPromptDraftTemperature(), 0.2);
+  assert.equal(draft.activityPromptDraftTemperature(context), 0.5);
 });
 
 test("vague or stereotyped family-role wording is rejected", () => {
@@ -198,7 +212,7 @@ test("a Fill sentence is kept when look-alikes exist, and rejected only when it 
   assert.match(named.issues[0].reasons.join(" "), /Could also point to: Sad/);
 });
 
-test("valid first and repair-pass suggestions merge in requested order", () => {
+test("valid suggestions from separate passes merge in requested order", () => {
   const second = { ...material, id: "custom-coat", label: "Coat" };
   const merged = draft.mergeActivityPromptSuggestions(
     [material, second],
@@ -208,4 +222,78 @@ test("valid first and repair-pass suggestions merge in requested order", () => {
 
   assert.deepEqual(merged.map((suggestion) => suggestion.learningItemId), [material.id, second.id]);
   assert.deepEqual(draft.getUnresolvedPromptItems([material, second], merged), []);
+});
+
+test("regeneration rejects the sentence already shown in the form", () => {
+  const current = "Rain falls outside, so I carry my ____.";
+  const result = draft.parsePromptDraftText(
+    JSON.stringify({ prompts: [{ learningItemId: material.id, prompt: current }] }),
+    "fill-blank",
+    [material],
+    { previousPromptById: { [material.id]: current } }
+  );
+
+  assert.deepEqual(result.suggestions, []);
+  assert.match(result.issues[0].reasons.join(" "), /different sentence from the current one/i);
+});
+
+test("checked bank wording silently completes a rejected model sentence", () => {
+  const father = {
+    ...material,
+    id: "pecs-father",
+    label: "Father",
+    categoryId: "cat-pecs-family",
+    sentenceRole: "subject"
+  };
+  const completed = draft.completeActivityPromptSuggestions("fill-blank", [father], []);
+
+  assert.equal(completed.suggestions.length, 1);
+  assert.match(completed.suggestions[0].prompt, /____/);
+  assert.deepEqual(completed.issues, []);
+  assert.deepEqual(completed.missingItems, []);
+});
+
+test("checked fallback regeneration chooses a different sentence", () => {
+  const father = {
+    ...material,
+    id: "pecs-father",
+    label: "Father",
+    categoryId: "cat-pecs-family",
+    sentenceRole: "subject"
+  };
+  const current = "I give my ____ a hug when he comes home.";
+  const completed = draft.completeActivityPromptSuggestions("fill-blank", [father], [], {
+    previousPromptById: { [father.id]: current }
+  });
+
+  assert.equal(completed.suggestions.length, 1);
+  assert.notEqual(completed.suggestions[0].prompt, current);
+  assert.deepEqual(completed.issues, []);
+});
+
+test("a genuinely unknown material gets a neutral teacher action, not a provider rejection", () => {
+  const completed = draft.completeActivityPromptSuggestions("fill-blank", [material], []);
+
+  assert.deepEqual(completed.suggestions, []);
+  assert.equal(completed.issues[0].code, "needs-teacher-input");
+  assert.equal(completed.issues[0].message, "Add a sentence for this material before saving.");
+  assert.doesNotMatch(completed.issues[0].message, /Gemini|rejected/i);
+});
+
+test("locked sentences are never selected for AI regeneration", () => {
+  const targets = draft.selectActivityPromptDraftTargets(
+    ["hello", "father", "water"],
+    { hello: "I say ____ when I greet someone.", father: "My own ____ sentence.", water: "I drink cold ____." },
+    ["father"]
+  );
+
+  assert.deepEqual(targets, { itemIds: ["hello", "water"], regenerate: true });
+  assert.deepEqual(
+    draft.selectActivityPromptDraftTargets(["hello", "father"], { hello: "", father: "Keep ____ here." }, ["father"]),
+    { itemIds: ["hello"], regenerate: false }
+  );
+  assert.deepEqual(
+    draft.selectActivityPromptDraftTargets(["father"], { father: "Keep ____ here." }, ["father"]),
+    { itemIds: [], regenerate: false }
+  );
 });

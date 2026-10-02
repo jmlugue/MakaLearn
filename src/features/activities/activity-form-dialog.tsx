@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Layers, Loader2, Lock, Sparkles, Users } from "lucide-react";
+import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Layers, Loader2, Lock, LockOpen, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label } from "@/components/ui/form";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { activityTypeLabels } from "@/utils/activity-labels";
 import {
   canDraftQuestionPrompts,
+  selectActivityPromptDraftTargets,
   type ActivityDraftResult,
   type ActivityPromptIssue
 } from "@/utils/activity-ai-draft";
@@ -152,6 +153,7 @@ function ActivityForm({
   const [error, setError] = useState("");
   const [aiNote, setAiNote] = useState("");
   const [aiIssuesByItem, setAiIssuesByItem] = useState<Record<string, ActivityPromptIssue>>({});
+  const [lockedPromptItemIds, setLockedPromptItemIds] = useState<Set<string>>(() => new Set());
   const [drafting, setDrafting] = useState(false);
 
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
@@ -165,7 +167,6 @@ function ActivityForm({
     [items, lessonCardIds, values.type]
   );
   const draftable = canDraftQuestionPrompts(values.type);
-  const everyCardHasQuestion = selectedItems.length > 0 && selectedItems.every((item) => values.promptInputs[getPromptStoreKey(values.type, item.id)]?.trim());
 
   // Demo cards: the picked ones, else the chosen lesson's cards, else a few with pictures, so the demo shows
   // the real cards whenever it can.
@@ -217,6 +218,7 @@ function ActivityForm({
     update({ type, itemIds: kept, promptInputs: withPrompts(type, kept, {}) });
     setAiNote("");
     setAiIssuesByItem({});
+    setLockedPromptItemIds(new Set());
   }
 
   function defaultTitle() {
@@ -269,14 +271,38 @@ function ActivityForm({
     onSave({ ...values, title: values.title.trim() || defaultTitle() });
   }
 
-  async function draftWithAi(regenerate: boolean) {
+  function togglePromptLock(itemId: string) {
+    setLockedPromptItemIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }
+
+  async function draftWithAi() {
     if (!selectedItems.length) {
       setError("Pick at least one card before drafting.");
       return;
     }
-    const missing = regenerate
-      ? selectedItems.map((item) => item.id)
-      : selectedItems.filter((item) => !values.promptInputs[getPromptStoreKey(values.type, item.id)]?.trim()).map((item) => item.id);
+    const promptByItemId = Object.fromEntries(
+      selectedItems.map((item) => [item.id, values.promptInputs[getPromptStoreKey(values.type, item.id)] ?? ""])
+    );
+    const targets = selectActivityPromptDraftTargets(
+      selectedItems.map((item) => item.id),
+      promptByItemId,
+      values.type === "fill-blank" ? lockedPromptItemIds : []
+    );
+    if (!targets.itemIds.length) {
+      setAiIssuesByItem({});
+      setError("");
+      setAiNote(
+        values.type === "fill-blank" && lockedPromptItemIds.size
+          ? "All sentences are locked. Unlock one to get a new idea."
+          : "The selected materials already have prompts."
+      );
+      return;
+    }
 
     setDrafting(true);
     setAiNote("");
@@ -286,27 +312,55 @@ function ActivityForm({
       const response = await fetch("/api/activity-draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activityType: values.type, learningItems: selectedItems, missingLearningItemIds: missing, regenerate })
+        body: JSON.stringify({
+          activityType: values.type,
+          learningItems: selectedItems,
+          missingLearningItemIds: targets.itemIds,
+          currentPromptByItemId: targets.regenerate
+            ? Object.fromEntries(targets.itemIds.map((id) => [id, promptByItemId[id] ?? ""]))
+            : undefined,
+          regenerate: targets.regenerate
+        })
       });
       if (!response.ok) throw new Error("Activity draft request failed.");
       const draft = (await response.json()) as ActivityDraftResult;
       if (draft.suggestions.length) {
-        const patch = Object.fromEntries(draft.suggestions.map((suggestion) => [getPromptStoreKey(values.type, suggestion.learningItemId), suggestion.prompt]));
+        const requestedIds = new Set(targets.itemIds);
+        const patch = Object.fromEntries(
+          draft.suggestions
+            .filter((suggestion) => requestedIds.has(suggestion.learningItemId))
+            .map((suggestion) => [getPromptStoreKey(values.type, suggestion.learningItemId), suggestion.prompt])
+        );
         setValues((current) => ({ ...current, promptInputs: { ...current.promptInputs, ...patch } }));
         onPromptStoreChange(patch);
       }
       setAiIssuesByItem(
         Object.fromEntries(
           (draft.issues ?? [])
-            .filter((issue) => selectedItems.some((item) => item.id === issue.learningItemId))
+            .filter(
+              (issue) =>
+                issue.code === "needs-teacher-input" && targets.itemIds.includes(issue.learningItemId)
+            )
             .map((issue) => [issue.learningItemId, issue])
         )
       );
-      setAiNote(draft.note || "Questions drafted. Check them before saving.");
+      const allRequestedReady =
+        draft.source !== "rate-limited" &&
+        targets.itemIds.every((id) =>
+          draft.suggestions.some((suggestion) => suggestion.learningItemId === id)
+        );
+      const readyNote = values.type === "fill-blank"
+        ? "Sentences ready. Check them before saving."
+        : "Questions ready. Check them before saving.";
+      setAiNote(allRequestedReady ? readyNote : draft.note || readyNote);
       notify({
         title:
-          draft.source === "gemini"
-            ? "AI prompts ready"
+          allRequestedReady
+            ? values.type === "fill-blank"
+              ? "AI sentences ready"
+              : "AI prompts ready"
+            : draft.source === "gemini"
+              ? "AI prompts ready"
             : draft.source === "cache"
               ? "Saved AI draft used"
               : draft.source === "mixed"
@@ -316,8 +370,8 @@ function ActivityForm({
                   ? "Please wait a moment"
                   : "AI limit reached"
                 : "Starter prompts added",
-        description: draft.note || "Questions were added for the selected cards.",
-        tone: draft.source === "gemini" || draft.source === "cache" ? "success" : "info"
+        description: allRequestedReady ? readyNote : draft.note || "Questions were added for the selected cards.",
+        tone: allRequestedReady || draft.source === "gemini" || draft.source === "cache" ? "success" : "info"
       });
     } catch {
       setAiNote("Could not get ideas from AI. Type the questions instead.");
@@ -455,7 +509,7 @@ function ActivityForm({
               <div className={cn("space-y-3 p-4", glassBoxClass)}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <SectionLabel>{values.type === "fill-blank" ? "Sentences" : "Questions"}</SectionLabel>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => draftWithAi(everyCardHasQuestion)} disabled={drafting}>
+                  <Button type="button" size="sm" variant="secondary" onClick={draftWithAi} disabled={drafting}>
                     {drafting ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                     ) : (
@@ -470,6 +524,9 @@ function ActivityForm({
                     {aiNote}
                   </p>
                 ) : null}
+                {values.type === "fill-blank" ? (
+                  <p className="text-xs text-slate-500">Lock a sentence to keep it when you ask for new ideas.</p>
+                ) : null}
                 <ul className="space-y-2.5">
                   {selectedItems.map((item) => {
                     const key = getPromptStoreKey(values.type, item.id);
@@ -483,20 +540,44 @@ function ActivityForm({
                           <label htmlFor={`activity-prompt-${item.id}`} className="text-xs font-semibold text-slate-600">
                             {item.label}
                           </label>
-                          <Input
-                            id={`activity-prompt-${item.id}`}
-                            className={cn(fieldClass, "mt-0.5")}
-                            value={value}
-                            onChange={(event) => {
-                              update({ promptInputs: { ...values.promptInputs, [key]: event.target.value } });
-                              setAiIssuesByItem((current) => {
-                                const next = { ...current };
-                                delete next[item.id];
-                                return next;
-                              });
-                            }}
-                            placeholder={values.type === "fill-blank" ? "Write a sentence with ____, or use Inspire me with AI" : "A short question"}
-                          />
+                          <div className="relative mt-0.5">
+                            <Input
+                              id={`activity-prompt-${item.id}`}
+                              className={cn(fieldClass, values.type === "fill-blank" && "pr-12")}
+                              value={value}
+                              onChange={(event) => {
+                                update({ promptInputs: { ...values.promptInputs, [key]: event.target.value } });
+                                setAiIssuesByItem((current) => {
+                                  const next = { ...current };
+                                  delete next[item.id];
+                                  return next;
+                                });
+                              }}
+                              placeholder={values.type === "fill-blank" ? "Write a sentence with ____, or use Inspire me with AI" : "A short question"}
+                            />
+                            {values.type === "fill-blank" ? (
+                              <button
+                                type="button"
+                                aria-pressed={lockedPromptItemIds.has(item.id)}
+                              aria-label={`${lockedPromptItemIds.has(item.id) ? "Unlock" : "Lock"} ${item.label} sentence`}
+                              title={lockedPromptItemIds.has(item.id) ? "Unlock this sentence" : "Keep this sentence when using AI"}
+                              onClick={() => togglePromptLock(item.id)}
+                              disabled={!value.trim() && !lockedPromptItemIds.has(item.id)}
+                              className={cn(
+                                  "absolute right-0.5 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:text-slate-300",
+                                  lockedPromptItemIds.has(item.id)
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                                )}
+                              >
+                                {lockedPromptItemIds.has(item.id) ? (
+                                  <Lock className="h-4 w-4" aria-hidden="true" />
+                                ) : (
+                                  <LockOpen className="h-4 w-4" aria-hidden="true" />
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
                           <FieldError message={validatePromptForActivity(values.type, item, value)} />
                           {aiIssuesByItem[item.id] ? (
                             <p className="mt-1 text-xs font-medium text-amber-700" role="status">

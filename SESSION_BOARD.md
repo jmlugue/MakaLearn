@@ -34,6 +34,21 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-02-ai-regenerate-variation
+- Outcome: Repeat Inspire me with AI clicks now send each unlocked current sentence as untrusted wording to replace, ask Gemini for a meaningfully different situation with higher-but-guarded variation, reject identical returned text, and choose a different checked bank sentence if fallback is needed. Locked rows remain excluded.
+- Files/areas: Activity creator request payload, draft prompt/context/validation/fallback and temperature, API request handling, focused tests, README/CLAUDE, and this session board. Activity options, players, scoring, and gestures were unchanged.
+- Verification: `npm run test:activities` (58 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, `npm run build`, and `git diff --check` passed. No live Gemini call was made, avoiding an unnecessary API charge. Material validation still reports only the unchanged Eat/Drink duplicate-label warnings.
+
+### 2026-10-02-ai-regenerate
+- Outcome: Repeat clicks on Inspire me with AI now regenerate every unlocked sentence immediately. Explicit regeneration bypasses the 60-second same-material cooldown but continues to enforce the 10/hour and 40/day model-call limits. True quota-limit responses are no longer presented as successful regeneration.
+- Files/areas: Activity draft rate-limit helper/route, activity creator feedback, focused tests, README/CLAUDE, and this session board. Lock behavior, activity options, players, scoring, and gestures were unchanged.
+- Verification: `npm run test:activities` (55 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, `npm run build`, and `git diff --check` passed. Material validation still reports only the unchanged Eat/Drink duplicate-label warnings.
+
+### 2026-10-02-ai-draft-locks
+- Outcome: Inspire me with AI now asks Gemini to self-check all sentences in one response and uses checked question-bank wording silently when a model sentence fails, instead of showing a Gemini rejection or spending a second wording-repair call. The single retry remains only for transient provider failures. Fill in the blank rows now have a touch-friendly lock control that excludes locked sentences from AI requests while keeping them editable.
+- Files/areas: Activity draft prompt/completion logic and API, activity creator lock state/UI, focused tests, README/CLAUDE, and this session board. Activity options, players, scoring, and gesture behavior were unchanged.
+- Verification: `npm run test:activities` (54 pass), `npx tsc --noEmit`, `npm run lint`, `npm run validate:materials`, `npm run build`, and `git diff --check` passed. Material validation still reports only the unchanged Eat/Drink duplicate-label warnings.
+
 ### 2026-09-28-simple-ai-family-prompts
 - Outcome: Tightened Gemini activity drafting so known materials include approved simple question-bank examples, vague praise is rejected, and family materials cannot be defined through leader/head/provider/protector authority stereotypes. The reported Father sentence is a regression case; direct wording such as `I call my dad ____.` passes. Prompt/cache version is now `activity-prompt-v6`, so earlier abstract cached drafts are not reused.
 - Files/areas: Activity AI prompt/validator, focused tests, CLAUDE, and this session board. Teacher-written prompts, question-bank content, activity options/players, and gesture recognition were unchanged.
