@@ -993,6 +993,9 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   and "Uploads today" (blue) moved to small `Chip` pills under the Recent activity title.
 - **Login:** the "Request an account" link is hidden on request ("we will change that later"). `/request-account`,
   its API route, and Admin approvals are untouched.
+- **Admin > Accounts:** the Account requests section is hidden too (`SHOW_ACCOUNT_REQUESTS = false` in
+  `accounts-section.tsx`). Approve / reject code, dialogs, routes, and the 30-second pending-request refresh in
+  `admin-panel-view.tsx` are kept; flip the constant to show it again.
 - **Gesture practice:** guided wrong answers no longer show a Skip button under the camera (Skip gesture stays in the
   progress panel). Free practice says "You did the Eat gesture." instead of "You did it."
 - **Network note:** the owner's home ISP (Royal Cable) cannot reach the project's Cloudflare IPs

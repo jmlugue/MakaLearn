@@ -21,6 +21,12 @@ type RoleFilter = "all" | UserRole;
 type RequestAction = { kind: "approve" | "reject"; request: AccountRequest };
 
 const MIN_PASSWORD_LENGTH = 8;
+/**
+ * Account requests are hidden for now (owner, Oct 3) while the request flow is reworked. The approve and reject code,
+ * its dialogs, and the API routes are untouched; set this to true to show the section again.
+ */
+const SHOW_ACCOUNT_REQUESTS = false;
+
 const REQUEST_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 export type StatusFilter = "all" | AppUser["status"];
 
@@ -200,53 +206,55 @@ export function AccountsSection({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-blue-100 bg-[#fff] p-4 shadow-sm sm:p-5" aria-labelledby="account-requests-title">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600">
-                <Clock3 className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <h2 id="account-requests-title" className="text-xl font-bold text-ink">Account requests</h2>
-                <p className="text-sm text-slate-600">Approve or reject people waiting for teacher access.</p>
+      {SHOW_ACCOUNT_REQUESTS ? (
+        <section className="rounded-2xl border border-blue-100 bg-[#fff] p-4 shadow-sm sm:p-5" aria-labelledby="account-requests-title">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600">
+                  <Clock3 className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 id="account-requests-title" className="text-xl font-bold text-ink">Account requests</h2>
+                  <p className="text-sm text-slate-600">Approve or reject people waiting for teacher access.</p>
+                </div>
               </div>
             </div>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+              {requests.length} pending
+            </span>
           </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            {requests.length} pending
-          </span>
-        </div>
 
-        {requests.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-4 py-5 text-center text-sm text-slate-600">
-            No account requests are waiting.
-          </div>
-        ) : (
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {requests.map((accountRequest) => (
-              <article key={accountRequest.id} className="rounded-2xl border border-blue-100 bg-[#fff] p-4">
-                <div className="flex min-w-0 items-center gap-3">
-                  <Avatar name={accountRequest.name} />
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-ink">{accountRequest.name}</p>
-                    <p className="truncate text-sm text-slate-500">{accountRequest.email}</p>
-                    <p className="mt-1 text-xs text-slate-500">Requested {REQUEST_DATE_FORMATTER.format(new Date(accountRequest.createdAt))}</p>
+          {requests.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-4 py-5 text-center text-sm text-slate-600">
+              No account requests are waiting.
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {requests.map((accountRequest) => (
+                <article key={accountRequest.id} className="rounded-2xl border border-blue-100 bg-[#fff] p-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar name={accountRequest.name} />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-ink">{accountRequest.name}</p>
+                      <p className="truncate text-sm text-slate-500">{accountRequest.email}</p>
+                      <p className="mt-1 text-xs text-slate-500">Requested {REQUEST_DATE_FORMATTER.format(new Date(accountRequest.createdAt))}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <Button type="button" variant="outline" onClick={() => setRequestAction({ kind: "reject", request: accountRequest })}>
-                    <UserX className="h-4 w-4" aria-hidden="true" /> Reject
-                  </Button>
-                  <Button type="button" onClick={() => setRequestAction({ kind: "approve", request: accountRequest })}>
-                    <Check className="h-4 w-4" aria-hidden="true" /> Approve
-                  </Button>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <Button type="button" variant="outline" onClick={() => setRequestAction({ kind: "reject", request: accountRequest })}>
+                      <UserX className="h-4 w-4" aria-hidden="true" /> Reject
+                    </Button>
+                    <Button type="button" onClick={() => setRequestAction({ kind: "approve", request: accountRequest })}>
+                      <Check className="h-4 w-4" aria-hidden="true" /> Approve
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={search} onChange={setSearch} placeholder="Search name or email" label="Search accounts" />
