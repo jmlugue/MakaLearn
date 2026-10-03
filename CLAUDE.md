@@ -963,3 +963,37 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   activity creators, and the playground categories.
 - Hiding an activity shows no toast. The gesture Great job pop-up shows only Maki (no gesture picture). Start and
   Finish are drawn inside the journey road with room around the stops.
+
+---
+
+## 22. Oct 3: Activity usage, gesture wording (checked on a temporary page, not signed in)
+
+- **Plays are saved again, Student mode only (supersedes "scores are view only" for counting).** When the score
+  pop-up opens in Student mode, `StudentActivityPlayer` calls `onFinish` and Activities saves one `activity_results`
+  row with `insertActivityPlay` (`app-data.ts`): `answers = { source: "student-mode", durationSeconds }`. Time runs from
+  the first question (after How to play) to the score pop-up. Teacher Preview never saves. Only teachers can insert
+  (RLS), so admins in Student mode are not counted. A failed save is only logged. No database change.
+- **Admin Home "Activity usage"** replaces Usage trend (`ActivityUsage` in `overview-section.tsx`), layout "A" picked
+  by the owner from drawn options:
+  - "Show" dropdown (`FilterSelect`): Today (bars per hour), This week (per day, two-line "Mon" / "Sep 29" labels),
+    This month (per day, a date every 7 days: "Oct 1", "Oct 8"), Last 3 months (per week), This year (per month). Bare
+    day numbers were confusing; a Days / Weeks / Months switch was rejected.
+  - Under the title, two labeled times: "Total time" and "Average play" ("3 min 20 sec"). The play count shows only in
+    the donut's middle (the owner asked not to repeat it).
+  - One-color bars (activity teal) on the left; on the right a **donut** of the period's type mix (`TypeDonut`, total
+    in the middle, soft 300 shades via `donutStrokes`) with each type's icon and percent, sorted most played first
+    (Other last). Counts are not in the legend: hovering, focusing, or tapping a piece or legend row shows that type's
+    plays and name in the donut's middle and fades the other pieces. Grey "Other" only for
+    deleted or retired activities. Stacked bars and a type strip were tried and rejected (messy; pink-400 read as red).
+  - "Most played" card underneath: top 5, numbered on the activity's type color, two columns on wide screens.
+  - Bar tooltips list plays per type and that period's top 3 activities.
+  - Reads `fetchActivityPlays` (Student mode marker only, so pre-Sep 19 score rows are ignored).
+- **Admin Home greeting and Recent activity:** the greeting card shows two glass cards, Active teachers (`UserCheck`)
+  and Deactivated accounts (`UserX`); each opens Accounts (the second with the Deactivated filter). "Sign-ins today" (green)
+  and "Uploads today" (blue) moved to small `Chip` pills under the Recent activity title.
+- **Login:** the "Request an account" link is hidden on request ("we will change that later"). `/request-account`,
+  its API route, and Admin approvals are untouched.
+- **Gesture practice:** guided wrong answers no longer show a Skip button under the camera (Skip gesture stays in the
+  progress panel). Free practice says "You did the Eat gesture." instead of "You did it."
+- **Network note:** the owner's home ISP (Royal Cable) cannot reach the project's Cloudflare IPs
+  (`104.18.38.10`, `172.64.149.246`); mobile data works. They use a hosts file line as a workaround. Not a repo issue.

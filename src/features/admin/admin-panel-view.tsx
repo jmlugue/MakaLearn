@@ -16,7 +16,7 @@ import { GuideTip } from "@/features/guide/guide-tip";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { fetchAuditLogs } from "@/lib/audit-logs";
-import { fetchMakaLearnData, fetchPendingAccountRequests } from "@/lib/supabase/app-data";
+import { type ActivityPlay, fetchActivityPlays, fetchMakaLearnData, fetchPendingAccountRequests } from "@/lib/supabase/app-data";
 import { AccountsSection, type StatusFilter } from "@/features/admin/accounts-section";
 import { ActivitySection } from "@/features/admin/activity-section";
 import { type LogFilter, type LogRange, rangeBounds } from "@/features/admin/admin-shared";
@@ -69,6 +69,7 @@ export function AdminPanelView() {
   const [logFilter, setLogFilter] = useState<LogFilter>("all");
   const [logRange, setLogRange] = useState<LogRange>("all");
   const [dashboardLogs, setDashboardLogs] = useState<AuditLog[]>([]);
+  const [plays, setPlays] = useState<ActivityPlay[]>([]);
   // Set when a Home tile asks the Content section to open a material's pop-up; `at` makes repeat clicks re-trigger.
   const [openItemRequest, setOpenItemRequest] = useState<{ id: string; at: number } | null>(null);
 
@@ -108,6 +109,24 @@ export function AdminPanelView() {
     };
   }, [notify]);
 
+  // Activity usage on Home covers up to 12 months. A failed load leaves the chart empty, not the whole page.
+  useEffect(() => {
+    let active = true;
+    const since = new Date();
+    since.setMonth(since.getMonth() - 12, 1);
+    since.setHours(0, 0, 0, 0);
+    fetchActivityPlays(since)
+      .then((next) => {
+        if (active) setPlays(next);
+      })
+      .catch(() => {
+        if (active) setPlays([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Requests come in from the public form, so the pending list refreshes every 30 seconds and when the admin
   // comes back to the tab, instead of only when the page opens.
   useEffect(() => {
@@ -143,7 +162,7 @@ export function AdminPanelView() {
     }
   }, [logRange]);
 
-  // The dashboard trend needs up to 6 months, independent of the Activity log's paging and date range.
+  // Home's today counts and recent list, independent of the Activity log's paging and date range.
   const reloadDashboardLogs = useCallback(async () => {
     const since = new Date();
     since.setMonth(since.getMonth() - 6);
@@ -230,6 +249,7 @@ export function AdminPanelView() {
             activities={activities}
             lessons={lessons}
             logs={dashboardLogs}
+            plays={plays}
             onJump={handleJump}
           />
         ) : null}

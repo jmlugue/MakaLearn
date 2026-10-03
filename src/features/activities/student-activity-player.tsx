@@ -41,14 +41,19 @@ type StudentActivityPlayerProps = {
   activity: Activity;
   learningItems: LearningItem[];
   onHome: () => void;
+  /** Called once per round when the score pop-up opens. Activities saves it as a play for Admin. */
+  onFinish?: (play: FinishedRound) => void;
 };
+
+export type FinishedRound = { correctCount: number; questionCount: number; durationSeconds: number };
 
 /**
  * Student mode game. Flow: How to play card, then one tap per question (or one drag per card), a big Correct
- * pop-up on a right tap that closes by itself, and the score pop-up at the end. Scores are view only.
+ * pop-up on a right tap that closes by itself, and the score pop-up at the end. The score is shown, not reported;
+ * `onFinish` gets the round's count and time for the Admin usage chart.
  * Every round is a fresh `StudentRound`, so Play again resets everything.
  */
-export function StudentActivityPlayer({ activity, learningItems, onHome }: StudentActivityPlayerProps) {
+export function StudentActivityPlayer({ activity, learningItems, onHome, onFinish }: StudentActivityPlayerProps) {
   const [round, setRound] = useState(0);
   return (
     <StudentRound
@@ -58,6 +63,7 @@ export function StudentActivityPlayer({ activity, learningItems, onHome }: Stude
       showIntro={round === 0}
       onPlayAgain={() => setRound((current) => current + 1)}
       onHome={onHome}
+      onFinish={onFinish}
     />
   );
 }
@@ -67,13 +73,15 @@ function StudentRound({
   learningItems,
   showIntro,
   onPlayAgain,
-  onHome
+  onHome,
+  onFinish
 }: {
   activity: Activity;
   learningItems: LearningItem[];
   showIntro: boolean;
   onPlayAgain: () => void;
   onHome: () => void;
+  onFinish?: (play: FinishedRound) => void;
 }) {
   const isDrag = activity.type === "drag-drop-symbol";
   const questions = useMemo(() => activity.questions.slice(0, ROUND_SIZE), [activity.questions]);
@@ -101,6 +109,9 @@ function StudentRound({
   const [isListening, setIsListening] = useState(false);
   const [readingId, setReadingId] = useState("");
   const timers = useRef<number[]>([]);
+  /** Time starts when the first question shows (after the How to play card) and stops at the score pop-up. */
+  const startedAt = useRef<number | null>(null);
+  const reported = useRef(false);
 
   useEffect(() => {
     const pending = timers.current;
@@ -109,6 +120,18 @@ function StudentRound({
       if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     };
   }, []);
+
+  useEffect(() => {
+    if (phase === "play" && startedAt.current === null) startedAt.current = Date.now();
+    if (phase !== "done" || reported.current || !onFinish) return;
+    reported.current = true;
+    const elapsed = startedAt.current === null ? 0 : Date.now() - startedAt.current;
+    onFinish({
+      correctCount: questions.filter((candidate) => scored[candidate.id]).length,
+      questionCount: questions.length,
+      durationSeconds: Math.max(1, Math.round(elapsed / 1000))
+    });
+  }, [onFinish, phase, questions, scored]);
 
   function later(action: () => void, ms: number) {
     timers.current.push(window.setTimeout(action, ms));

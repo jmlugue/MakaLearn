@@ -14,7 +14,7 @@ import { GuideTip } from "@/features/guide/guide-tip";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { useUserSettings } from "@/features/settings/user-settings-context";
-import { StudentActivityPlayer } from "@/features/activities/student-activity-player";
+import { type FinishedRound, StudentActivityPlayer } from "@/features/activities/student-activity-player";
 import { StudentActivityMenu } from "@/features/activities/student-activity-menu";
 import { ActivityPlayerScreen } from "@/features/activities/player/activity-player-screen";
 import { TeacherPlayer } from "@/features/activities/player/teacher-player";
@@ -37,6 +37,7 @@ import {
   deleteActivity,
   fetchMakaLearnData,
   insertActivity,
+  insertActivityPlay,
   updateActivity,
   upsertActivityPromptTemplates
 } from "@/lib/supabase/app-data";
@@ -375,8 +376,26 @@ export function ActivitiesView() {
     if (playId === activity.id) router.replace(pathname);
   }
 
+  // Finished Student mode rounds feed the Admin "Activity usage" chart. Only teachers may save them (RLS),
+  // and a failed save never interrupts the child's game.
+  const playingActivityId = playingActivity?.id;
+  const recordPlay = useCallback(
+    (round: FinishedRound) => {
+      if (user.role !== "teacher" || !playingActivityId) return;
+      insertActivityPlay({ activityId: playingActivityId, teacherId: user.id, ...round }).catch((error) => {
+        console.warn("Activity play not saved", error);
+      });
+    },
+    [playingActivityId, user.id, user.role]
+  );
+
   const player = playingActivity ? (
-    <StudentActivityPlayer activity={playingActivity} learningItems={learningItems} onHome={() => setStudentActivityId("")} />
+    <StudentActivityPlayer
+      activity={playingActivity}
+      learningItems={learningItems}
+      onHome={() => setStudentActivityId("")}
+      onFinish={recordPlay}
+    />
   ) : null;
 
   const deleteLesson = activityToDelete ? lessonOf(activityToDelete) : undefined;

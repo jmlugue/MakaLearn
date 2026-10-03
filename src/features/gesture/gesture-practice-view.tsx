@@ -1333,8 +1333,8 @@ export function GesturePracticeView() {
                   ? guidedTarget && guidedPhase !== "complete"
                     ? `Show: ${getLearnerCardLabel(guidedTarget.label)}`
                     : ""
-                  : recognizedGesture
-                  ? "You did it."
+                  : prediction
+                  ? `You did the ${getLearnerCardLabel(prediction.label)} gesture.`
                   : cameraStarted
                     ? "Keep your hands inside the box."
                     : ""
@@ -1346,16 +1346,10 @@ export function GesturePracticeView() {
               compact={cameraFocusMode}
               actions={
                 guidedWrong ? (
-                  <>
-                    <p className="flex items-center gap-2 rounded-2xl bg-sky-50 px-3 py-2 text-sm font-black text-sky-800">
-                      <Hand className="h-5 w-5 shrink-0" aria-hidden="true" />
-                      Hands down, then show it again.
-                    </p>
-                    <Button type="button" variant="outline" size="lg" className="rounded-full" onClick={skipGuidedGesture}>
-                      <SkipForward className="h-5 w-5" aria-hidden="true" />
-                      Skip
-                    </Button>
-                  </>
+                  <p className="flex items-center gap-2 rounded-2xl bg-sky-50 px-3 py-2 text-sm font-black text-sky-800">
+                    <Hand className="h-5 w-5 shrink-0" aria-hidden="true" />
+                    Hands down, then show it again.
+                  </p>
                 ) : null
               }
             />
@@ -1766,7 +1760,7 @@ function CountdownPicture() {
 
 /**
  * Guided practice pop-ups (ready, Great job, summary), centered over the whole Student screen with the camera behind.
- * A wrong gesture has no pop-up: its feedback, Skip, and Try again show under the camera, as in free practice.
+ * A wrong gesture has no pop-up: its feedback shows under the camera, as in free practice (Skip gesture is in the progress panel).
  */
 function GuidedPopup({
   phase,
@@ -2426,7 +2420,7 @@ function LearnerFeedbackBar({
   success: boolean;
   feedbackOnly?: boolean;
   compact?: boolean;
-  /** Buttons under the feedback (guided practice: Skip and Try again). */
+  /** Extra content under the feedback (guided practice: the hands-down hint). */
   actions?: ReactNode;
 }) {
   if (feedbackOnly) {

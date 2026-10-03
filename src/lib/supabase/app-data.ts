@@ -758,6 +758,58 @@ export async function insertActivityResult(
   return mapActivityResult(row);
 }
 
+/** Marks a finished Student mode round in `activity_results.answers`, so older score rows stay out of the usage chart. */
+const STUDENT_PLAY_SOURCE = "student-mode";
+
+export type ActivityPlay = { activityId: string; teacherId: string; durationSeconds: number; createdAt: string };
+
+/**
+ * Saves one finished Student mode round for the Admin "Activity usage" chart: when, which activity, and how long.
+ * Only teachers may insert (RLS), so admins playing in Student mode are not counted. No read-back.
+ */
+export async function insertActivityPlay(play: {
+  activityId: string;
+  teacherId: string;
+  correctCount: number;
+  questionCount: number;
+  durationSeconds: number;
+}) {
+  const supabase = getClientOrThrow();
+  const { error } = await supabase.from("activity_results").insert({
+    activity_id: play.activityId,
+    teacher_id: play.teacherId,
+    score: play.questionCount ? Math.round((play.correctCount / play.questionCount) * 100) : 0,
+    correct_count: play.correctCount,
+    incorrect_count: Math.max(0, play.questionCount - play.correctCount),
+    answers: { source: STUDENT_PLAY_SOURCE, durationSeconds: String(play.durationSeconds) }
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Finished Student mode rounds since a date, newest first. Admins read every teacher's plays. */
+export async function fetchActivityPlays(since: Date): Promise<ActivityPlay[]> {
+  const supabase = getClientOrThrow();
+  const rows = (await expectData(
+    supabase
+      .from("activity_results")
+      .select("activity_id, teacher_id, answers, created_at")
+      .contains("answers", { source: STUDENT_PLAY_SOURCE })
+      .gte("created_at", since.toISOString())
+      .order("created_at", { ascending: false })
+  )) as Pick<ActivityResultRow, "activity_id" | "teacher_id" | "answers" | "created_at">[];
+
+  return rows.map((row) => {
+    const answers = typeof row.answers === "object" && row.answers ? (row.answers as Record<string, unknown>) : {};
+    const seconds = Number(answers.durationSeconds);
+    return {
+      activityId: row.activity_id,
+      teacherId: row.teacher_id,
+      durationSeconds: Number.isFinite(seconds) && seconds > 0 ? seconds : 0,
+      createdAt: row.created_at
+    };
+  });
+}
+
 export async function insertPracticeAttempt(
   attempt: Omit<PracticeAttempt, "id" | "createdAt">
 ) {

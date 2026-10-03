@@ -3,10 +3,13 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { animate, motion, useReducedMotion } from "framer-motion";
-import { Activity, BookOpenCheck, ChevronRight, GraduationCap, Hand, Layers, Shapes } from "lucide-react";
+import { Activity, BookOpenCheck, ChevronRight, GraduationCap, Hand, Layers, Shapes, UserCheck, UserX } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Select } from "@/components/ui/form";
-import { Avatar, describeActivity, formatDateTime } from "@/features/admin/admin-shared";
+import { activityTypeTones } from "@/features/activities/activity-helpers";
+import { activityTypeIcons } from "@/features/activities/activity-type-badge";
+import { activityTypeShortLabels } from "@/utils/activity-labels";
+import type { ActivityPlay } from "@/lib/supabase/app-data";
+import { Avatar, describeActivity, FilterSelect, formatDateTime } from "@/features/admin/admin-shared";
 import type { ContentView } from "@/features/admin/content-section";
 import { cn } from "@/lib/utils";
 import { entityColors } from "@/lib/entity-colors";
@@ -128,8 +131,10 @@ function EmptyNote({ children }: { children: ReactNode }) {
   return <p className="my-auto py-6 text-center text-sm font-semibold text-slate-400">{children}</p>;
 }
 
-/** Greeting tile: information only, with a gently waving hand and drifting circles. */
-function GreetingTile({ adminName, stats }: { adminName: string; stats: { label: string; value: number }[] }) {
+type GreetingStat = { label: string; value: number; icon: LucideIcon; onClick: () => void };
+
+/** Greeting tile with a gently waving hand and drifting circles. Each account number opens Accounts. */
+function GreetingTile({ adminName, stats }: { adminName: string; stats: GreetingStat[] }) {
   const reduceMotion = useReducedMotion();
   const now = new Date();
   return (
@@ -164,110 +169,349 @@ function GreetingTile({ adminName, stats }: { adminName: string; stats: { label:
       <p className="relative mt-2 text-3xl font-extrabold tracking-[-0.03em]">
         {greeting(now)}, {adminName.split(" ")[0]}
       </p>
-      <div className="relative mt-auto grid grid-cols-3 gap-3 pt-6">
-        {stats.map((entry) => (
-          <div key={entry.label} className="rounded-xl bg-white/15 px-3 py-3 backdrop-blur-sm">
-            <p className="text-2xl font-extrabold">
-              <CountUp value={entry.value} />
-            </p>
-            <p className="text-xs font-semibold text-blue-100">{entry.label}</p>
-          </div>
+      <div className="relative mt-auto grid grid-cols-1 gap-3 pt-6 sm:grid-cols-2">
+        {stats.map(({ label, value, icon: Icon, onClick }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={onClick}
+            className="group flex items-center gap-3 rounded-2xl bg-white/15 px-4 py-3 text-left backdrop-blur-sm transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+          >
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/20">
+              <Icon className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-2xl font-extrabold leading-tight">
+                <CountUp value={value} />
+              </span>
+              <span className="block text-xs font-semibold text-blue-100">{label}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-white/60 transition group-hover:translate-x-0.5 group-hover:text-white" aria-hidden="true" />
+          </button>
         ))}
       </div>
     </Tile>
   );
 }
 
-type TrendRange = "7d" | "30d" | "this-month" | "last-month" | "3m" | "6m";
-type TrendBucket = { key: string; label: string; full: string; changes: number; signIns: number };
+type UsageRange = "today" | "week" | "month" | "3m" | "year";
+type ActivityRank = { activityId: string; plays: number; seconds: number };
 
-const trendRangeLabels: Record<TrendRange, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  "this-month": "This month",
-  "last-month": "Last month",
-  "3m": "Last 3 months",
-  "6m": "Last 6 months"
+/**
+ * Plays are also counted by activity type: the three types teachers make, plus grey for a deleted or retired activity.
+ * The soft 300 shades keep Drag and drop pink from reading as the red used for wrong or deleted.
+ */
+type UsageKind = "match-word-symbol" | "fill-blank" | "drag-drop-symbol" | "other";
+/** The same 300 shades as `activityTypeTones[type].stripe`, written out for SVG strokes. */
+const donutStrokes: Record<Exclude<UsageKind, "other">, string> = {
+  "match-word-symbol": "stroke-violet-300",
+  "fill-blank": "stroke-yellow-300",
+  "drag-drop-symbol": "stroke-pink-300"
+};
+const usageKinds: { kind: UsageKind; label: string; color: string; stroke: string; tile: string; icon: LucideIcon }[] = [
+  ...(["match-word-symbol", "fill-blank", "drag-drop-symbol"] as const).map((type) => ({
+    kind: type,
+    label: activityTypeShortLabels[type],
+    color: activityTypeTones[type].stripe,
+    stroke: donutStrokes[type],
+    tile: activityTypeTones[type].badge,
+    icon: activityTypeIcons[type]
+  })),
+  { kind: "other", label: "Other", color: "bg-slate-300", stroke: "stroke-slate-300", tile: "bg-slate-100 text-slate-500", icon: Shapes }
+];
+
+type UsageBucket = {
+  key: string;
+  label: string;
+  full: string;
+  plays: number;
+  seconds: number;
+  byKind: Record<UsageKind, number>;
+  topActivities: ActivityRank[];
 };
 
-/** Day buckets for short ranges; week buckets (starting Monday) for 3 and 6 months so the chart stays readable. */
-function buildBuckets(range: TrendRange, logs: AuditLog[]): TrendBucket[] {
+/** The bars group themselves: hours for today, days for a week or month, weeks for 3 months, months for a year. */
+const usageRanges: { value: UsageRange; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "This week" },
+  { value: "month", label: "This month" },
+  { value: "3m", label: "Last 3 months" },
+  { value: "year", label: "This year" }
+];
+
+/** "45 sec", "3 min 20 sec", "1 hr 12 min". */
+function formatDuration(totalSeconds: number) {
+  const seconds = Math.round(totalSeconds);
+  if (seconds < 60) return `${seconds} sec`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours) return minutes ? `${hours} hr ${minutes} min` : `${hours} hr`;
+  const rest = seconds % 60;
+  return rest ? `${minutes} min ${rest} sec` : `${minutes} min`;
+}
+
+function playsText(count: number) {
+  return `${count} ${count === 1 ? "play" : "plays"}`;
+}
+
+/** Activities by plays (then total time), most played first. */
+function rankActivities(plays: ActivityPlay[]): ActivityRank[] {
+  const byActivity = new Map<string, ActivityRank>();
+  for (const play of plays) {
+    const entry = byActivity.get(play.activityId) ?? { activityId: play.activityId, plays: 0, seconds: 0 };
+    entry.plays += 1;
+    entry.seconds += play.durationSeconds;
+    byActivity.set(play.activityId, entry);
+  }
+  return [...byActivity.values()].sort((a, b) => b.plays - a.plays || b.seconds - a.seconds);
+}
+
+/** Today by hour, this week (Monday to Sunday) and this month by day, the last 3 months by week, this year by month. */
+function buildUsageBuckets(range: UsageRange, plays: ActivityPlay[], kindOf: (activityId: string) => UsageKind): UsageBucket[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const dayFormat = new Intl.DateTimeFormat("en", { weekday: "long", month: "short", day: "numeric" });
   const shortFormat = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" });
+  const dayFormat = new Intl.DateTimeFormat("en", { weekday: "long", month: "short", day: "numeric" });
   const buckets: { start: Date; end: Date; label: string; full: string }[] = [];
 
-  const addDays = (first: Date, count: number, labelFor: (date: Date) => string) => {
-    for (let index = 0; index < count; index += 1) {
-      const start = new Date(first);
-      start.setDate(first.getDate() + index);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 1);
-      buckets.push({ start, end, label: labelFor(start), full: dayFormat.format(start) });
-    }
+  const addDay = (start: Date, label: string) => {
+    const end = new Date(start);
+    end.setDate(start.getDate() + 1);
+    buckets.push({ start, end, label, full: dayFormat.format(start) });
   };
 
-  if (range === "7d") {
-    const first = new Date(today);
-    first.setDate(today.getDate() - 6);
-    addDays(first, 7, (date) => new Intl.DateTimeFormat("en", { weekday: "short" }).format(date));
-  } else if (range === "30d") {
-    const first = new Date(today);
-    first.setDate(today.getDate() - 29);
-    addDays(first, 30, (date) => shortFormat.format(date));
-  } else if (range === "this-month") {
-    addDays(new Date(today.getFullYear(), today.getMonth(), 1), today.getDate(), (date) => String(date.getDate()));
-  } else if (range === "last-month") {
-    const daysInLastMonth = new Date(today.getFullYear(), today.getMonth(), 0).getDate();
-    addDays(new Date(today.getFullYear(), today.getMonth() - 1, 1), daysInLastMonth, (date) => String(date.getDate()));
-  } else {
+  if (range === "today") {
+    const hourFormat = new Intl.DateTimeFormat("en", { hour: "numeric" });
+    for (let hour = 0; hour < 24; hour += 1) {
+      const start = new Date(today);
+      start.setHours(hour);
+      const end = new Date(today);
+      end.setHours(hour + 1);
+      // Every third hour is labelled so the axis stays readable.
+      buckets.push({ start, end, label: hour % 3 === 0 ? hourFormat.format(start) : "", full: `${hourFormat.format(start)} to ${hourFormat.format(end)}` });
+    }
+  } else if (range === "week") {
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+    const weekday = new Intl.DateTimeFormat("en", { weekday: "short" });
+    for (let offset = 0; offset < 7; offset += 1) {
+      const start = new Date(monday);
+      start.setDate(monday.getDate() + offset);
+      // Two lines ("Mon" over "Sep 29") so seven dates fit on a phone.
+      addDay(start, `${weekday.format(start)}
+${shortFormat.format(start)}`);
+    }
+  } else if (range === "month") {
+    const days = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    for (let day = 1; day <= days; day += 1) {
+      // A date every 7 days ("Oct 1", "Oct 8") keeps the axis readable.
+      const start = new Date(today.getFullYear(), today.getMonth(), day);
+      addDay(start, (day - 1) % 7 === 0 ? shortFormat.format(start) : "");
+    }
+  } else if (range === "3m") {
     const rangeStart = new Date(today);
-    rangeStart.setMonth(today.getMonth() - (range === "3m" ? 3 : 6));
-    const weekStart = new Date(rangeStart);
-    weekStart.setDate(rangeStart.getDate() - ((rangeStart.getDay() + 6) % 7));
-    let start = weekStart;
+    rangeStart.setMonth(today.getMonth() - 3);
+    let start = new Date(rangeStart);
+    start.setDate(rangeStart.getDate() - ((rangeStart.getDay() + 6) % 7));
+    let index = 0;
     while (start <= today) {
       const end = new Date(start);
       end.setDate(start.getDate() + 7);
       const last = new Date(end);
       last.setDate(end.getDate() - 1);
-      buckets.push({ start: new Date(start), end, label: shortFormat.format(start), full: `Week of ${shortFormat.format(start)} to ${shortFormat.format(last)}` });
+      buckets.push({
+        start: new Date(start),
+        end,
+        label: index % 2 === 0 ? shortFormat.format(start) : "",
+        full: `Week of ${shortFormat.format(start)} to ${shortFormat.format(last)}`
+      });
       start = end;
+      index += 1;
+    }
+  } else {
+    const monthFormat = new Intl.DateTimeFormat("en", { month: "short" });
+    const fullFormat = new Intl.DateTimeFormat("en", { month: "long", year: "numeric" });
+    for (let month = 0; month < 12; month += 1) {
+      const start = new Date(today.getFullYear(), month, 1);
+      buckets.push({ start, end: new Date(today.getFullYear(), month + 1, 1), label: monthFormat.format(start), full: fullFormat.format(start) });
     }
   }
 
   return buckets.map((bucket) => {
-    const inBucket = logs.filter((log) => {
-      const time = new Date(log.createdAt).getTime();
+    const inBucket = plays.filter((play) => {
+      const time = new Date(play.createdAt).getTime();
       return time >= bucket.start.getTime() && time < bucket.end.getTime();
     });
     return {
       key: bucket.start.toISOString(),
       label: bucket.label,
       full: bucket.full,
-      signIns: inBucket.filter((log) => log.action === "login").length,
-      changes: inBucket.filter((log) => log.action !== "login" && log.action !== "logout").length
+      plays: inBucket.length,
+      seconds: inBucket.reduce((sum, play) => sum + play.durationSeconds, 0),
+      byKind: inBucket.reduce(
+        (sum, play) => {
+          sum[kindOf(play.activityId)] += 1;
+          return sum;
+        },
+        { "match-word-symbol": 0, "fill-blank": 0, "drag-drop-symbol": 0, other: 0 } as Record<UsageKind, number>
+      ),
+      topActivities: rankActivities(inBucket).slice(0, 3)
     };
   });
 }
 
-/** Usage trend: area for changes, dashed line for sign-ins, with a small tooltip that follows the pointer. */
-function UsageTrend({ logs }: { logs: AuditLog[] }) {
+const summaryCardClass = "min-w-0 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3";
+
+/**
+ * By type: a donut of the period's type mix, then each type's icon and share, most played first. The middle shows the
+ * total; hovering (or focusing, or tapping) a piece or a legend row shows that type's play count there instead.
+ */
+function TypeDonut({ totals }: { totals: ((typeof usageKinds)[number] & { plays: number })[] }) {
   const reduceMotion = useReducedMotion();
-  const [range, setRange] = useState<TrendRange>("7d");
+  const [picked, setPicked] = useState<UsageKind | null>(null);
+  // Most played type first, so the legend reads in order; Other always last.
+  const shown = totals
+    .filter((entry) => entry.kind !== "other" || entry.plays > 0)
+    .sort((a, b) => Number(a.kind === "other") - Number(b.kind === "other") || b.plays - a.plays);
+  const all = shown.reduce((sum, entry) => sum + entry.plays, 0);
+  const pickedEntry = shown.find((entry) => entry.kind === picked);
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  // A small gap between pieces, only when more than one type was played.
+  const gap = shown.filter((entry) => entry.plays).length > 1 ? 3 : 0;
+  let offset = 0;
+  const pieces = shown
+    .filter((entry) => entry.plays)
+    .map((entry) => {
+      const length = (entry.plays / all) * circumference;
+      const piece = { ...entry, dash: Math.max(0, length - gap), offset };
+      offset += length;
+      return piece;
+    });
+  const percentOf = (count: number) => (all ? `${Math.round((count / all) * 100)}%` : "0%");
+
+  return (
+    <div className="flex flex-col items-center gap-4 sm:flex-row lg:flex-col" onMouseLeave={() => setPicked(null)}>
+      <div className="relative h-36 w-36 shrink-0">
+        <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
+          <circle cx="50" cy="50" r={radius} fill="none" className="stroke-slate-100" strokeWidth="12" />
+          {pieces.map((piece) => (
+            <motion.circle
+              key={piece.kind}
+              cx="50"
+              cy="50"
+              r={radius}
+              fill="none"
+              className={cn(piece.stroke, "cursor-pointer transition-opacity", picked && picked !== piece.kind ? "opacity-30" : "")}
+              strokeWidth={picked === piece.kind ? 14 : 12}
+              strokeDashoffset={-piece.offset}
+              onMouseEnter={() => setPicked(piece.kind)}
+              initial={reduceMotion ? false : { strokeDasharray: `0 ${circumference}` }}
+              animate={{ strokeDasharray: `${piece.dash} ${circumference}` }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+            />
+          ))}
+        </svg>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center" aria-live="polite">
+          <div className="max-w-[5.5rem]">
+            <p className="text-2xl font-extrabold leading-none text-ink">{pickedEntry ? pickedEntry.plays : all}</p>
+            <p className="mt-1 text-xs font-semibold leading-tight text-slate-500">
+              {pickedEntry ? pickedEntry.label : all === 1 ? "play" : "plays"}
+            </p>
+          </div>
+        </div>
+      </div>
+      <ul className="w-full min-w-0 space-y-1" aria-label="Plays by activity type">
+        {shown.map(({ kind, label, tile, icon: Icon, plays: kindPlays }) => (
+          <li key={kind}>
+            <button
+              type="button"
+              aria-label={`${label}: ${playsText(kindPlays)}, ${percentOf(kindPlays)}`}
+              onMouseEnter={() => setPicked(kind)}
+              onFocus={() => setPicked(kind)}
+              onBlur={() => setPicked(null)}
+              onClick={() => setPicked((current) => (current === kind ? null : kind))}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                picked === kind ? "bg-slate-100" : "hover:bg-slate-50"
+              )}
+            >
+              <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg", tile)}>
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{label}</span>
+              <span className="shrink-0 text-sm font-bold text-ink">{percentOf(kindPlays)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Most played: the top 5 activities by name, each numbered on its type color. */
+function MostPlayedCard({ ranking, activityById }: { ranking: ActivityRank[]; activityById: Map<string, ActivityRecord> }) {
+  const titleOf = (activityId: string) => activityById.get(activityId)?.title ?? "Deleted activity";
+
+  return (
+    <div className={summaryCardClass}>
+      <p className="text-xs font-semibold text-slate-500">Most played</p>
+      {ranking.length === 0 ? (
+        <p className="py-6 text-center text-sm font-semibold text-slate-400">No plays in this period yet.</p>
+      ) : (
+        <ol className="mt-2 grid grid-cols-1 gap-x-8 gap-y-1.5 lg:grid-flow-col lg:grid-cols-2 lg:grid-rows-3">
+          {ranking.map((entry, index) => {
+            const activity = activityById.get(entry.activityId);
+            return (
+              <li key={entry.activityId} className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm font-extrabold",
+                    activity ? activityTypeTones[activity.type].badge : "bg-slate-100 text-slate-500"
+                  )}
+                >
+                  {index + 1}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink" title={titleOf(entry.activityId)}>
+                  {titleOf(entry.activityId)}
+                </span>
+                <span className="shrink-0 text-sm text-slate-500">
+                  <span className="font-bold text-ink">{entry.plays}</span> {entry.plays === 1 ? "play" : "plays"}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+/** Activity usage: finished Student mode rounds for a chosen period. Total and average time, bars beside a donut of plays by type, then the most played activities. */
+function ActivityUsage({ plays, activities }: { plays: ActivityPlay[]; activities: ActivityRecord[] }) {
+  const reduceMotion = useReducedMotion();
+  const [range, setRange] = useState<UsageRange>("month");
   const [focused, setFocused] = useState<{ index: number; x: number; y: number } | null>(null);
 
-  const series = useMemo(() => buildBuckets(range, logs), [logs, range]);
+  const activityById = useMemo(() => new Map(activities.map((activity) => [activity.id, activity])), [activities]);
+  const series = useMemo(() => {
+    const kindOf = (activityId: string): UsageKind => {
+      const type = activityById.get(activityId)?.type;
+      return type === "match-word-symbol" || type === "fill-blank" || type === "drag-drop-symbol" ? type : "other";
+    };
+    return buildUsageBuckets(range, plays, kindOf);
+  }, [activityById, range, plays]);
   const count = series.length;
-  const max = Math.max(1, ...series.map((bucket) => Math.max(bucket.changes, bucket.signIns)));
-  const xPercent = (index: number) => (count <= 1 ? 50 : (index / (count - 1)) * 100);
-  const y = (value: number) => 46 - (value / max) * 40;
-  const changeLine = series.map((bucket, index) => `${xPercent(index)},${y(bucket.changes)}`).join(" ");
-  const signInLine = series.map((bucket, index) => `${xPercent(index)},${y(bucket.signIns)}`).join(" ");
-  const totals = series.reduce((sum, bucket) => ({ changes: sum.changes + bucket.changes, signIns: sum.signIns + bucket.signIns }), { changes: 0, signIns: 0 });
+  const max = Math.max(1, ...series.map((bucket) => bucket.plays));
+  const totals = series.reduce((sum, bucket) => ({ plays: sum.plays + bucket.plays, seconds: sum.seconds + bucket.seconds }), { plays: 0, seconds: 0 });
   const active = focused ? series[focused.index] : null;
-  const labelEvery = count <= 8 ? 1 : Math.ceil(count / 7);
+  const kindTotals = usageKinds.map((entry) => ({ ...entry, plays: series.reduce((sum, bucket) => sum + bucket.byKind[entry.kind], 0) }));
+  const windowStart = count ? new Date(series[0].key).getTime() : 0;
+  const ranking = useMemo(
+    () => rankActivities(plays.filter((play) => new Date(play.createdAt).getTime() >= windowStart)).slice(0, 5),
+    [plays, windowStart]
+  );
+  const titleOf = (activityId: string) => activityById.get(activityId)?.title ?? "Deleted activity";
 
   function pointerFocus(index: number, event: React.MouseEvent<HTMLElement>) {
     const box = event.currentTarget.parentElement?.getBoundingClientRect();
@@ -282,124 +526,141 @@ function UsageTrend({ logs }: { logs: AuditLog[] }) {
     setFocused({ index, x: column.left - box.left + column.width / 2, y: box.height / 3 });
   }
 
+  // Beside the title on wider screens; on phones it gets its own full-width row so the period is never cut off.
+  const rangePicker = (className: string) => (
+    <FilterSelect
+      label="Show"
+      value={range}
+      onChange={(next) => {
+        setRange(next);
+        setFocused(null);
+      }}
+      options={usageRanges}
+      className={className}
+    />
+  );
+
   return (
     <>
-      <TileHeader
-        icon={Activity}
-        title="Usage trend"
-        right={
-          <div className="w-40">
-            <Select
-              aria-label="Trend range"
-              value={range}
-              onChange={(event) => {
-                setRange(event.target.value as TrendRange);
-                setFocused(null);
-              }}
-              className="min-h-9 text-xs"
-            >
-              {(Object.keys(trendRangeLabels) as TrendRange[]).map((key) => (
-                <option key={key} value={key}>
-                  {trendRangeLabels[key]}
-                </option>
-              ))}
-            </Select>
-          </div>
-        }
-      />
-      <div className="mt-3 flex flex-wrap gap-6">
-        <p className="flex items-baseline gap-2">
-          <span className="inline-block h-2.5 w-4 rounded-sm bg-blue-600" aria-hidden="true" />
-          <span className="text-3xl font-extrabold text-ink">
-            <CountUp value={totals.changes} />
-          </span>
-          <span className="text-sm text-slate-500">changes</span>
-        </p>
-        <p className="flex items-baseline gap-2">
-          <span className="inline-block w-4 border-t-2 border-dashed border-emerald-400" aria-hidden="true" />
-          <span className="text-3xl font-extrabold text-ink">
-            <CountUp value={totals.signIns} />
-          </span>
-          <span className="text-sm text-slate-500">sign-ins</span>
-        </p>
-      </div>
+      <TileHeader icon={Shapes} title="Activity usage" right={rangePicker("hidden w-52 sm:block")} />
+      {rangePicker("mt-3 sm:hidden")}
 
-      <div className="relative mt-3 flex-1">
-        <svg viewBox="0 0 100 50" preserveAspectRatio="none" className="h-40 w-full overflow-visible" aria-hidden="true">
-          {[10, 26, 42].map((line) => (
-            <line key={line} x1="0" x2="100" y1={line} y2={line} stroke="#eef2f8" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          ))}
-          <motion.polygon
-            key={`area-${range}`}
-            points={`0,50 ${changeLine} 100,50`}
-            fill="#dbeafe"
-            initial={reduceMotion ? false : { opacity: 0 }}
-            animate={{ opacity: 0.8 }}
-            transition={{ duration: 0.5 }}
-          />
-          <motion.polyline
-            key={`changes-${range}`}
-            points={changeLine}
-            fill="none"
-            stroke="#2563eb"
-            strokeWidth="2"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-            initial={reduceMotion ? false : { pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.9, ease: "easeOut" }}
-          />
-          <polyline points={signInLine} fill="none" stroke="#34d399" strokeWidth="2" strokeDasharray="4 3" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          {focused ? (
-            <line x1={xPercent(focused.index)} x2={xPercent(focused.index)} y1="0" y2="50" stroke="#93c5fd" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          ) : null}
-        </svg>
-
-        {/* Invisible columns make the chart readable by hover, touch, and keyboard. */}
-        <div className="absolute inset-0 flex" onMouseLeave={() => setFocused(null)}>
-          {series.map((bucket, index) => (
-            <button
-              key={bucket.key}
-              type="button"
-              aria-label={`${bucket.full}: ${bucket.changes} changes, ${bucket.signIns} sign-ins`}
-              onMouseMove={(event) => pointerFocus(index, event)}
-              onFocus={(event) => keyboardFocus(index, event)}
-              onBlur={() => setFocused(null)}
-              className="h-full flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300"
-            />
-          ))}
+      {/* The play count lives in the donut, so only the two times are listed here, each with its own label. */}
+      <dl className="mt-3 flex flex-wrap gap-x-10 gap-y-2">
+        <div>
+          <dt className="text-xs font-semibold text-slate-500">Total time</dt>
+          <dd className="text-xl font-extrabold tracking-[-0.02em] text-ink">{formatDuration(totals.seconds)}</dd>
         </div>
+        <div>
+          <dt className="text-xs font-semibold text-slate-500">Average play</dt>
+          <dd className="text-xl font-extrabold tracking-[-0.02em] text-ink">
+            {totals.plays ? formatDuration(totals.seconds / totals.plays) : "0 sec"}
+          </dd>
+        </div>
+      </dl>
 
-        {active && focused ? (
-          <div
-            role="tooltip"
-            className="pointer-events-none absolute z-10 w-max max-w-[14rem] rounded-xl border border-slate-200 bg-[#fff] px-3 py-2 text-xs shadow-[0_12px_30px_rgba(15,23,42,0.14)]"
-            style={{
-              left: focused.x,
-              top: focused.y,
-              transform: `translate(${focused.index > count / 2 ? "calc(-100% - 12px)" : "12px"}, -50%)`
-            }}
-          >
-            <p className="font-semibold text-ink">{active.full}</p>
-            <p className="mt-1 flex items-center gap-2 text-slate-600">
-              <span className="h-2 w-2 rounded-sm bg-blue-600" aria-hidden="true" />
-              <span className="font-bold text-ink">{active.changes}</span> changes
-            </p>
-            <p className="flex items-center gap-2 text-slate-600">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden="true" />
-              <span className="font-bold text-ink">{active.signIns}</span> sign-ins
-            </p>
+      <div className="mt-4 flex flex-col gap-6 lg:flex-row">
+        <div className="min-w-0 flex-1">
+          <div className="relative">
+            {totals.plays === 0 ? (
+              <p className="absolute inset-x-0 top-14 z-[1] px-4 text-center text-sm font-semibold text-slate-400">
+                No plays yet. A play counts when a child finishes an activity in Student mode.
+              </p>
+            ) : null}
+            <div className="flex h-48 items-end gap-1 border-b border-slate-200 sm:gap-1.5" aria-hidden="true">
+              {series.map((bucket, index) => (
+                <div key={bucket.key} className="flex h-full flex-1 items-end">
+                  <motion.div
+                    key={`${range}-${bucket.key}`}
+                    className={cn(
+                      "w-full rounded-t-md transition-opacity",
+                      bucket.plays ? entityColors.activity.solid : "bg-slate-100",
+                      focused && focused.index !== index ? "opacity-60" : ""
+                    )}
+                    style={{ height: bucket.plays ? `${Math.max(4, (bucket.plays / max) * 100)}%` : "3px", transformOrigin: "bottom" }}
+                    initial={reduceMotion ? false : { scaleY: 0 }}
+                    animate={{ scaleY: 1 }}
+                    transition={{ duration: 0.5, delay: index * 0.015, ease: "easeOut" }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Invisible columns make the chart readable by hover, touch, and keyboard. */}
+            <div className="absolute inset-0 flex" onMouseLeave={() => setFocused(null)}>
+              {series.map((bucket, index) => (
+                <button
+                  key={bucket.key}
+                  type="button"
+                  aria-label={`${bucket.full}: ${playsText(bucket.plays)}, ${formatDuration(bucket.seconds)} in total${usageKinds
+                    .filter(({ kind }) => bucket.byKind[kind])
+                    .map(({ kind, label }) => `, ${label} ${bucket.byKind[kind]}`)
+                    .join("")}`}
+                  onMouseMove={(event) => pointerFocus(index, event)}
+                  onFocus={(event) => keyboardFocus(index, event)}
+                  onBlur={() => setFocused(null)}
+                  className="h-full flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-300"
+                />
+              ))}
+            </div>
+
+            {active && focused ? (
+              <div
+                role="tooltip"
+                className="pointer-events-none absolute z-10 w-max max-w-[16rem] rounded-xl border border-slate-200 bg-[#fff] px-3 py-2 text-xs shadow-[0_12px_30px_rgba(15,23,42,0.14)]"
+                style={{
+                  left: focused.x,
+                  top: focused.y,
+                  transform: `translate(${focused.index > count / 2 ? "calc(-100% - 12px)" : "12px"}, -50%)`
+                }}
+              >
+                <p className="font-semibold text-ink">{active.full}</p>
+                <p className="mt-1 text-slate-600">
+                  <span className="font-bold text-ink">{playsText(active.plays)}</span>
+                  {active.plays ? <> · {formatDuration(active.seconds)} in total</> : null}
+                </p>
+                {usageKinds.some(({ kind }) => active.byKind[kind]) ? (
+                  <ul className="mt-1.5 space-y-0.5">
+                    {usageKinds.map(({ kind, label, color }) =>
+                      active.byKind[kind] ? (
+                        <li key={kind} className="flex items-center gap-2 text-slate-600">
+                          <span className={cn("h-2 w-2 shrink-0 rounded-sm", color)} aria-hidden="true" />
+                          <span className="flex-1">{label}</span>
+                          <span className="font-bold text-ink">{active.byKind[kind]}</span>
+                        </li>
+                      ) : null
+                    )}
+                  </ul>
+                ) : null}
+                {active.topActivities.length ? (
+                  <div className="mt-1.5 border-t border-slate-100 pt-1.5">
+                    <p className="font-semibold text-slate-500">Most played</p>
+                    {active.topActivities.map((entry) => (
+                      <p key={entry.activityId} className="flex gap-2 text-slate-600">
+                        <span className="min-w-0 flex-1 truncate">{titleOf(entry.activityId)}</span>
+                        <span className="font-bold text-ink">{entry.plays}</span>
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-        ) : null}
+          <div className="mt-2 flex gap-1 text-xs font-semibold text-slate-500 sm:gap-1.5" aria-hidden="true">
+            {series.map((bucket) => (
+              <span key={bucket.key} className="flex-1 overflow-visible whitespace-pre text-center leading-tight">
+                {bucket.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="lg:w-64 lg:shrink-0 lg:border-l lg:border-slate-100 lg:pl-6">
+          <TypeDonut totals={kindTotals} />
+        </div>
       </div>
-      <div className="mt-2 flex justify-between gap-1 text-xs font-semibold text-slate-500" aria-hidden="true">
-        {series
-          .filter((_, index) => index % labelEvery === 0 || index === count - 1)
-          .map((bucket) => (
-            <span key={bucket.key} className="whitespace-nowrap">
-              {bucket.label}
-            </span>
-          ))}
+
+      <div className="mt-5">
+        <MostPlayedCard ranking={ranking} activityById={activityById} />
       </div>
     </>
   );
@@ -413,6 +674,7 @@ export function OverviewSection({
   activities,
   lessons,
   logs,
+  plays,
   onJump
 }: {
   adminName: string;
@@ -422,10 +684,12 @@ export function OverviewSection({
   activities: ActivityRecord[];
   lessons: Lesson[];
   logs: AuditLog[];
+  plays: ActivityPlay[];
   onJump: (jump: OverviewJump) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const activeTeachers = users.filter((account) => account.role === "teacher" && account.status !== "deactivated").length;
+  const deactivatedAccounts = users.filter((account) => account.status === "deactivated").length;
   const pecsCount = items.filter((item) => item.contentType === "pecs").length;
   const gestureCount = items.length - pecsCount;
   const previewMedia = media.filter((asset) => asset.publicUrl && asset.type === "symbol-image").slice(0, 3);
@@ -441,15 +705,28 @@ export function OverviewSection({
       <GreetingTile
         adminName={adminName}
         stats={[
-          { label: "Active teachers", value: activeTeachers },
-          { label: "Uploads today", value: uploadsToday },
-          { label: "Sign-ins today", value: signInsToday }
+          { label: "Active teachers", value: activeTeachers, icon: UserCheck, onClick: () => onJump({ section: "accounts" }) },
+          {
+            label: "Deactivated accounts",
+            value: deactivatedAccounts,
+            icon: UserX,
+            onClick: () => onJump({ section: "accounts", status: "deactivated" })
+          }
         ]}
       />
 
       {/* Recent activity: action-focused admin summary instead of raw account totals. */}
       <Tile index={1} className="xl:col-span-3 xl:row-span-2">
         <TileHeader icon={Activity} title="Recent activity" onSeeAll={() => onJump({ section: "activity" })} />
+        {/* Today's sign-ins and uploads sit here, beside the list they come from (moved from the greeting, Oct 3). */}
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Chip tone="green">
+            {signInsToday} {signInsToday === 1 ? "sign-in" : "sign-ins"} today
+          </Chip>
+          <Chip>
+            {uploadsToday} {uploadsToday === 1 ? "upload" : "uploads"} today
+          </Chip>
+        </div>
         {logs.length === 0 ? (
           <EmptyNote>No activity yet.</EmptyNote>
         ) : (
@@ -578,7 +855,7 @@ export function OverviewSection({
       </Tile>
 
       <Tile index={4} className="min-h-[20rem] sm:col-span-2 xl:col-span-12">
-        <UsageTrend logs={logs} />
+        <ActivityUsage plays={plays} activities={activities} />
       </Tile>
     </div>
   );
