@@ -55,8 +55,8 @@ test("rejection never creates an Auth user", () => {
   assert.doesNotMatch(route, /auth\.admin\.createUser|from\("profiles"\)\.insert/);
 });
 
-test("the sign-in screen exposes the reviewed account request flow", () => {
-  assert.match(read("src/features/auth/login-panel.tsx"), /href="\/request-account"/);
+test("the reviewed account request flow remains available but is not linked from sign in", () => {
+  assert.doesNotMatch(read("src/features/auth/login-panel.tsx"), /href="\/request-account"/);
   assert.match(read("src/app/request-account/page.tsx"), /AccountRequestPanel/);
   assert.match(read("src/features/admin/accounts-section.tsx"), /Account requests/);
 });
