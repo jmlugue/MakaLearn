@@ -9,27 +9,26 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 const boardModule = {};
 new Function("exports", compiled)(boardModule);
-const { placeLibraryItem, swapBoardItems } = boardModule;
+const { placeLibraryItem } = boardModule;
 
-test("dropping one placed card onto another swaps only those positions", () => {
-  assert.deepEqual(swapBoardItems(["one", "two"], 0, 1), ["two", "one"]);
-  assert.deepEqual(swapBoardItems(["one", "two", "three"], 0, 2), ["three", "two", "one"]);
-  assert.deepEqual(swapBoardItems(["one", "two", "three"], 2, 1), ["one", "three", "two"]);
-});
+const playground = fs.readFileSync("src/features/playground/playground-view.tsx", "utf8");
 
-test("dropping a library card onto an occupied position replaces one card", () => {
-  assert.deepEqual(placeLibraryItem(["one", "two"], "new", 0, 5), ["new", "two"]);
-  assert.deepEqual(placeLibraryItem(["one", "two"], "new", 1, 5), ["one", "new"]);
-  assert.deepEqual(
-    placeLibraryItem(["one", "two", "three", "four", "five"], "new", 0, 5),
-    ["new", "two", "three", "four", "five"]
-  );
-});
-
-test("dropping on the board background appends once and respects the limit", () => {
+test("a clicked or dropped card goes to the next empty place", () => {
+  assert.deepEqual(placeLibraryItem([], "one", undefined, 5), ["one"]);
   assert.deepEqual(placeLibraryItem(["one", "two"], "new", undefined, 5), ["one", "two", "new"]);
+});
+
+test("the board holds five cards and a full board takes no more", () => {
+  assert.match(playground, /const maxSentenceCards = 5;/);
   assert.deepEqual(
     placeLibraryItem(["one", "two", "three", "four", "five"], "new", undefined, 5),
     ["one", "two", "three", "four", "five"]
   );
+});
+
+// Owner's rule (Sep 30): a drop anywhere on the board fills the next empty place, never swaps or replaces a card.
+test("the Playground never swaps or replaces a placed card", () => {
+  assert.doesNotMatch(playground, /swapBoardItems/);
+  assert.match(playground, /placeLibraryCard\(state\.source\.card\)/);
+  assert.doesNotMatch(playground, /(?<!function )placeLibraryCard\([^)]*,[^)]*\)/);
 });

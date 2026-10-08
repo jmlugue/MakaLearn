@@ -47,11 +47,11 @@ export function GuideBanner({ pageKey }: { pageKey: string }) {
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700">
             <Sparkles className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
-          <p className="min-w-0 flex-1 text-sm font-medium leading-6 text-slate-700">{guide.line}</p>
+          <p className="min-w-0 flex-1 basis-[calc(100%-7rem)] text-sm font-medium leading-6 text-slate-700 sm:basis-0">{guide.line}</p>
           <button
             type="button"
             onClick={() => setStepsOpen(true)}
-            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+            className="order-last ml-12 inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 sm:order-none sm:ml-0 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
           >
             Show me
           </button>

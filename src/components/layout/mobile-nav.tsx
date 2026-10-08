@@ -9,7 +9,8 @@ import { useAuthUser } from "@/features/auth/use-auth-user";
 import { useStudentMode } from "@/features/student-mode/student-mode-context";
 import { ProfileMenu } from "@/components/layout/profile-menu";
 
-const tabClass = "flex min-h-14 min-w-16 flex-col items-center justify-center gap-1 rounded-xl px-2 text-[11px] font-semibold transition";
+// Tabs share the width, so five tabs (admins) still fit a 375px phone without scrolling.
+const tabClass = "flex min-h-14 min-w-12 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition";
 
 export function MobileNav() {
   const pathname = usePathname();
@@ -20,9 +21,9 @@ export function MobileNav() {
     : [...(user.role === "admin" ? [adminNavItem] : []), ...mainNavItems];
 
   return (
-    <nav className="glass-panel-strong fixed bottom-2 left-2 right-2 z-40 flex items-center gap-2 rounded-2xl border px-2 py-2 lg:hidden">
+    <nav className="glass-panel-strong fixed bottom-2 left-2 right-2 z-40 flex items-center gap-2 rounded-2xl border px-2 py-2 md:hidden">
       {/* Links scroll sideways on narrow phones; the account menu stays pinned so its popup is not clipped. */}
-      <div className="clean-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto">
+      <div className="clean-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (

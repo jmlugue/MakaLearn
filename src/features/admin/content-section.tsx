@@ -320,15 +320,16 @@ function FilterOption({
 function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: AppUser[]; onOpen: (item: LearningItem) => void }) {
   return (
     <Panel>
-      <div className="overflow-x-auto clean-scrollbar">
-        <table className="w-full min-w-[640px] text-left text-sm">
+      <div className="relative overflow-x-auto clean-scrollbar">
+        {/* Phones: material and type only; the row opens the full details. */}
+        <table className="w-full text-left text-sm">
           <thead className="border-b border-blue-100 bg-[#f8fbff] text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Material</th>
               <th className="px-4 py-3">Type</th>
-              <th className="px-4 py-3">Media</th>
-              <th className="px-4 py-3">Created by</th>
-              <th className="px-4 py-3">Updated</th>
+              <th className="hidden px-4 py-3 sm:table-cell">Media</th>
+              <th className="hidden px-4 py-3 sm:table-cell">Created by</th>
+              <th className="hidden px-4 py-3 sm:table-cell">Updated</th>
             </tr>
           </thead>
           <tbody>
@@ -341,7 +342,7 @@ function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: Ap
                   onClick={() => onOpen(item)}
                   className="cursor-pointer border-t border-slate-100 first:border-t-0 hover:bg-blue-50/60"
                 >
-                  <td className="px-4 py-3">
+                  <td className="max-w-0 px-4 py-3 sm:max-w-none">
                     {/* The label is a real button so keyboard users can open the pop-up; the whole row also responds to clicks. */}
                     <button
                       type="button"
@@ -360,7 +361,7 @@ function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: Ap
                         )}
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate font-semibold text-ink">{item.label}</span>
+                        <span className="block break-words font-semibold text-ink sm:truncate">{item.label}</span>
                         {item.tags.length ? <span className="block truncate text-xs text-slate-500">{item.tags.slice(0, 3).join(", ")}</span> : null}
                       </span>
                     </button>
@@ -368,14 +369,14 @@ function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: Ap
                   <td className="px-4 py-3">
                     <span
                       className={cn(
-                        "rounded-full px-2.5 py-1 text-xs font-semibold",
+                        "whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold",
                         materialColor(item.contentType).badge
                       )}
                     >
                       {item.contentType === "pecs" ? "PECS card" : "Gesture"}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="hidden px-4 py-3 sm:table-cell">
                     <span className="flex flex-wrap items-center gap-1.5">
                       <MediaChip present={Boolean(item.symbolImageUrl)} label="Image" icon={ImageIcon} />
                       <MediaChip present={Boolean(item.audioUrl)} label="Audio" icon={Volume2} />
@@ -386,8 +387,8 @@ function ItemsTable({ items, users, onOpen }: { items: LearningItem[]; users: Ap
                       ))}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{nameFor(users, item.createdBy)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatDate(item.updatedAt)}</td>
+                  <td className="hidden px-4 py-3 text-slate-600 sm:table-cell">{nameFor(users, item.createdBy)}</td>
+                  <td className="hidden whitespace-nowrap px-4 py-3 text-slate-600 sm:table-cell">{formatDate(item.updatedAt)}</td>
                 </tr>
               ))
             )}

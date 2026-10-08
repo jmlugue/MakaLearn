@@ -94,7 +94,7 @@ export function MediaTab({
           onChange={setLink}
           options={(Object.keys(linkLabels) as LinkFilter[]).map((key) => ({ value: key, label: linkLabels[key] }))}
         />
-        <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto lg:ml-auto">
           <SearchInput label="Search media" placeholder="Search files, materials, or uploader" value={search} onChange={setSearch} />
           <div className="w-44">
             <Select aria-label="Sort media" value={sort} onChange={(event) => setSort(event.target.value as SortOrder)}>
@@ -157,7 +157,7 @@ export function MediaTab({
 
       {audio.length ? (
         <MediaPanel icon={Volume2} title="Audio" count={audio.length}>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-100 text-xs font-bold uppercase tracking-[0.06em] text-slate-400">
                 <tr>

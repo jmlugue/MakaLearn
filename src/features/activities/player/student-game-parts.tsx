@@ -184,17 +184,20 @@ export function StudentPictureCard({
 }
 
 /** A tick or a cross in the corner of a card. */
-export function StudentResultBadge({ tone }: { tone: "correct" | "wrong" }) {
+/** `compact`: a smaller badge on phones, for the small cards in the score pop-up. */
+export function StudentResultBadge({ tone, compact = false }: { tone: "correct" | "wrong"; compact?: boolean }) {
+  const iconClass = compact ? "h-4 w-4 sm:h-6 sm:w-6" : "h-6 w-6";
   return (
     <span
       className={cn(
-        "absolute right-2 top-2 z-10 grid h-11 w-11 place-items-center rounded-full border-4 border-white text-white shadow-md sm:h-12 sm:w-12",
+        "absolute z-10 grid place-items-center rounded-full border-white text-white shadow-md sm:h-12 sm:w-12",
+        compact ? "-right-1.5 -top-1.5 h-7 w-7 border-2 sm:right-2 sm:top-2 sm:border-4" : "right-2 top-2 h-11 w-11 border-4",
         tone === "correct" ? "bg-emerald-500" : "bg-rose-500"
       )}
       aria-hidden="true"
     >
-      {tone === "correct" ? <Check className="h-6 w-6" strokeWidth={3.5} /> : null}
-      {tone === "wrong" ? <X className="h-6 w-6" strokeWidth={3.5} /> : null}
+      {tone === "correct" ? <Check className={iconClass} strokeWidth={3.5} /> : null}
+      {tone === "wrong" ? <X className={iconClass} strokeWidth={3.5} /> : null}
     </span>
   );
 }

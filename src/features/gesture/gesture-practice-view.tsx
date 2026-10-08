@@ -1223,9 +1223,11 @@ export function GesturePracticeView() {
     return (
       <>
       {/* Full screen like the playground and activities: the background reaches every edge. */}
-      <section className="absolute inset-0 isolate flex flex-col gap-2 overflow-hidden bg-[#f4fbff] p-2 sm:gap-3 sm:p-3 lg:p-4">
+      {/* Phones scroll (camera, then the gesture card); bigger screens fit everything on one screen. */}
+      <section className="absolute inset-0 isolate flex flex-col gap-2 overflow-y-auto overflow-x-hidden bg-[#f4fbff] p-2 sm:gap-3 sm:overflow-hidden sm:p-3 lg:p-4">
         <StudentGestureImageBackground />
-        <div className="relative z-10 flex shrink-0 justify-center">
+        {/* pl-14 on phones keeps the toolbar clear of the Student mode logo button. */}
+        <div className="relative z-10 flex shrink-0 justify-center pl-14 sm:pl-0">
           <div
             className="flex flex-wrap items-center justify-center gap-1 rounded-full border border-white/90 bg-white/80 p-1.5 shadow-[0_6px_18px_rgba(37,99,235,0.1)] backdrop-blur-xl"
             role="toolbar"
@@ -1257,13 +1259,13 @@ export function GesturePracticeView() {
         </div>
         <div
           className={cn(
-            "relative z-10 grid min-h-0 flex-1 gap-2 sm:gap-3 lg:gap-4",
+            "relative z-10 grid gap-2 sm:gap-3 lg:gap-4",
             cameraFocusMode
-              ? "grid-rows-[minmax(0,1fr)]"
-              : "grid-rows-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[1.13fr_0.87fr] xl:grid-rows-1"
+              ? "min-h-0 flex-1 grid-rows-[minmax(0,1fr)]"
+              : "shrink-0 grid-rows-[auto_auto] sm:min-h-0 sm:flex-1 sm:shrink sm:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:portrait:grid-rows-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:landscape:grid-cols-[1.13fr_0.87fr] md:landscape:grid-rows-1 xl:grid-cols-[1.13fr_0.87fr] xl:grid-rows-1"
           )}
         >
-          <div className="flex min-h-0 min-w-0 flex-col">
+          <div className={cn("flex min-w-0 flex-col", cameraFocusMode ? "min-h-0" : "min-h-[24rem] sm:min-h-0")}>
             <CameraPanel
               cameraStarted={cameraStarted}
               videoRef={videoRef}
@@ -1355,7 +1357,13 @@ export function GesturePracticeView() {
             />
           </div>
 
-          <div className={cameraFocusMode ? "hidden" : "flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden"}>
+          {/* Portrait tablets in guided practice: the gesture card and the journey sit side by side so the picture keeps its height. */}
+          <div
+            className={cn(
+              cameraFocusMode ? "hidden" : "flex min-h-[30rem] min-w-0 flex-col gap-3 overflow-hidden sm:min-h-0",
+              practiceMode === "guided" && guidedPhase !== "complete" && "md:portrait:flex-row md:portrait:items-center"
+            )}
+          >
             {selectedGesture ? (
               <AnimatePresence custom={carouselDirection} mode="wait">
                 <motion.div
@@ -1948,7 +1956,7 @@ function GuidedProgressPanel({
   const reduceMotion = useReducedMotion();
   const spot = levelSpots[Math.min(currentIndex, levelSpots.length - 1)];
   return (
-    <div className="shrink-0 overflow-hidden rounded-[1.75rem] border-4 border-white bg-gradient-to-b from-sky-200 via-sky-100 to-emerald-100 p-3 shadow-[0_8px_0_rgba(147,197,253,0.35)]">
+    <div className="shrink-0 overflow-hidden rounded-[1.75rem] border-4 border-white bg-gradient-to-b from-sky-200 via-sky-100 to-emerald-100 p-3 shadow-[0_8px_0_rgba(147,197,253,0.35)] md:portrait:w-1/2">
       <p className="text-center text-lg font-black text-blue-900">Your gesture journey</p>
       <div className="relative mx-auto mt-1 w-full max-w-md">
         <svg viewBox={`0 0 ${LEVEL_W} ${LEVEL_H}`} className="block h-auto w-full" role="img" aria-label={`Gesture ${Math.min(currentIndex + 1, queue.length)} of ${queue.length}`}>
@@ -2324,7 +2332,7 @@ function LearnerReferenceDetails({ item, onPlayAudio }: { item: LearningItem; on
       <h2 className="text-center text-3xl font-black text-ink sm:text-5xl">{label}</h2>
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:mt-4 sm:gap-3">
-        <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-2 sm:p-3">
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-2 sm:p-3">
           <GestureMotion id={item.id} fallback={<GestureVideoPreview value={item.gestureMediaUrl} label={`${item.label} gesture reference`} />} />
         </div>
         <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -2380,7 +2388,7 @@ function GestureVideoPreview({ value, label }: { value?: string; label: string }
 
   if (mediaValue && isVideoUrl(mediaValue) && canEmbedMedia(mediaValue)) {
     return (
-      <video controls className="max-h-64 w-full rounded-2xl" aria-label={label}>
+      <video controls className="h-full max-h-64 w-full rounded-2xl" aria-label={label}>
         <source src={toMediaSrc(mediaValue)} />
       </video>
     );
@@ -2390,7 +2398,7 @@ function GestureVideoPreview({ value, label }: { value?: string; label: string }
     return (
       // Uploaded gesture images can use temporary preview URLs.
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={toMediaSrc(mediaValue)} alt={label} className="max-h-64 w-full rounded-2xl object-contain" />
+      <img src={toMediaSrc(mediaValue)} alt={label} className="h-full max-h-64 w-full rounded-2xl object-contain" />
     );
   }
 

@@ -136,7 +136,11 @@ function ChoiceSteps({ activity, learningItems, answers, result, chooseAnswer, o
 
       <motion.div
         key={`${question.id}-${shakeKey}`}
-        className={cn("grid gap-4", options.length <= 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}
+        // Three choices sit in one row even on phones, so none is pushed below the screen.
+        className={cn(
+          "grid gap-2.5 sm:gap-4",
+          options.length <= 2 ? "grid-cols-2" : options.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3"
+        )}
         animate={shakeKey && !reduceMotion && answered && !right ? { x: [0, -10, 10, -6, 6, 0] } : undefined}
         transition={{ duration: 0.35 }}
       >
@@ -391,7 +395,8 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
     <div className="space-y-5">
       <div className={cn(panelClass, "p-4")}>
         <SectionLabel>{activityInstruction(activity.type)}</SectionLabel>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {/* Phones: three boxes per row and the cards in one row, so boxes and cards share one screen for dragging. */}
+        <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
           {questions.map((question) => {
             const answer = answers[question.id];
             const missed = answer === MISSED;
@@ -424,7 +429,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
                         : "border-dashed border-blue-200 bg-white/80"
                 )}
               >
-                <span className="max-w-full break-words rounded-xl bg-blue-600 px-2.5 py-1 text-sm font-bold uppercase leading-tight text-white">
+                <span className="max-w-full break-words rounded-xl bg-blue-600 px-2 py-1 text-xs font-bold uppercase sm:px-2.5 sm:text-sm leading-tight text-white">
                   {question.prompt}
                 </span>
                 {answer ? (
@@ -441,7 +446,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
       {!result && tray.length ? (
         <div className={cn(panelClass, "p-4")}>
           <SectionLabel>Cards</SectionLabel>
-          <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+          <div className="mt-3 grid grid-cols-5 gap-2 sm:gap-3">
             {tray.map((card) => (
               <button
                 key={card}
@@ -466,7 +471,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
                 aria-pressed={dragged === card}
                 aria-label={`Drag ${getDisplayLabel(card, learningItems)} card onto its word`}
                 className={cn(
-                  "rounded-3xl border-2 bg-white p-2 shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
+                  "rounded-2xl border-2 bg-white p-1 shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition sm:rounded-3xl sm:p-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200",
                   dragged === card ? "border-blue-600 ring-4 ring-blue-100" : "border-white hover:-translate-y-0.5 hover:border-blue-300"
                 )}
               >

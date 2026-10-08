@@ -145,11 +145,11 @@ for kinds. Do not use them for new work.
 
 | Piece | Value |
 |---|---|
-| Page padding | `px-4 pt-5 pb-24` mobile, `md:px-6`, `lg:px-8 lg:pt-7 lg:pb-10` |
+| Page padding | `px-4 pt-5 pb-24` mobile, `md:ml-28 md:pr-6 md:pt-6 md:pb-10` tablet, `lg:px-8 lg:pt-7` desktop |
 | Content width | `mx-auto max-w-7xl` |
-| Sidebar (lg and up) | Floating glass rail, `fixed left-4 top-4 bottom-4`, `w-20`, grows to `w-64` on hover over the page. Page sits at `lg:ml-28`. |
+| Sidebar (tablet and desktop, `md` and up) | Floating glass rail, `fixed left-4 top-4 bottom-4`, `w-20`, grows to `w-64` on hover (or a tap on touch screens) over the page. Page sits at `md:ml-28`. |
 | Sidebar order | Admin (admins only), Content, Activities, Student mode, then Help at the bottom, then the profile menu. Settings is in the profile menu. |
-| Mobile nav (below lg) | Glass bar `fixed bottom-2 left-2 right-2`, `rounded-2xl`, icon over label tabs, profile menu pinned right |
+| Mobile nav (phones, below `md`) | Glass bar `fixed bottom-2 left-2 right-2`, `rounded-2xl`, icon over label tabs, profile menu pinned right |
 | Student mode | `px-2 sm:px-3 lg:px-4`, full width. Logo button `fixed left-4 top-3`. Drawer `w-72` from the left. |
 
 ### Spacing scale (Built, Tailwind default 4px steps)
@@ -163,11 +163,27 @@ for kinds. Do not use them for new work.
 
 Rule: stick to `1, 1.5, 2, 3, 4, 5, 6` steps. No arbitrary pixel spacing.
 
-### Screen sizes (Built, Tailwind default)
+### Screen sizes: three layouts (Built, `tailwind.config.ts`)
 
-`sm 640`, `md 768`, `lg 1024` (sidebar appears), `xl 1280`.
-Card grids: 2 columns from `sm`, 3 to 4 from `lg` or `xl`. Pop-ups: `max-w-md` default, `max-w-2xl` to
-`max-w-3xl` for forms and previews. Every page must work at phone width with no sideways scroll.
+Every screen is designed for three layouts. Write phone styles first, then add `md:` for tablet and `lg:` for desktop.
+
+| Layout | Width | Tailwind | Menu | Rules |
+|---|---|---|---|---|
+| **Mobile** | under 768px | no prefix (`sm:` 640px for big phones) | Bottom glass bar | One column. Page padding `px-4`, bottom `pb-24` clears the bar. Pop-ups fill the width. Big touch targets (`min-h-11`). No hover-only actions. |
+| **Tablet** | 768px to 1024px | `md:` | Icon sidebar (`w-20`, opens on hover or tap) | Page sits at `md:ml-28`, about 650px wide on a portrait iPad. Two columns where it fits, side panels stack under the main area. Still touch first. |
+| **Desktop** | 1025px and up | `lg:` (`xl:` 1280px, `2xl:` 1536px) | Icon sidebar | Side-by-side panels, 3 to 4 card columns. |
+
+- `lg` starts at **1025px**, not Tailwind's usual 1024px, so an iPad turned sideways (1024px) gets the tablet layout.
+- Full-screen Student mode views (playground, gesture practice) also use `md:landscape:` so a tablet turned sideways
+  gets the side-by-side layout, and `md:portrait:` where a portrait tablet needs a different split.
+- Phones: a long row of filter chips scrolls sideways in one row instead of wrapping into many rows. Section tabs
+  (`PillTabs`) become a 2 x 2 grid. A search box takes its own row.
+- A grid with one column that holds a sideways-scrolling row or a wide `<select>` needs `grid-cols-1` (or `min-w-0`),
+  or the column grows past the screen.
+- Card grids: 2 columns from `sm`, 3 to 4 from `lg` or `xl`. Pop-ups: `max-w-md` default, `max-w-2xl` to `max-w-3xl` for
+  forms and previews.
+- Every page must work at 375px (phone) and 768px (tablet) with no sideways scroll. Check both in the browser pane
+  (Mobile and Tablet presets) before shipping.
 
 ### Layers (z-index, Built)
 

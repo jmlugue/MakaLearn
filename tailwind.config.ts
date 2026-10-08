@@ -3,6 +3,15 @@ import type { Config } from "tailwindcss";
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
+    // Three layouts (STYLE_GUIDE section 5): mobile under 768px, tablet 768px to 1024px (md), desktop from 1025px (lg).
+    // lg starts at 1025px, not Tailwind's 1024px, so an iPad turned sideways still gets the tablet layout.
+    screens: {
+      sm: "640px",
+      md: "768px",
+      lg: "1025px",
+      xl: "1280px",
+      "2xl": "1536px"
+    },
     extend: {
       colors: {
         border: "hsl(var(--border))",

@@ -55,8 +55,12 @@ test("rejection never creates an Auth user", () => {
   assert.doesNotMatch(route, /auth\.admin\.createUser|from\("profiles"\)\.insert/);
 });
 
-test("the sign-in screen exposes the reviewed account request flow", () => {
-  assert.match(read("src/features/auth/login-panel.tsx"), /href="\/request-account"/);
+// The sign-in link and the Admin section are hidden for now (owner, Oct 3); the flow itself stays built.
+// When they come back, assert the link is present and SHOW_ACCOUNT_REQUESTS is true instead.
+test("the account request flow stays built while its sign-in link and Admin section are hidden", () => {
+  assert.doesNotMatch(read("src/features/auth/login-panel.tsx"), /href="\/request-account"/);
   assert.match(read("src/app/request-account/page.tsx"), /AccountRequestPanel/);
-  assert.match(read("src/features/admin/accounts-section.tsx"), /Account requests/);
+  const accounts = read("src/features/admin/accounts-section.tsx");
+  assert.match(accounts, /const SHOW_ACCOUNT_REQUESTS = false;/);
+  assert.match(accounts, /Account requests/);
 });

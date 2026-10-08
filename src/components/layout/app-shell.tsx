@@ -169,7 +169,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
                 "px-2 pb-2 sm:px-3 sm:pb-3 lg:px-4",
                 pathname === "/gesture-practice" ? "pt-2 sm:pt-3 lg:pt-4" : "pt-20 lg:pt-4"
               )
-            : "px-4 pb-24 pt-5 md:px-6 lg:ml-28 lg:px-8 lg:pb-10 lg:pt-7",
+            : "px-4 pb-24 pt-5 md:ml-28 md:pb-10 md:pl-0 md:pr-6 md:pt-6 lg:px-8 lg:pt-7",
           isStudentGestureViewport && "relative h-svh min-h-0 overflow-hidden p-0"
         )}
       >

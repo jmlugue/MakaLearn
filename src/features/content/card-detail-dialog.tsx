@@ -121,7 +121,10 @@ export function CardDetailDialog({
       {item ? (
         <div className="grid gap-5 md:grid-cols-[15rem_minmax(0,1fr)]">
           <div className={cn("self-start rounded-2xl border p-3", tone.soft, tone.border)}>
-            <PictureBox value={item.symbolImageUrl} label={item.label} className="rounded-xl bg-[#fff]" inset="inset-3" textClassName="text-4xl" />
+            {/* Phones: a smaller picture so the details and files show without a long scroll. */}
+            <div className="mx-auto w-full max-w-[12rem] md:max-w-none">
+              <PictureBox value={item.symbolImageUrl} label={item.label} className="rounded-xl bg-[#fff]" inset="inset-3" textClassName="text-4xl" />
+            </div>
             <div className="mt-3 flex justify-center">
               <AudioButton value={item.audioUrl} label={item.label} text="Play word" />
             </div>
@@ -277,9 +280,10 @@ function FileRow({
   }
 
   return (
-    <div className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5 first:pt-0 last:pb-0">
       <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-blue-50">{thumb}</span>
-      <span className="min-w-0 flex-1">
+      {/* Phones: the buttons drop under the file name so the name is not squeezed. */}
+      <span className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] sm:basis-0">
         <span className="block text-sm font-bold text-ink">{title}</span>
         <span className={cn("block text-xs", status === "error" ? "text-red-600" : "truncate text-slate-500")}>
           {status === "error" ? error : hasValue ? fileName ?? "Stored file" : canManage ? `${empty} · ${bucket === "audio-files" ? "MP3, WAV, or M4A" : "PNG, JPG, or WebP"}, up to ${limitLabel(bucket)}` : empty}
@@ -288,24 +292,26 @@ function FileRow({
       {canManage ? (
         <>
           <input id={id} type="file" accept={acceptFor[bucket]} onChange={handleChange} className="sr-only" disabled={status === "uploading"} />
-          <label
-            htmlFor={id}
-            className="inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 text-xs font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50"
-          >
-            {status === "uploading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}
-            {status === "uploading" ? "Uploading" : hasValue ? "Replace" : "Upload"}
-          </label>
-          {hasValue ? (
-            <button
-              type="button"
-              onClick={onRemove}
-              aria-label={`Remove ${title.toLowerCase()}`}
-              className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 text-xs font-semibold text-red-600 transition hover:border-red-300 hover:bg-red-50"
+          <div className="ml-14 flex shrink-0 gap-2 sm:ml-0">
+            <label
+              htmlFor={id}
+              className="inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 text-xs font-semibold text-blue-700 transition hover:border-blue-400 hover:bg-blue-50"
             >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-              Remove
-            </button>
-          ) : null}
+              {status === "uploading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Upload className="h-3.5 w-3.5" aria-hidden="true" />}
+              {status === "uploading" ? "Uploading" : hasValue ? "Replace" : "Upload"}
+            </label>
+            {hasValue ? (
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label={`Remove ${title.toLowerCase()}`}
+                className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 text-xs font-semibold text-red-600 transition hover:border-red-300 hover:bg-red-50"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                Remove
+              </button>
+            ) : null}
+          </div>
           <RenameFileDialog
             file={renaming}
             bucket={bucket}

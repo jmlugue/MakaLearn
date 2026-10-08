@@ -41,7 +41,7 @@ export function StatusBadge({ status }: { status: AppUser["status"] }) {
 
 export function SearchInput({ value, onChange, placeholder, label }: { value: string; onChange: (value: string) => void; placeholder: string; label: string }) {
   return (
-    <div className="relative min-w-0 flex-1 sm:max-w-xs">
+    <div className="relative min-w-0 flex-1 basis-48 sm:max-w-xs">
       {/* z-10: the Input's backdrop blur creates a layer that would otherwise hide the icon. */}
       <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
       <Input type="search" aria-label={label} placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} className="pl-9" />

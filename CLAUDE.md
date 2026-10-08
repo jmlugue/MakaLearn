@@ -1000,3 +1000,37 @@ seeing they were right. Student mode only; the teacher player is unchanged.
   progress panel). Free practice says "You did the Eat gesture." instead of "You did it."
 - **Network note:** the owner's home ISP (Royal Cable) cannot reach the project's Cloudflare IPs
   (`104.18.38.10`, `172.64.149.246`); mobile data works. They use a hosts file line as a workaround. Not a repo issue.
+
+---
+
+## 23. Oct 7: mobile and tablet layouts (checked signed in as a teacher and an admin in the browser pane)
+
+The owner asked for three layouts like a CSS media query diagram. Rules live in STYLE_GUIDE section 6 ("Screen sizes").
+
+- **Breakpoints** (`tailwind.config.ts` `screens`): mobile under 768px, tablet `md` 768 to 1024px, desktop `lg` from
+  **1025px** (not 1024, owner's choice, so an iPad turned sideways is a tablet). Every `lg:` in the app moved by 1px.
+- **Tablet menu:** the icon sidebar shows from `md` (was `lg`); the bottom bar is phones only. The sidebar opens on
+  mouse hover only (pointer events); on touch the logo button opens the names and a tap outside closes them.
+  Page sits at `md:ml-28`.
+- **Fixed for phones and tablets:** login and request-account (smaller brand panel, form on the first screen);
+  `PillTabs` 2 x 2 on phones; `SearchInput` wraps to its own row when narrow; `UnderlineTabs` no longer shows a 1px
+  vertical scrollbar (`overflow-y-hidden pb-px`); guide banner text uses the full width; card details (smaller
+  picture, Replace / Remove under the file name); activity filters side by side; Create activity format tiles stack on
+  phones; teacher Preview (name on its own row, 3 choices per row, compact Drag and drop); Settings no longer wider
+  than the screen (long voice names); playground fits one phone screen (categories in one swipe row, 3 cards per row,
+  side by side on landscape tablets); Student gesture practice scrolls on phones, gives the card more room on portrait
+  tablets, sits side by side on landscape tablets, and its reference picture now shrinks to fit instead of being cut.
+- **Admin (checked signed in as an admin):** the bottom bar's tabs share the width so five fit a phone; Home's
+  "Activities & collections" spans the row on phones and tablets; tables keep their scroll box `relative` (a hidden
+  `sr-only` label escaped it and made Accounts 630px wide on a 375px phone); Accounts shows role and status under the
+  email on phones; Admin Content shows material and type on phones (row opens details); the Activity log shows the
+  action under the name on phones and the record under the action on tablets (four columns from `lg`; the hidden
+  columns are zero width, not `display: none`, because day rows span four columns); `SearchInput` is `basis-48`, so it
+  wraps to its own row instead of being squeezed; `UnderlineTabs` hide icons on phones.
+- **Oct 8 follow-up (phone and tablet):** Category pop-up hides the PECS / Gesture badge on phones so names are not cut;
+  Student score pop-up uses smaller cards on phones (`w-14`, `StudentResultBadge compact`) so it fits without scrolling
+  past Maki; Guided 7 on portrait tablets puts the gesture card and the journey side by side. Checked and fine as is:
+  Activity log details, Collection preview (scrolls as a whole), Help Show me, Guided 7 road and summary (phone, tablet,
+  landscape), gesture practice at 1100px. `npm run build` passes.
+- Edit material form checked signed in as a teacher (phone and tablet): fits, no changes needed.
+- Not checked: real touch devices, the camera.

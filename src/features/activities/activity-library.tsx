@@ -82,7 +82,7 @@ export function ActivityLibrary({
       <div className="flex flex-wrap items-center gap-3">
         <SearchInput label="Search activities" placeholder="Search activities or cards" value={search} onChange={setSearch} />
         <GuideTip id="activities.typeFilter">
-          <div className="w-52">
+          <div className="min-w-0 flex-1 sm:w-52 sm:flex-none">
             <Select aria-label="Filter by type" value={type} onChange={(event) => setType(event.target.value as ActivityType | "all")}>
               <option value="all">All types</option>
               {activityTypes.map((option) => (
@@ -93,7 +93,7 @@ export function ActivityLibrary({
             </Select>
           </div>
         </GuideTip>
-        <div className="w-44">
+        <div className="min-w-0 flex-1 sm:w-44 sm:flex-none">
           <Select aria-label="Sort activities" value={sort} onChange={(event) => setSort(event.target.value as SortOrder)}>
             {(Object.keys(sortLabels) as SortOrder[]).map((key) => (
               <option key={key} value={key}>

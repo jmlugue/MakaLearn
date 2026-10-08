@@ -67,8 +67,8 @@ export function SettingsView() {
       />
 
       {/* Two columns on desktop, each stacked on its own, so a tall group never leaves a gap beside it. */}
-      <div className="grid items-start gap-4 xl:grid-cols-2">
-        <div className="grid gap-4">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4">
           <SettingsGroup title="Display">
             <SettingsRow icon={Type} label="Text size" hint="Makes text bigger across the app.">
               <SegmentedControl
@@ -106,7 +106,7 @@ export function SettingsView() {
           </SettingsGroup>
         </div>
 
-        <div className="grid gap-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4">
           <SettingsGroup title="Motion">
             <SettingsRow icon={Wind} label="Reduce motion" hint="Turns off animations and slides.">
               <Switch

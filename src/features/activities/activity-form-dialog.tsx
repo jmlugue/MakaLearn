@@ -391,7 +391,7 @@ function ActivityForm({
             <section className={cn("p-4", glassBoxClass)}>
               <SectionLabel className="mb-3">Activity format</SectionLabel>
               <GuideTip id="activities.types" className="block">
-                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Activity format">
+                <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Activity format">
                   {activityTypes.map((type) => {
                     const selected = values.type === type;
                     const Icon = activityTypeIcons[type];
@@ -403,7 +403,7 @@ function ActivityForm({
                         aria-checked={selected}
                         onClick={() => changeType(type)}
                         className={cn(
-                          "flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border p-2.5 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                          "flex min-h-14 items-center gap-3 rounded-2xl border p-2.5 text-left transition sm:min-h-24 sm:flex-col sm:justify-center sm:gap-2 sm:text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
                           selected ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-blue-100 bg-white/80 hover:border-blue-300"
                         )}
                       >

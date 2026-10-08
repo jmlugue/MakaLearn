@@ -461,7 +461,7 @@ export function PlaygroundView() {
   }
 
   const isDraggingCard = drag?.source.kind === "library";
-  const dropZoneClass = `relative min-h-72 flex-1 overflow-hidden rounded-2xl border bg-[#f8fbff] shadow-inner transition ${
+  const dropZoneClass = `relative min-h-56 flex-1 sm:min-h-72 overflow-hidden rounded-2xl border bg-[#f8fbff] shadow-inner transition ${
     isDraggingCard ? "border-blue-400 ring-4 ring-blue-200" : "border-blue-100"
   }`;
   const sentenceCanvasClass = "absolute bottom-[9%] left-[5%] right-[5%] top-[24%] overflow-hidden p-2 sm:left-[6%] sm:right-[6%] sm:top-[23%] sm:p-3";
@@ -474,7 +474,7 @@ export function PlaygroundView() {
               className={
                 isStudentMode
                   ? "fixed inset-0 z-40 bg-[#fcfdff] bg-no-repeat px-2 pb-2 pt-20 sm:px-3 sm:pb-3 lg:px-4"
-                  : "fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:px-6 lg:bottom-0 lg:left-72 lg:px-8 lg:py-4"
+                  : "fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:bottom-0 md:left-28 md:px-6 lg:px-8 lg:py-4"
               }
               style={
                 isStudentMode
@@ -486,18 +486,18 @@ export function PlaygroundView() {
                   : undefined
               }
             >
-              {/* Phones: the card list keeps room (the panel scrolls) instead of shrinking under the board. */}
+              {/* Phones and portrait tablets: cards above the board, both on one screen. Landscape tablets and desktop: side by side. */}
               <div className={`mx-auto grid h-full overflow-y-auto overflow-x-hidden rounded-2xl sm:overflow-hidden border border-blue-100 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
                 isStudentMode
-                  ? "max-w-none grid-rows-[minmax(38rem,1fr)_minmax(22rem,0.9fr)] bg-white/80 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] lg:grid-rows-1"
-                  : "max-w-7xl grid-rows-[minmax(38rem,1fr)_minmax(22rem,0.9fr)] bg-white/95 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
+                  ? "max-w-none grid-cols-1 grid-rows-[minmax(16rem,1fr)_auto] bg-white/80 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] md:landscape:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] md:landscape:grid-rows-1 lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] lg:grid-rows-1"
+                  : "max-w-7xl grid-cols-1 grid-rows-[minmax(16rem,1fr)_auto] bg-white/95 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] md:landscape:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] md:landscape:grid-rows-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
               }`}>
                 <section className={`flex min-h-0 flex-col ${isStudentMode ? "bg-[#f8fbff]/80 p-3 sm:p-4 lg:p-5" : "bg-[#f8fbff] p-3 sm:p-4"}`}>
                   <div className="shrink-0 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
                     <div>
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="flex min-h-10 items-center text-sm font-bold text-ink">Categories</p>
-                        <label className="relative block h-10 shrink-0 overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm transition focus-within:border-blue-400 focus-within:shadow-[0_10px_24px_rgba(37,99,235,0.12)] sm:min-w-72">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="flex min-h-10 shrink-0 items-center text-sm font-bold text-ink">Categories</p>
+                        <label className="relative block h-10 min-w-0 flex-1 overflow-hidden sm:flex-none rounded-xl border border-blue-200 bg-white shadow-sm transition focus-within:border-blue-400 focus-within:shadow-[0_10px_24px_rgba(37,99,235,0.12)] sm:min-w-72">
                           <span className="sr-only">Search cards</span>
                           <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                           <Input
@@ -510,7 +510,8 @@ export function PlaygroundView() {
                           />
                         </label>
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
+                      {/* Phones: one row that swipes sideways, so the cards keep the space. */}
+                      <div className="clean-scrollbar -mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
                         {filterCategories.map((category) => {
                           const style = categoryStyles[category];
                           const CategoryIcon = style.icon;
@@ -541,13 +542,13 @@ export function PlaygroundView() {
                     </div>
                   </div>
 
-                  <div className={`mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-blue-100 bg-white shadow-sm clean-scrollbar ${isStudentMode ? "p-4" : "p-3"}`}>
+                  <div className={`mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-blue-100 bg-white shadow-sm clean-scrollbar ${isStudentMode ? "p-2.5 sm:p-4" : "p-3"}`}>
                       {!ready ? (
                         <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-blue-100 bg-[#f8fbff] text-sm font-semibold text-slate-600">
                           Loading PECS cards...
                         </div>
                       ) : filteredCards.length ? (
-                        <div className={`grid ${isStudentMode ? "grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" : "gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"}`}>
+                        <div className={`grid ${isStudentMode ? "grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:portrait:grid-cols-5" : "gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"}`}>
                           {filteredCards.map((card) => (
                             <button
                               key={card.id}
@@ -579,7 +580,7 @@ export function PlaygroundView() {
                   </div>
                 </section>
 
-                <section className={`flex min-h-0 flex-col border-t border-blue-100 lg:border-l lg:border-t-0 ${isStudentMode ? "bg-white/85 p-3 sm:p-4 lg:p-5" : "bg-white p-3 sm:p-4"}`}>
+                <section className={`flex min-h-0 flex-col border-t border-blue-100 md:landscape:border-l md:landscape:border-t-0 lg:border-l lg:border-t-0 ${isStudentMode ? "bg-white/85 p-3 sm:p-4 lg:p-5" : "bg-white p-3 sm:p-4"}`}>
                   <div
                     data-board=""
                     className={dropZoneClass}

@@ -29,7 +29,8 @@ export function PillTabs<T extends string>({
       role="tablist"
       aria-label={label}
       className={cn(
-        "inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-blue-100 bg-[#fff] p-1.5 shadow-sm clean-scrollbar",
+        // Phones: a two-column grid so every tab is visible. Tablet and up: one row.
+        "grid w-full grid-cols-2 gap-1 rounded-2xl border border-blue-100 bg-[#fff] p-1.5 shadow-sm clean-scrollbar sm:inline-flex sm:w-auto sm:max-w-full sm:overflow-x-auto",
         className
       )}
     >
@@ -43,7 +44,7 @@ export function PillTabs<T extends string>({
             aria-selected={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              "relative inline-flex min-h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+              "relative inline-flex min-h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 text-sm sm:justify-start lg:px-4 font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
               selected ? "text-white" : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
             )}
           >

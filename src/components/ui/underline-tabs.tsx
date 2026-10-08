@@ -25,7 +25,7 @@ export function UnderlineTabs<T extends string>({
   const reduceMotion = useReducedMotion();
 
   return (
-    <div role="tablist" aria-label={label} className={cn("flex gap-6 overflow-x-auto border-b border-slate-200 clean-scrollbar", className)}>
+    <div role="tablist" aria-label={label} className={cn("flex gap-3 overflow-x-auto overflow-y-hidden border-b border-slate-200 pb-px clean-scrollbar sm:gap-6", className)}>
       {options.map((option) => {
         const selected = option.value === value;
         const Icon = option.icon;
@@ -41,7 +41,8 @@ export function UnderlineTabs<T extends string>({
               selected ? "text-blue-700" : "text-slate-500 hover:text-slate-800"
             )}
           >
-            {Icon ? <Icon className="mr-1.5 h-4 w-4" aria-hidden="true" /> : null}
+            {/* Icons from sm only, so four tabs with counts fit a phone. */}
+            {Icon ? <Icon className="mr-1.5 hidden h-4 w-4 sm:block" aria-hidden="true" /> : null}
             {option.label}
             {option.count !== undefined ? (
               <span className={cn("ml-1.5 rounded-full px-1.5 text-xs font-bold", selected ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500")}>

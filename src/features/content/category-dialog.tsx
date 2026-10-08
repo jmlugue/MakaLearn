@@ -140,7 +140,8 @@ export function CategoryDialog({
                       </span>
                       <span className="flex items-center gap-1 px-2 pb-2">
                         <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">{item.label}</span>
-                        <KindBadge kind={item.contentType} className="px-1 text-[8px]" />
+                        {/* Phones: no badge, so the name has room (the tile stripe already shows the kind). */}
+                        <KindBadge kind={item.contentType} className="hidden px-1 text-[8px] sm:inline-flex" />
                       </span>
                     </button>
                   );

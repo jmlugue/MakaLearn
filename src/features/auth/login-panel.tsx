@@ -148,7 +148,7 @@ export function LoginPanel() {
     <div className="w-full">
       <div className="mb-7">
         <p className="text-base font-bold text-blue-600">Welcome back</p>
-        <h1 className="mt-3 text-4xl font-black tracking-[-0.035em] text-ink">Sign in to your account</h1>
+        <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] text-ink sm:text-4xl">Sign in to your account</h1>
         <p className="mt-3 text-base leading-7 text-slate-600">
           Enter your school email and password to continue.
         </p>

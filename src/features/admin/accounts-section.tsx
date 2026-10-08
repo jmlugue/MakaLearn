@@ -287,13 +287,14 @@ export function AccountsSection({
       </div>
 
       <Panel>
-        <div className="overflow-x-auto clean-scrollbar">
-          <table className="w-full min-w-[640px] text-left text-sm">
+        <div className="relative overflow-x-auto clean-scrollbar">
+          {/* Phones: Name and the menu only; role and status show under the email. */}
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-blue-100 bg-[#f8fbff] text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Status</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Role</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Status</th>
                 <th className="w-14 px-4 py-3">
                   <span className="sr-only">Actions</span>
                 </th>
@@ -307,7 +308,7 @@ export function AccountsSection({
                   const isSelf = account.id === currentUserId;
                   return (
                     <tr key={account.id} className="border-t border-slate-100 first:border-t-0 hover:bg-blue-50/40">
-                      <td className="px-4 py-3">
+                      <td className="w-full max-w-0 px-4 py-3">
                         <div className="flex items-center gap-3">
                           <Avatar name={account.name} />
                           <div className="min-w-0">
@@ -316,13 +317,17 @@ export function AccountsSection({
                               {isSelf ? <span className="ml-2 text-xs font-medium text-slate-400">(you)</span> : null}
                             </p>
                             <p className="truncate text-slate-500">{account.email}</p>
+                            <div className="mt-1.5 flex flex-wrap gap-1.5 sm:hidden">
+                              <RoleBadge role={account.role} />
+                              <StatusBadge status={account.status} />
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="hidden px-4 py-3 sm:table-cell">
                         <RoleBadge role={account.role} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="hidden px-4 py-3 sm:table-cell">
                         <StatusBadge status={account.status} />
                       </td>
                       <td className="px-4 py-3 text-right">

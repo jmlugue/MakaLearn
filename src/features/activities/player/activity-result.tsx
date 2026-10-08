@@ -78,19 +78,20 @@ export function ActivityResultModal({
           <p className="text-2xl font-black text-[#10285e] sm:text-3xl">
             Score {correct} / {total}
           </p>
-          <div className="flex flex-wrap justify-center gap-3">
+          {/* Phones: smaller cards in one row, so the whole pop-up fits without scrolling past Maki. */}
+          <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
             {questions.map((question) => (
               <StudentPictureCard
                 key={question.id}
                 value={question.answer}
                 learningItems={learningItems}
                 className={cn(
-                  "w-24 sm:w-28",
+                  "w-14 sm:w-28",
                   scored[question.id] ? "border-emerald-400" : "border-rose-300",
                   highlightedQuestionId === question.id && "ring-8 ring-sky-200"
                 )}
               >
-                <StudentResultBadge tone={scored[question.id] ? "correct" : "wrong"} />
+                <StudentResultBadge tone={scored[question.id] ? "correct" : "wrong"} compact />
               </StudentPictureCard>
             ))}
           </div>

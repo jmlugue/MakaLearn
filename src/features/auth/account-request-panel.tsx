@@ -73,7 +73,7 @@ export function AccountRequestPanel() {
     <div className="w-full">
       <div className="mb-7">
         <p className="text-base font-bold text-blue-600">Request access</p>
-        <h1 className="mt-3 text-4xl font-black tracking-[-0.035em] text-ink">Create a teacher account</h1>
+        <h1 className="mt-3 text-3xl font-black tracking-[-0.035em] text-ink sm:text-4xl">Create a teacher account</h1>
         <p className="mt-3 text-base leading-7 text-slate-600">
           Send your details to a MakaLearn admin for approval.
         </p>

@@ -802,9 +802,10 @@ export function OverviewSection({
       </Tile>
 
       {/* Activities & lessons: two clickable rows with icon, count, and a plain description */}
-      <Tile index={3} className="xl:col-span-3">
+      {/* Phones and tablets: full width with the two rows side by side, so it does not sit alone in half the grid. */}
+      <Tile index={3} className="sm:col-span-2 xl:col-span-3">
         <TileHeader icon={GraduationCap} title="Activities & collections" />
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
           <Link
             href="/activities"
             className={cn(

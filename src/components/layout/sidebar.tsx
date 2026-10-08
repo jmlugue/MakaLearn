@@ -32,8 +32,11 @@ export function Sidebar() {
   const [hovered, setHovered] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Tablets have no hover: a tap on the logo opens the names, a tap anywhere else closes them.
+  const [tapped, setTapped] = useState(false);
   const timerRef = useRef<number | null>(null);
-  const expanded = hovered || focusWithin || menuOpen;
+  const asideRef = useRef<HTMLElement | null>(null);
+  const expanded = hovered || focusWithin || menuOpen || tapped;
 
   const topItems = isStudentMode ? studentNavItems : user.role === "admin" ? [adminNavItem, ...mainNavItems] : mainNavItems;
 
@@ -45,7 +48,17 @@ export function Sidebar() {
   useEffect(() => {
     setHovered(false);
     setFocusWithin(false);
+    setTapped(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!tapped) return;
+    function closeOnOutsideTap(event: PointerEvent) {
+      if (!asideRef.current?.contains(event.target as Node)) setTapped(false);
+    }
+    document.addEventListener("pointerdown", closeOnOutsideTap);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideTap);
+  }, [tapped]);
 
   function scheduleHover(next: boolean) {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
@@ -86,22 +99,37 @@ export function Sidebar() {
 
   return (
     <aside
-      onMouseEnter={() => scheduleHover(true)}
-      onMouseLeave={() => scheduleHover(false)}
+      ref={asideRef}
+      // Pointer events, mouse only: a finger tap must not leave the rail open as if hovered.
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse") scheduleHover(true);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === "mouse") scheduleHover(false);
+      }}
       onFocus={handleFocus}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusWithin(false);
       }}
       className={cn(
-        "glass-panel-strong fixed bottom-4 left-4 top-4 z-40 hidden flex-col rounded-[1.75rem] border px-3 py-4 transition-[width,box-shadow] duration-200 ease-out lg:flex",
+        "glass-panel-strong fixed bottom-4 left-4 top-4 z-40 hidden flex-col rounded-[1.75rem] border px-3 py-4 transition-[width,box-shadow] duration-200 ease-out md:flex",
         expanded ? "w-64 shadow-[0_26px_70px_rgba(30,64,175,0.22)]" : "w-20"
       )}
       aria-label="Main navigation"
     >
-      {/* Logo is decorative only; it does not link back to the landing page. */}
-      <div className="mb-6 ml-1 flex w-12 items-center">
+      {/* The logo does not link back to the landing page; on touch screens it opens and closes the menu names. */}
+      <button
+        type="button"
+        onPointerUp={(event) => {
+          if (event.pointerType !== "mouse") setTapped((open) => !open);
+        }}
+        className="mb-6 ml-1 flex w-12 items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
+        aria-label={expanded ? "Hide menu names" : "Show menu names"}
+        aria-expanded={expanded}
+        tabIndex={-1}
+      >
         <BrandLogo markClassName="h-12 w-12" />
-      </div>
+      </button>
 
       <nav className="flex flex-1 flex-col gap-1.5">
         {topItems.map(renderItem)}

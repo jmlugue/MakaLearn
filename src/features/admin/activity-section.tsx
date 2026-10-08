@@ -190,26 +190,28 @@ export function ActivitySection({
           onChange={onRangeChange}
           options={(Object.keys(logRangeLabels) as LogRange[]).map((value) => ({ value, label: logRangeLabels[value] }))}
         />
-        <div className="ml-auto flex min-w-0 flex-1 justify-end">
+        <div className="flex min-w-0 flex-1 basis-full justify-end sm:ml-auto sm:basis-0">
           <SearchInput value={search} onChange={setSearch} placeholder="Search user, action, or record" label="Search activity" />
         </div>
       </div>
 
       <Panel>
-        <div className="overflow-x-auto clean-scrollbar">
-          <table className="w-full min-w-[720px] table-fixed text-left text-sm">
+        <div className="relative overflow-x-auto clean-scrollbar">
+          {/* Phones: the action sits under the name. Tablets: the record sits under the action. Desktop: four columns. */}
+          <table className="w-full table-fixed text-left text-sm">
             <colgroup>
-              <col className="w-28" />
-              <col className="w-56" />
-              <col className="w-72" />
-              <col />
+              <col className="w-24 sm:w-28" />
+              <col className="sm:w-56" />
+              {/* Zero width on phones (not hidden): the day rows span all four columns. */}
+              <col className="w-0 sm:w-auto lg:w-72" />
+              <col className="w-0 lg:w-auto" />
             </colgroup>
             <thead className="border-b border-blue-100 bg-[#f8fbff] text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3">Date &amp; Time</th>
                 <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">Action</th>
-                <th className="px-4 py-3">Record</th>
+                <th className="hidden px-4 py-3 sm:table-cell">Action</th>
+                <th className="hidden px-4 py-3 lg:table-cell">Record</th>
               </tr>
             </thead>
             <tbody>
@@ -231,14 +233,18 @@ export function ActivitySection({
                         </tr>
                       ) : null}
                       <tr onClick={() => setOpenLogId(log.id)} className="cursor-pointer border-t border-slate-100 hover:bg-blue-50/60">
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-500">{timeLabel(log.createdAt)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 align-top text-slate-500 sm:align-middle">{timeLabel(log.createdAt)}</td>
                         <td className="px-4 py-3">
                           <span className="flex min-w-0 items-center gap-2">
                             <Avatar name={log.actorName} className="h-7 w-7 text-[10px]" />
                             <span className="truncate font-semibold text-ink">{log.actorName}</span>
                           </span>
+                          <span className="mt-1 flex items-start gap-2 text-xs leading-5 text-slate-600 sm:hidden">
+                            <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${actionDot[log.action]}`} aria-hidden="true" />
+                            {sentence}
+                          </span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 sm:table-cell">
                           {/* Real button so the details pop-up opens from the keyboard too. */}
                           <button
                             type="button"
@@ -251,8 +257,13 @@ export function ActivitySection({
                             <span className={`h-2 w-2 shrink-0 rounded-full ${actionDot[log.action]}`} aria-hidden="true" />
                             {sentence}
                           </button>
+                          {isSession ? null : (
+                            <p className="mt-0.5 truncate pl-4 text-xs text-slate-500 lg:hidden" title={log.targetTitle}>
+                              {log.targetTitle}
+                            </p>
+                          )}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 lg:table-cell">
                           {isSession ? (
                             <span className="text-slate-400">-</span>
                           ) : (

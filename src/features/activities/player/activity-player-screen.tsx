@@ -71,12 +71,13 @@ export function ActivityPlayerScreen({
             <X className="h-4 w-4" aria-hidden="true" />
             Exit
           </Button>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+          {/* Phones: the name gets its own row under the controls instead of being cut to a few letters. */}
+          <div className="order-last flex min-w-0 basis-full items-center gap-2 sm:order-none sm:flex-1 sm:basis-0">
             <p className="truncate text-lg font-extrabold tracking-[-0.02em] text-ink">{title}</p>
             <ActivityTypeBadge type={type} className="hidden shrink-0 sm:inline-flex" />
           </div>
           {progress ? (
-            <span className="inline-flex items-baseline gap-1 rounded-full bg-blue-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm">
+            <span className="ml-auto inline-flex items-baseline gap-1 rounded-full bg-blue-600 px-3.5 py-1.5 sm:ml-0 text-sm font-semibold text-white shadow-sm">
               <span className="text-base font-black">{progress.current}</span> of {progress.total} done
             </span>
           ) : null}
