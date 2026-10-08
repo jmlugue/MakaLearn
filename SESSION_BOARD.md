@@ -34,6 +34,16 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-04-vercel-production
+- Outcome: Deployed GitHub `main` commit `39668a1` to Vercel production at `https://makalearn.vercel.app` as project `maka-learn/makalearn`. Configured Node.js 22, Mumbai functions (`bom1`), GitHub `main` production tracking, and the seven approved Production/Preview variables; Supabase's temporary password was not uploaded. Updated Supabase Auth Site URL and kept production plus localhost redirect patterns.
+- Files/areas: Repaired `package-lock.json` clean-install metadata and aligned `scripts/test-account-requests.mjs` with the intentionally hidden login link; Vercel project/settings/environment variables, Supabase Auth URL configuration, and this session board. No database schema or application behavior changed.
+- Verification: Clean npm 10 install, all non-live suites, TypeScript, lint, live material validation, production build, and tracked-secret scan passed. Vercel build is Ready from commit `39668a1` with functions in `bom1`; teacher/admin sign-in and role redirects, Supabase content/images/audio, teacher and Student Mode activity scoring, Playground, admin views, temporary content/media upload/update/delete cleanup, hosted activity-draft fallback, hosted gesture feedback, and all deployed MediaPipe/model assets passed. Vercel runtime error/warning/5xx scans were clean. The automation browser exposed no playable webcam feed, so live hand recognition could not be physically exercised; HTTPS camera activation and asset loading were verified.
+
+### 2026-10-03-invalid-activity-option
+- Outcome: Repaired the hosted Father match question after its saved distractor referenced the deleted teacher-created PECS card `try`. Replaced only that stale option with the eligible image-backed PECS `Read` card; the Father answer, prompt, activity selection, and scoring were unchanged.
+- Files/areas: Hosted `activity_items` row and this session board. No application code or schema changed.
+- Verification: `npm run validate:materials` passed with zero errors (only the existing Eat/Drink duplicate-label warnings); `npm run test:activities` passed 58 tests; TypeScript, lint, and production build passed.
+
 ### 2026-10-02-ai-regenerate-variation
 - Outcome: Repeat Inspire me with AI clicks now send each unlocked current sentence as untrusted wording to replace, ask Gemini for a meaningfully different situation with higher-but-guarded variation, reject identical returned text, and choose a different checked bank sentence if fallback is needed. Locked rows remain excluded.
 - Files/areas: Activity creator request payload, draft prompt/context/validation/fallback and temperature, API request handling, focused tests, README/CLAUDE, and this session board. Activity options, players, scoring, and gestures were unchanged.
