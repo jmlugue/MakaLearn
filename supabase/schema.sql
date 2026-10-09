@@ -97,9 +97,22 @@ create table public.learning_items (
   gesture_media_url text,
   audio_url text,
   tags text[] not null default '{}',
+  playground_preparation_status text check (
+    playground_preparation_status is null
+    or playground_preparation_status in ('pending', 'processing', 'ready', 'unsupported')
+  ),
+  msav_profile jsonb,
+  playground_prepared_at timestamptz,
+  playground_classifier_model text,
+  playground_last_attempt_at timestamptz,
+  playground_preparation_error text,
   created_by text not null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint learning_items_msav_ready_profile_check check (
+    playground_preparation_status <> 'ready'
+    or (msav_profile is not null and jsonb_typeof(msav_profile) = 'object')
+  )
 );
 
 create table public.media_assets (
@@ -208,6 +221,8 @@ create table public.audit_logs (
 create index categories_created_by_idx on public.categories(created_by);
 create index learners_assigned_teacher_idx on public.learners(assigned_teacher_id);
 create index learning_items_category_idx on public.learning_items(category_id);
+create index learning_items_playground_status_idx on public.learning_items(playground_preparation_status)
+  where playground_preparation_status is not null;
 create index media_assets_related_item_idx on public.media_assets(related_item_id);
 create index activity_prompt_generations_lookup_idx
   on public.activity_prompt_generations(activity_type, material_hash, prompt_template_version, version desc);

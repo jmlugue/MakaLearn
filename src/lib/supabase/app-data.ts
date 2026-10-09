@@ -118,6 +118,12 @@ function mapLearningItem(row: LearningItemRow): LearningItem {
     gestureMediaUrl: row.gesture_media_url ?? undefined,
     audioUrl: row.audio_url ?? undefined,
     sentenceRole: row.sentence_role ?? undefined,
+    playgroundPreparationStatus: row.playground_preparation_status ?? undefined,
+    msavProfile: row.msav_profile ?? undefined,
+    playgroundPreparedAt: row.playground_prepared_at ?? undefined,
+    playgroundClassifierModel: row.playground_classifier_model ?? undefined,
+    playgroundLastAttemptAt: row.playground_last_attempt_at ?? undefined,
+    playgroundPreparationError: row.playground_preparation_error ?? undefined,
     tags: row.tags,
     createdBy: row.created_by,
     updatedAt: row.updated_at
@@ -370,6 +376,12 @@ export async function insertLearningItem(item: LearningItem) {
         gesture_media_url: item.gestureMediaUrl ?? null,
         audio_url: item.audioUrl ?? null,
         sentence_role: item.sentenceRole ?? null,
+        playground_preparation_status: item.playgroundPreparationStatus ?? null,
+        msav_profile: item.msavProfile ?? null,
+        playground_prepared_at: item.playgroundPreparedAt ?? null,
+        playground_classifier_model: item.playgroundClassifierModel ?? null,
+        playground_last_attempt_at: item.playgroundLastAttemptAt ?? null,
+        playground_preparation_error: item.playgroundPreparationError ?? null,
         tags: item.tags,
         created_by: item.createdBy,
         updated_at: item.updatedAt
@@ -393,6 +405,12 @@ export async function updateLearningItemDetails(item: LearningItem) {
         description: item.description,
         instruction: item.instruction,
         sentence_role: item.sentenceRole ?? null,
+        playground_preparation_status: item.playgroundPreparationStatus ?? null,
+        msav_profile: item.msavProfile ?? null,
+        playground_prepared_at: item.playgroundPreparedAt ?? null,
+        playground_classifier_model: item.playgroundClassifierModel ?? null,
+        playground_last_attempt_at: item.playgroundLastAttemptAt ?? null,
+        playground_preparation_error: item.playgroundPreparationError ?? null,
         tags: item.tags,
         updated_at: item.updatedAt
       })

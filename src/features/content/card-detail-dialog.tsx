@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, ReactNode, useEffect, useId, useState } from "react";
-import { Loader2, Pencil, Trash2, Upload, X } from "lucide-react";
+import { CheckCircle2, Clock3, Loader2, Pencil, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
@@ -23,6 +23,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { limitLabel, sizeError } from "@/utils/media-limits";
 import { acceptFor, extensionError, fileNameError } from "@/utils/media-filename";
 import { RenameFileDialog } from "@/features/content/rename-file-dialog";
+import { isBuiltInMsavLabel } from "@/utils/msav-material-profile";
 import type { Category, LearningItem, MediaAsset } from "@/types";
 
 export type CardTextValues = { label: string; categoryId: string; description: string };
@@ -35,6 +36,7 @@ export function CardDetailDialog({
   canManage,
   onClose,
   onSaveText,
+  onPrepareForPlayground,
   onUpload,
   onRemoveMedia,
   onDelete
@@ -46,6 +48,7 @@ export function CardDetailDialog({
   canManage: boolean;
   onClose: () => void;
   onSaveText: (item: LearningItem, values: CardTextValues) => Promise<boolean>;
+  onPrepareForPlayground: (item: LearningItem) => Promise<void>;
   onUpload: (item: LearningItem, file: File, config: UploadConfig) => Promise<void>;
   onRemoveMedia: (item: LearningItem, type: MediaAsset["type"]) => void;
   onDelete: (item: LearningItem) => void;
@@ -56,6 +59,7 @@ export function CardDetailDialog({
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
+  const [preparing, setPreparing] = useState(false);
 
   useEffect(() => {
     setEditing(false);
@@ -89,6 +93,18 @@ export function CardDetailDialog({
   const categoryName = fileCategoryName(category);
   // A built-in gesture keeps its hidden category unless the teacher picks a real one.
   const categoryChoices = visibleCategories(categories);
+  const builtInPlaygroundCard = Boolean(item && item.contentType === "pecs" && isBuiltInMsavLabel(item.label));
+  const playgroundStatus = builtInPlaygroundCard ? "ready" : item?.playgroundPreparationStatus;
+
+  async function prepareForPlayground() {
+    if (!item || preparing) return;
+    setPreparing(true);
+    try {
+      await onPrepareForPlayground(item);
+    } finally {
+      setPreparing(false);
+    }
+  }
 
   const footer = item ? (
     editing ? (
@@ -172,6 +188,39 @@ export function CardDetailDialog({
                 <p className="mt-3 text-sm leading-6 text-slate-600">{item.description}</p>
               </div>
             )}
+
+            {item.contentType === "pecs" ? (
+              <div className={cn("p-4", glassBoxClass)}>
+                <SectionLabel className="mb-2">Playground</SectionLabel>
+                {playgroundStatus === "ready" ? (
+                  <p className="flex items-start gap-2 text-sm leading-6 text-emerald-800">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span><span className="font-bold">Ready for Playground.</span> This material can be checked by MSAV.</span>
+                  </p>
+                ) : playgroundStatus === "unsupported" ? (
+                  <p className="text-sm leading-6 text-slate-600">
+                    This type of material is not currently supported in Playground.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="flex min-w-0 flex-1 items-start gap-2 text-sm leading-6 text-amber-800">
+                      <Clock3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span><span className="font-bold">Not ready for Playground.</span> Try preparing it again later.</span>
+                    </p>
+                    {canManage ? (
+                      <Button type="button" variant="outline" size="sm" disabled={preparing || playgroundStatus === "processing"} onClick={prepareForPlayground}>
+                        {preparing || playgroundStatus === "processing" ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        {preparing || playgroundStatus === "processing" ? "Preparing..." : "Try preparing again"}
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             <div className={cn("p-4", glassBoxClass)}>
               <SectionLabel className="mb-3">Files</SectionLabel>

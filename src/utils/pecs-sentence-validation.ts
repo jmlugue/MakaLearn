@@ -1,9 +1,10 @@
-import type { SentenceRole } from "@/types";
+import type { MsavMaterialProfile, MsavSemanticTrait, SentenceRole } from "@/types";
 
 export type PecsSentenceCard = {
   id: string;
   label: string;
   sentenceRole?: SentenceRole;
+  msavProfile?: MsavMaterialProfile;
 };
 
 export type PecsConstructionType = "sentence" | "phrase" | "word" | "expression";
@@ -54,15 +55,51 @@ function titleCaseLabel(label: string) {
   return label.replace(/^./, (character) => character.toUpperCase());
 }
 
-function rolesMatch(left: SentenceRole[], right: SentenceRole[]) {
-  return left.length === right.length && left.every((role, index) => role === right[index]);
+function rolesOf(card: PecsSentenceCard) {
+  return card.msavProfile?.roles.length ? card.msavProfile.roles : card.sentenceRole ? [card.sentenceRole] : [];
+}
+
+function hasRole(card: PecsSentenceCard, role: SentenceRole) {
+  return rolesOf(card).includes(role);
+}
+
+function hasTrait(card: PecsSentenceCard, trait: MsavSemanticTrait) {
+  return card.msavProfile?.traits.includes(trait) ?? false;
+}
+
+function rolesMatch(cards: PecsSentenceCard[], expected: SentenceRole[]) {
+  return cards.length === expected.length && cards.every((card, index) => hasRole(card, expected[index]));
+}
+
+function isBaseVerbSubject(card: PecsSentenceCard, label: string) {
+  return hasTrait(card, "base_subject") || baseVerbSubjectLabels.has(label);
+}
+
+function isNamedPerson(card: PecsSentenceCard, label: string) {
+  return hasTrait(card, "named_person") || namedPersonLabels.has(label);
+}
+
+function expectedBeVerb(card: PecsSentenceCard, label: string) {
+  return card.msavProfile?.beVerbForm ?? expectedBeVerbBySubject[label];
+}
+
+function isEdible(card: PecsSentenceCard, label: string) {
+  return hasTrait(card, "edible") || edibleObjectLabels.has(label);
+}
+
+function isDrinkable(card: PecsSentenceCard, label: string) {
+  return hasTrait(card, "drinkable") || drinkableObjectLabels.has(label);
+}
+
+function isConsumable(card: PecsSentenceCard, label: string) {
+  return isEdible(card, label) || isDrinkable(card, label);
 }
 
 function classifySingleCard(card: PecsSentenceCard): PecsConstructionType {
   const label = normalizeLabel(card.label);
-  if (card.sentenceRole === "command") return "sentence";
+  if (hasRole(card, "command")) return "sentence";
   // Good morning and Thank you are expressions, even though they are two words.
-  if (["greeting", "polite_word", "response", "safety_word"].includes(card.sentenceRole ?? "")) return "expression";
+  if (["greeting", "polite_word", "response", "safety_word"].some((role) => hasRole(card, role as SentenceRole))) return "expression";
   if (label.includes(" ")) return "phrase";
   return "word";
 }
@@ -88,9 +125,9 @@ function validResult(
 
 function canActAsPredicate(card: PecsSentenceCard, label: string) {
   return (
-    (card.sentenceRole === "verb" && label !== "want") ||
-    card.sentenceRole === "command" ||
-    (card.sentenceRole === "object" && label === "rest")
+    (hasRole(card, "verb") && label !== "want") ||
+    hasRole(card, "command") ||
+    (hasRole(card, "object") && label === "rest")
   );
 }
 
@@ -103,31 +140,31 @@ function hasCompatibleActionTarget(
 ) {
   if (!canActAsPredicate(predicateCard, predicateLabel)) return false;
 
-  if (predicateLabel === "eat") return edibleObjectLabels.has(targetLabel);
-  if (predicateLabel === "drink") return drinkableObjectLabels.has(targetLabel);
-  if (predicateLabel === "help") {
-    return targetCard.sentenceRole === "subject" && targetLabel !== "i" && targetLabel !== actorLabel;
+  const predicateKind = predicateCard.msavProfile?.predicateKind ?? predicateLabel;
+  if (predicateKind === "eat") return isEdible(targetCard, targetLabel);
+  if (predicateKind === "drink") return isDrinkable(targetCard, targetLabel);
+  if (predicateKind === "help") {
+    return hasRole(targetCard, "subject") && targetLabel !== "i" && targetLabel !== actorLabel;
   }
 
   return false;
 }
 
 function isAllowedBeComplement(card: PecsSentenceCard, label: string) {
-  return card.sentenceRole === "emotion" || beComplementLabels.has(label);
+  return hasRole(card, "emotion") || hasTrait(card, "be_complement") || beComplementLabels.has(label);
 }
 
 function isAllowedWantTarget(card: PecsSentenceCard, label: string) {
-  return card.sentenceRole === "object" || label === "more" || label === "help";
+  return hasRole(card, "object") || hasTrait(card, "requestable") || label === "more" || label === "help";
 }
 
 function validateCoreConstruction(cards: PecsSentenceCard[]): PecsSentenceValidationResult | undefined {
-  const roles = cards.map((card) => card.sentenceRole as SentenceRole);
   const labels = cards.map((card) => normalizeLabel(card.label));
 
   if (
     cards.length === 2 &&
-    addressedExpressionLabels.has(labels[0]) &&
-    namedPersonLabels.has(labels[1])
+    (hasTrait(cards[0], "addressed_expression") || addressedExpressionLabels.has(labels[0])) &&
+    isNamedPerson(cards[1], labels[1])
   ) {
     return validResult("expression", "Addressed Expression", cards);
   }
@@ -141,19 +178,19 @@ function validateCoreConstruction(cards: PecsSentenceCard[]): PecsSentenceValida
 
   if (
     cards.length === 3 &&
-    roles[0] === "subject" &&
-    roles[1] === "be_verb" &&
+    hasRole(cards[0], "subject") &&
+    hasRole(cards[1], "be_verb") &&
     isAllowedBeComplement(cards[2], labels[2]) &&
-    expectedBeVerbBySubject[labels[0]] === labels[1]
+    expectedBeVerb(cards[0], labels[0]) === labels[1]
   ) {
     return validResult("sentence", "Describing Sentence", cards);
   }
 
   if (
     cards.length === 3 &&
-    roles[0] === "subject" &&
+    hasRole(cards[0], "subject") &&
     labels[1] === "want" &&
-    baseVerbSubjectLabels.has(labels[0]) &&
+    isBaseVerbSubject(cards[0], labels[0]) &&
     isAllowedWantTarget(cards[2], labels[2])
   ) {
     return validResult("sentence", "Basic Request", cards);
@@ -161,8 +198,8 @@ function validateCoreConstruction(cards: PecsSentenceCard[]): PecsSentenceValida
 
   if (
     cards.length === 3 &&
-    roles[0] === "subject" &&
-    baseVerbSubjectLabels.has(labels[0]) &&
+    hasRole(cards[0], "subject") &&
+    isBaseVerbSubject(cards[0], labels[0]) &&
     hasCompatibleActionTarget(cards[1], labels[1], cards[2], labels[2], labels[0])
   ) {
     return validResult("sentence", "Action Sentence", cards);
@@ -170,8 +207,8 @@ function validateCoreConstruction(cards: PecsSentenceCard[]): PecsSentenceValida
 
   if (
     cards.length === 2 &&
-    roles[0] === "subject" &&
-    baseVerbSubjectLabels.has(labels[0]) &&
+    hasRole(cards[0], "subject") &&
+    isBaseVerbSubject(cards[0], labels[0]) &&
     canActAsPredicate(cards[1], labels[1])
   ) {
     return validResult("sentence", "Intransitive Action", cards);
@@ -194,7 +231,7 @@ function validateCoreConstruction(cards: PecsSentenceCard[]): PecsSentenceValida
   if (
     cards.length === 2 &&
     labels[1] === "please" &&
-    (canActAsPredicate(cards[0], labels[0]) || postpositivePleaseLabels.has(labels[0]))
+    (canActAsPredicate(cards[0], labels[0]) || hasTrait(cards[0], "postpositive_please") || postpositivePleaseLabels.has(labels[0]))
   ) {
     const type = canActAsPredicate(cards[0], labels[0]) ? "sentence" : "phrase";
     return validResult(type, "Polite Request", cards);
@@ -208,11 +245,15 @@ function validateCoreConstruction(cards: PecsSentenceCard[]): PecsSentenceValida
     return validResult("sentence", "Polite Command", cards);
   }
 
-  if (cards.length === 2 && labels[0] === "more" && moreTargetLabels.has(labels[1])) {
+  if (cards.length === 2 && labels[0] === "more" && (hasTrait(cards[1], "more_target") || moreTargetLabels.has(labels[1]))) {
     return validResult("phrase", "Quantity Phrase", cards);
   }
 
-  if (cards.length === 2 && labels[0] === "hot" && consumableObjectLabels.has(labels[1])) {
+  if (
+    cards.length === 2 &&
+    (labels[0] === "hot" || hasTrait(cards[0], "consumable_description")) &&
+    isConsumable(cards[1], labels[1])
+  ) {
     return validResult("phrase", "Describing Phrase", cards);
   }
 
@@ -224,8 +265,8 @@ function validateCombinedConstruction(cards: PecsSentenceCard[]) {
   if (coreResult) return coreResult;
 
   const labels = cards.map((card) => normalizeLabel(card.label));
-  const beginsWithGreeting = cards[0]?.sentenceRole === "greeting";
-  const greetedPersonLength = beginsWithGreeting && namedPersonLabels.has(labels[1]) ? 2 : 1;
+  const beginsWithGreeting = Boolean(cards[0] && hasRole(cards[0], "greeting"));
+  const greetedPersonLength = beginsWithGreeting && cards[1] && isNamedPerson(cards[1], labels[1]) ? 2 : 1;
 
   if (beginsWithGreeting && cards.length - greetedPersonLength >= 2) {
     const followingResult = validateCoreConstruction(cards.slice(greetedPersonLength));
@@ -234,7 +275,7 @@ function validateCombinedConstruction(cards: PecsSentenceCard[]) {
     }
   }
 
-  if (namedPersonLabels.has(labels[0]) && cards.length >= 3) {
+  if (cards[0] && isNamedPerson(cards[0], labels[0]) && cards.length >= 3) {
     const followingResult = validateCoreConstruction(cards.slice(1));
     if (followingResult?.constructionType === "sentence") {
       return validResult("sentence", "Addressed Sentence", cards);
@@ -245,47 +286,47 @@ function validateCombinedConstruction(cards: PecsSentenceCard[]) {
 }
 
 function invalidFeedback(cards: PecsSentenceCard[]) {
-  const roles = cards.map((card) => card.sentenceRole as SentenceRole);
   const labels = cards.map((card) => normalizeLabel(card.label));
 
   if (
     cards.length === 3 &&
-    roles[0] === "subject" &&
-    roles[1] === "be_verb" &&
+    hasRole(cards[0], "subject") &&
+    hasRole(cards[1], "be_verb") &&
     isAllowedBeComplement(cards[2], labels[2])
   ) {
-    const expectedBeVerb = expectedBeVerbBySubject[labels[0]];
-    if (expectedBeVerb) return `Use ${titleCaseLabel(expectedBeVerb)} after ${cards[0].label}.`;
+    const requiredBeVerb = expectedBeVerb(cards[0], labels[0]);
+    if (requiredBeVerb) return `Use ${titleCaseLabel(requiredBeVerb)} after ${cards[0].label}.`;
   }
 
-  if (labels[1] === "want" && (rolesMatch(roles, ["subject", "verb"]) || cards.length === 3)) {
-    if (!baseVerbSubjectLabels.has(labels[0])) return "Try I or You before Want.";
+  if (labels[1] === "want" && (rolesMatch(cards, ["subject", "verb"]) || cards.length === 3)) {
+    if (!isBaseVerbSubject(cards[0], labels[0])) return "Try I or You before Want.";
     if (cards.length === 2) return "Add one more card.";
     return "Try a thing, More, or Help after Want.";
   }
 
   if (
-    roles[0] === "subject" &&
+    hasRole(cards[0], "subject") &&
     cards[1] &&
     canActAsPredicate(cards[1], labels[1]) &&
-    !baseVerbSubjectLabels.has(labels[0])
+    !isBaseVerbSubject(cards[0], labels[0])
   ) {
     return `Try I or You before ${cards[1].label}.`;
   }
 
-  const predicateIndex = labels[0] === "please" ? 1 : roles[0] === "subject" ? 1 : 0;
+  const predicateIndex = labels[0] === "please" ? 1 : hasRole(cards[0], "subject") ? 1 : 0;
   const targetIndex = predicateIndex + 1;
-  if (cards[targetIndex] && labels[predicateIndex] === "eat" && !edibleObjectLabels.has(labels[targetIndex])) {
+  const predicateKind = cards[predicateIndex]?.msavProfile?.predicateKind ?? labels[predicateIndex];
+  if (cards[targetIndex] && predicateKind === "eat" && !isEdible(cards[targetIndex], labels[targetIndex])) {
     return "Try a food card after Eat.";
   }
-  if (cards[targetIndex] && labels[predicateIndex] === "drink" && !drinkableObjectLabels.has(labels[targetIndex])) {
-    return "Try Water or Milk after Drink.";
+  if (cards[targetIndex] && predicateKind === "drink" && !isDrinkable(cards[targetIndex], labels[targetIndex])) {
+    return "Try a drink card after Drink.";
   }
-  if (cards[targetIndex] && labels[predicateIndex] === "help" && cards[targetIndex].sentenceRole !== "subject") {
+  if (cards[targetIndex] && predicateKind === "help" && !hasRole(cards[targetIndex], "subject")) {
     return "Try a person card after Help.";
   }
 
-  if (rolesMatch(roles, ["polite_word", "command"]) && labels[0] !== "please") {
+  if (rolesMatch(cards, ["polite_word", "command"]) && labels[0] !== "please") {
     return "Use Please before a command.";
   }
 
@@ -314,14 +355,14 @@ export function validatePecsSentence(
 
   if (cards.length === 1) {
     // Am, Is, and Are mean nothing on their own.
-    if (cards[0].sentenceRole === "be_verb") {
+    if (hasRole(cards[0], "be_verb")) {
       return { isValid: false, generatedSentence, feedback: "Add who it is about, and a word like Happy." };
     }
     const constructionType = classifySingleCard(cards[0]);
     return validResult(constructionType, "Single Card", cards);
   }
 
-  if (cards.some((card) => !card.sentenceRole)) {
+  if (cards.some((card) => !rolesOf(card).length)) {
     return { isValid: false, generatedSentence, feedback: "Try another card." };
   }
 

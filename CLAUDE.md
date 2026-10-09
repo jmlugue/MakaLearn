@@ -1034,3 +1034,11 @@ The owner asked for three layouts like a CSS media query diagram. Rules live in 
   landscape), gesture practice at 1100px. `npm run build` passes.
 - Edit material form checked signed in as a teacher (phone and tablet): fits, no changes needed.
 - Not checked: real touch devices, the camera.
+## Oct 9: MSAV preparation for new teacher materials
+
+- Existing PECS manifest cards continue to use the fixed source-controlled MSAV rules and are never sent to Gemini or bulk reclassified.
+- New non-manifest PECS materials are saved with a Playground preparation state. MakaLearn attempts one server-side Gemini classification after creation; uploaded media is not sent.
+- A successful, locally validated profile makes the material eligible for Playground. Pending, processing, and unsupported new materials are excluded from the picker.
+- Failed preparation has no automatic retry. Teachers use **Try preparing again** from the material details. A 60-second server cooldown prevents duplicate calls.
+- Gemini only maps new materials into the existing roles and semantic traits. The deterministic MSAV validator still decides every Playground result without calling Gemini.
+- Configuration uses the separate server-only `GEMINI_MSAV_API_KEY` and optional `GEMINI_MSAV_MODEL`.

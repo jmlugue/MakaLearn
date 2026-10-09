@@ -245,3 +245,32 @@ test("the owner's playground checks", () => {
   assert.equal(validateLabels(["Good morning"]).feedback, "You made a phrase.");
   assert.equal(validateLabels(["Thank you"]).feedback, "You made a phrase.");
 });
+
+test("saved MSAV profiles extend existing rules without changing built-in labels", () => {
+  const builtIn = (label) => {
+    const card = manifestByLabel.get(label);
+    assert.ok(card, `Missing manifest card: ${label}`);
+    return { id: `built-in-${label}`, label, sentenceRole: card.sentence_role };
+  };
+  const custom = (label, roles, traits, extra = {}) => ({
+    id: `custom-${label}`,
+    label,
+    sentenceRole: roles[0],
+    msavProfile: { roles, traits, schemaVersion: 1, ...extra }
+  });
+  const check = (cards) => validatePecsSentence(cards, new Set(cards.map((card) => card.id)));
+
+  const juice = custom("Juice", ["object"], ["requestable", "drinkable", "more_target", "postpositive_please"]);
+  const mango = custom("Mango", ["object"], ["requestable", "edible", "more_target", "postpositive_please"]);
+  const nurse = custom("Nurse", ["subject"], ["named_person"], { beVerbForm: "is" });
+  const play = custom("Play", ["verb"], [], { predicateKind: "generic" });
+
+  assert.equal(check([builtIn("I"), builtIn("Want"), juice]).isValid, true);
+  assert.equal(check([builtIn("Drink"), juice]).isValid, true);
+  assert.equal(check([builtIn("Eat"), mango]).isValid, true);
+  assert.equal(check([builtIn("Eat"), juice]).isValid, false);
+  assert.equal(check([builtIn("Hello"), nurse]).isValid, true);
+  assert.equal(check([nurse, builtIn("Is"), builtIn("Happy")]).isValid, true);
+  assert.equal(check([builtIn("I"), play]).isValid, true);
+  assert.equal(check([play, mango]).isValid, false);
+});

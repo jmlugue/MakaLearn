@@ -38,6 +38,7 @@ import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { placeLibraryItem } from "@/utils/playground-board";
 import { validatePecsSentence, type PecsSentenceValidationResult } from "@/utils/pecs-sentence-validation";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
+import { isPlaygroundReady } from "@/utils/msav-material-profile";
 import { normalizeLearningSpeechText } from "@/utils/speech-text";
 import { createUtterance } from "@/lib/speech";
 import { playCue } from "@/lib/sound-cues";
@@ -50,6 +51,7 @@ type PlaygroundCard = PecsManifestCard & {
   learningItemId?: string;
   audioUrl?: string;
   imageUrl: string;
+  msavProfile?: LearningItem["msavProfile"];
 };
 
 const allCategoriesLabel = "All cards";
@@ -115,6 +117,7 @@ function buildPlaygroundCards(items: LearningItem[]): PlaygroundCard[] {
   const manifestByLabel = new Map(pecsCardManifest.map((card) => [normalizePecsLabel(card.label), card]));
 
   return getPecsItems(ensurePecsManifestItems(items))
+    .filter(isPlaygroundReady)
     .flatMap((item) => {
       if (!item.symbolImageUrl || !isEmbeddableMediaUrl(item.symbolImageUrl)) return [];
 
@@ -124,7 +127,8 @@ function buildPlaygroundCards(items: LearningItem[]): PlaygroundCard[] {
         filename: manifestCard?.filename ?? `${item.id}.png`,
         label: item.label,
         category: manifestCard?.category ?? "Daily Needs",
-        sentenceRole: item.sentenceRole ?? manifestCard?.sentenceRole ?? "object",
+        sentenceRole: item.msavProfile?.roles[0] ?? item.sentenceRole ?? manifestCard?.sentenceRole ?? "object",
+        msavProfile: item.msavProfile,
         id: item.id,
         learningItemId: item.id,
         audioUrl: item.audioUrl && isEmbeddableMediaUrl(item.audioUrl) ? item.audioUrl : undefined,

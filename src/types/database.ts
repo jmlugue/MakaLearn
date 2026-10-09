@@ -162,6 +162,12 @@ export type Database = {
           audio_url: string | null;
           tags: string[];
           sentence_role: LearningItem["sentenceRole"] | null;
+          playground_preparation_status: LearningItem["playgroundPreparationStatus"] | null;
+          msav_profile: LearningItem["msavProfile"] | null;
+          playground_prepared_at: string | null;
+          playground_classifier_model: string | null;
+          playground_last_attempt_at: string | null;
+          playground_preparation_error: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -178,6 +184,12 @@ export type Database = {
           audio_url?: string | null;
           tags?: string[];
           sentence_role?: LearningItem["sentenceRole"] | null;
+          playground_preparation_status?: LearningItem["playgroundPreparationStatus"] | null;
+          msav_profile?: LearningItem["msavProfile"] | null;
+          playground_prepared_at?: string | null;
+          playground_classifier_model?: string | null;
+          playground_last_attempt_at?: string | null;
+          playground_preparation_error?: string | null;
           created_by: string;
           created_at?: string;
           updated_at?: string;
@@ -194,6 +206,12 @@ export type Database = {
           audio_url?: string | null;
           tags?: string[];
           sentence_role?: LearningItem["sentenceRole"] | null;
+          playground_preparation_status?: LearningItem["playgroundPreparationStatus"] | null;
+          msav_profile?: LearningItem["msavProfile"] | null;
+          playground_prepared_at?: string | null;
+          playground_classifier_model?: string | null;
+          playground_last_attempt_at?: string | null;
+          playground_preparation_error?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;

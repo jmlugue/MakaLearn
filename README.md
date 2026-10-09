@@ -153,3 +153,13 @@ Planned updates before production:
 - Gesture hand tracking is a presentation simulation. It accepts one or two visible hands and one person in the UI but does not perform real recognition.
 - The AI activity draft can use its isolated Gemini key when configured, but only after Supabase cache and usage checks pass. Gesture-practice, match, drag/drop, and local scoring do not call the activity model.
 - Playground validation is local rule-based logic, not NLP, grammar correction, or AI.
+## MSAV preparation for new materials
+
+The 50 built-in Playground cards keep their reviewed, source-controlled MSAV roles and semantic rules. They are never sent to Gemini. A newly created teacher PECS material is saved first, then MakaLearn makes one server-side classification request using `GEMINI_MSAV_API_KEY`. Only the material label, category, description, generated instruction, and tags are sent; uploaded media is not sent.
+
+If preparation succeeds, the validated profile is stored on `learning_items` and the card becomes available in Playground. If the key or provider is unavailable, the material remains in Content with a **Try preparing again** button and stays out of the Playground picker. There are no scheduled or automatic retries. Configure the optional classifier with:
+
+```env
+GEMINI_MSAV_API_KEY=
+GEMINI_MSAV_MODEL=gemini-3.5-flash-lite
+```

@@ -29,6 +29,7 @@ import { canSee, uniqueCopyTitle } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories, ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import { isNoCategory, noCategory, withNoCategory } from "@/lib/no-category";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
+import { isBuiltInMsavLabel } from "@/utils/msav-material-profile";
 import { CardDetailDialog, type CardTextValues } from "@/features/content/card-detail-dialog";
 import { CardFormDialog, type NewCardFiles, type NewCardValues } from "@/features/content/card-form-dialog";
 import { CategoriesTab } from "@/features/content/categories-tab";
@@ -206,6 +207,66 @@ export function ContentLibraryView({
     return error instanceof Error ? error.message : fallback;
   }
 
+  async function requestPlaygroundPreparation(item: LearningItem): Promise<LearningItem> {
+    if (item.contentType !== "pecs" || isBuiltInMsavLabel(item.label)) return item;
+
+    const processing: LearningItem = {
+      ...item,
+      playgroundPreparationStatus: "processing",
+      playgroundLastAttemptAt: new Date().toISOString(),
+      playgroundPreparationError: undefined
+    };
+    setItems((current) => current.map((candidate) => candidate.id === item.id ? processing : candidate));
+
+    try {
+      const response = await fetch("/api/playground-prepare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ learningItemId: item.id })
+      });
+      const result = await response.json() as {
+        status?: LearningItem["playgroundPreparationStatus"];
+        profile?: LearningItem["msavProfile"];
+        preparedAt?: string;
+        classifierModel?: string;
+        error?: string;
+      };
+
+      const next: LearningItem = result.status === "ready" && result.profile
+        ? {
+            ...processing,
+            playgroundPreparationStatus: "ready",
+            msavProfile: result.profile,
+            playgroundPreparedAt: result.preparedAt,
+            playgroundClassifierModel: result.classifierModel,
+            playgroundPreparationError: undefined
+          }
+        : {
+            ...processing,
+            playgroundPreparationStatus: result.status === "unsupported" ? "unsupported" : "pending",
+            msavProfile: undefined,
+            playgroundPreparationError: result.status === "unsupported" ? "unsupported" : "provider_unavailable"
+          };
+      setItems((current) => current.map((candidate) => candidate.id === item.id ? next : candidate));
+      return next;
+    } catch {
+      const pending = { ...processing, playgroundPreparationStatus: "pending" as const, playgroundPreparationError: "provider_unavailable" };
+      setItems((current) => current.map((candidate) => candidate.id === item.id ? pending : candidate));
+      return pending;
+    }
+  }
+
+  async function retryPlaygroundPreparation(item: LearningItem) {
+    const prepared = await requestPlaygroundPreparation(item);
+    if (prepared.playgroundPreparationStatus === "ready") {
+      notify({ title: "Ready for Playground", description: `${prepared.label} can now be used in Playground.`, tone: "success" });
+    } else if (prepared.playgroundPreparationStatus === "unsupported") {
+      notify({ title: "Not supported in Playground", description: "This material does not fit the current MSAV rules.", tone: "info" });
+    } else {
+      notify({ title: "Not ready for Playground", description: "Preparation is unavailable right now. Try again later.", tone: "info" });
+    }
+  }
+
   // Materials
 
   async function uploadToItem(item: LearningItem, file: File, config: UploadConfig) {
@@ -252,6 +313,8 @@ export function ContentLibraryView({
       description: values.description,
       instruction: createLearningItemInstruction(values.kind, values.label, values.description),
       tags: [values.kind],
+      playgroundPreparationStatus:
+        values.kind === "pecs" && !isBuiltInMsavLabel(values.label) ? "pending" : undefined,
       createdBy: user.id,
       updatedAt: new Date().toISOString()
     };
@@ -270,13 +333,25 @@ export function ContentLibraryView({
         const asset = await uploadToItem(saved, file, upload);
         if (asset.publicUrl) saved = applyMediaUrlToItem(saved, asset.type, asset.publicUrl, asset.uploadedAt);
       }
+      if (saved.contentType === "pecs" && !isBuiltInMsavLabel(saved.label)) {
+        saved = await requestPlaygroundPreparation(saved);
+      }
       const completedItem = saved;
       setItems((current) => [completedItem, ...current]);
       log("create", "learning-item", completedItem.label, values.kind === "pecs" ? "Added a PECS card." : "Added a gesture.", completedItem.id);
       setKind(values.kind);
       setCategoryId("all");
       setSearch("");
-      notify({ title: `${kindLabel(values.kind)} added`, description: `${completedItem.label} is in the library.`, tone: "success" });
+      notify({
+        title: `${kindLabel(values.kind)} added`,
+        description:
+          completedItem.playgroundPreparationStatus === "ready"
+            ? `${completedItem.label} is ready for Playground.`
+            : completedItem.playgroundPreparationStatus === "pending"
+              ? `${completedItem.label} was saved. Prepare it again later for Playground.`
+              : `${completedItem.label} is in the library.`,
+        tone: "success"
+      });
       return true;
     } catch (error) {
       if (saved) {
@@ -296,18 +371,33 @@ export function ContentLibraryView({
   }
 
   async function saveCardText(item: LearningItem, values: CardTextValues) {
+    const meaningChanged =
+      item.label !== values.label || item.categoryId !== values.categoryId || item.description !== values.description;
+    const needsPreparation = item.contentType === "pecs" && !isBuiltInMsavLabel(values.label) && meaningChanged;
     const next: LearningItem = {
       ...item,
       ...values,
       instruction: createLearningItemInstruction(item.contentType, values.label, values.description),
+      ...(needsPreparation ? {
+        playgroundPreparationStatus: "pending" as const,
+        msavProfile: undefined,
+        playgroundPreparedAt: undefined,
+        playgroundClassifierModel: undefined,
+        playgroundPreparationError: undefined
+      } : {}),
       updatedAt: new Date().toISOString()
     };
     try {
       await ensureCategoryRow(values.categoryId);
-      const saved = await updateLearningItemDetails(next);
+      let saved = await updateLearningItemDetails(next);
       setItems((current) => current.map((candidate) => (candidate.id === item.id ? saved : candidate)));
+      if (needsPreparation) saved = await requestPlaygroundPreparation(saved);
       log("edit", "learning-item", saved.label, "Updated material details.", saved.id);
-      notify({ title: "Material updated", tone: "success" });
+      notify({
+        title: "Material updated",
+        description: saved.playgroundPreparationStatus === "pending" ? "Prepare it again later for Playground." : undefined,
+        tone: "success"
+      });
       return true;
     } catch (error) {
       notify({ title: "Not saved", description: errorText(error, "The material could not be updated."), tone: "error" });
@@ -618,6 +708,7 @@ export function ContentLibraryView({
         canManage={Boolean(openItem && user.role === "teacher")}
         onClose={() => setOpenItemId("")}
         onSaveText={saveCardText}
+        onPrepareForPlayground={retryPlaygroundPreparation}
         onUpload={uploadCardMedia}
         onRemoveMedia={(item, type) => {
           setRemoveFile(true);

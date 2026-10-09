@@ -18,7 +18,7 @@
     "test:auth": "node --test scripts/test-auth-security.mjs",
     "test:auth:live": "node --test --test-concurrency=1 scripts/test-auth-security-live.mjs",
     "test:account-requests": "node --test scripts/test-account-requests.mjs",
-    "test:playground": "node --test scripts/test-pecs-sentence-validation.mjs scripts/test-playground-board.mjs",
+    "test:playground": "node --test scripts/test-msav-material-profile.mjs scripts/test-pecs-sentence-validation.mjs scripts/test-playground-board.mjs",
     "test:audio": "node --test scripts/test-speech-text.mjs",
     "test:media": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-media-filename.mjs"
   },

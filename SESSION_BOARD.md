@@ -34,6 +34,41 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-09-msav-new-material-preparation
+- Outcome: Added one-time, server-side Gemini preparation for new non-manifest PECS materials, manual teacher retry with a 60-second cooldown, validated persisted MSAV profiles, and Playground filtering for pending/unsupported cards. Existing manifest cards keep their fixed rules, bypass Gemini, and remain visible. No automatic retries were added.
+- Files/areas: MSAV profile/rules/tests, preparation API, Content creation/detail UI, Playground picker, learning-item types/data mapping, environment/docs, hosted migration `20261009000000_msav_new_material_preparation.sql`, and this session board.
+- Verification: Hosted database has all six new columns and 0/59 existing materials have an AI status or profile. Playground/MSAV tests (17), activity tests (58), TypeScript, lint, material validation, production build, patch whitespace, and Supabase advisors passed. Material validation retains only the existing Eat/Drink duplicate-label warnings; advisors retain only the existing leaked-password-protection warning. No live Gemini request was made because `GEMINI_MSAV_API_KEY` is not configured.
+
+### 2026-10-05-msav-deterministic-wording
+- Outcome: Clarified the `How MSAV decides` row to state that MSAV uses fixed rules and that the same exact cards in the same order always receive the same result.
+- Files/areas: Updated `output/thesis/Phase 2c MSAV Results and Discussion.docx`; no application behavior or data changed.
+- Verification: Google Docs title sanitizer passed. Microsoft Word rendered the document to three pages; all pages were visually inspected and the revised table row remained fully visible with no clipping, overlap, or pagination changes.
+
+### 2026-10-05-msav-message-types-row
+- Outcome: Replaced the unclear `Ways the cards can be arranged` row with `Types of messages MSAV can check` and a concise explanation listing the 14 message types as one-card messages, requests, action sentences, descriptions, greetings, and commands.
+- Files/areas: Updated `output/thesis/Phase 2c MSAV Results and Discussion.docx`; no application behavior or data changed.
+- Verification: Google Docs title sanitizer passed. Microsoft Word rendered the document to three pages; all pages were visually inspected and the revised row remained readable without clipping, overlap, or pagination changes.
+
+### 2026-10-05-msav-plain-language-flow
+- Outcome: Revised the user-selected Phase 2c document by replacing `card job` with `card type`, replacing `recognized message patterns` with `ways the cards can be arranged`, and simplifying related explanations. Rebuilt the MSAV validation-flow figure with centered steps, separate branch arrows, and equal valid/invalid outcome boxes.
+- Files/areas: Updated `output/thesis/Phase 2c MSAV Results and Discussion.docx` from the user-selected Downloads copy; no application behavior or data changed.
+- Verification: Google Docs title sanitizer passed. Microsoft Word rendered the final file to three pages; every page was visually inspected, and the revised diagram and all tables were fully visible with no clipping, overlap, or alignment defects.
+
+### 2026-10-05-msav-word-simplification
+- Outcome: Simplified the MSAV scope explanations by describing sentence roles as card jobs, construction types as recognized message patterns, and the decision method as fixed local rule checking. Removed the `Food + Is + Hot` representative validation row and the future-versions paragraph under New Learning Materials.
+- Files/areas: Updated `output/thesis/Phase 2c MSAV Results and Discussion.docx`; no application behavior or data changed.
+- Verification: Google Docs title sanitizer passed. Microsoft Word rendered the revised DOCX to four pages; all pages were visually inspected, the flow figure and tables remained fully visible, and no clipping, overlap, or broken layout was found.
+
+### 2026-10-05-msav-word-document
+- Outcome: Created a concise four-page black-and-white Word version of the Phase 2c MSAV Results and Discussion section. It includes the final scope, fully visible validation-flow figure, representative rules and cases, 13/13 test evidence, system integration, new-material limitations, and an evidence-based readiness discussion.
+- Files/areas: Added `output/thesis/Phase 2c MSAV Results and Discussion.docx`; no application behavior or database state changed.
+- Verification: Google Docs title sanitizer passed. Microsoft Word rendered the final Letter-size DOCX to four pages; every page was visually inspected, all tables were readable, the flow figure remained together on one page, and no content was clipped or overlapped.
+
+### 2026-10-05-msav-results-writeup
+- Outcome: Drafted an evidence-backed Phase 2c Results and Discussion section from the thesis methodology, current MSAV/Playground implementation, automated tests, and Git history. The draft documents the 50-card role inventory, final functional rule set, development sequence, 13/13 passing test groups, representative cases, integration behavior, limitations, and the mismatch between three proposed BSR examples and the final code.
+- Files/areas: Added `output/thesis/phase-2c-msav-results-and-discussion-draft.md`; source PDF, MSAV/Playground code, tests, and Git history were read-only. No application behavior or database state changed.
+- Verification: `npm run test:playground` passed all 13 named tests, including the exhaustive 2,500 ordered two-card audit; representative current outputs were reproduced directly from the validator; `git diff --check` passed apart from the repository's existing PowerShell LF-to-CRLF notice for the session board.
+
 ### 2026-10-04-vercel-production
 - Outcome: Deployed GitHub `main` commit `39668a1` to Vercel production at `https://makalearn.vercel.app` as project `maka-learn/makalearn`. Configured Node.js 22, Mumbai functions (`bom1`), GitHub `main` production tracking, and the seven approved Production/Preview variables; Supabase's temporary password was not uploaded. Updated Supabase Auth Site URL and kept production plus localhost redirect patterns.
 - Files/areas: Repaired `package-lock.json` clean-install metadata and aligned `scripts/test-account-requests.mjs` with the intentionally hidden login link; Vercel project/settings/environment variables, Supabase Auth URL configuration, and this session board. No database schema or application behavior changed.

@@ -63,6 +63,31 @@ export type SentenceRole =
   | "be_verb"
   | "safety_word";
 
+export type PlaygroundPreparationStatus = "pending" | "processing" | "ready" | "unsupported";
+
+export type MsavSemanticTrait =
+  | "base_subject"
+  | "named_person"
+  | "addressed_expression"
+  | "requestable"
+  | "edible"
+  | "drinkable"
+  | "more_target"
+  | "postpositive_please"
+  | "be_complement"
+  | "consumable_description";
+
+export type MsavPredicateKind = "generic" | "eat" | "drink" | "help";
+
+/** Structured language metadata generated once for a new PECS material. */
+export type MsavMaterialProfile = {
+  roles: SentenceRole[];
+  traits: MsavSemanticTrait[];
+  predicateKind?: MsavPredicateKind;
+  beVerbForm?: "am" | "are" | "is";
+  schemaVersion: 1;
+};
+
 export type MediaAsset = {
   id: string;
   title: string;
@@ -89,6 +114,13 @@ export type LearningItem = {
   // Supabase stores sentence_role on learning_items; the manifest can still
   // help classify imported PECS/AAC seed material.
   sentenceRole?: SentenceRole;
+  /** Existing manifest cards use their built-in rules and leave these fields empty. */
+  playgroundPreparationStatus?: PlaygroundPreparationStatus;
+  msavProfile?: MsavMaterialProfile;
+  playgroundPreparedAt?: string;
+  playgroundClassifierModel?: string;
+  playgroundLastAttemptAt?: string;
+  playgroundPreparationError?: string;
   tags: string[];
   createdBy: string;
   updatedAt: string;
