@@ -1,4 +1,5 @@
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
+import { normalizePecsLabel, pecsCardManifest } from "@/data/pecs-card-manifest";
 
 const legacySymbolAliases: Record<string, string> = {
   hel: "hello",
@@ -31,6 +32,37 @@ export function isEmbeddableActivityMediaUrl(value?: string) {
   );
 }
 
+function getGeneratedPecsFilename(value?: string) {
+  const match = value?.match(/(?:^|\/)pecs\/generated[_-]cards\/([^?#/]+\.png)(?:[?#].*)?$/i);
+  return match?.[1];
+}
+
+/**
+ * Returns only artwork that is safe to show as an Activity answer choice. The
+ * normal Content Library card is deliberately not a fallback because it can
+ * contain the printed answer word.
+ */
+export function getActivityOptionImageUrl(value: string, item?: LearningItem) {
+  if (value.includes("/pecs/generated_cards_no_text/") && isEmbeddableActivityMediaUrl(value)) return value;
+  if (isEmbeddableActivityMediaUrl(item?.activityImageUrl)) return item?.activityImageUrl;
+
+  const generatedFilename = getGeneratedPecsFilename(item?.symbolImageUrl ?? value);
+  if (generatedFilename) return `/pecs/generated_cards_no_text/${generatedFilename}`;
+
+  if (!item) {
+    const manifestCard = pecsCardManifest.find(
+      (card) => normalizePecsLabel(card.label) === normalizePecsLabel(value)
+    );
+    if (manifestCard) return `/pecs/generated_cards_no_text/${manifestCard.filename}`;
+  }
+
+  return undefined;
+}
+
+export function hasActivityOptionImage(item: LearningItem) {
+  return Boolean(getActivityOptionImageUrl(item.id, item));
+}
+
 export function findLearningItemForActivityValue(value: string, learningItems: LearningItem[]) {
   const trimmed = value.trim();
   const normalized = normalizeLookupValue(trimmed);
@@ -41,6 +73,7 @@ export function findLearningItemForActivityValue(value: string, learningItems: L
     const itemLabel = normalizeLookupValue(item.label);
     return (
       item.symbolImageUrl === trimmed ||
+      item.activityImageUrl === trimmed ||
       item.gestureMediaUrl === trimmed ||
       item.id === trimmed ||
       itemLabel === normalized ||
@@ -104,14 +137,14 @@ export function resolveActivitySymbolValue(
     : relatedItem
       ? findPecsLearningItemForActivityValue(relatedItem.label, learningItems)
       : undefined;
-  if (relatedPecsItem?.symbolImageUrl) return relatedPecsItem.id;
+  if (relatedPecsItem && hasActivityOptionImage(relatedPecsItem)) return relatedPecsItem.id;
 
   const currentItem = findPecsLearningItemForActivityValue(value, learningItems);
-  if (currentItem?.symbolImageUrl) return currentItem.id;
+  if (currentItem && hasActivityOptionImage(currentItem)) return currentItem.id;
 
   const sourceItem = findPecsLearningItemForActivityValue(value, sourceLearningItems);
   const canonicalItem = sourceItem ? findCanonicalVersion(sourceItem, learningItems) : undefined;
-  if (canonicalItem?.symbolImageUrl) return canonicalItem.id;
+  if (canonicalItem && hasActivityOptionImage(canonicalItem)) return canonicalItem.id;
 
   return value.trim();
 }

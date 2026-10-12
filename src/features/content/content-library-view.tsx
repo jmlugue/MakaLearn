@@ -29,7 +29,8 @@ import { canSee, uniqueCopyTitle } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories, ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import { isNoCategory, noCategory, withNoCategory } from "@/lib/no-category";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
-import { isBuiltInMsavLabel } from "@/utils/msav-material-profile";
+import { getPlaygroundAvailability, isBuiltInMsavLabel } from "@/utils/msav-material-profile";
+import { hasActivityOptionImage } from "@/utils/activity-symbol-options";
 import { CardDetailDialog, type CardTextValues } from "@/features/content/card-detail-dialog";
 import { CardFormDialog, type NewCardFiles, type NewCardValues } from "@/features/content/card-form-dialog";
 import { CategoriesTab } from "@/features/content/categories-tab";
@@ -51,19 +52,22 @@ type UploadConfig = Pick<MediaAsset, "bucket" | "type">;
 
 function applyMediaUrlToItem(item: LearningItem, type: MediaAsset["type"], publicUrl: string, updatedAt: string): LearningItem {
   if (type === "symbol-image") return { ...item, symbolImageUrl: publicUrl, updatedAt };
+  if (type === "activity-image") return { ...item, activityImageUrl: publicUrl, updatedAt };
   if (type === "gesture-media") return { ...item, gestureMediaUrl: publicUrl, updatedAt };
   return { ...item, audioUrl: publicUrl, updatedAt };
 }
 
 function urlOnItem(item: LearningItem, type: MediaAsset["type"]) {
   if (type === "symbol-image") return item.symbolImageUrl;
+  if (type === "activity-image") return item.activityImageUrl;
   if (type === "gesture-media") return item.gestureMediaUrl;
   return item.audioUrl;
 }
 
 /** Plain name for a media type, used in titles, toasts, and the audit log. */
 function mediaTypeText(type: MediaAsset["type"]) {
-  if (type === "symbol-image") return "image";
+  if (type === "symbol-image") return "card image";
+  if (type === "activity-image") return "activity picture";
   if (type === "gesture-media") return "video";
   return "audio";
 }
@@ -258,8 +262,11 @@ export function ContentLibraryView({
 
   async function retryPlaygroundPreparation(item: LearningItem) {
     const prepared = await requestPlaygroundPreparation(item);
-    if (prepared.playgroundPreparationStatus === "ready") {
+    const playgroundAvailability = getPlaygroundAvailability(prepared);
+    if (playgroundAvailability === "ready") {
       notify({ title: "Ready for Playground", description: `${prepared.label} can now be used in Playground.`, tone: "success" });
+    } else if (playgroundAvailability === "missing-image") {
+      notify({ title: "Picture needed", description: "MSAV is ready. Upload a card image to use this material in Playground.", tone: "info" });
     } else if (prepared.playgroundPreparationStatus === "unsupported") {
       notify({ title: "Not supported in Playground", description: "This material does not fit the current MSAV rules.", tone: "info" });
     } else {
@@ -320,6 +327,9 @@ export function ContentLibraryView({
     };
     const uploads: Array<{ key: keyof NewCardFiles } & UploadConfig> = [
       { key: "symbol", bucket: "symbol-images", type: "symbol-image" },
+      ...(values.kind === "pecs"
+        ? [{ key: "activity", bucket: "symbol-images", type: "activity-image" } as const]
+        : []),
       { key: "audio", bucket: "audio-files", type: "audio-file" }
     ];
 
@@ -342,11 +352,15 @@ export function ContentLibraryView({
       setKind(values.kind);
       setCategoryId("all");
       setSearch("");
+      const playgroundAvailability = getPlaygroundAvailability(completedItem);
+      const activityReady = completedItem.contentType === "pecs" && hasActivityOptionImage(completedItem);
       notify({
         title: `${kindLabel(values.kind)} added`,
         description:
-          completedItem.playgroundPreparationStatus === "ready"
-            ? `${completedItem.label} is ready for Playground.`
+          playgroundAvailability === "ready"
+            ? `${completedItem.label} is ready for Playground.${activityReady ? " It is also ready for Activities." : " Add a word-free Activity picture to use it in Activities."}`
+            : playgroundAvailability === "missing-image"
+              ? `${completedItem.label} was prepared. Add a card image to use it in Playground.`
             : completedItem.playgroundPreparationStatus === "pending"
               ? `${completedItem.label} was saved. Prepare it again later for Playground.`
               : `${completedItem.label} is in the library.`,
@@ -434,6 +448,7 @@ export function ContentLibraryView({
       current.map((candidate) => {
         if (candidate.id !== itemId) return candidate;
         if (type === "symbol-image") return { ...candidate, symbolImageUrl: undefined, updatedAt };
+        if (type === "activity-image") return { ...candidate, activityImageUrl: undefined, updatedAt };
         if (type === "gesture-media") return { ...candidate, gestureMediaUrl: undefined, updatedAt };
         return { ...candidate, audioUrl: undefined, updatedAt };
       })

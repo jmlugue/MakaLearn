@@ -240,10 +240,11 @@ disappears from the Media tab.
 
 This is the current accepted behavior for every activity surface:
 
-- Answer options come only from image-backed PECS materials. Gesture materials and legacy gesture option values are excluded, including when a PECS card and gesture share a label.
+- Answer options come only from PECS materials with dedicated word-free Activity artwork. Gesture materials and legacy gesture option values are excluded, including when a PECS card and gesture share a label.
 - Distractors come from the full eligible PECS library, not merely the activity's selected answer cards, and rotate between questions and rounds instead of repeating a fixed pair.
 - A distractor that is also a plausible answer must be excluded. For example, Food, Rice, Bread, and Banana are not safe distractors for an Eat prompt whose wording admits food-related answers. Semantic exclusions are part of correctness and require regression tests.
-- Every visible option uses `public/pecs/generated_cards_no_text`. Standard card art with its printed label remains appropriate in Content, but not as an activity answer choice.
+- Built-in visible options use `public/pecs/generated_cards_no_text`; teacher-created materials use `learning_items.activity_image_url`. Standard card art with its printed label remains appropriate in Content and Playground, but is never an activity-answer fallback.
+- A teacher-created PECS material without a word-free Activity picture stays out of activity selection, distractor pools, playback, and AI activity drafting until that separate image is uploaded.
 - Never render the answer word on an option or reveal it as the missing-image fallback. Use a neutral unavailable state; accessible screen-reader labels may still name the card.
 - `simple-quiz` is labelled "Choose the word" and stores word answers for scoring, but its visible choices are no-text PECS pictures.
 - The same rules apply to Student Mode, the teacher player, Match, Choose, Fill in the blank, Choose the word, Drag and drop, dropped-card views, result summaries, and activity samples/previews.
@@ -1042,3 +1043,15 @@ The owner asked for three layouts like a CSS media query diagram. Rules live in 
 - Failed preparation has no automatic retry. Teachers use **Try preparing again** from the material details. A 60-second server cooldown prevents duplicate calls.
 - Gemini only maps new materials into the existing roles and semantic traits. The deterministic MSAV validator still decides every Playground result without calling Gemini.
 - Configuration uses the separate server-only `GEMINI_MSAV_API_KEY` and optional `GEMINI_MSAV_MODEL`.
+- Playground readiness now requires both prepared MSAV rules and a public card picture. If Gemini preparation succeeds
+  without a picture, Content says **Picture needed** and directs the teacher to upload one instead of claiming the
+  material is ready. The add-material form also labels the PECS card image as required for Playground.
+
+## Oct 12: new-material media readiness, Playground categories, and voice
+
+- PECS materials now have two distinct picture purposes: `symbol_image_url` is the standard labelled card used by Content and Playground; `activity_image_url` is the word-free answer artwork used by Activities.
+- Add material and material details explain both requirements separately. Audio remains optional and is not part of Playground or Activity readiness.
+- Activity renderers never fall back from missing Activity artwork to the standard labelled card. Existing built-in cards continue to use their source-controlled files in `public/pecs/generated_cards_no_text`.
+- Playground uses the saved Supabase category name for each material, including teacher-created categories, instead of defaulting every non-manifest card to Daily Needs.
+- Playground card narration always uses the shared browser voice selected in Settings. Uploaded card audio remains usable in Content, but Playground no longer mixes recordings with text-to-speech voices.
+- Hosted migration `20261012021919_add_activity_images.sql` adds `learning_items.activity_image_url` and the `activity-image` media type.

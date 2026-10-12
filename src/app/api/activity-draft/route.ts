@@ -24,6 +24,7 @@ import {
   shouldIgnoreActivityDraftMaterialCooldown
 } from "@/utils/activity-ai-rate-limit";
 import { isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
+import { hasActivityOptionImage } from "@/utils/activity-symbol-options";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import type { ActivityType, LearningItem } from "@/types";
 import type { Database } from "@/types/database";
@@ -82,6 +83,7 @@ function mapLearningItemRow(row: LearningItemRow): LearningItem {
     description: row.description,
     instruction: row.instruction,
     symbolImageUrl: row.symbol_image_url ?? undefined,
+    activityImageUrl: row.activity_image_url ?? undefined,
     gestureMediaUrl: row.gesture_media_url ?? undefined,
     audioUrl: row.audio_url ?? undefined,
     sentenceRole: row.sentence_role ?? undefined,
@@ -384,7 +386,7 @@ export async function POST(request: Request) {
     const [{ data: itemRows, error: itemError }, { data: libraryRows, error: libraryError }, { data: categoryRows, error: categoryError }] =
       await Promise.all([
         supabase.from("learning_items").select("*").in("id", requestedLearningItemIds).limit(5),
-        supabase.from("learning_items").select("*").eq("content_type", "pecs").not("symbol_image_url", "is", null),
+        supabase.from("learning_items").select("*").eq("content_type", "pecs"),
         supabase.from("categories").select("id,name")
       ]);
 
@@ -401,12 +403,12 @@ export async function POST(request: Request) {
     if (missingLearningItems.length !== requestedLearningItemIds.length) {
       return NextResponse.json({ error: "Choose learning items that exist in Supabase." }, { status: 400 });
     }
-    if (missingLearningItems.some((item) => item.contentType !== "pecs" || !item.symbolImageUrl)) {
-      return NextResponse.json({ error: "AI activity questions require PECS learning materials with pictures." }, { status: 400 });
+    if (missingLearningItems.some((item) => item.contentType !== "pecs" || !hasActivityOptionImage(item))) {
+      return NextResponse.json({ error: "AI activity questions require PECS learning materials with word-free Activity pictures." }, { status: 400 });
     }
 
     const eligiblePecsItems = ensurePecsManifestItems((libraryRows ?? []).map(mapLearningItemRow)).filter(
-      (item) => item.contentType === "pecs" && Boolean(item.symbolImageUrl)
+      (item) => item.contentType === "pecs" && hasActivityOptionImage(item)
     );
     const categoryNameById = Object.fromEntries((categoryRows ?? []).map((category) => [category.id, category.name]));
     const conflictingItemsById = Object.fromEntries(

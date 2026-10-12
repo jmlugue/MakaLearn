@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { mapMediaAssetRow } from "@/lib/supabase/media";
+import { hasActivityOptionImage } from "@/utils/activity-symbol-options";
 import {
   deleteActivityRecord,
   insertActivityRecord,
@@ -115,6 +116,7 @@ function mapLearningItem(row: LearningItemRow): LearningItem {
     description: row.description,
     instruction: row.instruction,
     symbolImageUrl: row.symbol_image_url ?? undefined,
+    activityImageUrl: row.activity_image_url ?? undefined,
     gestureMediaUrl: row.gesture_media_url ?? undefined,
     audioUrl: row.audio_url ?? undefined,
     sentenceRole: row.sentence_role ?? undefined,
@@ -373,6 +375,7 @@ export async function insertLearningItem(item: LearningItem) {
         description: item.description,
         instruction: item.instruction,
         symbol_image_url: item.symbolImageUrl ?? null,
+        activity_image_url: item.activityImageUrl ?? null,
         gesture_media_url: item.gestureMediaUrl ?? null,
         audio_url: item.audioUrl ?? null,
         sentence_role: item.sentenceRole ?? null,
@@ -585,6 +588,8 @@ export async function updateLearningItemMedia(
   const update =
     asset.type === "symbol-image"
       ? { symbol_image_url: asset.publicUrl, updated_at: new Date().toISOString() }
+      : asset.type === "activity-image"
+        ? { activity_image_url: asset.publicUrl, updated_at: new Date().toISOString() }
       : asset.type === "gesture-media"
         ? { gesture_media_url: asset.publicUrl, updated_at: new Date().toISOString() }
         : { audio_url: asset.publicUrl, updated_at: new Date().toISOString() };
@@ -601,6 +606,8 @@ export async function detachLearningItemMedia(learningItemId: string, type: Medi
   const update =
     type === "symbol-image"
       ? { symbol_image_url: null, updated_at: new Date().toISOString() }
+      : type === "activity-image"
+        ? { activity_image_url: null, updated_at: new Date().toISOString() }
       : type === "gesture-media"
         ? { gesture_media_url: null, updated_at: new Date().toISOString() }
         : { audio_url: null, updated_at: new Date().toISOString() };
@@ -909,7 +916,7 @@ export function createActivityQuestions(
   const eligibleOptions =
     type === "gesture-practice"
       ? gestureOptionPool
-      : pecsOptionPool.filter((item) => item.symbolImageUrl);
+      : pecsOptionPool.filter(hasActivityOptionImage);
 
   const selectedValues = selectedItems.map((item) => usesSymbolOptions ? item.id : item.label);
   const fallbackValues = eligibleOptions.map((item) => usesSymbolOptions ? item.id : item.label);

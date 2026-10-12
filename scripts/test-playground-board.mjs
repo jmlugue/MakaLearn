@@ -32,3 +32,15 @@ test("the Playground never swaps or replaces a placed card", () => {
   assert.match(playground, /placeLibraryCard\(state\.source\.card\)/);
   assert.doesNotMatch(playground, /(?<!function )placeLibraryCard\([^)]*,[^)]*\)/);
 });
+
+test("Playground categories come from the saved category record", () => {
+  assert.match(playground, /const categoryById = new Map\(categories\.map/);
+  assert.match(playground, /category: categoryById\.get\(item\.categoryId\)/);
+  assert.match(playground, /setCategories\(data\.categories\)/);
+});
+
+test("Playground uses one shared speech voice instead of mixing uploaded recordings with browser speech", () => {
+  assert.match(playground, /function sayCard\(card: PlaygroundCard\)/);
+  assert.match(playground, /return speakText\(getSpeechLabel\(card\.label\)\)/);
+  assert.doesNotMatch(playground, /function playAudio\(/);
+});

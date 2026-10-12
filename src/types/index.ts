@@ -91,7 +91,7 @@ export type MsavMaterialProfile = {
 export type MediaAsset = {
   id: string;
   title: string;
-  type: "symbol-image" | "gesture-media" | "audio-file";
+  type: "symbol-image" | "activity-image" | "gesture-media" | "audio-file";
   fileName: string;
   bucket: "symbol-images" | "gesture-media" | "audio-files";
   storagePath?: string;
@@ -109,6 +109,8 @@ export type LearningItem = {
   description: string;
   instruction: string;
   symbolImageUrl?: string;
+  /** Word-free picture used for visible answer choices in Activities. */
+  activityImageUrl?: string;
   gestureMediaUrl?: string;
   audioUrl?: string;
   // Supabase stores sentence_role on learning_items; the manifest can still

@@ -147,6 +147,8 @@ export async function deleteMediaAssetFromSupabase(asset: MediaAsset) {
     const items = supabase.from("learning_items");
     if (asset.type === "symbol-image") {
       await items.update({ symbol_image_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("symbol_image_url", asset.publicUrl);
+    } else if (asset.type === "activity-image") {
+      await items.update({ activity_image_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("activity_image_url", asset.publicUrl);
     } else if (asset.type === "gesture-media") {
       await items.update({ gesture_media_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("gesture_media_url", asset.publicUrl);
     } else {

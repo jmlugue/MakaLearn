@@ -14,6 +14,7 @@ import {
   isGenericChooseCorrectSymbolPrompt
 } from "@/utils/starter-learning-item-prompts";
 import type { Activity, ActivityType, LearningItem } from "@/types";
+import { hasActivityOptionImage } from "@/utils/activity-symbol-options";
 
 /**
  * The activity types teachers can make and see, in the order the creator offers them. Retired types stay in
@@ -63,11 +64,11 @@ export function activityUsesImageOptions(type: ActivityType) {
   return type === "match-word-symbol" || type === "choose-correct-symbol" || type === "drag-drop-symbol";
 }
 
-/** Every active PECS activity displays cards, so only materials with a picture can be selected. */
+/** Every active PECS activity displays word-free cards, so only materials with safe artwork can be selected. */
 export function canUseItem(type: ActivityType, item: LearningItem) {
   if (type === "gesture-practice") return item.contentType === "gesture";
   if (item.contentType !== "pecs") return false;
-  return Boolean(item.symbolImageUrl);
+  return hasActivityOptionImage(item);
 }
 
 export function getPromptStoreKey(type: ActivityType, learningItemId: string) {

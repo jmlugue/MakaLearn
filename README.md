@@ -59,8 +59,8 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 ## Current product behavior
 
 - PECS and gestures are separate content types.
-- PECS cards support image and audio uploads only.
-- The Playground loads PECS/AAC card images and audio from Supabase `learning_items` URLs. The manifest mapping in `public/pecs/pecs_arasaac_manifest.json` is used for category and sentence-role metadata.
+- PECS materials support a standard card picture, a separate word-free Activity picture, and optional audio. The standard picture may contain the printed label; the Activity picture must not.
+- The Playground loads the standard PECS/AAC card image from Supabase, groups cards by their saved Supabase category, and reads every card with the one browser voice selected in Settings. Uploaded audio remains available in Content but is not required for Playground.
 - Learning material media under `public/pecs`, `public/audio/pecs`, `public/gesture-references`, and gesture audio is migration source material only. Runtime learning media should come from Supabase Storage.
 - Playground is available in teacher UI and Student Mode. Other teacher-only pages remain restricted while Student Mode is active.
 - Playground sentence checks use `validatePecsSentence`, a rule-based PECS arrangement validator with supported patterns such as `I want water`, `I am happy`, `Please sit`, greetings, responses, and safety expressions.
@@ -70,7 +70,7 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - See `GESTURE_SAMPLE_POSES.md` for the complete demo pose-to-prediction mapping.
 - Gesture records support reference image, gesture image/video, and audio uploads.
 - PECS and gesture images/videos/audio can be previewed inside the website.
-- Activities can be created from PECS cards or gesture records. Gesture-practice activities use teacher-completed scoring options.
+- Active Activities use PECS materials only. Built-in cards use `public/pecs/generated_cards_no_text`; teacher-created cards must have `learning_items.activity_image_url` before they can appear as answers or distractors. The standard labelled card image is never used as an Activity answer fallback.
 - Activity question generation adapts to each PECS card label and description, so greetings and choices do not use request-only wording.
 - The Inspire me with AI button in Activity creation uses a Supabase-backed cache before calling Gemini with its own activity-only API key. It only drafts PECS fill-in-the-blank or legacy choose-correct-symbol prompts. Gemini text must pass one-sentence, 5-to-12-word, answer-leak, suitability, and semantic-conflict checks before it is shown. If wording fails those checks, MakaLearn silently uses checked question-bank text where available instead of spending another model call. Teachers can lock individual Fill in the blank sentences so later inspiration keeps their wording.
 - Drag-and-drop answers remain visual cards after dropping, and scored incorrect answers use red feedback.
@@ -157,7 +157,7 @@ Planned updates before production:
 
 The 50 built-in Playground cards keep their reviewed, source-controlled MSAV roles and semantic rules. They are never sent to Gemini. A newly created teacher PECS material is saved first, then MakaLearn makes one server-side classification request using `GEMINI_MSAV_API_KEY`. Only the material label, category, description, generated instruction, and tags are sent; uploaded media is not sent.
 
-If preparation succeeds, the validated profile is stored on `learning_items` and the card becomes available in Playground. If the key or provider is unavailable, the material remains in Content with a **Try preparing again** button and stays out of the Playground picker. There are no scheduled or automatic retries. Configure the optional classifier with:
+If preparation succeeds, the validated profile is stored on `learning_items`. The card becomes available in Playground once it also has a public standard card picture; audio is optional. If the key or provider is unavailable, the material remains in Content with a **Try preparing again** button and stays out of the Playground picker. There are no scheduled or automatic retries. Configure the optional classifier with:
 
 ```env
 GEMINI_MSAV_API_KEY=

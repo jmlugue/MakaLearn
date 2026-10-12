@@ -116,6 +116,7 @@ function findItemForValue(value, items) {
   return items.find((item) =>
     item.id === trimmed ||
     item.symbol_image_url === trimmed ||
+    item.activity_image_url === trimmed ||
     normalize(item.label) === lookup
   );
 }
@@ -151,7 +152,7 @@ const [
   practiceAttempts,
   mediaAssets
 ] = await Promise.all([
-  selectAll(supabase, "learning_items", "id,label,content_type,symbol_image_url,audio_url"),
+  selectAll(supabase, "learning_items", "id,label,content_type,symbol_image_url,activity_image_url,audio_url"),
   selectAll(supabase, "activities", "id,title,type,learning_item_ids"),
   selectAll(supabase, "activity_items", "id,activity_id,answer,options,learning_item_id"),
   selectAll(supabase, "lesson_items", "lesson_id,learning_item_id"),
@@ -164,7 +165,7 @@ const errors = [];
 const warnings = [];
 const itemById = new Map(learningItems.map((item) => [item.id, item]));
 const activityById = new Map(activities.map((activity) => [activity.id, activity]));
-const imageActivityTypes = new Set(["match-word-symbol", "choose-correct-symbol", "drag-drop-symbol"]);
+const imageActivityTypes = new Set(["match-word-symbol", "choose-correct-symbol", "fill-blank", "drag-drop-symbol"]);
 
 const manifestLabels = new Set();
 const manifestFilenames = new Set();
@@ -180,6 +181,11 @@ for (const card of manifest) {
     await access(path.join(root, "public", "pecs", "generated_cards", card.filename));
   } catch {
     errors.push(`Manifest image file is missing: ${card.filename}`);
+  }
+  try {
+    await access(path.join(root, "public", "pecs", "generated_cards_no_text", card.filename));
+  } catch {
+    errors.push(`Manifest no-text activity image is missing: ${card.filename}`);
   }
 
   const localAudioFileName = localAudioFileNameForManifestCard(card);
@@ -211,6 +217,13 @@ for (const [itemId, gesture] of gestureMaterials) {
 
 await Promise.all(remoteAudioChecks);
 
+function hasActivityArtwork(item) {
+  return Boolean(
+    item?.activity_image_url ||
+      item?.symbol_image_url?.match(/(?:^|\/)pecs\/generated[_-]cards\/[^?#/]+\.png(?:[?#].*)?$/i)
+  );
+}
+
 for (const duplicate of groupDuplicates(learningItems)) {
   warnings.push(`Duplicate material label ${duplicate.key}: ${duplicate.ids.join(", ")}`);
 }
@@ -220,8 +233,8 @@ for (const activity of activities) {
     const item = itemById.get(itemId);
     if (!item) {
       errors.push(`Activity ${activity.id} references missing material ${itemId}.`);
-    } else if (imageActivityTypes.has(activity.type) && !item.symbol_image_url) {
-      errors.push(`Image activity ${activity.id} references ${itemId}, which has no symbol image.`);
+    } else if (imageActivityTypes.has(activity.type) && !hasActivityArtwork(item)) {
+      errors.push(`Image activity ${activity.id} references ${itemId}, which has no word-free activity picture.`);
     }
   }
 }
@@ -238,19 +251,19 @@ for (const question of activityItems) {
     continue;
   }
   if (!imageActivityTypes.has(activity.type)) continue;
-  if (!relatedItem.symbol_image_url) {
-    errors.push(`Question ${question.id} uses ${relatedItem.id}, which has no symbol image.`);
+  if (!hasActivityArtwork(relatedItem)) {
+    errors.push(`Question ${question.id} uses ${relatedItem.id}, which has no word-free activity picture.`);
   }
 
   const answerItem = findItemForValue(question.answer, learningItems) ?? relatedItem;
-  if (!answerItem.symbol_image_url) {
-    errors.push(`Question ${question.id} answer does not resolve to an image-backed material.`);
+  if (!hasActivityArtwork(answerItem)) {
+    errors.push(`Question ${question.id} answer does not resolve to a material with word-free activity artwork.`);
   }
 
   for (const option of question.options ?? []) {
     const optionItem = findItemForValue(option, learningItems);
-    if (!optionItem?.symbol_image_url) {
-      errors.push(`Question ${question.id} option "${option}" does not resolve to an image-backed material.`);
+    if (!hasActivityArtwork(optionItem)) {
+      errors.push(`Question ${question.id} option "${option}" does not resolve to a material with word-free activity artwork.`);
     }
   }
 }

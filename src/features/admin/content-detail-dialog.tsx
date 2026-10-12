@@ -18,6 +18,7 @@ import { materialColor } from "@/lib/entity-colors";
 
 export const mediaTypeNames: Record<MediaAsset["type"], string> = {
   "symbol-image": "Symbol image",
+  "activity-image": "Activity picture",
   "gesture-media": "Old video",
   "audio-file": "Audio"
 };

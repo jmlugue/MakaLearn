@@ -32,6 +32,7 @@ import {
   type ActivityPromptStore
 } from "@/features/activities/activity-helpers";
 import { ActivityTypeBadge, activityTypeIcons } from "@/features/activities/activity-type-badge";
+import { hasActivityOptionImage } from "@/utils/activity-symbol-options";
 import type { Activity, ActivityType, Category, LearningItem, Lesson } from "@/types";
 
 export type ActivityFormMode = { kind: "new" } | { kind: "edit"; activity: Activity };
@@ -172,7 +173,7 @@ function ActivityForm({
   // the real cards whenever it can.
   const demoItems = selectedItems.length
     ? selectedItems.filter((item) => item.contentType === "pecs")
-    : usableItems.filter((item) => item.contentType === "pecs" && item.symbolImageUrl).slice(0, 3);
+    : usableItems.filter((item) => item.contentType === "pecs" && hasActivityOptionImage(item)).slice(0, 3);
 
   function update(patch: Partial<ActivityFormValues>) {
     setValues((current) => ({ ...current, ...patch }));

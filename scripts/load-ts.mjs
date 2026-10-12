@@ -20,6 +20,8 @@ export function loadTs(file, modules = {}) {
       const base = path.resolve(path.dirname(resolved), name);
       const target = [`${base}.ts`, `${base}.tsx`, path.join(base, "index.ts")].find((candidate) => fs.existsSync(candidate));
       if (target) return loadTs(target, modules);
+      const jsonTarget = path.extname(base) === ".json" ? base : `${base}.json`;
+      if (fs.existsSync(jsonTarget)) return { default: JSON.parse(fs.readFileSync(jsonTarget, "utf8")) };
     }
     if (name.startsWith("@/")) {
       const base = path.resolve("src", name.slice(2));

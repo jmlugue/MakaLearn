@@ -10,6 +10,7 @@ import { EmptyRow, Panel, SearchInput } from "@/features/admin/admin-shared";
 import { ItemDetailDialog, MediaDetailDialog } from "@/features/admin/content-detail-dialog";
 import type { AppUser, Category, LearningItem, MediaAsset } from "@/types";
 import { materialColor } from "@/lib/entity-colors";
+import { hasActivityOptionImage } from "@/utils/activity-symbol-options";
 
 export type ContentView = "materials" | "media";
 export type ItemsFilter = "all" | "pecs" | "gesture";
@@ -22,20 +23,21 @@ const PAGE_SIZE = 20;
 
 const mediaTypeLabels: Record<AdminMediaType, string> = {
   "symbol-image": "Symbol images",
+  "activity-image": "Activity pictures",
   "gesture-media": "Old videos",
   "audio-file": "Audio"
 };
 
 function isImageFile(asset: MediaAsset) {
-  if (asset.type === "symbol-image") return true;
+  if (asset.type === "symbol-image" || asset.type === "activity-image") return true;
   return /\.(png|jpe?g|gif|webp|svg)$/i.test(asset.fileName);
 }
 
-/** PECS cards need an image; every material needs audio. Gestures use fixed references, so no image check. */
+/** PECS cards need a card image and separate word-free Activity artwork. Audio is optional. */
 function missingMediaTags(item: LearningItem) {
   const tags: string[] = [];
   if (item.contentType === "pecs" && !item.symbolImageUrl) tags.push("No image");
-  if (!item.audioUrl) tags.push("No audio");
+  if (item.contentType === "pecs" && !hasActivityOptionImage(item)) tags.push("No activity picture");
   return tags;
 }
 
@@ -103,7 +105,7 @@ export function ContentSection({
   );
 
   const mediaCounts = useMemo(() => {
-    const counts: Record<MediaFilter, number> = { all: media.length, "symbol-image": 0, "gesture-media": 0, "audio-file": 0 };
+    const counts: Record<MediaFilter, number> = { all: media.length, "symbol-image": 0, "activity-image": 0, "gesture-media": 0, "audio-file": 0 };
     media.forEach((asset) => {
       counts[asset.type as AdminMediaType] += 1;
     });

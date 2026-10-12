@@ -692,7 +692,7 @@ export function OverviewSection({
   const deactivatedAccounts = users.filter((account) => account.status === "deactivated").length;
   const pecsCount = items.filter((item) => item.contentType === "pecs").length;
   const gestureCount = items.length - pecsCount;
-  const previewMedia = media.filter((asset) => asset.publicUrl && asset.type === "symbol-image").slice(0, 3);
+  const previewMedia = media.filter((asset) => asset.publicUrl && (asset.type === "symbol-image" || asset.type === "activity-image")).slice(0, 3);
   const sharedActivities = activities.filter((activity) => activity.visibility === "shared").length;
   const sharedLessons = lessons.filter((lesson) => lesson.visibility === "shared").length;
   const uploadsToday = logs.filter((log) => log.action === "upload" && isToday(log.createdAt)).length;

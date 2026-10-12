@@ -34,6 +34,11 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-12-playground-readiness-feedback
+- Outcome: Made new-material readiness truthful and purpose-specific. Playground requires a public card picture plus prepared MSAV, with audio explicitly optional. Activities now have a separate word-free `activity_image_url`; teacher-created cards without it are excluded from creation, AI drafting, option pools, and playback, and visible options never fall back to labelled card art. Playground now uses saved Supabase categories and one shared browser voice for every card.
+- Files/areas: Content create/detail/media UI, Playground category/narration mapping, shared activity-artwork eligibility and rendering, Supabase mappings/types/schema, hosted migration `20261012021919_add_activity_images.sql`, focused tests/validator, README/CLAUDE, and this session board. Distractor semantics, scoring, and gestures were unchanged.
+- Verification: Hosted column and enum value verified; activity tests (60), Playground tests (20), TypeScript, lint, live material validation, production build, and patch whitespace passed. Material validation retains only the existing Eat/Drink duplicate-label warnings. Supabase advisors retain the existing leaked-password-protection warning and informational unused-index notices.
+
 ### 2026-10-09-msav-new-material-preparation
 - Outcome: Added one-time, server-side Gemini preparation for new non-manifest PECS materials, manual teacher retry with a 60-second cooldown, validated persisted MSAV profiles, and Playground filtering for pending/unsupported cards. Existing manifest cards keep their fixed rules, bypass Gemini, and remain visible. No automatic retries were added.
 - Files/areas: MSAV profile/rules/tests, preparation API, Content creation/detail UI, Playground picker, learning-item types/data mapping, environment/docs, hosted migration `20261009000000_msav_new_material_preparation.sql`, and this session board.

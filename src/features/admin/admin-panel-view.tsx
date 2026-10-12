@@ -293,6 +293,7 @@ export function AdminPanelView() {
                     return {
                       ...item,
                       symbolImageUrl: item.symbolImageUrl === deleted.publicUrl ? undefined : item.symbolImageUrl,
+                      activityImageUrl: item.activityImageUrl === deleted.publicUrl ? undefined : item.activityImageUrl,
                       gestureMediaUrl: item.gestureMediaUrl === deleted.publicUrl ? undefined : item.gestureMediaUrl,
                       audioUrl: item.audioUrl === deleted.publicUrl ? undefined : item.audioUrl
                     };

@@ -2,8 +2,7 @@
 
 import { ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { normalizePecsLabel, pecsCardManifest } from "@/data/pecs-card-manifest";
-import { isEmbeddableActivityMediaUrl } from "@/utils/activity-symbol-options";
+import { getActivityOptionImageUrl, isEmbeddableActivityMediaUrl } from "@/utils/activity-symbol-options";
 import { getLearningItemForValue, getDisplayLabel } from "@/features/activities/player/player-utils";
 import type { LearningItem } from "@/types";
 
@@ -67,22 +66,5 @@ export function SymbolOption({
 
 function getSymbolImageValue(value: string, item: LearningItem | undefined, preferNoTextPecs: boolean) {
   if (!preferNoTextPecs) return item?.symbolImageUrl || value;
-
-  const noTextUrl = getNoTextPecsImageUrl(value, item);
-  return noTextUrl || item?.symbolImageUrl || value;
-}
-
-function getNoTextPecsImageUrl(value: string, item: LearningItem | undefined) {
-  const imageValue = item?.symbolImageUrl || value;
-  const generatedFilename = getGeneratedPecsFilename(imageValue);
-  if (generatedFilename) return `/pecs/generated_cards_no_text/${generatedFilename}`;
-
-  const label = item?.label || value;
-  const manifestCard = pecsCardManifest.find((card) => normalizePecsLabel(card.label) === normalizePecsLabel(label));
-  return manifestCard ? `/pecs/generated_cards_no_text/${manifestCard.filename}` : undefined;
-}
-
-function getGeneratedPecsFilename(value: string) {
-  const match = value.match(/(?:^|\/)pecs\/generated_cards\/([^?#/]+\.png)(?:[?#].*)?$/i);
-  return match?.[1];
+  return getActivityOptionImageUrl(value, item);
 }

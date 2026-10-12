@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, ReactNode, useEffect, useId, useState } from "react";
-import { CheckCircle2, Clock3, Loader2, Pencil, RefreshCw, Trash2, Upload, X } from "lucide-react";
+import { CheckCircle2, Clock3, Image as ImageIcon, Loader2, Pencil, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
@@ -23,7 +23,8 @@ import { cn, formatDate } from "@/lib/utils";
 import { limitLabel, sizeError } from "@/utils/media-limits";
 import { acceptFor, extensionError, fileNameError } from "@/utils/media-filename";
 import { RenameFileDialog } from "@/features/content/rename-file-dialog";
-import { isBuiltInMsavLabel } from "@/utils/msav-material-profile";
+import { getPlaygroundAvailability } from "@/utils/msav-material-profile";
+import { getActivityOptionImageUrl, hasActivityOptionImage } from "@/utils/activity-symbol-options";
 import type { Category, LearningItem, MediaAsset } from "@/types";
 
 export type CardTextValues = { label: string; categoryId: string; description: string };
@@ -93,8 +94,9 @@ export function CardDetailDialog({
   const categoryName = fileCategoryName(category);
   // A built-in gesture keeps its hidden category unless the teacher picks a real one.
   const categoryChoices = visibleCategories(categories);
-  const builtInPlaygroundCard = Boolean(item && item.contentType === "pecs" && isBuiltInMsavLabel(item.label));
-  const playgroundStatus = builtInPlaygroundCard ? "ready" : item?.playgroundPreparationStatus;
+  const playgroundAvailability = item ? getPlaygroundAvailability(item) : "pending";
+  const activityPictureUrl = item ? getActivityOptionImageUrl(item.id, item) : undefined;
+  const activityReady = item ? hasActivityOptionImage(item) : false;
 
   async function prepareForPlayground() {
     if (!item || preparing) return;
@@ -190,35 +192,56 @@ export function CardDetailDialog({
             )}
 
             {item.contentType === "pecs" ? (
-              <div className={cn("p-4", glassBoxClass)}>
-                <SectionLabel className="mb-2">Playground</SectionLabel>
-                {playgroundStatus === "ready" ? (
-                  <p className="flex items-start gap-2 text-sm leading-6 text-emerald-800">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                    <span><span className="font-bold">Ready for Playground.</span> This material can be checked by MSAV.</span>
-                  </p>
-                ) : playgroundStatus === "unsupported" ? (
-                  <p className="text-sm leading-6 text-slate-600">
-                    This type of material is not currently supported in Playground.
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="flex min-w-0 flex-1 items-start gap-2 text-sm leading-6 text-amber-800">
-                      <Clock3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                      <span><span className="font-bold">Not ready for Playground.</span> Try preparing it again later.</span>
+              <div className="grid gap-3">
+                <div className={cn("p-4", glassBoxClass)}>
+                  <SectionLabel className="mb-2">Playground</SectionLabel>
+                  {playgroundAvailability === "ready" ? (
+                    <p className="flex items-start gap-2 text-sm leading-6 text-emerald-800">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span><span className="font-bold">Ready for Playground.</span> The card picture and MSAV checks are complete. Audio is optional.</span>
                     </p>
-                    {canManage ? (
-                      <Button type="button" variant="outline" size="sm" disabled={preparing || playgroundStatus === "processing"} onClick={prepareForPlayground}>
-                        {preparing || playgroundStatus === "processing" ? (
-                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                        )}
-                        {preparing || playgroundStatus === "processing" ? "Preparing..." : "Try preparing again"}
-                      </Button>
-                    ) : null}
-                  </div>
-                )}
+                  ) : playgroundAvailability === "missing-image" ? (
+                    <p className="flex items-start gap-2 text-sm leading-6 text-amber-800">
+                      <ImageIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span><span className="font-bold">Card picture needed.</span> MSAV is ready. Upload a Card picture below to show this material in Playground.</span>
+                    </p>
+                  ) : playgroundAvailability === "unsupported" ? (
+                    <p className="text-sm leading-6 text-slate-600">
+                      This type of material is not currently supported in Playground.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="flex min-w-0 flex-1 items-start gap-2 text-sm leading-6 text-amber-800">
+                        <Clock3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span><span className="font-bold">MSAV preparation incomplete.</span> Try preparing it again later. Audio is not required.</span>
+                      </p>
+                      {canManage ? (
+                        <Button type="button" variant="outline" size="sm" disabled={preparing || playgroundAvailability === "processing"} onClick={prepareForPlayground}>
+                          {preparing || playgroundAvailability === "processing" ? (
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                          )}
+                          {preparing || playgroundAvailability === "processing" ? "Preparing..." : "Try preparing again"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+                <div className={cn("p-4", glassBoxClass)}>
+                  <SectionLabel className="mb-2">Activities</SectionLabel>
+                  {activityReady ? (
+                    <p className="flex items-start gap-2 text-sm leading-6 text-emerald-800">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span><span className="font-bold">Ready for Activities.</span> A word-free answer picture is available.</span>
+                    </p>
+                  ) : (
+                    <p className="flex items-start gap-2 text-sm leading-6 text-amber-800">
+                      <ImageIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span><span className="font-bold">Activity picture needed.</span> Upload a picture with no printed words. Until then, this material stays out of Activity choices.</span>
+                    </p>
+                  )}
+                </div>
               </div>
             ) : null}
 
@@ -226,7 +249,7 @@ export function CardDetailDialog({
               <SectionLabel className="mb-3">Files</SectionLabel>
               <div className="divide-y divide-blue-100/70">
                 <FileRow
-                  title="Picture"
+                  title="Card picture"
                   fileName={getMediaFileName(item.symbolImageUrl)}
                   empty="No picture yet"
                   bucket="symbol-images"
@@ -238,6 +261,21 @@ export function CardDetailDialog({
                   onUpload={(file) => onUpload(item, file, { bucket: "symbol-images", type: "symbol-image" })}
                   onRemove={() => onRemoveMedia(item, "symbol-image")}
                 />
+                {item.contentType === "pecs" ? (
+                  <FileRow
+                    title="Activity picture (no words)"
+                    fileName={getMediaFileName(item.activityImageUrl)}
+                    empty={activityReady ? "Built-in word-free picture is available" : "No word-free activity picture yet"}
+                    bucket="symbol-images"
+                    label={item.label}
+                    categoryName={categoryName}
+                    thumb={activityPictureUrl ? <CardImage value={activityPictureUrl} label={`${item.label} activity`} className="text-[10px]" /> : null}
+                    hasValue={Boolean(item.activityImageUrl)}
+                    canManage={canManage && !editing}
+                    onUpload={(file) => onUpload(item, file, { bucket: "symbol-images", type: "activity-image" })}
+                    onRemove={() => onRemoveMedia(item, "activity-image")}
+                  />
+                ) : null}
                 <FileRow
                   title="Audio"
                   fileName={getMediaFileName(item.audioUrl) ?? (item.audioUrl ? "Browser voice" : undefined)}

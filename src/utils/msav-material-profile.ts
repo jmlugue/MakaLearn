@@ -43,9 +43,30 @@ export function isBuiltInMsavLabel(label: string) {
   return builtInLabels.has(normalizePecsLabel(label));
 }
 
-export function isPlaygroundReady(item: LearningItem) {
+export type PlaygroundAvailability = "ready" | "missing-image" | "processing" | "unsupported" | "pending";
+
+/** A Playground card needs artwork the browser can load, not only a successfully prepared MSAV profile. */
+export function hasPlaygroundCardImage(item: Pick<LearningItem, "symbolImageUrl">) {
+  const value = item.symbolImageUrl?.trim();
+  return Boolean(value && (value.startsWith("http://") || value.startsWith("https://")));
+}
+
+/** Built-in cards use reviewed rules; new cards need a checked profile saved by the preparation route. */
+export function isMsavPrepared(item: Pick<LearningItem, "contentType" | "label" | "playgroundPreparationStatus" | "msavProfile">) {
   return item.contentType === "pecs" &&
     (isBuiltInMsavLabel(item.label) || (item.playgroundPreparationStatus === "ready" && Boolean(item.msavProfile)));
+}
+
+export function getPlaygroundAvailability(item: LearningItem): PlaygroundAvailability {
+  if (item.contentType !== "pecs") return "unsupported";
+  if (isMsavPrepared(item)) return hasPlaygroundCardImage(item) ? "ready" : "missing-image";
+  if (item.playgroundPreparationStatus === "processing") return "processing";
+  if (item.playgroundPreparationStatus === "unsupported") return "unsupported";
+  return "pending";
+}
+
+export function isPlaygroundReady(item: LearningItem) {
+  return getPlaygroundAvailability(item) === "ready";
 }
 
 function uniqueAllowed<T extends string>(value: unknown, allowed: readonly T[]): T[] | null {

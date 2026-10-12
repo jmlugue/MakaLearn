@@ -17,10 +17,10 @@ import { symbolVocabulary } from "@/data/symbol-vocabulary";
 import { NO_CATEGORY_ID, noCategory } from "@/lib/no-category";
 import type { Category } from "@/types";
 
-export type NewCardFiles = Partial<Record<"symbol" | "audio", File>>;
+export type NewCardFiles = Partial<Record<"symbol" | "activity" | "audio", File>>;
 export type NewCardValues = { kind: ContentKind; label: string; categoryId: string; description: string; files: NewCardFiles };
 
-const fileBuckets = { symbol: "symbol-images", audio: "audio-files" } as const;
+const fileBuckets = { symbol: "symbol-images", activity: "symbol-images", audio: "audio-files" } as const;
 
 export function CardFormDialog({
   open,
@@ -283,13 +283,28 @@ function CardForm({
             icon={ImageIcon}
             label={kind === "pecs" ? "Card image" : "Reference image"}
             accept={acceptFor["symbol-images"]}
-            hint={`PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
+            hint={`${kind === "pecs" ? "Required for Playground. " : ""}PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
             maxBytes={mediaSizeLimits["symbol-images"]}
             storageNote="Saved with the material."
             successMessage="Ready to save."
             onUpload={stage("symbol")}
             onRemove={unstage("symbol")}
           />
+          {kind === "pecs" ? (
+            <FileUpload
+              key="activity"
+              compact
+              icon={ImageIcon}
+              label="Activity picture"
+              accept={acceptFor["symbol-images"]}
+              hint={`No printed words. Required for Activities. PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
+              maxBytes={mediaSizeLimits["symbol-images"]}
+              storageNote="Shown as an answer choice."
+              successMessage="Ready to save."
+              onUpload={stage("activity")}
+              onRemove={unstage("activity")}
+            />
+          ) : null}
           <FileUpload
             key="audio"
             compact

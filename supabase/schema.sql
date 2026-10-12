@@ -9,7 +9,7 @@ create type public.profile_status as enum ('active', 'invited', 'deactivated');
 create type public.account_request_status as enum ('pending', 'approved', 'rejected');
 create type public.learner_status as enum ('active', 'inactive');
 create type public.preferred_learning_mode as enum ('Visual', 'Audio', 'Gesture', 'Mixed', 'Teacher-guided');
-create type public.media_asset_type as enum ('symbol-image', 'gesture-media', 'audio-file');
+create type public.media_asset_type as enum ('symbol-image', 'activity-image', 'gesture-media', 'audio-file');
 create type public.media_bucket as enum ('symbol-images', 'gesture-media', 'audio-files');
 create type public.lesson_source as enum ('manual', 'auto-generated');
 create type public.visibility_level as enum ('shared', 'private');
@@ -94,6 +94,7 @@ create table public.learning_items (
   description text not null,
   instruction text not null,
   symbol_image_url text,
+  activity_image_url text,
   gesture_media_url text,
   audio_url text,
   tags text[] not null default '{}',

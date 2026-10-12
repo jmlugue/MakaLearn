@@ -1,18 +1,15 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
-import ts from "typescript";
 import { loadTs } from "./load-ts.mjs";
 
 const { buildActivityOptionSets, isUnsafeActivityDistractor } = loadTs("src/utils/activity-option-sets.ts");
 
-const symbolSource = fs.readFileSync("src/utils/activity-symbol-options.ts", "utf8");
-const compiledSymbols = ts.transpileModule(symbolSource, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
-}).outputText;
-const symbolModule = {};
-new Function("exports", compiledSymbols)(symbolModule);
-const { findPecsLearningItemForActivityValue } = symbolModule;
+const {
+  findPecsLearningItemForActivityValue,
+  getActivityOptionImageUrl,
+  hasActivityOptionImage
+} = loadTs("src/utils/activity-symbol-options.ts");
 
 const selectedAnswers = ["father", "mother", "you", "friend", "teacher"];
 const libraryCards = ["angry", "m", "happy", "drink", "help", "stop", "yes", "no"];
@@ -77,6 +74,40 @@ test("every built-in PECS card has dedicated no-text activity artwork", () => {
       `Missing no-text activity image for ${card.label}`
     );
   });
+});
+
+test("a custom PECS material needs a separate word-free activity picture", () => {
+  const standardOnly = {
+    id: "pecs-jolly",
+    contentType: "pecs",
+    label: "Jolly",
+    symbolImageUrl: "https://example.test/jolly-with-word.png"
+  };
+  const withActivityPicture = {
+    ...standardOnly,
+    activityImageUrl: "https://example.test/jolly-no-text.png"
+  };
+
+  assert.equal(hasActivityOptionImage(standardOnly), false);
+  assert.equal(getActivityOptionImageUrl(standardOnly.id, standardOnly), undefined);
+  assert.equal(
+    hasActivityOptionImage({ ...standardOnly, label: "Help" }),
+    false,
+    "a teacher-created card does not borrow built-in artwork just because its label matches"
+  );
+  assert.equal(hasActivityOptionImage(withActivityPicture), true);
+  assert.equal(getActivityOptionImageUrl(withActivityPicture.id, withActivityPicture), withActivityPicture.activityImageUrl);
+});
+
+test("activity artwork never falls back to the standard word-bearing card", () => {
+  const builtIn = {
+    id: "pecs-help",
+    contentType: "pecs",
+    label: "Help",
+    symbolImageUrl: "/pecs/generated_cards/help.png"
+  };
+
+  assert.equal(getActivityOptionImageUrl(builtIn.id, builtIn), "/pecs/generated_cards_no_text/help.png");
 });
 
 test("an Eat question excludes food cards that are also reasonable answers", () => {

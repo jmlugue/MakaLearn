@@ -158,6 +158,7 @@ export type Database = {
           description: string;
           instruction: string;
           symbol_image_url: string | null;
+          activity_image_url: string | null;
           gesture_media_url: string | null;
           audio_url: string | null;
           tags: string[];
@@ -180,6 +181,7 @@ export type Database = {
           description: string;
           instruction: string;
           symbol_image_url?: string | null;
+          activity_image_url?: string | null;
           gesture_media_url?: string | null;
           audio_url?: string | null;
           tags?: string[];
@@ -202,6 +204,7 @@ export type Database = {
           description?: string;
           instruction?: string;
           symbol_image_url?: string | null;
+          activity_image_url?: string | null;
           gesture_media_url?: string | null;
           audio_url?: string | null;
           tags?: string[];

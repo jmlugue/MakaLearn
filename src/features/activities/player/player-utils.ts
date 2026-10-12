@@ -1,4 +1,4 @@
-import { activityUsesSymbolOptions, findPecsLearningItemForActivityValue, getActivityDisplayLabel } from "@/utils/activity-symbol-options";
+import { activityUsesSymbolOptions, findPecsLearningItemForActivityValue, getActivityDisplayLabel, hasActivityOptionImage } from "@/utils/activity-symbol-options";
 import { buildActivityOptionSets, isQuestionRelatedDistractor, isUnsafeActivityDistractor } from "@/utils/activity-option-sets";
 import { activityInstruction } from "@/features/activities/activity-helpers";
 import { normalizeLearningSpeechText } from "@/utils/speech-text";
@@ -157,12 +157,12 @@ export function getActivityQuestionOptions(
   shuffleSeed: number
 ) {
   const usesSymbols = activityUsesImageOptions(activity.type);
-  const eligibleItems = learningItems.filter((item) => item.contentType === "pecs" && item.symbolImageUrl);
+  const eligibleItems = learningItems.filter((item) => item.contentType === "pecs" && hasActivityOptionImage(item));
   const optionValueForItem = (item: LearningItem) => usesSymbols ? getSymbolOptionValue(item) : item.label;
   const savedPecsOptions = activity.questions
     .flatMap((candidate) => candidate.options)
     .map((value) => findPecsLearningItemForActivityValue(value, eligibleItems))
-    .filter((item): item is LearningItem => Boolean(item?.symbolImageUrl))
+    .filter((item): item is LearningItem => Boolean(item && hasActivityOptionImage(item)))
     .map(optionValueForItem);
   const libraryOptions = eligibleItems.map(optionValueForItem);
   const answerItems = activity.questions.map(

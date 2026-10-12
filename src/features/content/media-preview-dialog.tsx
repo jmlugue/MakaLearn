@@ -71,8 +71,8 @@ export function MediaPreviewDialog({
             {kind === "audio" ? (
               <div className="flex items-center gap-4 rounded-xl bg-[#fff] p-4 shadow-sm">
                 <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-blue-50">
-                  {item?.symbolImageUrl ? (
-                    <CardImage value={item.symbolImageUrl} label={item.label} className="p-1 text-xs" />
+                  {(asset.type === "activity-image" ? item?.activityImageUrl : item?.symbolImageUrl) ? (
+                    <CardImage value={asset.type === "activity-image" ? item?.activityImageUrl : item?.symbolImageUrl} label={item?.label ?? asset.title} className="p-1 text-xs" />
                   ) : (
                     <Volume2 className="h-7 w-7 text-blue-600" aria-hidden="true" />
                   )}

@@ -31,7 +31,6 @@ import {
   normalizePecsLabel,
   pecsCardCategories,
   pecsCardManifest,
-  type PecsCardCategory,
   type PecsManifestCard
 } from "@/data/pecs-card-manifest";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
@@ -44,12 +43,12 @@ import { createUtterance } from "@/lib/speech";
 import { playCue } from "@/lib/sound-cues";
 import { Maki } from "@/features/student-mode/maki";
 import { encourageAfterWrong, pickCheer, sayMakiLine, type MakiReaction } from "@/features/student-mode/maki-voice";
-import type { LearningItem } from "@/types";
+import type { Category, LearningItem } from "@/types";
 
-type PlaygroundCard = PecsManifestCard & {
+type PlaygroundCard = Omit<PecsManifestCard, "category"> & {
   id: string;
   learningItemId?: string;
-  audioUrl?: string;
+  category: string;
   imageUrl: string;
   msavProfile?: LearningItem["msavProfile"];
 };
@@ -60,7 +59,7 @@ const maxSentenceCards = 5;
 // Student mode is for children, so each category gets its own color and icon to find it by.
 // Full class strings are kept literal so Tailwind keeps them. Same hues as the Content tints in
 // `src/lib/category-colors.ts`: change both together.
-const categoryStyles: Record<PecsCardCategory | typeof allCategoriesLabel, { icon: LucideIcon; idle: string; active: string }> = {
+const categoryStyles: Record<string, { icon: LucideIcon; idle: string; active: string }> = {
   "All cards": {
     icon: LayoutGrid,
     idle: "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100",
@@ -102,19 +101,17 @@ const categoryStyles: Record<PecsCardCategory | typeof allCategoriesLabel, { ico
     active: "border-red-600 bg-red-600 text-white"
   }
 };
+const fallbackCategoryStyle = categoryStyles[allCategoriesLabel];
 // Each board slot is a fifth of the board wide, but never taller than the board allows.
 const slotStyle = { width: "min(calc((100cqw - 3rem) / 5), calc(100cqh * 0.7))" };
-const filterCategories: Array<PecsCardCategory | typeof allCategoriesLabel> = [
-  allCategoriesLabel,
-  ...pecsCardCategories
-];
 
 function getPecsItems(items: LearningItem[]) {
   return items.filter((item) => item.contentType === "pecs");
 }
 
-function buildPlaygroundCards(items: LearningItem[]): PlaygroundCard[] {
+function buildPlaygroundCards(items: LearningItem[], categories: Category[]): PlaygroundCard[] {
   const manifestByLabel = new Map(pecsCardManifest.map((card) => [normalizePecsLabel(card.label), card]));
+  const categoryById = new Map(categories.map((category) => [category.id, category.name]));
 
   return getPecsItems(ensurePecsManifestItems(items))
     .filter(isPlaygroundReady)
@@ -126,12 +123,11 @@ function buildPlaygroundCards(items: LearningItem[]): PlaygroundCard[] {
       return [{
         filename: manifestCard?.filename ?? `${item.id}.png`,
         label: item.label,
-        category: manifestCard?.category ?? "Daily Needs",
+        category: categoryById.get(item.categoryId) ?? manifestCard?.category ?? "Daily Needs",
         sentenceRole: item.msavProfile?.roles[0] ?? item.sentenceRole ?? manifestCard?.sentenceRole ?? "object",
         msavProfile: item.msavProfile,
         id: item.id,
         learningItemId: item.id,
-        audioUrl: item.audioUrl && isEmbeddableMediaUrl(item.audioUrl) ? item.audioUrl : undefined,
         imageUrl: item.symbolImageUrl
       }];
     })
@@ -144,10 +140,6 @@ function buildPlaygroundCards(items: LearningItem[]): PlaygroundCard[] {
 
 function isEmbeddableMediaUrl(value: string) {
   return value.startsWith("http://") || value.startsWith("https://");
-}
-
-function canUseAudioUrl(value?: string) {
-  return Boolean(value && isEmbeddableMediaUrl(value));
 }
 
 /** Shown (not spoken; the voice says only "Try again.") after a wrong Check. About the next try, not the mistake. */
@@ -191,8 +183,9 @@ export function PlaygroundView() {
   const { notify } = useToast();
   const { isStudentMode } = useStudentMode();
   const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [ready, setReady] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<PecsCardCategory | typeof allCategoriesLabel>(allCategoriesLabel);
+  const [activeCategory, setActiveCategory] = useState<string>(allCategoriesLabel);
   const [cardSearch, setCardSearch] = useState("");
   const [cardOrderIds, setCardOrderIds] = useState<string[]>([]);
   const [sentenceCards, setSentenceCards] = useState<PlaygroundCard[]>([]);
@@ -218,10 +211,12 @@ export function PlaygroundView() {
         const data = await fetchMakaLearnData();
         if (!active) return;
         setLearningItems(data.learningItems);
+        setCategories(data.categories);
         setReady(true);
       } catch (error) {
         if (!active) return;
         setLearningItems([]);
+        setCategories([]);
         setReady(true);
         notify({
           title: "PECS cards unavailable",
@@ -242,7 +237,11 @@ export function PlaygroundView() {
     setToolbarReady(true);
   }, []);
 
-  const cards = useMemo(() => buildPlaygroundCards(learningItems), [learningItems]);
+  const cards = useMemo(() => buildPlaygroundCards(learningItems, categories), [categories, learningItems]);
+  const filterCategories = useMemo(
+    () => [allCategoriesLabel, ...Array.from(new Set([...pecsCardCategories, ...cards.map((card) => card.category)]))],
+    [cards]
+  );
   const approvedCardIds = useMemo(() => new Set(cards.map((card) => card.id)), [cards]);
   const orderedCards = useMemo(() => {
     const cardById = new Map(cards.map((card) => [card.id, card]));
@@ -517,7 +516,7 @@ export function PlaygroundView() {
                       {/* Phones: one row that swipes sideways, so the cards keep the space. */}
                       <div className="clean-scrollbar -mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
                         {filterCategories.map((category) => {
-                          const style = categoryStyles[category];
+                          const style = categoryStyles[category] ?? fallbackCategoryStyle;
                           const CategoryIcon = style.icon;
                           const isActive = activeCategory === category;
                           return (
@@ -796,18 +795,8 @@ const popupButtonClass =
 const gameButtonClass =
   "inline-flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-2xl px-2 pb-2 pt-3 text-base font-black leading-tight text-white transition-[transform,box-shadow,background-color] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0 sm:text-lg";
 
-function playAudio(url: string) {
-  return new Promise<void>((resolve) => {
-    const audio = new Audio(url);
-    audio.onended = () => resolve();
-    audio.onerror = () => resolve();
-    audio.play().catch(() => resolve());
-  });
-}
-
-/** One card's sound: its recorded audio when there is one, otherwise the browser voice. */
+/** Playground always uses the shared speech voice so every card sounds consistent. */
 function sayCard(card: PlaygroundCard) {
-  if (canUseAudioUrl(card.audioUrl)) return playAudio(card.audioUrl as string);
   if ("speechSynthesis" in window) return speakText(getSpeechLabel(card.label));
   return Promise.resolve();
 }

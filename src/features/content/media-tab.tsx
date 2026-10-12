@@ -27,7 +27,8 @@ const linkLabels: Record<LinkFilter, string> = {
 
 /** "gesture-media" is kept only so older video files can still be listed and deleted. */
 export const mediaTypeMeta: Record<LibraryMediaType, { label: string; single: string; icon: LucideIcon; tone: Tone }> = {
-  "symbol-image": { label: "Images", single: "Image", icon: ImageIcon, tone: "indigo" },
+  "symbol-image": { label: "Card images", single: "Card image", icon: ImageIcon, tone: "indigo" },
+  "activity-image": { label: "Activity pictures", single: "Activity picture", icon: ImageIcon, tone: "sky" },
   "gesture-media": { label: "Old videos", single: "Old video", icon: Film, tone: "sky" },
   "audio-file": { label: "Audio", single: "Audio", icon: Volume2, tone: "blue" }
 };
@@ -57,7 +58,8 @@ export function MediaTab({
   const sorted = useMemo(() => {
     const query = search.trim().toLowerCase();
     const list = media.filter((asset) => {
-      if (filter !== "all" && asset.type !== filter) return false;
+      if (filter === "symbol-image" && asset.type !== "symbol-image" && asset.type !== "activity-image") return false;
+      if (filter === "audio-file" && asset.type !== "audio-file") return false;
       if (link === "linked" && !asset.relatedItemId) return false;
       if (link === "unlinked" && asset.relatedItemId) return false;
       if (!query) return true;
@@ -69,6 +71,7 @@ export function MediaTab({
 
   const visuals = sorted.filter((asset) => asset.type !== "audio-file");
   const audio = sorted.filter((asset) => asset.type === "audio-file");
+  const imageCount = media.filter((asset) => asset.type === "symbol-image" || asset.type === "activity-image").length;
   const countOf = (type: LibraryMediaType) => media.filter((asset) => asset.type === type).length;
 
   return (
@@ -81,7 +84,7 @@ export function MediaTab({
           onChange={setFilter}
           options={[
             { value: "all", label: "All", icon: Layers, count: media.length },
-            { value: "symbol-image", label: "Images", icon: ImageIcon, count: countOf("symbol-image") },
+            { value: "symbol-image", label: "Images", icon: ImageIcon, count: imageCount },
             { value: "audio-file", label: "Audio", icon: Volume2, count: countOf("audio-file") }
           ]}
         />
