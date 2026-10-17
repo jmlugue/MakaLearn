@@ -1,5 +1,7 @@
--- MakaLearn initial Supabase schema.
--- Run this in the Supabase SQL editor before using the app with real accounts.
+-- HISTORICAL initial bootstrap snapshot, not the current hosted schema.
+-- It predates authorization hardening and the Oct 17 retirement/Collection API migrations.
+-- Do not replay this file on an existing database or use it as a current production setup.
+-- See migrations/ and docs/supabase-readiness-audit.md for the tracked current changes.
 -- Profiles use auth.users.id stored as text so the client can join roles to sessions.
 
 create extension if not exists pgcrypto;

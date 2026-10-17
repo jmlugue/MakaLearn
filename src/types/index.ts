@@ -24,24 +24,6 @@ export type AccountRequest = {
   reviewedBy?: string;
 };
 
-export type PreferredLearningMode =
-  | "Visual"
-  | "Audio"
-  | "Gesture"
-  | "Mixed"
-  | "Teacher-guided";
-
-export type Learner = {
-  id: string;
-  name: string;
-  age: number;
-  gradeLevel: string;
-  communicationNeeds: string;
-  preferredLearningMode: PreferredLearningMode;
-  assignedTeacherId: string;
-  status: "active" | "inactive";
-};
-
 export type Category = {
   id: string;
   name: string;
@@ -128,7 +110,7 @@ export type LearningItem = {
   updatedAt: string;
 };
 
-export type Lesson = {
+export type Collection = {
   id: string;
   title: string;
   objective: string;
@@ -143,6 +125,9 @@ export type Lesson = {
   createdBy: string;
   createdAt?: string;
 };
+
+/** @deprecated Internal UI aliases are being migrated; persisted IDs remain stable. */
+export type Lesson = Collection;
 
 export type ActivityType =
   | "match-word-symbol"
@@ -181,30 +166,6 @@ export type AuditLog = {
   targetId?: string;
   targetTitle: string;
   detail: string;
-  createdAt: string;
-};
-
-export type PracticeAttemptStatus = "correct" | "good-attempt" | "needs-practice" | "no-hand-detected";
-
-export type PracticeAttempt = {
-  id: string;
-  learnerId?: string;
-  learningItemId: string;
-  teacherId: string;
-  status: PracticeAttemptStatus;
-  feedback: string;
-  createdAt: string;
-};
-
-export type ActivityResult = {
-  id: string;
-  activityId: string;
-  learnerId?: string;
-  teacherId: string;
-  score: number;
-  correctCount: number;
-  incorrectCount: number;
-  answers: Record<string, string>;
   createdAt: string;
 };
 

@@ -13,16 +13,16 @@ import { insertAuditLog } from "@/lib/audit-logs";
 import {
   deleteCategory,
   deleteLearningItem,
-  deleteLesson,
+  deleteCollection,
   detachLearningItemMedia,
   fetchMakaLearnData,
   insertCategory,
   insertLearningItem,
-  insertLesson,
+  insertCollection,
   updateCategoryDetails,
   updateLearningItemDetails,
   updateLearningItemMedia,
-  updateLesson
+  updateCollection
 } from "@/lib/supabase/app-data";
 import { deleteMediaAssetFromSupabase, uploadMediaAssetToSupabase } from "@/lib/supabase/media";
 import { canSee, uniqueCopyTitle } from "@/utils/lesson-activity";
@@ -124,7 +124,7 @@ export function ContentLibraryView({
           ...item,
           contentType: item.contentType ?? (item.tags?.includes("gesture") ? "gesture" : "pecs")
         })), { builtInOnly: true }));
-        setLessons(data.lessons);
+        setLessons(data.collections);
         setCategories(withNoCategory(ensurePecsManifestCategories(data.categories), user.id));
         setNoCategorySaved(data.categories.some((category) => isNoCategory(category.id)));
         setMedia(data.mediaAssets);
@@ -150,7 +150,7 @@ export function ContentLibraryView({
     if (initialOpen === "add") {
       setTab("materials");
       setCardFormOpen(true);
-    } else if (initialOpen === "lesson") {
+    } else if (initialOpen === "collection" || initialOpen === "lesson") {
       setTab("lessons");
       setLessonMode({ kind: "new" });
     }
@@ -539,7 +539,7 @@ export function ContentLibraryView({
     // Lessons no longer pick a format (activities do), but the column is kept filled for older code.
     const activityType: ActivityType = previous?.activityType ?? (hasPecs ? "choose-correct-symbol" : "gesture-practice");
     const newRecord = {
-      id: `lesson-${Date.now()}`,
+      id: `collection-${Date.now()}`,
       createdBy: user.id,
       relatedActivityId: undefined,
       visibility: values.isPrivate ? ("private" as const) : ("shared" as const)
@@ -561,7 +561,7 @@ export function ContentLibraryView({
 
     let saved: Lesson;
     try {
-      saved = previous ? await updateLesson(next, previous) : await insertLesson(next);
+      saved = previous ? await updateCollection(next, previous) : await insertCollection(next);
     } catch (error) {
       notify({ title: "Collection not saved", description: errorText(error, "The collection could not be saved."), tone: "error" });
       return false;
@@ -570,7 +570,7 @@ export function ContentLibraryView({
     setLessons((current) => (previous ? current.map((lesson) => (lesson.id === saved.id ? saved : lesson)) : [saved, ...current]));
     log(
       previous ? "edit" : "create",
-      "lesson",
+      "collection",
       saved.title,
       previous
         ? "Updated a collection."
@@ -587,9 +587,9 @@ export function ContentLibraryView({
     if (!lessonToDelete) return;
     setDeleting(true);
     try {
-      await deleteLesson(lessonToDelete.id);
+      await deleteCollection(lessonToDelete.id);
       setLessons((current) => current.filter((lesson) => lesson.id !== lessonToDelete.id));
-      log("delete", "lesson", lessonToDelete.title, "Deleted a collection.", lessonToDelete.id);
+      log("delete", "collection", lessonToDelete.title, "Deleted a collection.", lessonToDelete.id);
       notify({ title: "Collection deleted", tone: "success" });
       setLessonToDelete(null);
       setOpenLessonId("");

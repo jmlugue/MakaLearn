@@ -20,18 +20,19 @@ Three stages, in order. Get this right, it has been described wrongly before.
 3. **Student mode** is the learner-facing half: a simpler full-screen interface with the playground,
    gesture practice with camera-based recognition, and activities.
 
-There is **no Learners page**. `/learners` redirects to `/content` and
-`src/features/learners/learners-view.tsx` is unreachable. Do not add to it or feature learner tracking.
+There is **no Learners page**. `/learners` redirects to `/content`; the retired component and
+learner data helpers were removed on Oct 17. Do not restore learner tracking.
 
 **Admin** is admin-only: Home overview, Accounts, all teachers' Content, and an Activity log. An admin
 also does a teacher's job, so admins see teacher content plus admin content. Teachers never see admin
 content.
 
 **Gestures have no attempts.** Gesture practice is live recognition with feedback. It is never counted,
-charted, or saved. The `practice_attempts` table, its types, and `insertPracticeAttempt` /
-`fetchPracticeAttempts` in `app-data.ts` still exist, but nothing writes to them and nothing new should
-read them. Activity scores are view only too since Sep 19 (see section 6), so Admin's "Most used
-activities" only reflects older `activity_results` rows.
+charted, or saved. The retired `practice_attempts` table, types, and persistence helpers were removed
+on Oct 17; only an empty compatibility view remains for older deployed clients. Teacher-player scores
+stay in memory. Completed teacher-played Student Mode rounds are
+saved by `insertActivityPlay` in `activity_results` and read by `fetchActivityPlays` for Admin's usage
+chart; this supersedes the older view-only activity notes below. Do not classify that table as unused.
 
 ---
 
@@ -250,8 +251,9 @@ This is the current accepted behavior for every activity surface:
 - The same rules apply to Student Mode, the teacher player, Match, Choose, Fill in the blank, Choose the word, Drag and drop, dropped-card views, result summaries, and activity samples/previews.
 - Treat saved `question.options` as legacy input: resolve and filter it against the current PECS-only rules at play time. Use `npm run test:activities` as a required regression gate.
 
-- **Scores are view only.** `scoreActivity` no longer calls `insertActivityResult` (kept in `app-data.ts`),
-  so the Admin "Most used activities" tile stops updating. Accepted by the user.
+- **Teacher-player scores are view only.** The dormant `insertActivityResult` helper was removed
+  on Oct 17. Student Mode completion tracking uses `insertActivityPlay` and
+  `fetchActivityPlays` for Admin's Activity usage chart; `activity_results` remains active.
 - Student mode: the result pop-up adds a final "Score X / Y" once every question in the round is answered.
   Match word only moves on after a correct answer, so its final score is usually full marks.
 - Type colors are an agreed exception to the blue-first palette, accents only.
@@ -1055,3 +1057,14 @@ The owner asked for three layouts like a CSS media query diagram. Rules live in 
 - Playground uses the saved Supabase category name for each material, including teacher-created categories, instead of defaulting every non-manifest card to Daily Needs.
 - Playground card narration always uses the shared browser voice selected in Settings. Uploaded card audio remains usable in Content, but Playground no longer mixes recordings with text-to-speech voices.
 - Hosted migration `20261012021919_add_activity_images.sql` adds `learning_items.activity_image_url` and the `activity-image` media type.
+
+## Oct 17: owner-approved Supabase retirement and Collection API
+
+- The owner approved deleting verified-unused records/features/files after the audit. See docs/supabase-readiness-audit.md for exact outcomes and remaining limits.
+- Removed the two saved learner records, empty learner/practice tables, five unused enum types, empty learner-photo bucket, two hidden unreferenced activities plus ten questions, thirteen obsolete AI generations, and eleven unused Storage objects. Backups are Git-ignored under supabase/backups/.
+- Empty read-only learners/practice_attempts views keep older deployed app loads and validators working. Do not add new callers. Active code/types/seed/validators no longer use those features.
+- Current app data uses collections/collection_items security-invoker views, Collection, insertCollection/updateCollection/deleteCollection, and upsert_collection_items (invoker/RLS protected). New audit entries say collection; old lesson entries and links still work. Saved IDs remain unchanged; newly created collection IDs use collection-.
+- The legacy lessons/lesson_items backing tables are still used by deployed bundles. Their names cannot yet be removed safely because those clients upsert lesson_items. Keep them until a coordinated app rollout retires old writes. collection_source is the renamed enum.
+- Student Mode still writes activity_results for Admin usage. Removed the unused learner/result columns only after proving they were null, zero, or redundant; active scores/counts/source/duration/created_at remain.
+- Verification includes real app adapter HTTP reads, anonymous denial, transaction-rolled-back teacher CRUD/reorder, legacy writes, Student Mode result persistence, teacher isolation, and admin read-only checks. Password-based HTTP tests skip without TEST_* credentials; SQL role checks do not verify password login.
+- The historical schema.sql is not a current bootstrap. Fresh-project replay remains unverified. Supabase's existing leaked-password-protection warning remains; do not claim blanket production readiness.

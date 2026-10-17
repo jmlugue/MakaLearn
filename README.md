@@ -48,7 +48,7 @@ src/
 - `/request-account` public teacher account request form with admin review
 - `/content` PECS and gesture content library with in-app media previews
 - `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, trained local recognition, and Gemini-first corrective feedback with template fallback
-- `/activities` PECS and gesture-practice activity library, player, manual creator, adaptive question generation, and draft helper
+- `/activities` PECS activity library, player, manual creator, adaptive question generation, and draft helper
 - `/playground` PECS/AAC sentence builder with category filters, drag/drop or tap card selection, rule-based sentence checking, and speech/audio playback
 - `/settings` profile, accessibility, and display settings
 - `/help` teacher/admin guide
@@ -74,8 +74,8 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - Activity question generation adapts to each PECS card label and description, so greetings and choices do not use request-only wording.
 - The Inspire me with AI button in Activity creation uses a Supabase-backed cache before calling Gemini with its own activity-only API key. It only drafts PECS fill-in-the-blank or legacy choose-correct-symbol prompts. Gemini text must pass one-sentence, 5-to-12-word, answer-leak, suitability, and semantic-conflict checks before it is shown. If wording fails those checks, MakaLearn silently uses checked question-bank text where available instead of spending another model call. Teachers can lock individual Fill in the blank sentences so later inspiration keeps their wording.
 - Drag-and-drop answers remain visual cards after dropping, and scored incorrect answers use red feedback.
-- Saving a PECS lesson creates a related playable activity and the lesson shows an Open activity action. Gesture lessons show a Practice gesture action.
-- Activity scoring writes result summaries to Supabase and keeps the current player state in memory while an activity is open.
+- Collections group teaching materials. Activities can be created from a collection in the Activity creator; saving a collection does not automatically create an activity. Current data adapters use the `collections` and `collection_items` APIs. Legacy `lessons` backing tables remain compatible with older deployed clients; saved IDs are unchanged.
+- Teacher-player scoring stays in memory. Completed Student Mode rounds played by teachers are saved in `activity_results` for Admin's Activity usage chart, including score/counts and duration. Gesture attempts are never saved.
 - The real icon-only logo is served from `public/makalearn_logo_current.png` and used in the primary brand surfaces.
 - Admins can approve or reject teacher account requests, create accounts directly, deactivate/reactivate teachers, change roles, monitor teacher-managed content, review uploads, and see logs through Supabase-backed flows.
 
@@ -108,16 +108,18 @@ AI activity drafting requires Supabase for authenticated cache and quota checks 
 Current integration points:
 
 - Auth and profile role lookup
-- Table helpers for profiles, categories, learning items, media assets, lessons, and activities
-- Storage upload helpers for picture-card images, gesture media, audio, and legacy learner photos
+- Table helpers for profiles, categories, learning items, media assets, collections, and activities
+- Storage upload helpers for picture-card images, gesture media, and audio
 - AI prompt generation cache in `activity_prompt_generations`
 - AI usage/rate-limit tracking in `ai_usage_events`
 
-Apply the Supabase-only migration:
+For the existing linked project, inspect pending migrations before applying them:
 
 ```bash
-npx supabase db push
+npx supabase db push --dry-run
 ```
+
+Apply only reviewed pending migrations with `npx supabase db push`. The current migration history assumes an existing core schema; it is not yet a verified empty-project bootstrap. Do not run `schema.sql` or a database reset against the hosted project. See [the Supabase readiness review](docs/supabase-readiness-audit.md) for the applied cleanup, compatibility names, and remaining setup gaps. `supabase/readiness-audit.sql` provides a repeatable read-only inventory. The retired learner and gesture-attempt tables were removed; empty compatibility views keep older deployed page loads working. Recovery snapshots are excluded from Git under `supabase/backups/`.
 
 Database migrations do not change the hosted Auth service configuration. For each hosted project, open Authentication settings and turn off **Allow new users to sign up**, while keeping the Email provider enabled so existing and administrator-provisioned accounts can still sign in. The local `supabase/config.toml` mirrors that invite-only setup with `[auth].enable_signup = false` and `[auth.email].enable_signup = true`.
 
@@ -137,7 +139,7 @@ npm run supabase:migrate-learning-media
 
 The media migration uploads PECS card PNGs, PECS audio, fixed gesture reference images, and fixed gesture audio to the correct buckets, upserts matching `media_assets` rows, and updates `learning_items.symbol_image_url`, `learning_items.gesture_media_url`, and `learning_items.audio_url` with Supabase Storage public URLs.
 
-Run `npm run validate:materials` to perform a read-only check of manifest image files and every Supabase material reference used by activities, lessons, reusable prompts, practice attempts, and media records.
+Run `npm run validate:materials` to perform a read-only check of manifest image files and every Supabase material reference used by activities, collections, reusable prompts, and media records. `npm run test:readiness:db` checks hosted API reads and anonymous denial; its optional teacher/admin HTTP tests require the existing `TEST_TEACHER_*`, `TEST_TEACHER2_*`, and `TEST_ADMIN_*` variables. `supabase/verify-readiness.sql` tests database roles inside a transaction that rolls back all test writes.
 
 Planned updates before production:
 
@@ -150,7 +152,7 @@ Planned updates before production:
 
 - PECS and gesture media are placeholders and must not be treated as official Makaton content.
 - `generateCorrectiveFeedbackPlaceholder` and `generateFeedbackPlaceholder` are marked for future model/AI replacement.
-- Gesture hand tracking is a presentation simulation. It accepts one or two visible hands and one person in the UI but does not perform real recognition.
+- Gesture hand tracking uses real MediaPipe landmarks and the bundled trained recognizer. Corrective feedback uses Gemini with local template fallback; gesture attempts are session-only.
 - The AI activity draft can use its isolated Gemini key when configured, but only after Supabase cache and usage checks pass. Gesture-practice, match, drag/drop, and local scoring do not call the activity model.
 - Playground validation is local rule-based logic, not NLP, grammar correction, or AI.
 ## MSAV preparation for new materials

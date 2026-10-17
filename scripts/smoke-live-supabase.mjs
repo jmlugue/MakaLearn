@@ -212,15 +212,13 @@ const counts = await Promise.all(
   [
     "profiles",
     "categories",
-    "learners",
     "learning_items",
     "media_assets",
     "lessons",
     "activities",
     "activity_prompt_templates",
     "ai_usage_events",
-    "activity_results",
-    "practice_attempts"
+    "activity_results"
   ].map((table) => countRows(service, table))
 );
 

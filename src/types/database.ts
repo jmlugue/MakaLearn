@@ -5,12 +5,8 @@ import type {
   AuditLogCategory,
   ActivityPromptTemplate,
   AppUser,
-  ActivityResult,
-  Learner,
   LearningItem,
   MediaAsset,
-  PreferredLearningMode,
-  PracticeAttempt,
   UserRole
 } from "@/types";
 
@@ -105,45 +101,6 @@ export type Database = {
           description?: string;
           color?: string;
           created_by?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      learners: {
-        Row: {
-          id: string;
-          name: string;
-          age: number;
-          grade_level: string;
-          communication_needs: string;
-          preferred_learning_mode: PreferredLearningMode;
-          assigned_teacher_id: string;
-          status: Learner["status"];
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          age: number;
-          grade_level: string;
-          communication_needs?: string;
-          preferred_learning_mode?: PreferredLearningMode;
-          assigned_teacher_id: string;
-          status?: Learner["status"];
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          age?: number;
-          grade_level?: string;
-          communication_needs?: string;
-          preferred_learning_mode?: PreferredLearningMode;
-          assigned_teacher_id?: string;
-          status?: Learner["status"];
           created_at?: string;
           updated_at?: string;
         };
@@ -431,43 +388,12 @@ export type Database = {
         };
         Relationships: [];
       };
-      practice_attempts: {
-        Row: {
-          id: string;
-          learner_id: string | null;
-          learning_item_id: string;
-          teacher_id: string;
-          status: PracticeAttempt["status"];
-          feedback: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          learner_id?: string | null;
-          learning_item_id: string;
-          teacher_id: string;
-          status: PracticeAttempt["status"];
-          feedback?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          learner_id?: string | null;
-          learning_item_id?: string;
-          teacher_id?: string;
-          status?: PracticeAttempt["status"];
-          feedback?: string;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
       activity_results: {
         Row: {
           id: string;
           activity_id: string;
-          learner_id: string | null;
-          teacher_id: string;
-          score: number;
+          teacher_id: string | null;
+          score: number | null;
           correct_count: number;
           incorrect_count: number;
           answers: Json;
@@ -476,7 +402,6 @@ export type Database = {
         Insert: {
           id?: string;
           activity_id: string;
-          learner_id?: string | null;
           teacher_id: string;
           score: number;
           correct_count: number;
@@ -487,7 +412,6 @@ export type Database = {
         Update: {
           id?: string;
           activity_id?: string;
-          learner_id?: string | null;
           teacher_id?: string;
           score?: number;
           correct_count?: number;
@@ -645,8 +569,22 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Views: {
+      // Updatable security-invoker views preserve the RLS of the legacy backing tables.
+      collections: Database["public"]["Tables"]["lessons"];
+      collection_items: {
+        Row: { collection_id: string; learning_item_id: string; position: number };
+        Insert: { collection_id: string; learning_item_id: string; position?: number };
+        Update: { collection_id?: string; learning_item_id?: string; position?: number };
+        Relationships: [];
+      };
+    };
+    Functions: {
+      upsert_collection_items: {
+        Args: { items: Json };
+        Returns: undefined;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

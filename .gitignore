@@ -4,6 +4,7 @@ out
 .vercel
 .turbo
 coverage
+supabase/backups/
 .eslintcache
 *.tsbuildinfo
 .env.local

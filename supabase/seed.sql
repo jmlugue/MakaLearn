@@ -62,21 +62,6 @@ values
   ('gesture-sit-down', 'gesture', 'Sit down', 'cat-gestures', 'Fixed demo gesture for asking to sit down.', 'Give one short cue, wait, then repeat if the learner needs another model.', null, null, null, array['gesture', 'fixed', 'demo'], null, (select id from public.profiles where email = 'admin@makalearn.local'))
 on conflict (id) do nothing;
 
-insert into public.learners (
-  id,
-  name,
-  age,
-  grade_level,
-  communication_needs,
-  preferred_learning_mode,
-  assigned_teacher_id,
-  status
-)
-values
-  ('learner-ella', 'Ella M.', 7, 'Primary 2', 'Benefits from visual prompts and repeated modeling.', 'Visual', (select id from public.profiles where email = 'teacher@makalearn.local'), 'active'),
-  ('learner-noah', 'Noah K.', 9, 'Primary 4', 'Responds well to short audio cues and gesture practice.', 'Mixed', (select id from public.profiles where email = 'teacher@makalearn.local'), 'active')
-on conflict (id) do nothing;
-
 insert into public.lessons (
   id,
   title,

@@ -186,7 +186,9 @@ const itemTypeNames: Record<string, string> = {
   session: "",
   "learning-item": "Learning item",
   "lesson-draft": "Collection draft",
+  "collection-draft": "Collection draft",
   lesson: "Collection",
+  collection: "Collection",
   category: "Category",
   activity: "Activity",
   media: "Media file",
@@ -200,6 +202,7 @@ const itemTypeNames: Record<string, string> = {
 const nouns: Record<string, string> = {
   "learning-item": "a learning item",
   lesson: "a collection",
+  collection: "a collection",
   category: "a category",
   activity: "an activity"
 };
@@ -215,6 +218,7 @@ export function describeActivity(log: AuditLog): { sentence: string; itemType: s
 
   switch (log.targetType) {
     case "lesson-draft":
+    case "collection-draft":
       return { sentence: "Generated a collection draft", itemType };
     case "media":
       return { sentence: log.action === "delete" ? "Deleted a file" : "Uploaded a file", itemType };

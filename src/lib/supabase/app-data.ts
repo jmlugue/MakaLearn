@@ -15,14 +15,11 @@ import type {
   Activity,
   ActivityPromptTemplate,
   ActivityQuestion,
-  ActivityResult,
   AppUser,
   Category,
-  Learner,
   LearningItem,
-  Lesson,
+  Collection,
   MediaAsset,
-  PracticeAttempt,
   UserSettings
 } from "@/types";
 import type { Database } from "@/types/database";
@@ -31,24 +28,21 @@ type Tables = Database["public"]["Tables"];
 type ProfileRow = Tables["profiles"]["Row"];
 type AccountRequestRow = Tables["account_requests"]["Row"];
 type CategoryRow = Tables["categories"]["Row"];
-type LearnerRow = Tables["learners"]["Row"];
 type LearningItemRow = Tables["learning_items"]["Row"];
-type LessonRow = Tables["lessons"]["Row"];
-type LessonItemRow = Tables["lesson_items"]["Row"];
+type LessonRow = Database["public"]["Views"]["collections"]["Row"];
+type LessonItemRow = Database["public"]["Views"]["collection_items"]["Row"];
 type ActivityRow = Tables["activities"]["Row"];
 type ActivityItemRow = Tables["activity_items"]["Row"];
 type ActivityPromptTemplateRow = Tables["activity_prompt_templates"]["Row"];
 type ActivityResultRow = Tables["activity_results"]["Row"];
-type PracticeAttemptRow = Tables["practice_attempts"]["Row"];
 type UserSettingsRow = Tables["user_settings"]["Row"];
 
 export type MakaLearnData = {
   users: AppUser[];
-  learners: Learner[];
   categories: Category[];
   learningItems: LearningItem[];
   mediaAssets: MediaAsset[];
-  lessons: Lesson[];
+  collections: Collection[];
   activities: Activity[];
   promptTemplates: ActivityPromptTemplate[];
 };
@@ -94,19 +88,6 @@ function mapCategory(row: CategoryRow): Category {
   };
 }
 
-function mapLearner(row: LearnerRow): Learner {
-  return {
-    id: row.id,
-    name: row.name,
-    age: row.age,
-    gradeLevel: row.grade_level,
-    communicationNeeds: row.communication_needs,
-    preferredLearningMode: row.preferred_learning_mode,
-    assignedTeacherId: row.assigned_teacher_id,
-    status: row.status
-  };
-}
-
 function mapLearningItem(row: LearningItemRow): LearningItem {
   return {
     id: row.id,
@@ -145,32 +126,6 @@ function mapActivityPromptTemplate(row: ActivityPromptTemplateRow): ActivityProm
   };
 }
 
-function mapActivityResult(row: ActivityResultRow): ActivityResult {
-  return {
-    id: row.id,
-    activityId: row.activity_id,
-    learnerId: row.learner_id ?? undefined,
-    teacherId: row.teacher_id,
-    score: row.score,
-    correctCount: row.correct_count,
-    incorrectCount: row.incorrect_count,
-    answers: typeof row.answers === "object" && row.answers ? (row.answers as Record<string, string>) : {},
-    createdAt: row.created_at
-  };
-}
-
-function mapPracticeAttempt(row: PracticeAttemptRow): PracticeAttempt {
-  return {
-    id: row.id,
-    learnerId: row.learner_id ?? undefined,
-    learningItemId: row.learning_item_id,
-    teacherId: row.teacher_id,
-    status: row.status,
-    feedback: row.feedback,
-    createdAt: row.created_at
-  };
-}
-
 function mapUserSettings(row: UserSettingsRow): UserSettings {
   return {
     userId: row.user_id,
@@ -186,7 +141,7 @@ function mapUserSettings(row: UserSettingsRow): UserSettings {
   };
 }
 
-function mapLesson(row: LessonRow, lessonItems: LessonItemRow[]): Lesson {
+function mapLesson(row: LessonRow, lessonItems: LessonItemRow[]): Collection {
   return {
     id: row.id,
     title: row.title,
@@ -201,7 +156,7 @@ function mapLesson(row: LessonRow, lessonItems: LessonItemRow[]): Lesson {
     createdBy: row.created_by,
     createdAt: row.created_at,
     learningItemIds: lessonItems
-      .filter((item) => item.lesson_id === row.id)
+      .filter((item) => item.collection_id === row.id)
       .sort((a, b) => a.position - b.position)
       .map((item) => item.learning_item_id)
   };
@@ -243,7 +198,6 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData> {
   const [
     profiles,
     categories,
-    learners,
     learningItems,
     mediaAssets,
     lessons,
@@ -254,11 +208,10 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData> {
   ] = await Promise.all([
     expectData(supabase.from("profiles").select("*").order("name")),
     expectData(supabase.from("categories").select("*").order("name")),
-    expectData(supabase.from("learners").select("*").order("name")),
     expectData(supabase.from("learning_items").select("*").order("label")),
     expectData(supabase.from("media_assets").select("*").order("uploaded_at", { ascending: false })),
-    expectData(supabase.from("lessons").select("*").order("created_at", { ascending: false })),
-    expectData(supabase.from("lesson_items").select("*").order("position")),
+    expectData(supabase.from("collections").select("*").order("created_at", { ascending: false })),
+    expectData(supabase.from("collection_items").select("*").order("position")),
     expectData(supabase.from("activities").select("*").order("created_at", { ascending: false })),
     expectData(supabase.from("activity_items").select("*").order("position")),
     expectData(supabase.from("activity_prompt_templates").select("*").order("updated_at", { ascending: false }))
@@ -267,10 +220,9 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData> {
   return {
     users: profiles.map(mapProfile),
     categories: categories.map(mapCategory),
-    learners: learners.map(mapLearner),
     learningItems: learningItems.map(mapLearningItem),
     mediaAssets: mediaAssets.map(mapMediaAssetRow),
-    lessons: lessons.map((lesson) => mapLesson(lesson, lessonItems)),
+    collections: lessons.map((lesson) => mapLesson(lesson, lessonItems)),
     activities: activities.map((activity) => mapActivity(activity, activityItems)),
     promptTemplates: promptTemplates.map(mapActivityPromptTemplate)
   };
@@ -288,29 +240,6 @@ export async function fetchPendingAccountRequests(): Promise<AccountRequest[]> {
   )) as AccountRequestRow[];
 
   return rows.map(mapAccountRequest);
-}
-
-export async function upsertLearner(learner: Learner) {
-  const supabase = getClientOrThrow();
-  const row = (await expectData(
-    supabase
-      .from("learners")
-      .upsert({
-        id: learner.id,
-        name: learner.name,
-        age: learner.age,
-        grade_level: learner.gradeLevel,
-        communication_needs: learner.communicationNeeds,
-        preferred_learning_mode: learner.preferredLearningMode,
-        assigned_teacher_id: learner.assignedTeacherId,
-        status: learner.status,
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-  )) as LearnerRow;
-
-  return mapLearner(row);
 }
 
 export async function insertCategory(category: Category) {
@@ -425,11 +354,11 @@ export async function updateLearningItemDetails(item: LearningItem) {
   return mapLearningItem(row);
 }
 
-export async function insertLesson(lesson: Lesson) {
+export async function insertCollection(lesson: Collection) {
   const supabase = getClientOrThrow();
   const row = await writeLessonRow((withActivityId) =>
     supabase
-      .from("lessons")
+      .from("collections")
       .insert({
         id: lesson.id,
         title: lesson.title,
@@ -450,9 +379,9 @@ export async function insertLesson(lesson: Lesson) {
   try {
     if (lesson.learningItemIds.length) {
       await expectData(
-        supabase.from("lesson_items").insert(
+        supabase.from("collection_items").insert(
           lesson.learningItemIds.map((learningItemId, index) => ({
-            lesson_id: row.id,
+            collection_id: row.id,
             learning_item_id: learningItemId,
             position: index
           }))
@@ -461,22 +390,22 @@ export async function insertLesson(lesson: Lesson) {
     }
   } catch (error) {
     // Do not leave an empty lesson behind when its selected materials fail to save.
-    await supabase.from("lessons").delete().eq("id", row.id);
+    await supabase.from("collections").delete().eq("id", row.id);
     throw error;
   }
 
   return { ...mapLesson(row, []), learningItemIds: lesson.learningItemIds };
 }
 
-export async function updateLesson(lesson: Lesson, previousLesson: Lesson) {
+export async function updateCollection(lesson: Collection, previousLesson: Collection) {
   const supabase = getClientOrThrow();
   const nextLessonItems = lesson.learningItemIds.map((learningItemId, index) => ({
-    lesson_id: lesson.id,
+    collection_id: lesson.id,
     learning_item_id: learningItemId,
     position: index
   }));
   const previousLessonItems = previousLesson.learningItemIds.map((learningItemId, index) => ({
-    lesson_id: previousLesson.id,
+    collection_id: previousLesson.id,
     learning_item_id: learningItemId,
     position: index
   }));
@@ -486,7 +415,7 @@ export async function updateLesson(lesson: Lesson, previousLesson: Lesson) {
   try {
     const row = await writeLessonRow((withActivityId) =>
       supabase
-        .from("lessons")
+        .from("collections")
         .update({
           title: lesson.title,
           objective: lesson.objective,
@@ -505,21 +434,21 @@ export async function updateLesson(lesson: Lesson, previousLesson: Lesson) {
     );
 
     if (nextLessonItems.length) {
-      await expectData(supabase.from("lesson_items").upsert(nextLessonItems));
+      await expectData(supabase.rpc("upsert_collection_items", { items: nextLessonItems }));
     }
 
     const staleLearningItemIds = previousLesson.learningItemIds.filter((id) => !nextLearningItemIds.has(id));
     if (staleLearningItemIds.length) {
       const deletedRows = (await expectData(
         supabase
-          .from("lesson_items")
+          .from("collection_items")
           .delete()
-          .eq("lesson_id", lesson.id)
+          .eq("collection_id", lesson.id)
           .in("learning_item_id", staleLearningItemIds)
           .select("learning_item_id")
       )) as Array<{ learning_item_id: string }>;
       if (deletedRows.length !== staleLearningItemIds.length) {
-        throw new Error("Supabase did not replace every previous lesson item.");
+        throw new Error("Supabase did not replace every previous collection item.");
       }
     }
 
@@ -528,13 +457,13 @@ export async function updateLesson(lesson: Lesson, previousLesson: Lesson) {
     const insertedLearningItemIds = lesson.learningItemIds.filter((id) => !previousLearningItemIds.has(id));
     if (insertedLearningItemIds.length) {
       await supabase
-        .from("lesson_items")
+        .from("collection_items")
         .delete()
-        .eq("lesson_id", lesson.id)
+        .eq("collection_id", lesson.id)
         .in("learning_item_id", insertedLearningItemIds);
     }
     await supabase
-      .from("lessons")
+      .from("collections")
       .update({
         title: previousLesson.title,
         objective: previousLesson.objective,
@@ -547,22 +476,22 @@ export async function updateLesson(lesson: Lesson, previousLesson: Lesson) {
       })
       .eq("id", previousLesson.id);
     if (previousLessonItems.length) {
-      await supabase.from("lesson_items").upsert(previousLessonItems);
+      await supabase.rpc("upsert_collection_items", { items: previousLessonItems });
     }
     throw error;
   }
 }
 
-export async function deleteLesson(lessonId: string) {
+export async function deleteCollection(lessonId: string) {
   const supabase = getClientOrThrow();
 
-  await expectData(supabase.from("lesson_items").delete().eq("lesson_id", lessonId).select());
+  await expectData(supabase.from("collection_items").delete().eq("collection_id", lessonId).select());
   const deletedRows = (await expectData(
-    supabase.from("lessons").delete().eq("id", lessonId).select("id")
+    supabase.from("collections").delete().eq("id", lessonId).select("id")
   )) as Array<{ id: string }>;
 
   if (!deletedRows.some((row) => row.id === lessonId)) {
-    throw new Error("Supabase did not delete this lesson. Check the lessons delete policy and try again.");
+    throw new Error("Supabase did not delete this collection. Check its delete policy and try again.");
   }
 }
 
@@ -742,47 +671,6 @@ export async function upsertActivityPromptTemplates(
   return rows.map(mapActivityPromptTemplate);
 }
 
-/** All activity results, newest first. Used by the Admin dashboard (plays and average scores). */
-export async function fetchActivityResults() {
-  const supabase = getClientOrThrow();
-  const rows = (await expectData(
-    supabase.from("activity_results").select("*").order("created_at", { ascending: false })
-  )) as ActivityResultRow[];
-  return rows.map(mapActivityResult);
-}
-
-/** All gesture practice attempts, newest first. Used by the Admin dashboard (practice outcomes). */
-export async function fetchPracticeAttempts() {
-  const supabase = getClientOrThrow();
-  const rows = (await expectData(
-    supabase.from("practice_attempts").select("*").order("created_at", { ascending: false })
-  )) as PracticeAttemptRow[];
-  return rows.map(mapPracticeAttempt);
-}
-
-export async function insertActivityResult(
-  result: Omit<ActivityResult, "id" | "createdAt">
-) {
-  const supabase = getClientOrThrow();
-  const row = (await expectData(
-    supabase
-      .from("activity_results")
-      .insert({
-        activity_id: result.activityId,
-        learner_id: result.learnerId ?? null,
-        teacher_id: result.teacherId,
-        score: result.score,
-        correct_count: result.correctCount,
-        incorrect_count: result.incorrectCount,
-        answers: result.answers
-      })
-      .select()
-      .single()
-  )) as ActivityResultRow;
-
-  return mapActivityResult(row);
-}
-
 /** Marks a finished Student mode round in `activity_results.answers`, so older score rows stay out of the usage chart. */
 const STUDENT_PLAY_SOURCE = "student-mode";
 
@@ -823,37 +711,18 @@ export async function fetchActivityPlays(since: Date): Promise<ActivityPlay[]> {
       .order("created_at", { ascending: false })
   )) as Pick<ActivityResultRow, "activity_id" | "teacher_id" | "answers" | "created_at">[];
 
-  return rows.map((row) => {
+  return rows.flatMap((row) => {
+    // Legacy results can have no teacher; only attributed rounds belong in the usage chart.
+    if (!row.teacher_id) return [];
     const answers = typeof row.answers === "object" && row.answers ? (row.answers as Record<string, unknown>) : {};
     const seconds = Number(answers.durationSeconds);
-    return {
+    return [{
       activityId: row.activity_id,
       teacherId: row.teacher_id,
       durationSeconds: Number.isFinite(seconds) && seconds > 0 ? seconds : 0,
       createdAt: row.created_at
-    };
+    }];
   });
-}
-
-export async function insertPracticeAttempt(
-  attempt: Omit<PracticeAttempt, "id" | "createdAt">
-) {
-  const supabase = getClientOrThrow();
-  const row = (await expectData(
-    supabase
-      .from("practice_attempts")
-      .insert({
-        learner_id: attempt.learnerId ?? null,
-        learning_item_id: attempt.learningItemId,
-        teacher_id: attempt.teacherId,
-        status: attempt.status,
-        feedback: attempt.feedback
-      })
-      .select()
-      .single()
-  )) as PracticeAttemptRow;
-
-  return mapPracticeAttempt(row);
 }
 
 export async function fetchUserSettings(userId: string): Promise<UserSettings | null> {

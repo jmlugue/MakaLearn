@@ -60,7 +60,7 @@ const makeLesson: HelpTopic = {
   title: "Make a collection",
   summary: "Cards in the order you teach them.",
   icon: BookOpen,
-  href: "/content?open=lesson",
+  href: "/content?open=collection",
   steps: [
     { title: "New collection", text: "In Content, open Collections and choose New collection. Give it a title.", icon: BookOpen, scene: "lesson" },
     { title: "Cards in order", text: "Tap cards to fill the collection order, first to last.", icon: Layers, scene: "cards" },

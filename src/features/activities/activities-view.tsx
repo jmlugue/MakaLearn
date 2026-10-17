@@ -126,7 +126,7 @@ export function ActivitiesView() {
             normalizeActivitySymbolQuestions(activity, nextItems, sourceItems)
           )
         );
-        setLessons(data.lessons);
+        setLessons(data.collections);
         setUsers(data.users);
         setCategories(ensurePecsManifestCategories(data.categories));
         const reusablePrompts = new Map<string, string>();
@@ -284,7 +284,7 @@ export function ActivitiesView() {
     const correct = scored.reduce((sum, question) => sum + (answers[question.id] === question.answer ? 1 : 0), 0);
     const incorrect = scored.length - correct;
     const score = scored.length ? Math.round((correct / scored.length) * 100) : 0;
-    // View only: scores are shown, not saved (`insertActivityResult` is kept for when tracking returns).
+    // Teacher preview scores stay in memory; completed Student Mode rounds are recorded separately.
     setResult({ score, correct, incorrect });
   }
 

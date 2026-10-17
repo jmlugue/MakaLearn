@@ -338,33 +338,33 @@ test("6.1 teacher creates, edits, and deletes a shared lesson", async () => {
   const item2 = material(accounts.teacher, "c", categoryId);
   await as(accounts.teacher, () => app.insertLearningItem(item2));
   const first = lesson(accounts.teacher, "shared", [`${run}-item-a`, item2.id]);
-  await as(accounts.teacher, () => app.insertLesson(first));
+  await as(accounts.teacher, () => app.insertCollection(first));
   const { data: items } = await accounts.teacher.client.from("lesson_items").select("*").eq("lesson_id", first.id);
   assert.equal(items.length, 2, "lesson cards not saved");
 
   const edited = { ...first, title: "[TEST] Lesson edited", learningItemIds: [`${run}-item-a`] };
-  await as(accounts.teacher, () => app.updateLesson(edited, first));
+  await as(accounts.teacher, () => app.updateCollection(edited, first));
   const { data: row } = await accounts.teacher.client.from("lessons").select("title").eq("id", first.id).single();
   assert.equal(row.title, "[TEST] Lesson edited");
   const { data: after } = await accounts.teacher.client.from("lesson_items").select("*").eq("lesson_id", first.id);
   assert.equal(after.length, 1, "removed card still in lesson");
 
-  await as(accounts.teacher, () => app.deleteLesson(first.id));
+  await as(accounts.teacher, () => app.deleteCollection(first.id));
   assert.equal(await exists(accounts.teacher.client, "lessons", first.id), false);
 });
 
 test("6.2 a private lesson is hidden from other teachers, and they cannot delete it", async () => {
   const privateLesson = lesson(accounts.teacher, "private", [`${run}-item-a`], "private");
-  await as(accounts.teacher, () => app.insertLesson(privateLesson));
+  await as(accounts.teacher, () => app.insertCollection(privateLesson));
   assert.equal(await exists(accounts.teacher2.client, "lessons", privateLesson.id), false, "teacher 2 can see it");
   assert.equal(await exists(accounts.admin.client, "lessons", privateLesson.id), true, "admin cannot see it");
-  await assert.rejects(as(accounts.teacher2, () => app.deleteLesson(privateLesson.id)));
+  await assert.rejects(as(accounts.teacher2, () => app.deleteCollection(privateLesson.id)));
   assert.equal(await exists(accounts.teacher.client, "lessons", privateLesson.id), true, "private lesson was deleted");
-  await as(accounts.teacher, () => app.deleteLesson(privateLesson.id));
+  await as(accounts.teacher, () => app.deleteCollection(privateLesson.id));
 });
 
 test("6.3 admin cannot create a lesson", async () => {
-  await assert.rejects(as(accounts.admin, () => app.insertLesson(lesson(accounts.admin, "admin", [`${run}-item-a`]))));
+  await assert.rejects(as(accounts.admin, () => app.insertCollection(lesson(accounts.admin, "admin", [`${run}-item-a`]))));
 });
 
 // ---------- 7. Settings ----------

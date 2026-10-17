@@ -149,15 +149,13 @@ const [
   activityItems,
   lessonItems,
   promptTemplates,
-  practiceAttempts,
   mediaAssets
 ] = await Promise.all([
   selectAll(supabase, "learning_items", "id,label,content_type,symbol_image_url,activity_image_url,audio_url"),
   selectAll(supabase, "activities", "id,title,type,learning_item_ids"),
   selectAll(supabase, "activity_items", "id,activity_id,answer,options,learning_item_id"),
-  selectAll(supabase, "lesson_items", "lesson_id,learning_item_id"),
+  selectAll(supabase, "collection_items", "collection_id,learning_item_id"),
   selectAll(supabase, "activity_prompt_templates", "id,learning_item_id"),
-  selectAll(supabase, "practice_attempts", "id,learning_item_id"),
   selectAll(supabase, "media_assets", "id,related_item_id")
 ]);
 
@@ -269,9 +267,8 @@ for (const question of activityItems) {
 }
 
 for (const [recordType, records] of [
-  ["Lesson item", lessonItems],
-  ["Prompt template", promptTemplates],
-  ["Practice attempt", practiceAttempts]
+  ["Collection item", lessonItems],
+  ["Prompt template", promptTemplates]
 ]) {
   for (const record of records) {
     if (!itemById.has(record.learning_item_id)) {
@@ -293,9 +290,8 @@ const summary = {
     learningItems: learningItems.length,
     activities: activities.length,
     activityQuestions: activityItems.length,
-    lessonLinks: lessonItems.length,
+    collectionLinks: lessonItems.length,
     promptTemplates: promptTemplates.length,
-    practiceAttempts: practiceAttempts.length,
     mediaAssets: mediaAssets.length
   },
   errors,

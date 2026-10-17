@@ -59,21 +59,25 @@ const summary = {
   profiles: await countRows("profiles"),
   activeProfiles: await countRows("profiles", (query) => query.eq("status", "active")),
   categories: await countRows("categories"),
-  learners: await countRows("learners"),
   learningItems: await countRows("learning_items"),
   learningItemsWithAnyMedia: await countRows("learning_items", (query) =>
     query.or("symbol_image_url.not.is.null,gesture_media_url.not.is.null,audio_url.not.is.null")
   ),
   mediaAssets: await countRows("media_assets"),
-  lessons: await countRows("lessons"),
-  lessonItems: await countRows("lesson_items"),
+  collections: await countRows("collections"),
+  collectionItems: await countRows("collection_items"),
   activities: await countRows("activities"),
   activityItems: await countRows("activity_items"),
+  activityResults: await countRows("activity_results"),
+  promptTemplates: await countRows("activity_prompt_templates"),
   promptGenerations: await countRows("activity_prompt_generations"),
   aiUsageEvents: await countRows("ai_usage_events"),
+  auditLogs: await countRows("audit_logs"),
+  userSettings: await countRows("user_settings"),
+  accountRequests: await countRows("account_requests"),
   seedRows: {
     learningItems: await existingIds("learning_items", ["item-hello", "item-eat", "item-drink"]),
-    lessons: await existingIds("lessons", ["lesson-needs"]),
+    collections: await existingIds("collections", ["lesson-needs"]),
     activities: await existingIds("activities", ["activity-match", "activity-choice"])
   },
   buckets: buckets.map((bucket) => bucket.name).sort()

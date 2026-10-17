@@ -15,6 +15,7 @@
     "test:activities": "node --test scripts/test-activity-ai-draft.mjs scripts/test-activity-ai-rate-limit.mjs scripts/test-activity-option-sets.mjs scripts/test-activity-rules.mjs scripts/test-question-bank.mjs",
     "test:activities:db": "node --test --test-concurrency=1 scripts/test-activity-records-db.mjs",
     "test:app:db": "node --test --test-concurrency=1 scripts/test-app-db.mjs",
+    "test:readiness:db": "node --test --test-concurrency=1 scripts/test-supabase-readiness-db.mjs",
     "test:auth": "node --test scripts/test-auth-security.mjs",
     "test:auth:live": "node --test --test-concurrency=1 scripts/test-auth-security-live.mjs",
     "test:account-requests": "node --test scripts/test-account-requests.mjs",

@@ -98,7 +98,7 @@ export function AdminPanelView() {
         setItems(data.learningItems);
         setMedia(data.mediaAssets);
         setActivities(data.activities);
-        setLessons(data.lessons);
+        setLessons(data.collections);
         setCategories(withBuiltInCategoryColors(data.categories));
       })
       .catch(() => {
