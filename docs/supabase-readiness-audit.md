@@ -105,7 +105,7 @@ inventory. Current outcomes above supersede the old recommendations and pending 
 | `activity_prompt_generations` | 13 | AI prompt cache/history; eight Hugging Face and five Gemini generations |
 | `ai_usage_events` | 130 | AI call history, quota enforcement, and cooldown checks |
 | `user_settings` | 5 | Accessibility, display, and Guide mode settings |
-| `account_requests` | 4 | Teacher access requests and review history |
+| `account_requests` | 4 at audit time | Retired Oct 21; reviewed rows backed up locally, then table/type removed |
 | `learners` | 2 | Retired UI, but saved learner records remain and the common data loader still queries them |
 | `practice_attempts` | 0 | Retired gesture-attempt persistence; still queried by material validation |
 

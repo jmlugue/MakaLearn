@@ -1,5 +1,4 @@
 import type {
-  AccountRequestStatus,
   ActivityType,
   AuditLogAction,
   AuditLogCategory,
@@ -43,36 +42,6 @@ export type Database = {
           status?: AppUser["status"];
           created_at?: string;
           updated_at?: string;
-        };
-        Relationships: [];
-      };
-      account_requests: {
-        Row: {
-          id: string;
-          name: string;
-          email: string;
-          status: AccountRequestStatus;
-          created_at: string;
-          reviewed_at: string | null;
-          reviewed_by: string | null;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          email: string;
-          status?: AccountRequestStatus;
-          created_at?: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          email?: string;
-          status?: AccountRequestStatus;
-          created_at?: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
         };
         Relationships: [];
       };

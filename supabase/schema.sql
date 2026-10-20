@@ -8,7 +8,6 @@ create extension if not exists pgcrypto;
 
 create type public.user_role as enum ('admin', 'teacher');
 create type public.profile_status as enum ('active', 'invited', 'deactivated');
-create type public.account_request_status as enum ('pending', 'approved', 'rejected');
 create type public.learner_status as enum ('active', 'inactive');
 create type public.preferred_learning_mode as enum ('Visual', 'Audio', 'Gesture', 'Mixed', 'Teacher-guided');
 create type public.media_asset_type as enum ('symbol-image', 'activity-image', 'gesture-media', 'audio-file');
@@ -36,35 +35,6 @@ create table public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
-create table public.account_requests (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  email text not null,
-  status public.account_request_status not null default 'pending',
-  created_at timestamptz not null default now(),
-  reviewed_at timestamptz,
-  reviewed_by text references public.profiles(id) on delete set null,
-  constraint account_requests_name_length check (char_length(name) between 2 and 100),
-  constraint account_requests_name_trimmed check (name = btrim(name)),
-  constraint account_requests_email_length check (char_length(email) between 3 and 254),
-  constraint account_requests_email_normalized check (email = lower(btrim(email))),
-  constraint account_requests_review_state check (
-    (status = 'pending' and reviewed_at is null and reviewed_by is null)
-    or (status in ('approved', 'rejected') and reviewed_at is not null)
-  )
-);
-
-create unique index account_requests_pending_email_unique
-on public.account_requests (lower(email))
-where status = 'pending';
-
-create index account_requests_status_created_at_idx
-on public.account_requests (status, created_at desc);
-
-create index account_requests_reviewed_by_idx
-on public.account_requests (reviewed_by)
-where reviewed_by is not null;
 
 create table public.categories (
   id text primary key default ('cat-' || gen_random_uuid()::text),
@@ -236,7 +206,6 @@ create index audit_logs_created_at_idx on public.audit_logs(created_at desc);
 create index audit_logs_category_action_idx on public.audit_logs(category, action);
 
 alter table public.profiles enable row level security;
-alter table public.account_requests enable row level security;
 alter table public.categories enable row level security;
 alter table public.learners enable row level security;
 alter table public.learning_items enable row level security;
@@ -339,19 +308,6 @@ on public.profiles for update
 to authenticated
 using (id = auth.uid()::text or public.current_user_role() = 'admin')
 with check (id = auth.uid()::text or public.current_user_role() = 'admin');
-
-revoke all on table public.account_requests from anon, authenticated;
-grant select, update on table public.account_requests to authenticated;
-grant all on table public.account_requests to service_role;
-
-create policy "Admins read account requests"
-on public.account_requests for select to authenticated
-using (public.current_user_role() = 'admin');
-
-create policy "Admins review account requests"
-on public.account_requests for update to authenticated
-using (public.current_user_role() = 'admin')
-with check (public.current_user_role() = 'admin');
 
 create policy "Admins insert profiles"
 on public.profiles for insert

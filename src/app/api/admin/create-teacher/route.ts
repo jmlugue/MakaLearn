@@ -6,7 +6,7 @@ import type { UserRole } from "@/types";
 export const runtime = "nodejs";
 
 // Path kept as "create-teacher" for compatibility; it now creates teacher or admin accounts.
-type CreateAccountRequest = {
+type CreateAccountBody = {
   name?: unknown;
   email?: unknown;
   role?: unknown;
@@ -20,12 +20,12 @@ function isUserRole(value: unknown): value is UserRole {
 }
 
 export async function POST(request: Request) {
-  let body: CreateAccountRequest;
+  let body: CreateAccountBody;
 
   try {
-    body = (await request.json()) as CreateAccountRequest;
+    body = (await request.json()) as CreateAccountBody;
   } catch {
-    return NextResponse.json({ error: "Invalid account request." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid account details." }, { status: 400 });
   }
 
   const name = typeof body.name === "string" ? body.name.trim() : "";

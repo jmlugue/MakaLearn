@@ -244,7 +244,6 @@ export function LoginPanel() {
             <UserRound className="h-4 w-4" aria-hidden="true" />
             {loading ? "Signing in..." : "Sign in"}
           </Button>
-          {/* The "Request an account" link is hidden for now (owner, Oct 3). /request-account and its approval flow still work. */}
           <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
             <button
               type="button"

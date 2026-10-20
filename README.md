@@ -45,7 +45,6 @@ src/
 
 - `/` landing page
 - `/login` Supabase Auth sign-in
-- `/request-account` public teacher account request form with admin review
 - `/content` PECS and gesture content library with in-app media previews
 - `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, trained local recognition, and Gemini-first corrective feedback with template fallback
 - `/activities` PECS activity library, player, manual creator, adaptive question generation, and draft helper
@@ -77,11 +76,11 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - Collections group teaching materials. Activities can be created from a collection in the Activity creator; saving a collection does not automatically create an activity. Current data adapters use the `collections` and `collection_items` APIs. Legacy `lessons` backing tables remain compatible with older deployed clients; saved IDs are unchanged.
 - Teacher-player scoring stays in memory. Completed Student Mode rounds played by teachers are saved in `activity_results` for Admin's Activity usage chart, including score/counts and duration. Gesture attempts are never saved.
 - The real icon-only logo is served from `public/makalearn_logo_current.png` and used in the primary brand surfaces.
-- Admins can approve or reject teacher account requests, create accounts directly, deactivate/reactivate teachers, change roles, monitor teacher-managed content, review uploads, and see logs through Supabase-backed flows.
+- Admins can create accounts directly, deactivate/reactivate teachers, change roles, monitor teacher-managed content, review uploads, and see logs through Supabase-backed flows.
 
 ## Auth and data
 
-MakaLearn uses Supabase Auth for admin and teacher accounts. Teacher sign-in routes to `/content`; admin sign-in routes to `/admin`. Public signup remains disabled. A visitor may submit a row to `account_requests`, but no Auth user or active profile exists until an active admin approves the request and sets a temporary password. Rejection creates no login account.
+MakaLearn uses Supabase Auth for admin and teacher accounts. Teacher sign-in routes to `/content`; admin sign-in routes to `/admin`. Public signup remains disabled. Admins create accounts directly in Admin > Accounts and share temporary passwords privately.
 
 Development/demo records live in `supabase/seed.sql`. The app does not use `localStorage` or mock TypeScript data as real persistence for users, learners, content, uploads, activities, prompt cache, scoring, or usage limits.
 
@@ -123,7 +122,7 @@ Apply only reviewed pending migrations with `npx supabase db push`. The current 
 
 Database migrations do not change the hosted Auth service configuration. For each hosted project, open Authentication settings and turn off **Allow new users to sign up**, while keeping the Email provider enabled so existing and administrator-provisioned accounts can still sign in. The local `supabase/config.toml` mirrors that invite-only setup with `[auth].enable_signup = false` and `[auth.email].enable_signup = true`.
 
-MakaLearn accounts are provisioned by administrators. Public users request teacher access from `/request-account`; admins review those requests in Admin > Accounts. Create the demo Supabase Auth users through Supabase Studio or another trusted Auth-admin flow before loading seed data:
+MakaLearn accounts are provisioned by administrators. Admins create accounts directly in Admin > Accounts. Create the demo Supabase Auth users through Supabase Studio or another trusted Auth-admin flow before loading seed data:
 
 - `admin@makalearn.local`
 - `teacher@makalearn.local`

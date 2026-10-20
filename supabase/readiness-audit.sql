@@ -17,7 +17,6 @@ union all select 'activity_prompt_templates', count(*) from public.activity_prom
 union all select 'activity_prompt_generations', count(*) from public.activity_prompt_generations
 union all select 'ai_usage_events', count(*) from public.ai_usage_events
 union all select 'user_settings', count(*) from public.user_settings
-union all select 'account_requests', count(*) from public.account_requests
 union all select 'learners', count(*) from public.learners
 union all select 'practice_attempts', count(*) from public.practice_attempts;
 

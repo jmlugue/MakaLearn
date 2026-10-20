@@ -98,14 +98,7 @@ over in Student mode. Admins get two more: accounts, then the overview and activ
 
 ## 3. Database state, read this first
 
-**Sep 28, reviewed account requests are live:** migrations
-`20260928004802_account_request_approval`,
-`20260928045935_allow_reviewer_history_after_profile_removal`, and the advisor-requested
-`20260928050308_index_account_request_reviewer` are applied. `/request-account` writes only a
-pending `account_requests` row through a server-only service-role route. Public Auth signup stays disabled.
-Admin > Accounts reads pending requests through admin-only RLS; approval creates and activates a teacher Auth
-account with a temporary password, while rejection creates no Auth user. `anon` has no table privileges and
-`authenticated` has select/update grants gated by the active-admin policy.
+**Oct 21: account requests retired.** The public page, submission/review APIs, admin review UI/polling, and request data/types are removed. Hosted migration `20261020201558_remove_account_requests` dropped the request table/status type after backing up four reviewed records under Git-ignored `supabase/backups/`. Accounts are created directly by admins; public Auth signup remains disabled. Historical audit formatting remains. Earlier request-flow notes below are historical and superseded. Application deployment is pending.
 
 **Sep 28, signup hardening complete:** hosted migration
 `20260927225337_harden_new_user_profile_defaults` is applied. `public.handle_new_user()` no longer reads role

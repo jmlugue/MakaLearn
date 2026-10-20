@@ -16,7 +16,7 @@ import { GuideTip } from "@/features/guide/guide-tip";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthUser } from "@/features/auth/use-auth-user";
 import { fetchAuditLogs } from "@/lib/audit-logs";
-import { type ActivityPlay, fetchActivityPlays, fetchMakaLearnData, fetchPendingAccountRequests } from "@/lib/supabase/app-data";
+import { type ActivityPlay, fetchActivityPlays, fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { AccountsSection, type StatusFilter } from "@/features/admin/accounts-section";
 import { ActivitySection } from "@/features/admin/activity-section";
 import { type LogFilter, type LogRange, rangeBounds } from "@/features/admin/admin-shared";
@@ -24,7 +24,6 @@ import { ContentSection, type ContentView } from "@/features/admin/content-secti
 import { OverviewSection, type OverviewJump } from "@/features/admin/overview-section";
 import type {
   Activity as ActivityRecord,
-  AccountRequest,
   AppUser,
   AuditLog,
   Category,
@@ -55,7 +54,6 @@ export function AdminPanelView() {
   const reduceMotion = useReducedMotion();
   const [section, setSection] = useState<Section>("home");
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [accountRequests, setAccountRequests] = useState<AccountRequest[]>([]);
   const [items, setItems] = useState<LearningItem[]>([]);
   const [media, setMedia] = useState<MediaAsset[]>([]);
   const [activities, setActivities] = useState<ActivityRecord[]>([]);
@@ -90,11 +88,10 @@ export function AdminPanelView() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchMakaLearnData(), fetchPendingAccountRequests()])
-      .then(([data, pendingRequests]) => {
+    fetchMakaLearnData()
+      .then((data) => {
         if (!active) return;
         setUsers(data.users);
-        setAccountRequests(pendingRequests);
         setItems(data.learningItems);
         setMedia(data.mediaAssets);
         setActivities(data.activities);
@@ -124,30 +121,6 @@ export function AdminPanelView() {
       });
     return () => {
       active = false;
-    };
-  }, []);
-
-  // Requests come in from the public form, so the pending list refreshes every 30 seconds and when the admin
-  // comes back to the tab, instead of only when the page opens.
-  useEffect(() => {
-    let active = true;
-    async function refreshRequests() {
-      if (document.visibilityState === "hidden") return;
-      try {
-        const pendingRequests = await fetchPendingAccountRequests();
-        if (active) setAccountRequests(pendingRequests);
-      } catch {
-        // Keep the list already on screen.
-      }
-    }
-    const timer = window.setInterval(refreshRequests, 30_000);
-    window.addEventListener("focus", refreshRequests);
-    document.addEventListener("visibilitychange", refreshRequests);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refreshRequests);
-      document.removeEventListener("visibilitychange", refreshRequests);
     };
   }, []);
 
@@ -257,14 +230,10 @@ export function AdminPanelView() {
         {section === "accounts" ? (
           <AccountsSection
             users={users}
-            requests={accountRequests}
             currentUserId={user.id}
             initialStatusFilter={statusFilter}
             onUserChange={(changed) => setUsers((current) => current.map((account) => (account.id === changed.id ? changed : account)))}
             onUserAdd={(added) => setUsers((current) => [added, ...current.filter((account) => account.id !== added.id)])}
-            onRequestReviewed={(reviewed) => {
-              setAccountRequests((current) => current.filter((request) => request.id !== reviewed.id));
-            }}
             onLogsChanged={reloadLogs}
           />
         ) : null}

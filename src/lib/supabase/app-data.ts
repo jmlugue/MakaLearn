@@ -11,7 +11,6 @@ import { buildActivityOptionSets, isQuestionRelatedDistractor, isUnsafeActivityD
 import { createFillBlankPromptForLabel } from "@/utils/fill-blank-prompts";
 import { createChooseCorrectSymbolPrompt } from "@/utils/starter-learning-item-prompts";
 import type {
-  AccountRequest,
   Activity,
   ActivityPromptTemplate,
   ActivityQuestion,
@@ -26,7 +25,6 @@ import type { Database } from "@/types/database";
 
 type Tables = Database["public"]["Tables"];
 type ProfileRow = Tables["profiles"]["Row"];
-type AccountRequestRow = Tables["account_requests"]["Row"];
 type CategoryRow = Tables["categories"]["Row"];
 type LearningItemRow = Tables["learning_items"]["Row"];
 type LessonRow = Database["public"]["Views"]["collections"]["Row"];
@@ -62,18 +60,6 @@ function mapProfile(row: ProfileRow): AppUser {
     email: row.email,
     role: row.role,
     status: row.status
-  };
-}
-
-function mapAccountRequest(row: AccountRequestRow): AccountRequest {
-  return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    status: row.status,
-    createdAt: row.created_at,
-    reviewedAt: row.reviewed_at ?? undefined,
-    reviewedBy: row.reviewed_by ?? undefined
   };
 }
 
@@ -226,20 +212,6 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData> {
     activities: activities.map((activity) => mapActivity(activity, activityItems)),
     promptTemplates: promptTemplates.map(mapActivityPromptTemplate)
   };
-}
-
-/** Pending access requests are visible only to active admins through RLS. */
-export async function fetchPendingAccountRequests(): Promise<AccountRequest[]> {
-  const supabase = getClientOrThrow();
-  const rows = (await expectData(
-    supabase
-      .from("account_requests")
-      .select("*")
-      .eq("status", "pending")
-      .order("created_at", { ascending: true })
-  )) as AccountRequestRow[];
-
-  return rows.map(mapAccountRequest);
 }
 
 export async function insertCategory(category: Category) {

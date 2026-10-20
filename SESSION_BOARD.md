@@ -34,6 +34,12 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-21-remove-account-requests
+- Outcome: Removed the public request page/form, submission and approval/rejection APIs, hidden admin UI/dialogs/polling, adapters/types, obsolete test command/suite, and schema/audit script references. Direct admin account creation remains; historical audit log formatting and applied migration history remain readable. Updated README/CLAUDE and readiness history.
+- Database: Applied hosted/local migration `20261020201558_remove_account_requests`; backed up the four reviewed requests (zero pending) under Git-ignored `supabase/backups/account-requests-retirement.json`, then dropped the request table and status enum without CASCADE. Verified both absent. Existing users/profiles and audit logs are preserved.
+- Verification: Four auth tests, TypeScript, lint, production build, and whitespace passed. Build route output confirms request routes are absent. Restored declared local dependencies without changing package versions/lockfile. Security advisor retains only the existing leaked-password-protection warning.
+- Follow-up: Application deployment is pending; older deployed admin bundles still query the retired table until updated. No commit/push/deployment was made.
+
 ### 2026-10-17-supabase-readiness
 - Outcome: Audited hosted usage and applied owner-approved cleanup: removed the two unused seeded learners, learner/practice tables and dormant code, five enum types, two unreferenced retired activities plus ten questions, thirteen obsolete AI generations, eleven unused Storage files, the empty learner-photo bucket, and six unused/redundant result columns. Active materials, collections, Student Mode results, prompt templates, and quota history are preserved. Recovery snapshots/files are Git-ignored under `supabase/backups/`.
 - Collection compatibility: Added security-invoker `collections`/`collection_items` APIs, renamed `collection_source`, and added an invoker/RLS-protected upsert helper. Updated app adapters, new IDs, audit names, links, validators, and docs. Legacy lesson backing tables and empty learner/practice views remain for older deployed clients. No commit or application deployment was made; physical backing-table renaming awaits retirement of old writes.

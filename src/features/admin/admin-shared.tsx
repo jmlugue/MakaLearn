@@ -233,7 +233,7 @@ export function describeActivity(log: AuditLog): { sentence: string; itemType: s
     case "teacher_password":
       return { sentence: "Set a temporary password", itemType };
     case "account_request":
-      // The routes save these as create / edit; the detail says which.
+      // Preserve readable audit history from the retired account-request feature.
       return { sentence: /\brejected\b/i.test(log.detail) ? "Rejected an account request" : "Approved an account request", itemType };
     default: {
       const noun = nouns[log.targetType];

@@ -12,18 +12,6 @@ export type AppUser = {
   status: "active" | "invited" | "deactivated";
 };
 
-export type AccountRequestStatus = "pending" | "approved" | "rejected";
-
-export type AccountRequest = {
-  id: string;
-  name: string;
-  email: string;
-  status: AccountRequestStatus;
-  createdAt: string;
-  reviewedAt?: string;
-  reviewedBy?: string;
-};
-
 export type Category = {
   id: string;
   name: string;

@@ -74,7 +74,6 @@ const summary = {
   aiUsageEvents: await countRows("ai_usage_events"),
   auditLogs: await countRows("audit_logs"),
   userSettings: await countRows("user_settings"),
-  accountRequests: await countRows("account_requests"),
   seedRows: {
     learningItems: await existingIds("learning_items", ["item-hello", "item-eat", "item-drink"]),
     collections: await existingIds("collections", ["lesson-needs"]),

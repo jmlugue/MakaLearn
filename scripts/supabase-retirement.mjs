@@ -64,7 +64,7 @@ async function checkPath(bucket, name) {
 // Snapshot every application table, including the records about to be retired. Never print row contents.
 const tables = ["profiles", "categories", "learning_items", "media_assets", "lessons", "lesson_items",
   "activities", "activity_items", "activity_results", "audit_logs", "activity_prompt_templates",
-  "activity_prompt_generations", "ai_usage_events", "user_settings", "account_requests", "learners", "practice_attempts"];
+  "activity_prompt_generations", "ai_usage_events", "user_settings", "learners", "practice_attempts"];
 let backupDir;
 if (apply || backupOnly) {
   backupDir = path.resolve("supabase/backups", new Date().toISOString().replace(/[:.]/g, "-"));
