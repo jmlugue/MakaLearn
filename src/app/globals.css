@@ -2,6 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
+/* A wide phone is still a short screen. Keep these exceptions below desktop width,
+   so laptop/desktop stages retain their existing fixed-screen layout. */
+@media (max-width: 1024px) and (max-height: 500px) {
+  section.student-game-stage {
+    overflow-y: auto;
+  }
+
+  .student-game-stage > .student-game-content {
+    height: auto;
+    min-height: 52rem;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  div.playground-stage {
+    overflow-y: auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(24rem, auto) minmax(26rem, auto);
+  }
+
+  .playground-stage > section {
+    min-height: 0;
+    border-left: 0;
+  }
+
+  .playground-stage .playground-library {
+    min-height: 12rem;
+  }
+}
+
+/* On portrait iPads the camera and feedback need their natural height. Fixed
+   fractional rows let feedback overflow into the reference card in Safari. */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait),
+       (max-width: 1024px) and (max-height: 500px) {
+  section.student-gesture-stage {
+    overflow-y: auto;
+  }
+
+  .student-gesture-stage .student-gesture-grid,
+  .student-gesture-stage .student-gesture-grid.student-gesture-focus {
+    flex: none;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+
+  .student-gesture-stage .student-gesture-camera {
+    min-height: 0;
+  }
+
+  .student-gesture-camera > .gesture-camera-panel {
+    flex: none;
+    height: clamp(24rem, 65vw, 34rem);
+  }
+
+  .student-gesture-stage .student-gesture-reference {
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .student-gesture-reference > .student-gesture-card {
+    height: 30rem;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+}
+
 :root {
   --background: 216 60% 97%;
   --foreground: 222 47% 11%;

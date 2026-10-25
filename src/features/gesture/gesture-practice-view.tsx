@@ -1225,11 +1225,11 @@ export function GesturePracticeView() {
     return (
       <>
       {/* Full screen like the playground and activities: the background reaches every edge. */}
-      {/* Phones scroll (camera, then the gesture card); bigger screens fit everything on one screen. */}
-      <section className="absolute inset-0 isolate flex flex-col gap-2 overflow-y-auto overflow-x-hidden bg-[#f4fbff] p-2 sm:gap-3 sm:overflow-hidden sm:p-3 lg:p-4">
+      {/* Portrait tablets and short landscape phones scroll; desktop keeps its fitted stage. */}
+      <section className="student-gesture-stage absolute inset-0 isolate flex flex-col gap-2 overflow-y-auto overflow-x-hidden bg-[#f4fbff] p-2 sm:gap-3 sm:overflow-hidden sm:p-3 lg:p-4">
         <StudentGestureImageBackground />
         {/* pl-14 on phones keeps the toolbar clear of the Student mode logo button. */}
-        <div className="relative z-10 flex shrink-0 justify-center pl-14 sm:pl-0">
+        <div className="relative z-10 flex shrink-0 justify-center pl-14 lg:pl-0">
           <div
             className="flex flex-wrap items-center justify-center gap-1 rounded-full border border-white/90 bg-white/80 p-1.5 shadow-[0_6px_18px_rgba(37,99,235,0.1)] backdrop-blur-xl"
             role="toolbar"
@@ -1261,13 +1261,14 @@ export function GesturePracticeView() {
         </div>
         <div
           className={cn(
-            "relative z-10 grid gap-2 sm:gap-3 lg:gap-4",
+            "student-gesture-grid relative z-10 grid gap-2 sm:gap-3 lg:gap-4",
+            cameraFocusMode && "student-gesture-focus",
             cameraFocusMode
               ? "min-h-0 flex-1 grid-rows-[minmax(0,1fr)]"
               : "shrink-0 grid-rows-[auto_auto] sm:min-h-0 sm:flex-1 sm:shrink sm:grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:portrait:grid-rows-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:landscape:grid-cols-[1.13fr_0.87fr] md:landscape:grid-rows-1 xl:grid-cols-[1.13fr_0.87fr] xl:grid-rows-1"
           )}
         >
-          <div className={cn("flex min-w-0 flex-col", cameraFocusMode ? "min-h-0" : "min-h-[24rem] sm:min-h-0")}>
+          <div className={cn("student-gesture-camera flex min-w-0 flex-col", cameraFocusMode ? "min-h-0" : "min-h-[24rem] sm:min-h-0")}>
             <CameraPanel
               cameraStarted={cameraStarted}
               videoRef={videoRef}
@@ -1362,7 +1363,7 @@ export function GesturePracticeView() {
           {/* Portrait tablets in guided practice: the gesture card and the journey sit side by side so the picture keeps its height. */}
           <div
             className={cn(
-              cameraFocusMode ? "hidden" : "flex min-h-[30rem] min-w-0 flex-col gap-3 overflow-hidden sm:min-h-0",
+              cameraFocusMode ? "hidden" : "student-gesture-reference flex min-h-[30rem] min-w-0 flex-col gap-3 overflow-hidden sm:min-h-0",
               practiceMode === "guided" && guidedPhase !== "complete" && "md:portrait:flex-row md:portrait:items-center"
             )}
           >
@@ -1370,7 +1371,7 @@ export function GesturePracticeView() {
               <AnimatePresence custom={carouselDirection} mode="wait">
                 <motion.div
                   key={selectedGesture.id}
-                  className="min-h-0 flex-1"
+                  className="student-gesture-card min-h-0 flex-1"
                   custom={carouselDirection}
                   initial={{ opacity: 0, x: carouselDirection * 80, scale: 0.96, rotate: carouselDirection * 2 }}
                   animate={{ opacity: 1, x: 0, scale: 1, rotate: 0 }}
@@ -1864,7 +1865,7 @@ function GuidedPopup({
     );
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-slate-900/25 p-4" role="dialog" aria-modal="true" aria-label="Guided practice">
+    <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-slate-900/25 p-4 [&>*]:my-auto" role="dialog" aria-modal="true" aria-label="Guided practice">
       <motion.div
         key={phase}
         initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.96 }}
@@ -2672,7 +2673,7 @@ function CameraPanel({
   return (
     <div
       className={cn(
-        "relative overflow-hidden border border-slate-700/70 bg-ink shadow-inner",
+        "gesture-camera-panel relative overflow-hidden border border-slate-700/70 bg-ink shadow-inner",
         fillAvailable ? "mt-2 min-h-[11rem] flex-1" : "mt-5",
         playful ? "rounded-[1.75rem] p-1 ring-4 ring-white/70" : "rounded-2xl",
         cameraStarted && "camera-live-glow"

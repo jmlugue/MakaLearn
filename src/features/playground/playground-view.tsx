@@ -519,7 +519,7 @@ export function PlaygroundView() {
               }
             >
               {/* Phones and portrait tablets: cards above the board, both on one screen. Landscape tablets and desktop: side by side. */}
-              <div className={`mx-auto grid h-full overflow-y-auto overflow-x-hidden rounded-2xl sm:overflow-hidden border border-blue-100 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
+              <div className={`playground-stage mx-auto grid h-full overflow-y-auto overflow-x-hidden rounded-2xl sm:overflow-hidden border border-blue-100 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
                 isStudentMode
                   ? "max-w-none grid-cols-1 grid-rows-[minmax(16rem,1fr)_auto] bg-white/80 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] md:landscape:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] md:landscape:grid-rows-1 lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] lg:grid-rows-1"
                   : "max-w-7xl grid-cols-1 grid-rows-[minmax(16rem,1fr)_auto] bg-white/95 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] md:landscape:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] md:landscape:grid-rows-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
@@ -574,7 +574,7 @@ export function PlaygroundView() {
                     </div>
                   </div>
 
-                  <div className={`mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-blue-100 bg-white shadow-sm clean-scrollbar ${isStudentMode ? "p-2.5 sm:p-4" : "p-3"}`}>
+                  <div className={`playground-library mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-blue-100 bg-white shadow-sm clean-scrollbar ${isStudentMode ? "p-2.5 sm:p-4" : "p-3"}`}>
                       {!ready ? (
                         <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-blue-100 bg-[#f8fbff] text-sm font-semibold text-slate-600">
                           Loading PECS cards...

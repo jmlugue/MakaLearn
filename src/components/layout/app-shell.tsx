@@ -137,7 +137,7 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
           {isStudentNavOpen ? (
             <div className="fixed inset-0 z-[100] bg-slate-950/35 backdrop-blur-sm" role="presentation" onClick={closeStudentNav}>
               <aside
-                className="glass-panel-strong absolute bottom-3 left-3 top-3 flex w-72 max-w-[calc(100vw-1.5rem)] flex-col rounded-[1.75rem] border p-4 shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
+                className="student-navigation-drawer glass-panel-strong absolute bottom-3 left-3 top-3 flex w-72 max-w-[calc(100vw-1.5rem)] flex-col overflow-y-auto overscroll-contain rounded-[1.75rem] border p-4 shadow-[0_24px_70px_rgba(15,23,42,0.22)] [&>*]:shrink-0"
                 aria-label="Student navigation"
                 onClick={(event) => event.stopPropagation()}
               >

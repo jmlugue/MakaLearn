@@ -27,10 +27,11 @@ export function CardTile({
   const showName = item.contentType === "gesture" && Boolean(item.label);
   const content = (
     <>
-      <span className={cn("block h-1.5 w-full", tone.accent)} aria-hidden="true" />
-      <span className="flex min-w-0 flex-1 flex-col p-2.5">
-        <PictureBox value={item.symbolImageUrl} label={item.label || "New"} className="rounded-xl bg-[#fff]" />
-        {showName ? <span className={cn("mt-2 truncate text-center text-sm font-bold", tone.text)}>{item.label}</span> : null}
+      <span className={cn("block h-1.5 w-full shrink-0", tone.accent)} aria-hidden="true" />
+      <span className="flex w-full min-w-0 flex-1 flex-col p-2.5">
+        {/* Percentage padding also reserves the image height in older iPad Safari versions. */}
+        <PictureBox value={item.symbolImageUrl} label={item.label || "New"} className="shrink-0 aspect-auto rounded-xl bg-[#fff] before:block before:pt-[133.333333%]" />
+        {showName ? <span className={cn("mt-2 flex h-10 items-center justify-center text-center text-sm font-bold", tone.text)}><span className="line-clamp-2">{item.label}</span></span> : null}
       </span>
     </>
   );

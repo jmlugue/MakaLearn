@@ -34,6 +34,16 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-responsive-stash-pull-commit
+- Outcome: Stashed all responsive changes, fetched origin, fast-forwarded this branch to main's PR #7 merge commit 93213e8, and restored all nine changed files without conflicts for the local responsive-fix commit. No push performed.
+- Verification: Incoming merge commit has the identical file tree as the prior HEAD; restored application files exactly match the stash. Prior passing build/lint/TypeScript and browser checks remain applicable; whitespace check passed.
+
+### 2026-10-25-device-layout-fixes
+- Outcome: Fixed supplied phone landscape clipping with scrollable Student activity/Playground stages and navigation; portrait tablet gesture practice reserves a taller camera and places feedback before reference cards. Content tiles reserve image height with a Safari-compatible ratio fallback and align gesture names. Desktop stages remain fitted. Guided thumbs-up logic is unchanged; models are served to each browser and the manual ready button remains available.
+- Files/areas: Content tiles, Student shell/drawer, gesture and activity frames, Playground layout, globals.css, STYLE_GUIDE/CLAUDE.
+- Verification: TypeScript, lint, activity/Playground/gesture capture/stability tests, production build, and browser component/layout fixtures at 390, 768, 844, 1024, and 1440px widths. Tested short-screen scrolling, drawer Exit reachability, portrait feedback separation, guided row width, desktop overflow, and picture sizing without aspect-ratio. Physical Safari and live camera detection remain unverified; no dev server was started or deployment performed.
+- Existing data issue: Material validation reports three saved activities referencing missing materials (activity-1792416404084, activity-1792459136377, activity-1792459294548); records were left unchanged. Existing Eat/Drink duplicate-label warnings remain.
+
 ### 2026-10-25-pr7-base-merge
 - Outcome: Merged origin/main (64479a1) into PR #7's jmlugue/fix-mobile-tablet-responsive branch. Resolved the sole conflict in SESSION_BOARD.md by preserving both branches' completion notes. Content upload templates, free-gesture feedback, and Playground speech cancellation are retained.
 - Verification: TypeScript, lint, 10 media tests, 24 Playground tests, 6 gesture capture tests, 3 gesture stability tests, feedback checks, production build (21 pages), and whitespace passed. No dev server was started. Merge completed locally; no push performed.
@@ -81,7 +91,7 @@ Use this file to coordinate work across terminal sessions in this repository. It
 - Verification: Next.js environment loader sees the URL and browser key, Supabase Auth settings endpoint responds HTTP 200, and Git confirms the file is ignored. No secret values displayed. User must restart their dev server to reload public configuration; no server was started automatically.
 
 ### 2026-10-25-card-template-choice
-- Outcome: Supersedes the display-only frame below. Add material defaults to a 900×1200 PECS template matching bundled outline geometry, with an explicit Use image as uploaded option for pre-framed pictures. Canvas fits the complete image proportionally inside the border without extra padding. The exact preview PNG is saved so Content and Playground agree; original files remain available while switching styles. Mobile now shows the preview. Activity pictures and gestures are unchanged; shared renderers add no border.
+- Outcome: Supersedes the display-only frame below. Add material defaults to a 900Ã—1200 PECS template matching bundled outline geometry, with an explicit Use image as uploaded option for pre-framed pictures. Canvas fits the complete image proportionally inside the border without extra padding. The exact preview PNG is saved so Content and Playground agree; original files remain available while switching styles. Mobile now shows the preview. Activity pictures and gestures are unchanged; shared renderers add no border.
 - Files/areas: Card form, new `pecs-card-template.ts`, media test command/fitting test, README/CLAUDE.
 - Verification: TypeScript, lint, 10 media tests, production build, whitespace, and actual Chrome canvas pixel/format/error checks passed. Visually inspected a comparison using the supplied screenshot. Build reported ENOSPC cache warnings but exited successfully; automatic review blocked cache cleanup and no cleanup occurred. No deployment or database writes performed.
 
