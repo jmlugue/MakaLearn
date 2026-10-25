@@ -13,6 +13,81 @@ const { placeLibraryItem } = boardModule;
 
 const playground = fs.readFileSync("src/features/playground/playground-view.tsx", "utf8");
 
+// Run the actual component handlers with controlled voice completion, without a browser or live backend.
+const playgroundAst = ts.createSourceFile("playground.tsx", playground, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const view = playgroundAst.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "PlaygroundView");
+const handlerNames = ["cancelNarration", "checkSentence", "removeCard", "resetSentence", "addCard", "placeLibraryCard", "speakSentence", "speakSentenceLike"];
+const handlers = view.body.statements
+  .filter((node) => ts.isFunctionDeclaration(node) && handlerNames.includes(node.name?.text))
+  .map((node) => node.getText(playgroundAst)).join("\n");
+const compiledHandlers = ts.transpileModule(handlers, {
+  compilerOptions: { target: ts.ScriptTarget.ES2020 }
+}).outputText;
+
+function narrationHarness({ valid = true, read = async () => {} } = {}) {
+  const callbacks = [];
+  const spoken = [];
+  let cancellations = 0;
+  const context = {
+    sentenceCards: [{ label: "Hello" }, { label: "Help" }],
+    narrationRevision: { current: 0 }, speaking: false, approvedCardIds: new Set(), maxSentenceCards: 5,
+    window: { speechSynthesis: { cancel: () => { cancellations += 1; } } },
+    setSpeaking() {}, setSpeakingIndex() {}, setSentenceCards() {}, setResult() {}, setFeedbackModal() {}, setMakiReaction() {},
+    validatePecsSentence: () => ({ isValid: valid }), pickCheer: () => ({}), playCue() {}, encourageAfterWrong() {},
+    sayMakiLine: (_, callback) => callbacks.push(callback),
+    sayCard: (card) => { spoken.push(card.label); return read(); },
+    speakText: (text) => { spoken.push(text); return read(); },
+    getSpeechLabel: (label) => label, placeLibraryItem, notify() {}
+  };
+  const actions = new Function(...Object.keys(context), `${compiledHandlers}\nreturn { ${handlerNames.join(", ")} };`)(...Object.values(context));
+  return { actions, callbacks, spoken, cancellations: () => cancellations };
+}
+
+test("an unchanged board is read after Maki finishes praising it", () => {
+  const { actions, callbacks, spoken } = narrationHarness();
+  actions.checkSentence();
+  assert.deepEqual(spoken, []);
+  callbacks[0]();
+  assert.deepEqual(spoken, ["Hello Help"]);
+});
+
+test("board edits invalidate the readout queued behind Maki", () => {
+  for (const edit of [
+    (actions) => actions.removeCard(0),
+    (actions) => actions.resetSentence(),
+    (actions) => actions.addCard({ label: "More" }),
+    (actions) => actions.placeLibraryCard({ label: "More" })
+  ]) {
+    const { actions, callbacks, spoken, cancellations } = narrationHarness();
+    actions.checkSentence();
+    edit(actions);
+    callbacks[0]();
+    assert.ok(!spoken.includes("Hello Help"));
+    assert.equal(cancellations(), 2);
+  }
+});
+
+test("a newer Check invalidates an older praise completion", () => {
+  const { actions, callbacks, spoken } = narrationHarness();
+  actions.checkSentence();
+  actions.checkSentence();
+  callbacks[0]();
+  assert.deepEqual(spoken, []);
+  callbacks[1]();
+  assert.deepEqual(spoken, ["Hello Help"]);
+});
+
+test("removing a card during Listen stops the remaining card sequence", async () => {
+  let finishWord;
+  const { actions, spoken } = narrationHarness({ valid: false, read: () => new Promise((resolve) => { finishWord = resolve; }) });
+  const reading = actions.speakSentence();
+  assert.deepEqual(spoken, ["Hello"]);
+  actions.removeCard(0);
+  finishWord();
+  await reading;
+  assert.deepEqual(spoken, ["Hello"]);
+});
+
 test("a clicked or dropped card goes to the next empty place", () => {
   assert.deepEqual(placeLibraryItem([], "one", undefined, 5), ["one"]);
   assert.deepEqual(placeLibraryItem(["one", "two"], "new", undefined, 5), ["one", "two", "new"]);

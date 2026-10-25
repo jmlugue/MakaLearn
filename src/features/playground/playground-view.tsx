@@ -195,6 +195,8 @@ export function PlaygroundView() {
   const pendingRef = useRef<{ source: DragSource; pointerId: number; pointerType: string; startX: number; startY: number; timer?: number } | null>(null);
   const [result, setResult] = useState<PecsSentenceValidationResult | null>(null);
   const [speaking, setSpeaking] = useState(false);
+  // Invalidate callbacks from an older board or Check, even if Maki finishes after a card is removed.
+  const narrationRevision = useRef(0);
   // The card being read aloud, so Listen can highlight each card in turn.
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   // After Check, a pop-up says "Good job" or "Try again". Any change to the board closes it.
@@ -235,6 +237,10 @@ export function PlaygroundView() {
 
   useEffect(() => {
     setToolbarReady(true);
+    return () => {
+      narrationRevision.current += 1;
+      window.speechSynthesis?.cancel();
+    };
   }, []);
 
   const cards = useMemo(() => buildPlaygroundCards(learningItems, categories), [categories, learningItems]);
@@ -278,14 +284,16 @@ export function PlaygroundView() {
       return;
     }
 
+    cancelNarration();
     setSentenceCards((current) => (current.length >= maxSentenceCards ? current : [...current, card]));
     setResult(null);
     setFeedbackModal(null);
     // Hearing the card as it lands ties the picture to the word.
-    if (!speaking) void sayCard(card);
+    void sayCard(card);
   }
 
   function removeCard(index: number) {
+    cancelNarration();
     setSentenceCards((current) => current.filter((_, cardIndex) => cardIndex !== index));
     setResult(null);
     setFeedbackModal(null);
@@ -297,10 +305,11 @@ export function PlaygroundView() {
       return;
     }
 
+    cancelNarration();
     setSentenceCards((current) => placeLibraryItem(current, card, targetIndex, maxSentenceCards));
     setResult(null);
     setFeedbackModal(null);
-    if (!speaking) void sayCard(card);
+    void sayCard(card);
   }
 
   function setDragState(next: DragState | null) {
@@ -389,7 +398,16 @@ export function PlaygroundView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sentenceCards.length, speaking]);
 
+  function cancelNarration() {
+    narrationRevision.current += 1;
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
+    setSpeakingIndex(null);
+  }
+
   function checkSentence() {
+    cancelNarration();
+    const revision = narrationRevision.current;
     const nextResult = validatePecsSentence(sentenceCards, approvedCardIds);
     setResult(nextResult);
 
@@ -400,7 +418,9 @@ export function PlaygroundView() {
       playCue("correct");
       const cheer = pickCheer();
       setMakiReaction(cheer);
-      sayMakiLine(cheer, () => void speakSentenceLike());
+      sayMakiLine(cheer, () => {
+        if (revision === narrationRevision.current) void speakSentenceLike(revision);
+      });
       return;
     }
 
@@ -410,27 +430,32 @@ export function PlaygroundView() {
 
   async function speakSentence() {
     if (!sentenceCards.length || speaking) return;
+    cancelNarration();
+    const revision = narrationRevision.current;
 
     const currentResult = validatePecsSentence(sentenceCards, approvedCardIds);
     if (currentResult.isValid && "speechSynthesis" in window) {
-      await speakSentenceLike();
+      await speakSentenceLike(revision);
       return;
     }
 
     setSpeaking(true);
     try {
       for (const [index, card] of sentenceCards.entries()) {
+        if (revision !== narrationRevision.current) return;
         setSpeakingIndex(index);
         await sayCard(card);
       }
     } finally {
-      setSpeaking(false);
-      setSpeakingIndex(null);
+      if (revision === narrationRevision.current) {
+        setSpeaking(false);
+        setSpeakingIndex(null);
+      }
     }
   }
 
-  async function speakSentenceLike() {
-    if (!sentenceCards.length || speaking || !("speechSynthesis" in window)) return;
+  async function speakSentenceLike(revision = narrationRevision.current) {
+    if (revision !== narrationRevision.current || !sentenceCards.length || !("speechSynthesis" in window)) return;
 
     setSpeaking(true);
     const words = sentenceCards.map((card) => getSpeechLabel(card.label));
@@ -438,6 +463,7 @@ export function PlaygroundView() {
     try {
       // Word boundaries move the highlight. Voices that do not report them simply show no highlight.
       await speakText(words.join(" "), (charIndex) => {
+        if (revision !== narrationRevision.current) return;
         let index = 0;
         wordStarts.forEach((start, position) => {
           if (charIndex >= start) index = position;
@@ -445,12 +471,15 @@ export function PlaygroundView() {
         setSpeakingIndex(index);
       });
     } finally {
-      setSpeaking(false);
-      setSpeakingIndex(null);
+      if (revision === narrationRevision.current) {
+        setSpeaking(false);
+        setSpeakingIndex(null);
+      }
     }
   }
 
   function resetSentence() {
+    cancelNarration();
     setSentenceCards([]);
     setResult(null);
     setFeedbackModal(null);
