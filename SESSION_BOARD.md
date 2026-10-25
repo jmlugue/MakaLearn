@@ -34,6 +34,10 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-login-placeholders
+- Outcome: Updated login placeholders to Enter username and Enter password in `src/features/auth/login-panel.tsx`.
+- Verification: Lint, production build (including TypeScript), and whitespace checks passed.
+
 ### 2026-10-25-playground-checker-pr-preparation
 - Outcome: Prepared a focused 60-file patch on current main for strict-English Playground grading, permanent decisions, unchanged algorithm fallback with the earlier complement fixes, six grammar materials, dedicated artwork/recordings, and I pronunciation. Existing phone/tutorial work is retained from main without new changes.
 - Verification: Fresh npm ci, 129 tests (46 Playground, 62 activity, 3 audio, 10 media, 4 tutorial, 4 auth), TypeScript, lint, production build (23 pages), and whitespace passed in an isolated checkout. Hosted material validation retains only the same three documented missing-material activity references and two duplicate-label warnings. Earlier SQL/browser fixtures and twenty live provider examples passed; one temporary provider failure passed on retry.
