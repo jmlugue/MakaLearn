@@ -40,14 +40,14 @@ export function StudentGameFrame({
 }) {
   return (
     <section
-      className="fixed inset-0 z-40 grid h-[100dvh] w-screen overflow-hidden bg-[#dff5ff] p-2 sm:p-3 lg:p-4"
+      className="student-game-stage fixed inset-0 z-40 grid h-[100dvh] w-screen overflow-hidden bg-[#dff5ff] p-2 sm:p-3 lg:p-4"
       style={{
         backgroundImage: `linear-gradient(180deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1)), url('${getActivityBackground(activityId)}')`,
         backgroundPosition: "center",
         backgroundSize: "cover"
       }}
     >
-      <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 rounded-[2rem] border border-white/80 bg-white/30 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:gap-3 sm:p-3">
+      <div className="student-game-content grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 rounded-[2rem] border border-white/80 bg-white/30 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:gap-3 sm:p-3">
         {topBar}
         <p
           className="mx-auto flex w-full max-w-4xl items-center justify-center gap-3 rounded-2xl bg-blue-600 px-4 py-2.5 text-center text-white shadow-[0_6px_0_rgba(30,64,175,0.3)] sm:py-3"

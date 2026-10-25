@@ -176,6 +176,12 @@ Every screen is designed for three layouts. Write phone styles first, then add `
 - `lg` starts at **1025px**, not Tailwind's usual 1024px, so an iPad turned sideways (1024px) gets the tablet layout.
 - Full-screen Student mode views (playground, gesture practice) also use `md:landscape:` so a tablet turned sideways
   gets the side-by-side layout, and `md:portrait:` where a portrait tablet needs a different split.
+- Short screens (up to 1024px wide and 500px high) scroll in Student activities, Playground, and gesture practice.
+  Gesture practice also scrolls on portrait tablets, with a reserved camera height and the reference below feedback.
+  These exceptions live in `globals.css`; desktop stages retain their fitted layout. The Student drawer scrolls
+  independently when its links exceed the available height.
+- Content tiles reserve their 3:4 picture height using percentage padding for Safari compatibility; gesture names
+  occupy a consistent two-line area under the picture.
 - Phones: a long row of filter chips scrolls sideways in one row instead of wrapping into many rows. Section tabs
   (`PillTabs`) become a 2 x 2 grid. A search box takes its own row.
 - A grid with one column that holds a sideways-scrolling row or a wide `<select>` needs `grid-cols-1` (or `min-w-0`),

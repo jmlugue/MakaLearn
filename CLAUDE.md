@@ -1003,6 +1003,14 @@ seeing they were right. Student mode only; the teacher player is unchanged.
 
 The owner asked for three layouts like a CSS media query diagram. Rules live in STYLE_GUIDE section 6 ("Screen sizes").
 
+- **Oct 25 screenshot follow-up:** Student activities, Playground, and gesture practice scroll on screens up to
+  1024px wide and 500px high, including landscape iPhones with Safari chrome. Portrait tablet gesture practice uses
+  natural-height rows, a taller camera, and a reference card after feedback. Desktop fitted stages are retained.
+  Student navigation has independent scrolling; Content tiles reserve picture height without depending on CSS
+  aspect-ratio and align gesture names below pictures. Browser component/layout fixtures were checked at phone,
+  tablet, and desktop sizes; physical Safari and live camera detection were not verified. Guided thumbs-up still
+  uses MediaPipe loaded by each device from the site, plus the existing manual ready button; recognition logic is unchanged.
+
 - **Breakpoints** (`tailwind.config.ts` `screens`): mobile under 768px, tablet `md` 768 to 1024px, desktop `lg` from
   **1025px** (not 1024, owner's choice, so an iPad turned sideways is a tablet). Every `lg:` in the app moved by 1px.
 - **Tablet menu:** the icon sidebar shows from `md` (was `lg`); the bottom bar is phones only. The sidebar opens on
