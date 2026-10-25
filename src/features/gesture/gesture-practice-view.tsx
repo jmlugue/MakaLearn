@@ -697,6 +697,7 @@ export function GesturePracticeView() {
     predictedPoseAnchorRef.current = null;
     waitingForPoseChangeRef.current = false;
     modelFailureNotifiedRef.current = false;
+    clearCorrectiveFeedback();
     clearPrediction();
     resetLiveGestureBuffer(liveGestureFramesRef.current);
     liveGestureHandFramesRef.current = [];
@@ -763,6 +764,7 @@ export function GesturePracticeView() {
     predictedPoseAnchorRef.current = null;
     waitingForPoseChangeRef.current = false;
     modelFailureNotifiedRef.current = false;
+    clearCorrectiveFeedback();
     clearPrediction();
     resetLiveGestureBuffer(liveGestureFramesRef.current);
     liveGestureHandFramesRef.current = [];
@@ -779,7 +781,6 @@ export function GesturePracticeView() {
     predictionCandidateRef.current = { label: null, frames: 0 };
     currentPredictionLabelRef.current = null;
     setPrediction(null);
-    clearCorrectiveFeedback();
   }
 
   function clearCorrectiveFeedback() {
@@ -1083,7 +1084,8 @@ export function GesturePracticeView() {
     setPrediction(nextPrediction);
     setStatusMessage("");
     if (nextPrediction) {
-      clearCorrectiveFeedback();
+      // Keep the last corrective feedback visible while free practice recognizes the
+      // next attempt. The next completed attempt replaces it when feedback is requested.
       return;
     }
 

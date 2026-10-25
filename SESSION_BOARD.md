@@ -34,6 +34,35 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-pr6-base-merge
+- Outcome: Merged origin/main into jmlugue/fix-free-mode-mobile for PR #6. Resolved the sole conflict in SESSION_BOARD.md by preserving both branches' completion notes. Base content-upload changes and the PR's free-gesture feedback fix are retained.
+- Verification: 10 media tests, 6 gesture capture tests, 3 gesture stability tests, TypeScript, lint, production build (21 pages), and whitespace checks passed. Development server was stopped for the build and remains stopped. Merge completed locally; no push performed.
+
+### 2026-10-25-branch-reference-repair
+- Outcome: Reattached this worktree's stale unborn `jmlugue/ruffe` HEAD to the existing renamed `jmlugue/fix-free-mode-mobile` branch at `7fea443`. Preserved all working files and index entries; saved a backup patch in the system temporary directory.
+- Verification: Git now shows only three modified files (gesture view, AGENTS, session board), no staged additions, and the existing commit history. No commit or push was made.
+
+### 2026-10-25-dependency-guidance
+- Outcome: Added worktree dependency rules to `AGENTS.md`: use `npm ci` for setup and repairs, keep installations separate, preserve/share the lockfile, stop dev before reinstalling, and verify TypeScript, lint, and build after repairs.
+- Verification: Documentation-only change; whitespace check passed.
+
+### 2026-10-25-full-dependency-repair
+- Outcome: Stopped only this worktree's running Next.js dev processes and replaced its incomplete dependency tree with `npm ci` (479 packages). The previously missing Lucide icon exists and native SWC loads. No source, manifest, or lockfile changes were needed.
+- Verification: TypeScript, lint, and full production build passed; all 21 pages generated. Dev server remains stopped for the owner to restart manually.
+
+### 2026-10-25-swc-repair
+- Outcome: Restored the damaged Windows x64 SWC package at the locked 14.2.33 version, verifying the downloaded archive against the lockfile SHA-512 integrity. Manifest and lockfile are unchanged.
+- Verification: Native module loads, and Next.js SWC successfully compiles a TypeScript/JSX sample. Development server was not started.
+
+### 2026-10-25-next-launcher
+- Outcome: Restored the damaged local Next.js 14.2.35 package from its registry archive after verifying the lockfile SHA-512 integrity, then regenerated its Windows launcher. Package manifest and lockfile are unchanged.
+- Verification: `npm run dev -- --help` passes. Development server was not started.
+
+### 2026-10-25-free-gesture-feedback
+- Outcome: Free-practice feedback now remains visible while the next pose is being captured and is replaced when that attempt is evaluated. Camera restart/stop still clears stale feedback; guided behavior is unchanged.
+- Files/areas: `src/features/gesture/gesture-practice-view.tsx`.
+- Verification: `git diff --check` passed. No build or lint run.
+
 ### 2026-10-25-local-sign-in-config
 - Outcome: Restored missing Git-ignored `.env.local` in batfish from the original checkout's existing local configuration. Missing Supabase browser settings caused the administrator-setup message; no account or auth code changes were needed.
 - Verification: Next.js environment loader sees the URL and browser key, Supabase Auth settings endpoint responds HTTP 200, and Git confirms the file is ignored. No secret values displayed. User must restart their dev server to reload public configuration; no server was started automatically.
