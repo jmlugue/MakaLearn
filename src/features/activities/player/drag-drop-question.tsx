@@ -7,6 +7,7 @@ import { getDisplayLabel } from "@/features/activities/player/player-utils";
 import { StudentPictureCard, StudentResultBadge } from "@/features/activities/player/student-game-parts";
 import { studentText } from "@/features/activities/player/student-theme";
 import type { ActivityQuestion, LearningItem } from "@/types";
+import { usePhoneLayout } from "@/components/common/use-phone-layout";
 
 type DragState = {
   value: string;
@@ -64,6 +65,10 @@ export function StudentDragBoard({
   onDrop: (questionId: string, value: string) => boolean;
 }) {
   const [drag, setDrag] = useState<DragState | null>(null);
+  const phoneLayout = usePhoneLayout();
+  const pointerTypeRef = useRef("");
+  // A selected picture stays selected while a touch user scrolls to its word.
+  const [selected, setSelected] = useState("");
   const returnTimer = useRef<number | null>(null);
   const reduceMotion = useReducedMotion();
   // The window listeners read the latest values through these.
@@ -151,6 +156,9 @@ export function StudentDragBoard({
   }, []);
 
   function startDrag(event: ReactPointerEvent<HTMLDivElement>, value: string) {
+    pointerTypeRef.current = event.pointerType;
+    // Phones use tap-then-tap. Keep the existing drag interaction on tablets.
+    if (phoneLayout && event.pointerType !== "mouse") return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     // A carried card was just sent back by this press: pressing it again only lets it go, another card is picked up.
     if (drag && (!drag.carrying || drag.value === value)) return;
@@ -183,19 +191,27 @@ export function StudentDragBoard({
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[minmax(0,1.6fr)_minmax(0,0.6fr)] gap-3 sm:grid-rows-[minmax(0,1.1fr)_minmax(0,0.9fr)] sm:gap-4">
-      <div className={cn("mx-auto grid h-full min-h-0 w-full max-w-6xl gap-2 sm:gap-4", boxColumnsFor(questions.length))}>
+    <div className="student-drag-board grid h-full min-h-0 grid-rows-[minmax(0,1.6fr)_minmax(0,0.6fr)] gap-3 sm:grid-rows-[minmax(0,1.1fr)_minmax(0,0.9fr)] sm:gap-4">
+      <div className={cn("student-drop-targets mx-auto grid h-full min-h-0 w-full max-w-6xl gap-2 sm:gap-4", boxColumnsFor(questions.length))}>
         {questions.map((question) => {
           const card = placed[question.id];
           const failed = Boolean(card) && missed.includes(question.id);
           const over = drag?.overId === question.id;
           const hinted = hintTargetId === question.id && !card;
           return (
-            <motion.div
+            <motion.button
               key={shake?.id === question.id ? `${question.id}-${shake.key}` : question.id}
               data-drop-id={question.id}
+              type="button"
+              disabled={Boolean(card)}
+              aria-label={`Place selected picture on ${question.prompt}`}
+              onClick={() => {
+                if (!selected || card) return;
+                onDrop(question.id, selected);
+                setSelected("");
+              }}
               className={cn(
-                "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-[1.75rem] border-4 bg-white/80 p-2 shadow-[0_8px_0_rgba(147,197,253,0.25)] transition-colors sm:p-3",
+                "grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-[1.75rem] border-4 bg-white/80 p-2 shadow-[0_8px_0_rgba(147,197,253,0.25)] transition-colors focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-500 sm:p-3",
                 failed ? "border-rose-300 bg-rose-50/90" : card ? "border-emerald-400 bg-emerald-50/90" : over ? "border-blue-500 bg-blue-50" : hinted ? "border-amber-400 ring-8 ring-amber-100" : "border-white",
                 beingReadId === question.id && "ring-8 ring-sky-200"
               )}
@@ -217,16 +233,16 @@ export function StudentDragBoard({
                       over ? "border-blue-500 bg-blue-100 text-blue-700" : "border-blue-200 bg-sky-50/80 text-blue-400"
                     )}
                   >
-                    Drop here
+                    {selected ? "Tap here" : "Drop here"}
                   </span>
                 )}
               </div>
-            </motion.div>
+            </motion.button>
           );
         })}
       </div>
 
-      <div className="rounded-[1.75rem] border-2 border-dashed border-blue-200 bg-white/50 p-2 sm:p-3">
+      <div className="student-drag-tray min-h-0 rounded-[1.75rem] border-2 border-dashed border-blue-200 bg-white/50 p-2 sm:p-3">
         <div className={cn("mx-auto grid h-full min-h-0 w-full max-w-6xl gap-2 sm:gap-4", columnsFor(Math.max(trayCards.length, 1)))}>
           {trayCards.map((value) => {
             const held = drag?.value === value;
@@ -234,14 +250,30 @@ export function StudentDragBoard({
             return (
               <div key={value} className="grid min-h-0 place-items-center [container-type:size]">
                 <div
-                  role="img"
-                  aria-label={`${getDisplayLabel(value, learningItems)} card. Drag it onto its word.`}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selected === value}
+                  style={{ touchAction: phoneLayout ? "pan-y" : "none" }}
+                  aria-label={`${getDisplayLabel(value, learningItems)} card. Select it, then tap its word.`}
                   className={cn(
-                    "w-[min(100cqw,75cqh,16rem)] cursor-grab touch-none select-none active:cursor-grabbing",
+                    "w-[min(100cqw,75cqh,16rem)] cursor-grab touch-pan-y select-none rounded-2xl focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-500 active:cursor-grabbing",
+                    selected === value && "ring-4 ring-blue-500",
                     held && "opacity-0",
                     dimmed && !held && "opacity-30 grayscale"
                   )}
                   onPointerDown={(event) => startDrag(event, value)}
+                  onClick={(event) => {
+                    if (drag) return;
+                    if (event.detail === 0 || (phoneLayout && pointerTypeRef.current !== "mouse")) {
+                      setSelected((current) => current === value ? "" : value);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelected((current) => current === value ? "" : value);
+                    }
+                  }}
                 >
                   <StudentPictureCard value={value} learningItems={learningItems} className="pointer-events-none w-full hover:border-blue-300" />
                 </div>

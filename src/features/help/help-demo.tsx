@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, ArrowRight, MousePointer2, RotateCcw, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, MousePointer2, Pause, Play, RotateCcw, type LucideIcon } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 /**
  * Help's Show me player. Each guide plays like a short video, the same way as "See how it works" on the landing
  * page: a simplified copy of the real screen, a pointer that moves and clicks, one caption per step, and a progress
- * bar per step. Hovering the screen pauses it. With reduced motion each step shows its finished state.
+ * bar per step. Explicit Pause/Play controls also work on touch screens. With reduced motion each step shows its finished state.
  *
  * Scenes are drawn on a fixed 640 x 360 stage that scales to the pop-up width, so pointer positions stay exact.
  */
@@ -90,7 +90,7 @@ export function HelpDemoDialog({
   const done = isLast && t >= scene.duration;
 
   return (
-    <Dialog open={open} onClose={onClose} title={title} className="max-w-3xl">
+    <Dialog open={open} onClose={onClose} title={title} className="help-demo-dialog max-w-3xl">
       <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${scenes.length}, minmax(0, 1fr))` }} aria-label="Steps">
         {scenes.map((item, index) => (
           <button
@@ -118,20 +118,19 @@ export function HelpDemoDialog({
         {scene.caption}
       </p>
 
-      <div className="mt-3" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      <div className="mt-3">
         <DemoStage>
-          <AnimatePresence mode="wait">
+          {/* Render the next scene immediately, without an empty interval while the
+              previous scene exits or the drawing area resizes after rotation. */}
             <motion.div
               key={step}
               className="absolute inset-0"
-              initial={{ opacity: 0 }}
+              initial={false}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
             >
               {scene.render(t)}
             </motion.div>
-          </AnimatePresence>
           {paused && !done ? (
             <span className="absolute right-3 top-3 z-[60] rounded-full bg-slate-900/70 px-3 py-1 text-xs font-bold text-white">Paused</span>
           ) : null}
@@ -142,6 +141,12 @@ export function HelpDemoDialog({
         <Button type="button" variant="secondary" onClick={() => goTo(step - 1)} disabled={step === 0}>
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
         </Button>
+        {!done ? (
+          <Button type="button" variant="outline" onClick={() => setPaused((current) => !current)} aria-label={paused ? "Play guide" : "Pause guide"}>
+            {paused ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
+            {paused ? "Play" : "Pause"}
+          </Button>
+        ) : null}
         {isLast ? (
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={() => goTo(0)}>
@@ -167,7 +172,9 @@ function DemoStage({ children }: { children: ReactNode }) {
   useEffect(() => {
     const element = ref.current;
     if (!element) return undefined;
-    const observer = new ResizeObserver(([entry]) => setScale(entry.contentRect.width / STAGE_W));
+    const measure = () => setScale(element.clientWidth / STAGE_W);
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -176,7 +183,7 @@ function DemoStage({ children }: { children: ReactNode }) {
     <div
       ref={ref}
       className="relative w-full overflow-hidden rounded-2xl border border-blue-100 bg-[#f4f8ff] shadow-inner"
-      style={{ height: STAGE_H * scale }}
+      style={{ aspectRatio: `${STAGE_W} / ${STAGE_H}` }}
       aria-hidden="true"
     >
       <div className="absolute left-0 top-0 origin-top-left" style={{ width: STAGE_W, height: STAGE_H, transform: `scale(${scale})` }}>

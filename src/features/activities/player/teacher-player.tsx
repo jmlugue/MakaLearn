@@ -466,7 +466,7 @@ function DragDropBoard({ activity, learningItems, answers, result, dragged, setD
                   }
                   setDragged(card);
                   // A mouse click or tap carries the card with the pointer; a key press only selects it.
-                  setCarry(event.detail > 0 ? { x: event.clientX, y: event.clientY } : null);
+                  setCarry(event.detail > 0 && !window.matchMedia("(pointer: coarse)").matches ? { x: event.clientX, y: event.clientY } : null);
                 }}
                 aria-pressed={dragged === card}
                 aria-label={`Drag ${getDisplayLabel(card, learningItems)} card onto its word`}

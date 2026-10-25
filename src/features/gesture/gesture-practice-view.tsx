@@ -1,5 +1,7 @@
 "use client";
 
+import { usePhoneLayout } from "@/components/common/use-phone-layout";
+
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -169,6 +171,7 @@ const trackingMeta: Record<
 };
 
 export function GesturePracticeView() {
+  const phoneLayout = usePhoneLayout();
   const { notify } = useToast();
   const { isStudentMode } = useStudentMode();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1293,7 +1296,7 @@ export function GesturePracticeView() {
                   {cameraStarted && guidedPhase !== "countdown" ? (
                     <div
                       className={cn(
-                        "absolute bottom-2 left-2 sm:bottom-3 sm:left-3",
+                        "student-gesture-maki absolute bottom-2 left-2 sm:bottom-3 sm:left-3",
                         cameraFocusMode ? "w-[150px] sm:w-[190px]" : "w-[120px] sm:w-[150px] xl:w-[165px]"
                       )}
                       aria-hidden="true"
@@ -1324,6 +1327,7 @@ export function GesturePracticeView() {
             {cameraStarted && guidedPhase !== "complete" ? <HoldProgressBar active={holding} startedAtRef={stablePoseStartedAtRef} /> : null}
 
             <LearnerFeedbackBar
+              learnerOnly={phoneLayout}
               stateLabel={
                 practiceMode === "guided"
                   ? guidedPhase === "complete"
@@ -1887,8 +1891,8 @@ function GestureSuccessCard({ title, detail }: { item?: LearningItem; title: str
   // One of Maki's happy faces, picked when the pop-up opens (no voice: the gesture's own audio plays).
   const [mood] = useState(() => pickCheer().mood);
   return (
-    <div className="w-full max-w-md rounded-[2rem] border-4 border-emerald-200 bg-white/95 p-6 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] sm:p-7">
-      <div className="flex justify-center pt-6">
+    <div className="gesture-success-card w-full max-w-md rounded-[2rem] border-4 border-emerald-200 bg-white/95 p-6 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] sm:p-7">
+      <div className="gesture-success-mascot flex justify-center pt-6">
         <Maki mood={mood} size={200} label="" />
       </div>
       <h2 className="mt-4 text-3xl font-black tracking-tight text-emerald-600 sm:text-4xl">{title}</h2>
@@ -2215,7 +2219,7 @@ function HoldProgressBar({
   }, [active, startedAtRef]);
 
   return (
-    <div className={cn("shrink-0 rounded-2xl border border-blue-100 bg-white/85", compact ? "mt-2 px-2.5 py-2" : "mt-2 px-3 py-2")}>
+    <div className={cn("gesture-hold-progress shrink-0 rounded-2xl border border-blue-100 bg-white/85", compact ? "mt-2 px-2.5 py-2" : "mt-2 px-3 py-2")}>
       <p className={cn("flex items-center gap-1.5 font-black text-ink", compact ? "text-xs" : "text-sm")}>
         <Hand className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
         Hold your sign still until the bar fills.
@@ -2331,7 +2335,7 @@ function LearnerReferenceDetails({ item, onPlayAudio }: { item: LearningItem; on
   const label = getLearnerCardLabel(item.label);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-4 shadow-[0_10px_28px_rgba(37,99,235,0.1)] sm:p-5">
+    <div className="gesture-reference-details flex h-full min-h-0 flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-4 shadow-[0_10px_28px_rgba(37,99,235,0.1)] sm:p-5">
       <h2 className="text-center text-3xl font-black text-ink sm:text-5xl">{label}</h2>
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:mt-4 sm:gap-3">
@@ -2413,6 +2417,7 @@ function GestureVideoPreview({ value, label }: { value?: string; label: string }
 }
 
 function LearnerFeedbackBar({
+  learnerOnly = false,
   stateLabel,
   detail,
   statusMessage,
@@ -2423,6 +2428,7 @@ function LearnerFeedbackBar({
   compact = false,
   actions
 }: {
+  learnerOnly?: boolean;
   stateLabel: string;
   detail: string;
   statusMessage: string;
@@ -2463,7 +2469,7 @@ function LearnerFeedbackBar({
   return (
     <div
       className={cn(
-        "flex shrink-0 flex-col border shadow-[0_6px_18px_rgba(37,99,235,0.07)]",
+        "student-gesture-feedback flex shrink-0 flex-col border shadow-[0_6px_18px_rgba(37,99,235,0.07)]",
         compact ? "mt-2 min-h-[5rem] rounded-2xl p-2.5" : "mt-3 min-h-[5.5rem] rounded-3xl p-3",
         success ? "border-green-200 bg-green-50/90" : "border-blue-100 bg-white/80"
       )}
@@ -2473,7 +2479,7 @@ function LearnerFeedbackBar({
       {showFeedback ? (
         <div>
           {/* The AI corrective feedback in full: For learner and Teacher guide. */}
-          <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} compact={compact} flush prominent />
+          <CorrectiveFeedbackPanel feedback={correctiveFeedback} loading={feedbackLoading} compact={compact} flush prominent learnerOnly={learnerOnly} />
           {actions ? <div className="mt-3 grid grid-cols-2 gap-3">{actions}</div> : null}
         </div>
       ) : (
