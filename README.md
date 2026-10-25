@@ -149,6 +149,8 @@ Planned updates before production:
 
 ## Placeholder logic notes
 
+- When adding a PECS material, **Use card outline** prepares its standard card picture on a white 900 × 1200 template matching the bundled black outline. The whole picture fits inside the frame without stretching or extra padding. **Use image as uploaded** keeps an already-framed image unchanged. The live preview shows the saved appearance on phones and desktop; this choice does not modify the separate word-free Activity picture.
+
 - PECS and gesture media are placeholders and must not be treated as official Makaton content.
 - `generateCorrectiveFeedbackPlaceholder` and `generateFeedbackPlaceholder` are marked for future model/AI replacement.
 - Gesture hand tracking uses real MediaPipe landmarks and the bundled trained recognizer. Corrective feedback uses Gemini with local template fallback; gesture attempts are session-only.

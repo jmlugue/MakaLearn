@@ -1044,6 +1044,8 @@ The owner asked for three layouts like a CSS media query diagram. Rules live in 
 
 ## Oct 12: new-material media readiness, Playground categories, and voice
 
+- Oct 25: Add material offers a PECS card-template choice: **Use card outline** (default) or **Use image as uploaded** for artwork that already has a border. The outline is composited into the standard uploaded card PNG at 900 × 1200, matching bundled frame geometry; images keep their aspect ratio and fit the interior without extra padding. The preview uses the exact file saved, including on mobile. Switching back retains the original picked File. Activity pictures and gesture references are not processed, and shared renderers do not add a second border. Existing stored images are unchanged.
+
 - PECS materials now have two distinct picture purposes: `symbol_image_url` is the standard labelled card used by Content and Playground; `activity_image_url` is the word-free answer artwork used by Activities.
 - Add material and material details explain both requirements separately. Audio remains optional and is not part of Playground or Activity readiness.
 - Activity renderers never fall back from missing Activity artwork to the standard labelled card. Existing built-in cards continue to use their source-controlled files in `public/pecs/generated_cards_no_text`.
