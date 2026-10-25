@@ -191,6 +191,10 @@ Every screen is designed for three layouts. Write phone styles first, then add `
   retain their established layouts. Phone remove buttons show a 20px circle and 12px X within a 44px tap target.
   Help and activity tutorials respect both app and system reduced-motion settings, with manual steps and an explicit
   Play demo action. Help drawings fit both available width and height; tutorial dialogs scroll safely on short screens.
+- Phone gesture status reserves the fixed menu's space even while sticky. Portrait camera/reference height grows
+  with the viewport; feedback does not shrink the camera. Guided startup uses a compact two-column card on short
+  landscape screens. Its countdown typography and circle size follow the camera container, with a side-by-side
+  countdown below 140px camera height. Visible English copy uses "practice".
 - Phones: a long row of filter chips scrolls sideways in one row instead of wrapping into many rows. Section tabs
   (`PillTabs`) become a 2 x 2 grid. A search box takes its own row.
 - A grid with one column that holds a sideways-scrolling row or a wide `<select>` needs `grid-cols-1` (or `min-w-0`),

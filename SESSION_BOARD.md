@@ -34,6 +34,16 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-phone-guided-sizing-pr
+- Outcome: Prepared jmlugue/fix-phone-guided-sizing against main with only gesture view, phone CSS, STYLE_GUIDE, and own session notes. Shared branch/index and other sessions' changes are preserved.
+- Verification: These exact source files passed isolated TypeScript, lint, production build (21 pages), and four tutorial tests; Chromium/WebKit passed 82 layout states. Source matches the tested copy, and main's source tree equals the previously validated PR #11 base. Physical iPhone/live recognition confirmation remains pending.
+
+### 2026-10-25-phone-guided-sizing
+- Outcome: Reviewed all three images in D:/Downloads/revisions. Phone gesture status now reserves the fixed menu space while sticky, wraps long messages, and uses clearer borders/icons. Portrait camera/reference height grows with the viewport. Guided startup uses a compact short-landscape layout, and camera countdown text/circle scale to the actual preview, switching to side-by-side below 140px. Ready copy now says practice. Standard tablet/desktop layout and recognition behavior are preserved.
+- Files/areas: src/features/gesture/gesture-practice-view.tsx, src/app/globals.css, STYLE_GUIDE.md, and own session notes. Other sessions' Playground work is untouched.
+- Verification: Chromium and WebKit passed 82 fixture states across nine phone/tablet/desktop viewports, including both startup states without scrolling down to 568x240, sticky menu separation with long feedback, portrait camera height, and countdown bounds at five preview heights. Gesture capture/stability, feedback, four tutorial tests, and whitespace passed. The shared build encountered the other session's new playground-checker.ts token-narrowing error; an isolated copy of PR #11 plus exactly these three revision files passed TypeScript, lint, four tutorial tests, and the production build (21 pages).
+- Limits: Browser checks use sample data and simulated camera/feedback, not physical iPhone Safari or live recognition. Artifacts are in D:/Downloads/makalearn-guided-sizing. No app development server, commit, push, PR update, deployment, or production-data write was performed.
+
 ### 2026-10-25-phone-followup-pr
 - Outcome: Prepared an isolated PR on jmlugue/fix-phone-gesture-tutorials from current main, containing only the phone gesture/tutorial follow-up, small Playground remove-control styling, and this session's notes. Other sessions' pending Playground logic, tests, API/types, and documentation are excluded.
 - Verification: Fresh npm ci, TypeScript, lint, production build (21 pages), 4 tutorial tests, 60 activity tests, 29 Playground tests, gesture capture/stability and feedback checks passed on the isolated PR tree. Existing Chromium/WebKit fixtures exercise identical owned source files. Physical iPhone camera and hosted video checks remain pending.
