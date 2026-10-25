@@ -34,6 +34,19 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-pr7-base-merge
+- Outcome: Merged origin/main (64479a1) into PR #7's jmlugue/fix-mobile-tablet-responsive branch. Resolved the sole conflict in SESSION_BOARD.md by preserving both branches' completion notes. Content upload templates, free-gesture feedback, and Playground speech cancellation are retained.
+- Verification: TypeScript, lint, 10 media tests, 24 Playground tests, 6 gesture capture tests, 3 gesture stability tests, feedback checks, production build (21 pages), and whitespace passed. No dev server was started. Merge completed locally; no push performed.
+
+### 2026-10-25-playground-speech-cancel
+- Outcome: Playground board edits, Clear, newer Check/Listen actions, and unmount invalidate stale narration callbacks. Removing cards cancels active browser speech and prevents the post-Maki readout or remaining Listen sequence from reading the old board.
+- Files/areas: Playground view and four handler-level speech regression tests. Activity behavior is unchanged.
+- Verification: All 24 Playground tests, TypeScript, lint, production build, and whitespace checks passed. No dev server was started; physical browser voice timing was not exercised.
+
+### 2026-10-25-dependency-readiness
+- Outcome: Full npm dependency tree is valid; package declarations, lockfile, and installed required versions agree. No dependency changes or reinstall needed. Registry check found newer releases; npm audit reported 12 advisories (1 critical, 9 high, 2 moderate), including Next.js; major upgrades were not applied.
+- Verification: TypeScript, lint, production build, and all eight local test commands passed. Supabase CLI runs. Material validation is blocked by absent Supabase configuration; this worktree has no .env.local and required values are absent from the shell. No dev server was started.
+- Follow-up: Configure .env.local from .env.example using the existing project credentials before signed-in/backend use. Plan dependency/security upgrades separately.
 ### 2026-10-25-pr6-base-merge
 - Outcome: Merged origin/main into jmlugue/fix-free-mode-mobile for PR #6. Resolved the sole conflict in SESSION_BOARD.md by preserving both branches' completion notes. Base content-upload changes and the PR's free-gesture feedback fix are retained.
 - Verification: 10 media tests, 6 gesture capture tests, 3 gesture stability tests, TypeScript, lint, production build (21 pages), and whitespace checks passed. Development server was stopped for the build and remains stopped. Merge completed locally; no push performed.
