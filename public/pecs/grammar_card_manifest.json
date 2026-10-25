@@ -1,0 +1,8 @@
+[
+  { "label": "A", "filename": "a.png", "kind": "article", "example": "You are a teacher." },
+  { "label": "An", "filename": "an.png", "kind": "article", "example": "An angry teacher." },
+  { "label": "The", "filename": "the.png", "kind": "article", "example": "The water is hot." },
+  { "label": "To", "filename": "to.png", "kind": "infinitive", "example": "I want to eat." },
+  { "label": "And", "filename": "and.png", "kind": "conjunction", "example": "Food and water." },
+  { "label": "Not", "filename": "not.png", "kind": "negation", "example": "I am not happy." }
+]

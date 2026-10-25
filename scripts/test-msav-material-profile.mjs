@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import fs from "node:fs";
 import ts from "typescript";
+import { loadTs } from "./load-ts.mjs";
 
 const source = fs.readFileSync("src/utils/msav-material-profile.ts", "utf8");
 const compiled = ts.transpileModule(source, {
@@ -10,6 +11,7 @@ const compiled = ts.transpileModule(source, {
 const manifest = JSON.parse(fs.readFileSync("public/pecs/pecs_arasaac_manifest.json", "utf8"));
 const profileModule = {};
 const requireStub = (specifier) => {
+  if (specifier === "@/data/grammar-card-manifest") return loadTs("src/data/grammar-card-manifest.ts");
   if (specifier === "@/data/pecs-card-manifest") {
     return {
       pecsCardManifest: manifest.map((card) => ({ ...card, sentenceRole: card.sentence_role })),

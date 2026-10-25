@@ -8,6 +8,7 @@ const { buildActivityOptionSets, isUnsafeActivityDistractor } = loadTs("src/util
 const {
   findPecsLearningItemForActivityValue,
   getActivityOptionImageUrl,
+  normalizeActivitySymbolQuestions,
   hasActivityOptionImage
 } = loadTs("src/utils/activity-symbol-options.ts");
 
@@ -74,6 +75,32 @@ test("every built-in PECS card has dedicated no-text activity artwork", () => {
       `Missing no-text activity image for ${card.label}`
     );
   });
+});
+
+test("grammar cards cannot leak printed function words or become arbitrary picture distractors", () => {
+  for (const label of ["A", "An", "The", "To", "And", "Not", "Am", "Is", "Are"]) {
+    const filename = `${label.toLowerCase()}.png`;
+    const item = { id: `pecs-${label.toLowerCase()}`, label, contentType: "pecs",
+      symbolImageUrl: `/pecs/generated_cards/${filename}`, activityImageUrl: `https://example.test/${filename}` };
+    assert.equal(hasActivityOptionImage(item), false, label);
+    assert.equal(getActivityOptionImageUrl(item.id, item), undefined, label);
+    assert.equal(getActivityOptionImageUrl(`/pecs/generated_cards_no_text/${filename}`), undefined, label);
+    assert.ok(fs.existsSync(`public/pecs/generated_cards_no_text/${filename}`));
+  }
+});
+
+test("legacy grammar questions are removed before every activity player's scoring", () => {
+  const items = ["Am", "A", "Happy"].map((label) => ({ id: `pecs-${label.toLowerCase()}`, label,
+    contentType: "pecs", symbolImageUrl: `/pecs/generated_cards/${label.toLowerCase()}.png` }));
+  for (const type of ["match-word-symbol", "choose-correct-symbol", "fill-blank", "simple-quiz", "drag-drop-symbol"]) {
+    const activity = { type, learningItemIds: items.map((item) => item.id), questions: items.map((item, index) => ({
+      id: String(index), learningItemId: item.id, answer: type === "fill-blank" ? item.label : item.id,
+      prompt: "A saved prompt", options: items.map((candidate) => candidate.id)
+    })) };
+    const normalized = normalizeActivitySymbolQuestions(activity, items);
+    assert.deepEqual(normalized.learningItemIds, ["pecs-happy"], type);
+    assert.deepEqual(normalized.questions.map((question) => question.learningItemId), ["pecs-happy"], type);
+  }
 });
 
 test("a custom PECS material needs a separate word-free activity picture", () => {

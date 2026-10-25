@@ -21,3 +21,10 @@ test("leaves unrelated learning labels unchanged", () => {
   assert.equal(normalizeLearningSpeechText("Good morning"), "Good morning");
   assert.equal(normalizeLearningSpeechText("Wash hands"), "Wash hands");
 });
+
+test("isolated I uses the pronoun sound without capital-letter narration", () => {
+  assert.equal(normalizeLearningSpeechText("I"), "eye");
+  assert.equal(normalizeLearningSpeechText(" I "), "eye");
+  assert.equal(normalizeLearningSpeechText("I am happy"), "I am happy");
+  assert.equal(normalizeLearningSpeechText("I want water"), "I want water");
+});

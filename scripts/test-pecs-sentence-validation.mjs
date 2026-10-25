@@ -88,6 +88,33 @@ test("describing sentences require subject agreement and allow safety or complet
   assert.equal(validateLabels(["I", "Am", "Food"]).isValid, false);
 });
 
+test("apologies and person descriptions accept matching be-verbs and reject unrelated complements", () => {
+  for (const [subject, expectedBeVerb] of subjects) {
+    for (const beVerb of ["Am", "Is", "Are"]) {
+      for (const complement of ["Sorry", ...people]) {
+        const labels = [subject, beVerb, complement];
+        const result = validateLabels(labels);
+        assert.equal(result.isValid, beVerb === expectedBeVerb, labels.join(" "));
+        if (result.isValid) {
+          assert.equal(result.constructionType, "sentence");
+          assert.equal(result.feedback, "You made a sentence.");
+          assert.equal(result.generatedSentence, labels.join(" "));
+        } else {
+          assert.equal(result.feedback, `Use ${expectedBeVerb} after ${subject}.`);
+        }
+      }
+    }
+  }
+
+  for (const complement of ["I", "You", "Hello", "Please", "Listen", "Food", "Banana", "Danger"]) {
+    assert.equal(validateLabels(["You", "Are", complement]).isValid, false, complement);
+  }
+  assert.equal(validateLabels(["You", "Teacher", "Are"]).isValid, false);
+  assert.equal(validateLabels(["I", "Sorry", "Am"]).isValid, false);
+  assert.equal(validateLabels(["Hello", "I", "Am", "Sorry"]).isValid, true);
+  assert.equal(validateLabels(["Mother", "You", "Are", "Teacher"]).isValid, true);
+});
+
 test("base-form action cards only follow I or You", () => {
   for (const subject of ["I", "You"]) {
     for (const predicate of actionPredicates) {
@@ -332,6 +359,10 @@ test("saved MSAV profiles extend existing rules without changing built-in labels
   assert.equal(check([builtIn("Eat"), juice]).isValid, false);
   assert.equal(check([builtIn("Hello"), nurse]).isValid, true);
   assert.equal(check([nurse, builtIn("Is"), builtIn("Happy")]).isValid, true);
+  assert.equal(check([builtIn("You"), builtIn("Are"), nurse]).isValid, true);
+  assert.equal(check([builtIn("I"), builtIn("Am"), nurse]).isValid, true);
+  assert.equal(check([builtIn("You"), builtIn("Is"), nurse]).isValid, false);
+  assert.equal(check([builtIn("You"), builtIn("Are"), mango]).isValid, false);
   assert.equal(check([builtIn("I"), play]).isValid, true);
   assert.equal(check([play, mango]).isValid, false);
 });

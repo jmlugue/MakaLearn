@@ -90,6 +90,8 @@ export type LearningItem = {
   // Supabase stores sentence_role on learning_items; the manifest can still
   // help classify imported PECS/AAC seed material.
   sentenceRole?: SentenceRole;
+  /** Grammar cards need sentence context and do not inherit object/action roles. */
+  grammarKind?: "article" | "infinitive" | "conjunction" | "negation";
   /** Existing manifest cards use their built-in rules and leave these fields empty. */
   playgroundPreparationStatus?: PlaygroundPreparationStatus;
   msavProfile?: MsavMaterialProfile;

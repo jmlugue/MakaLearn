@@ -45,7 +45,7 @@ const drinkableObjectLabels = new Set(["water", "milk"]);
 const consumableObjectLabels = new Set([...edibleObjectLabels, ...drinkableObjectLabels]);
 const moreTargetLabels = new Set([...consumableObjectLabels, "rest", "help"]);
 const postpositivePleaseLabels = new Set([...consumableObjectLabels, "toilet", "rest", "more"]);
-const beComplementLabels = new Set(["hot", "hurt", "finished"]);
+const beComplementLabels = new Set(["hot", "hurt", "finished", "sorry"]);
 
 function normalizeLabel(label: string) {
   return label.trim().toLowerCase().replace(/\s+/g, " ");
@@ -152,7 +152,10 @@ function hasCompatibleActionTarget(
 }
 
 function isAllowedBeComplement(card: PecsSentenceCard, label: string) {
-  return hasRole(card, "emotion") || hasTrait(card, "be_complement") || beComplementLabels.has(label);
+  // Cards can describe a state or identify a person. AAC combinations such as
+  // "You Are Teacher" omit articles that are not available in the card library.
+  return hasRole(card, "emotion") || hasTrait(card, "be_complement") ||
+    beComplementLabels.has(label) || isNamedPerson(card, label);
 }
 
 function isAllowedWantTarget(card: PecsSentenceCard, label: string) {

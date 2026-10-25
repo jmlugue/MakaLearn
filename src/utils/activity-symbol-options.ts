@@ -1,5 +1,6 @@
 import type { Activity, ActivityQuestion, LearningItem } from "@/types";
 import { normalizePecsLabel, pecsCardManifest } from "@/data/pecs-card-manifest";
+import { needsGrammarActivityContext } from "@/data/grammar-card-manifest";
 
 const legacySymbolAliases: Record<string, string> = {
   hel: "hello",
@@ -43,6 +44,12 @@ function getGeneratedPecsFilename(value?: string) {
  * contain the printed answer word.
  */
 export function getActivityOptionImageUrl(value: string, item?: LearningItem) {
+  // Grammar needs a contextual question type. Current picture-choice games must
+  // not reveal letters or use arbitrary pictures to distinguish A/An or Am/Is/Are.
+  const filename = value.split(/[/?#]/).filter(Boolean).pop()?.replace(/\.png$/i, "");
+  if (needsGrammarActivityContext(item?.label ?? value) ||
+    needsGrammarActivityContext(value.replace(/^pecs-/, "")) ||
+    (filename && needsGrammarActivityContext(filename))) return undefined;
   if (value.includes("/pecs/generated_cards_no_text/") && isEmbeddableActivityMediaUrl(value)) return value;
   if (isEmbeddableActivityMediaUrl(item?.activityImageUrl)) return item?.activityImageUrl;
 
@@ -166,10 +173,19 @@ export function normalizeActivitySymbolQuestions(
 ): Activity {
   const learningItemIds = uniqueValues(
     activity.learningItemIds.map((id) => resolveCanonicalLearningItemId(id, learningItems, sourceLearningItems))
-  );
+  ).filter((id) => {
+    const item = learningItems.find((candidate) => candidate.id === id);
+    return !item || !needsGrammarActivityContext(item.label);
+  });
   const questions = activity.questions.map((question) => {
     const learningItemId = resolveCanonicalLearningItemId(question.learningItemId, learningItems, sourceLearningItems);
     return { ...question, learningItemId };
+  }).filter((question) => {
+    // Old saved activities can still name function-word cards. Exclude the
+    // question consistently before either teacher or Student scoring begins.
+    const item = learningItems.find((candidate) => candidate.id === question.learningItemId)
+      ?? findPecsLearningItemForActivityValue(question.answer, sourceLearningItems);
+    return !needsGrammarActivityContext(item?.label ?? question.answer.replace(/^pecs-/, ""));
   });
 
   if (!activityUsesSymbolOptions(activity.type)) return { ...activity, learningItemIds, questions };

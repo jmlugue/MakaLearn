@@ -133,6 +133,7 @@ function audioStorageFileName(label, localAudioFileName) {
   // New object names prevent browsers/CDNs from reusing replaced recordings.
   const normalizedLabel = normalizeLabel(label);
   const replacementFileNames = {
+    i: "i-pronoun-v2.wav",
     am: "am-spoken-word.wav",
     hurt: "hurt-clear.wav"
   };

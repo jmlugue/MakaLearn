@@ -2,6 +2,8 @@
 // the voice and speed chosen in Settings apply everywhere. Card audio files are never changed by this.
 // Voices differ per device and browser, so the choice is saved in this browser only.
 
+import { normalizeLearningSpeechText } from "@/utils/speech-text";
+
 export type VoiceSpeed = "slow" | "normal" | "fast";
 
 const VOICE_KEY = "makalearn.voice";
@@ -87,7 +89,7 @@ export function pickVoice() {
 
 /** An utterance with the chosen voice and speed. Callers add their own handlers and call speechSynthesis.speak. */
 export function createUtterance(text: string) {
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(normalizeLearningSpeechText(text));
   const voice = pickVoice();
   if (voice) {
     utterance.voice = voice;
