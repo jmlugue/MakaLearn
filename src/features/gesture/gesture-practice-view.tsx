@@ -1264,8 +1264,9 @@ export function GesturePracticeView() {
             />
           </div>
         </div>
-        <p className={cn("phone-gesture-status hidden", correctiveFeedback?.issueCategory === "correct" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : correctiveFeedback ? "border-red-200 bg-red-50 text-red-900" : "border-blue-200 bg-white text-blue-900")} aria-hidden="true">
-          {correctiveFeedback?.learnerMessage || (feedbackLoading ? "Checking your gesture..." : practiceMode === "guided" && guidedTarget ? `Show: ${getLearnerCardLabel(guidedTarget.label)}` : "Ready to practise")}
+        <p className={cn("phone-gesture-status hidden", correctiveFeedback?.issueCategory === "correct" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : correctiveFeedback ? "border-red-200 bg-red-50 text-red-900" : "border-blue-200 bg-[#fff] text-blue-900")} aria-hidden="true">
+          {correctiveFeedback?.issueCategory === "correct" ? <CheckCircle2 className="h-5 w-5 shrink-0" /> : correctiveFeedback ? <TriangleAlert className="h-5 w-5 shrink-0" /> : <Hand className="h-5 w-5 shrink-0" />}
+          <span>{correctiveFeedback?.learnerMessage || (feedbackLoading ? "Checking your gesture..." : practiceMode === "guided" && guidedTarget ? `Show: ${getLearnerCardLabel(guidedTarget.label)}` : "Ready to practice")}</span>
         </p>
         <div
           className={cn(
@@ -1716,12 +1717,12 @@ function GuidedCameraOverlay({
 
   if (phase === "countdown") {
     return (
-      <div className="pointer-events-none grid h-full place-items-center bg-[#10234f]/55 p-4 backdrop-blur-[2px]" role="status" aria-live="assertive">
-        <div className="text-center text-white">
-          <p className="text-sm font-black uppercase tracking-[0.22em] text-blue-100">
+      <div className="guided-camera-overlay pointer-events-none grid h-full place-items-center bg-[#10234f]/55 p-4 backdrop-blur-[2px]" role="status" aria-live="assertive">
+        <div className="guided-camera-copy text-center text-white">
+          <p className="guided-camera-step text-sm font-black uppercase tracking-[0.22em] text-blue-100">
             Gesture {currentIndex + 1} of {total}
           </p>
-          <p className="mt-2 text-2xl font-black sm:text-3xl">Get ready for {shortLabel}</p>
+          <p className="guided-camera-instruction mt-2 text-2xl font-black sm:text-3xl">Get ready for {shortLabel}</p>
           <AnimatePresence mode="wait">
             <motion.div
               key={countdownValue}
@@ -1729,7 +1730,7 @@ function GuidedCameraOverlay({
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 1.3 }}
               transition={{ duration: reduceMotion ? 0 : 0.35 }}
-              className="mx-auto mt-5 grid h-32 w-32 place-items-center rounded-full border-4 border-white/80 bg-white/15 text-7xl font-black sm:h-40 sm:w-40 sm:text-8xl"
+              className="guided-camera-countdown mx-auto mt-5 grid h-32 w-32 place-items-center rounded-full border-4 border-white/80 bg-white/15 text-7xl font-black sm:h-40 sm:w-40 sm:text-8xl"
             >
               {countdownValue}
             </motion.div>
@@ -1755,10 +1756,10 @@ function ReadyStep({ label, delay, last = false, children }: { label: string; de
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25 + delay, duration: 0.3 }}
     >
-      <span className="grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-white shadow-[0_6px_0_rgba(147,197,253,0.45)] ring-4 ring-sky-100">
+      <span className="guided-ready-picture grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-white shadow-[0_6px_0_rgba(147,197,253,0.45)] ring-4 ring-sky-100">
         {children}
       </span>
-      <span className="text-sm font-black leading-tight text-ink">{label}</span>
+      <span className="guided-ready-label text-sm font-black leading-tight text-ink">{label}</span>
       {last ? null : (
         <ArrowRight className="absolute -right-3 top-8 h-5 w-5 text-sky-400" strokeWidth={3} aria-hidden="true" />
       )}
@@ -1825,29 +1826,29 @@ function GuidedPopup({
     phase === "complete" ? (
       <div className="w-full max-w-lg">{summary}</div>
     ) : phase === "ready" ? (
-      <div className="relative w-full max-w-md rounded-[2.25rem] border-4 border-white bg-gradient-to-b from-sky-100 via-white to-white px-6 pb-7 pt-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] sm:px-8">
+      <div className="guided-ready-card relative w-full max-w-md rounded-[2.25rem] border-4 border-white bg-gradient-to-b from-sky-100 via-white to-white px-6 pb-7 pt-8 text-center shadow-[0_24px_60px_rgba(15,23,42,0.22)] sm:px-8">
         <button
           type="button"
           onClick={onEnd}
           aria-label="End guided practice"
           title="End guided practice"
-          className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100"
+          className="guided-ready-close absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100"
         >
           <X className="h-5 w-5" aria-hidden="true" />
         </button>
         <motion.div
-          className="flex justify-center"
+          className="guided-ready-mascot flex justify-center"
           initial={reduceMotion ? false : { scale: 0.5, y: 30, opacity: 0 }}
           animate={{ scale: 1, y: 0, opacity: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 14 }}
         >
           <Maki mood={cameraReady ? "cheer" : "wave"} size={190} label="" />
         </motion.div>
-        <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight text-ink sm:text-4xl">
+        <h2 className="guided-ready-title mt-4 text-3xl font-black leading-tight tracking-tight text-ink sm:text-4xl">
           {cameraReady ? "Thumbs up to start!" : "Let\u2019s turn on the camera!"}
         </h2>
         {/* How it goes, in pictures for kids who cannot read yet: hands in the camera, the countdown, the first sign. */}
-        <ol className="mt-6 flex items-start justify-between gap-3" aria-label="How it works">
+        <ol className="guided-ready-steps mt-6 flex items-start justify-between gap-3" aria-label="How it works">
           <ReadyStep label="Hands in view" delay={0}>
             <span className="relative grid h-full w-full place-items-center bg-slate-800">
               <span className="absolute inset-2.5 rounded-xl border-2 border-dashed border-white/50" />
@@ -1872,7 +1873,7 @@ function GuidedPopup({
           type="button"
           onClick={cameraReady ? onReady : onStartCamera}
           className={cn(
-            "mt-7 inline-flex min-h-16 w-full items-center justify-center gap-3 rounded-full px-6 text-xl font-black text-white transition active:translate-y-1 active:shadow-none focus-visible:outline-none focus-visible:ring-4",
+            "guided-ready-action mt-7 inline-flex min-h-16 w-full items-center justify-center gap-3 rounded-full px-6 text-xl font-black text-white transition active:translate-y-1 active:shadow-none focus-visible:outline-none focus-visible:ring-4",
             cameraReady
               ? "bg-emerald-500 shadow-[0_6px_0_#047857] hover:bg-emerald-600 focus-visible:ring-emerald-200"
               : "bg-blue-600 shadow-[0_6px_0_#1e40af] hover:bg-blue-700 focus-visible:ring-blue-200"
