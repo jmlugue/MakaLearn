@@ -184,7 +184,7 @@ export function LoginPanel() {
               type="email"
               value={email}
               onChange={(event) => handleEmailChange(event.target.value)}
-              placeholder="teacher@makalearn.local"
+              placeholder="Enter username"
               className={cn(fieldClass, "pr-10", emailHasError && errorInputClass)}
               aria-invalid={emailHasError}
               aria-describedby={emailDescription || undefined}
@@ -212,7 +212,7 @@ export function LoginPanel() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(event) => handlePasswordChange(event.target.value)}
-              placeholder="Enter your password"
+              placeholder="Enter password"
               className={cn(
                 fieldClass,
                 passwordHasError ? "pr-20" : "pr-12",
