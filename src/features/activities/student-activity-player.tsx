@@ -1,5 +1,7 @@
 "use client";
 
+import { usePhoneLayout } from "@/components/common/use-phone-layout";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getActivityQuestionOptions,
@@ -84,8 +86,9 @@ function StudentRound({
   onFinish?: (play: FinishedRound) => void;
 }) {
   const isDrag = activity.type === "drag-drop-symbol";
+  const phoneLayout = usePhoneLayout();
   const questions = useMemo(() => activity.questions.slice(0, ROUND_SIZE), [activity.questions]);
-  const instruction = studentInstruction(activity.type);
+  const instruction = isDrag && phoneLayout ? "Tap a picture, then tap its word." : studentInstruction(activity.type);
 
   const [seed] = useState(() => Math.random());
   const [phase, setPhase] = useState<"intro" | "play" | "done">(showIntro ? "intro" : "play");

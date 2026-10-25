@@ -505,7 +505,7 @@ export function PlaygroundView() {
             <div
               className={
                 isStudentMode
-                  ? "fixed inset-0 z-40 bg-[#fcfdff] bg-no-repeat px-2 pb-2 pt-20 sm:px-3 sm:pb-3 lg:px-4"
+                  ? "student-playground-viewport fixed inset-0 z-40 bg-[#fcfdff] bg-no-repeat px-2 pb-2 pt-20 sm:px-3 sm:pb-3 lg:px-4"
                   : "fixed bottom-24 left-0 right-0 top-0 z-40 px-3 py-2 md:bottom-0 md:left-28 md:px-6 lg:px-8 lg:py-4"
               }
               style={
@@ -518,14 +518,15 @@ export function PlaygroundView() {
                   : undefined
               }
             >
+              {isStudentMode ? <h1 className="phone-playground-title hidden">Playground</h1> : null}
               {/* Phones and portrait tablets: cards above the board, both on one screen. Landscape tablets and desktop: side by side. */}
               <div className={`playground-stage mx-auto grid h-full overflow-y-auto overflow-x-hidden rounded-2xl sm:overflow-hidden border border-blue-100 shadow-[0_16px_44px_rgba(37,99,235,0.16)] backdrop-blur-2xl ${
                 isStudentMode
                   ? "max-w-none grid-cols-1 grid-rows-[minmax(16rem,1fr)_auto] bg-white/80 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] md:landscape:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] md:landscape:grid-rows-1 lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)] lg:grid-rows-1"
                   : "max-w-7xl grid-cols-1 grid-rows-[minmax(16rem,1fr)_auto] bg-white/95 sm:grid-rows-[minmax(0,1fr)_minmax(22rem,0.9fr)] md:landscape:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] md:landscape:grid-rows-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)] lg:grid-rows-1"
               }`}>
-                <section className={`flex min-h-0 flex-col ${isStudentMode ? "bg-[#f8fbff]/80 p-3 sm:p-4 lg:p-5" : "bg-[#f8fbff] p-3 sm:p-4"}`}>
-                  <div className="shrink-0 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
+                <section className={`playground-picker flex min-h-0 flex-col ${isStudentMode ? "bg-[#f8fbff]/80 p-3 sm:p-4 lg:p-5" : "bg-[#f8fbff] p-3 sm:p-4"}`}>
+                  <div className="playground-filters shrink-0 rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
                     <div>
                       <div className="flex items-center justify-between gap-3">
                         <p className="flex min-h-10 shrink-0 items-center text-sm font-bold text-ink">Categories</p>
@@ -612,7 +613,7 @@ export function PlaygroundView() {
                   </div>
                 </section>
 
-                <section className={`flex min-h-0 flex-col border-t border-blue-100 md:landscape:border-l md:landscape:border-t-0 lg:border-l lg:border-t-0 ${isStudentMode ? "bg-white/85 p-3 sm:p-4 lg:p-5" : "bg-white p-3 sm:p-4"}`}>
+                <section className={`playground-workspace flex min-h-0 flex-col border-t border-blue-100 md:landscape:border-l md:landscape:border-t-0 lg:border-l lg:border-t-0 ${isStudentMode ? "bg-white/85 p-3 sm:p-4 lg:p-5" : "bg-white p-3 sm:p-4"}`}>
                   <div
                     data-board=""
                     className={dropZoneClass}
@@ -632,7 +633,7 @@ export function PlaygroundView() {
                       className="pointer-events-none absolute inset-0 h-full w-full select-none object-fill"
                       draggable={false}
                     />
-                    <ol className={`${sentenceCanvasClass} flex items-center justify-center gap-2 sm:gap-3`} style={{ containerType: "size" }}>
+                    <ol className={`playground-slots ${sentenceCanvasClass} flex items-center justify-center gap-2 sm:gap-3`} style={{ containerType: "size" }}>
                       {Array.from({ length: maxSentenceCards }, (_, index) => {
                         const card = sentenceCards[index];
 
@@ -690,7 +691,7 @@ export function PlaygroundView() {
 
                   <div className="mt-3 grid shrink-0 gap-3">
 
-                    <CardFooter className="mt-0 grid grid-cols-3 gap-3 border-t-0 pb-1.5 pt-0">
+                    <CardFooter className="playground-actions mt-0 grid grid-cols-3 gap-3 border-t-0 pb-1.5 pt-0">
                       <button
                         type="button"
                         className={`${gameButtonClass} bg-emerald-500 shadow-[0_5px_0_#047857] hover:bg-emerald-600`}

@@ -34,6 +34,16 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-iphone-layout-pr
+- Outcome: Prepared a separate PR on jmlugue/iphone-browser-hosted-ui containing only the iPhone layout, activity input, gesture feedback, Playground layout, Help demo, and style guidance changes. The other session's message-classification implementation, tests, and docs are excluded.
+- Verification: Source changes match the tested local files; TypeScript, lint, build, focused suites, and browser fixture checks passed. Material validation remains unavailable without local Supabase configuration; physical iPhone confirmation remains pending.
+
+### 2026-10-25-iphone-walkthrough
+- Outcome: Reviewed the supplied iPhone recording and added phone-only portrait/landscape layouts. Student drag activities support persistent tap-picture/tap-word selection; teacher touch selections survive scrolling. Short landscape activities fit targets and pictures together, with choice prompts beside the options. Gesture practice keeps learner feedback visible, overlays hold progress on the camera, shrinks Maki, and fits success popups in landscape. Playground pins the board and controls while its card picker scrolls independently. Help demos resize without waiting for scene exits and have explicit Pause/Play controls.
+- Files/areas: Activity renderers and frames, gesture and Playground layouts, Help demo, phone-layout hook, globals.css, STYLE_GUIDE. Option generation, scoring, recognition, and Playground validation logic are unchanged by this session. The separate message-classification session's changes are preserved.
+- Verification: TypeScript, lint, production build (21 pages), 60 activity tests, 29 Playground tests (including the other session's additions), gesture capture/stability and feedback checks, and whitespace passed. Browser fixtures passed 56 component/viewport cases at 390x664, 844x280, 844x390, 667x270, 768x1024, 1024x768, and 1440x900. Additional checks covered teacher touch selection/placement at five sizes, desktop mouse dragging, and gesture layout rotation both ways. Screenshots and fixture scripts are outside the repo in D:/Downloads/makalearn-video-review.
+- Limits: Material validation could not run without NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Browser fixtures used local sample data and simulated feedback/camera state, not live recognition or authenticated backend calls. Physical iPhone Safari needs confirmation after deployment. No app dev server, commit, push, or deployment was performed.
+
 ### 2026-10-25-responsive-stash-pull-commit
 - Outcome: Stashed all responsive changes, fetched origin, fast-forwarded this branch to main's PR #7 merge commit 93213e8, and restored all nine changed files without conflicts for the local responsive-fix commit. No push performed.
 - Verification: Incoming merge commit has the identical file tree as the prior HEAD; restored application files exactly match the stash. Prior passing build/lint/TypeScript and browser checks remain applicable; whitespace check passed.
