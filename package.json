@@ -13,6 +13,7 @@
     "test:gesture-capture": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-gesture-capture-state.mjs",
     "test:gesture-stability": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-gesture-stability.mjs",
     "test:activities": "node --test scripts/test-activity-ai-draft.mjs scripts/test-activity-ai-rate-limit.mjs scripts/test-activity-option-sets.mjs scripts/test-activity-rules.mjs scripts/test-question-bank.mjs",
+    "test:tutorials": "node --test scripts/test-tutorial-playback.mjs",
     "test:activities:db": "node --test --test-concurrency=1 scripts/test-activity-records-db.mjs",
     "test:app:db": "node --test --test-concurrency=1 scripts/test-app-db.mjs",
     "test:readiness:db": "node --test --test-concurrency=1 scripts/test-supabase-readiness-db.mjs",

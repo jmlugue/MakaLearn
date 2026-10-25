@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Play } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { getSupabaseBrowserClient, isSupabaseConfigured, supabaseUrl } from "@/lib/supabase/client";
 
 /**
@@ -38,10 +40,14 @@ export function gestureMotionUrl(id: string) {
 export function GestureMotion({ id, fallback, className }: { id: string; fallback: ReactNode; className?: string }) {
   const [hasMotion, setHasMotion] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     let active = true;
     setFailed(false);
+    setHasMotion(false);
+    setPlaying(false);
     void availableMotions().then((ids) => {
       if (active) setHasMotion(ids.has(id));
     });
@@ -51,17 +57,35 @@ export function GestureMotion({ id, fallback, className }: { id: string; fallbac
   }, [id]);
 
   if (!hasMotion || failed) return <>{fallback}</>;
+  function playAnimation() {
+    // Safari can refuse autoplay. Keep the picture visible and offer a real tap.
+    const request = videoRef.current?.play();
+    request?.catch(() => setPlaying(false));
+  }
   return (
-    <video
-      key={id}
-      src={gestureMotionUrl(id)}
-      autoPlay
-      loop
-      muted
-      playsInline
-      onError={() => setFailed(true)}
-      className={className ?? "h-full w-full rounded-[1.5rem] bg-white object-contain"}
-      aria-hidden="true"
-    />
+    <div className={cn("gesture-motion relative h-full min-h-0 w-full overflow-hidden rounded-[1.5rem]", className)}>
+      <div className={cn("absolute inset-0 h-full w-full", playing && "invisible")} aria-hidden={playing}>{fallback}</div>
+      <video
+        ref={videoRef}
+        key={id}
+        src={gestureMotionUrl(id)}
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="metadata"
+        onLoadedMetadata={playAnimation}
+        onPlaying={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onError={() => setFailed(true)}
+        className={cn("absolute inset-0 h-full w-full object-contain", !playing && "opacity-0")}
+        aria-hidden="true"
+      />
+      {!playing ? (
+        <button type="button" onClick={playAnimation} aria-label="Play animation" title="Play gesture animation" className="absolute right-1 top-1 grid h-11 w-11 place-items-center rounded-xl border border-blue-200 bg-white/95 text-blue-800 shadow-sm">
+          <Play className="h-5 w-5" aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
   );
 }

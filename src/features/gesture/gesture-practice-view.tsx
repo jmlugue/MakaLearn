@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   Focus,
+  Maximize2,
   Hand,
   ListChecks,
   PlayCircle,
@@ -45,7 +46,7 @@ import { playCue } from "@/lib/sound-cues";
 import { Maki } from "@/features/student-mode/maki";
 import { encourageAfterWrong, pickCheer, type Encouragement } from "@/features/student-mode/maki-voice";
 import { GestureMotion } from "@/features/gesture/gesture-motion";
-import { ConfirmDialog } from "@/components/ui/dialog";
+import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { createGestureDrawingUtils, loadGestureHandTracker } from "@/utils/gesture-hand-tracker";
 import {
   buildGestureFeedbackRequest,
@@ -172,6 +173,7 @@ const trackingMeta: Record<
 
 export function GesturePracticeView() {
   const phoneLayout = usePhoneLayout();
+  const [referenceDialogOpen, setReferenceDialogOpen] = useState(false);
   const { notify } = useToast();
   const { isStudentMode } = useStudentMode();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1262,6 +1264,9 @@ export function GesturePracticeView() {
             />
           </div>
         </div>
+        <p className={cn("phone-gesture-status hidden", correctiveFeedback?.issueCategory === "correct" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : correctiveFeedback ? "border-red-200 bg-red-50 text-red-900" : "border-blue-200 bg-white text-blue-900")} aria-hidden="true">
+          {correctiveFeedback?.learnerMessage || (feedbackLoading ? "Checking your gesture..." : practiceMode === "guided" && guidedTarget ? `Show: ${getLearnerCardLabel(guidedTarget.label)}` : "Ready to practise")}
+        </p>
         <div
           className={cn(
             "student-gesture-grid relative z-10 grid gap-2 sm:gap-3 lg:gap-4",
@@ -1327,7 +1332,6 @@ export function GesturePracticeView() {
             {cameraStarted && guidedPhase !== "complete" ? <HoldProgressBar active={holding} startedAtRef={stablePoseStartedAtRef} /> : null}
 
             <LearnerFeedbackBar
-              learnerOnly={phoneLayout}
               stateLabel={
                 practiceMode === "guided"
                   ? guidedPhase === "complete"
@@ -1383,15 +1387,16 @@ export function GesturePracticeView() {
                   transition={{ type: "spring", stiffness: 260, damping: 26 }}
                 >
                   {practiceMode === "free" ? (
-                    <LearnerReferenceDetailsCard item={selectedGesture} onPlayAudio={playSelectedGestureAudio} />
+                    <LearnerReferenceDetailsCard item={selectedGesture} onPlayAudio={playSelectedGestureAudio} onEnlarge={() => setReferenceDialogOpen(true)} />
                   ) : (
-                    <LearnerReferencePictureCard item={selectedGesture} onPlayAudio={playSelectedGestureAudio} />
+                    <LearnerReferencePictureCard item={selectedGesture} onPlayAudio={playSelectedGestureAudio} onEnlarge={() => setReferenceDialogOpen(true)} />
                   )}
                 </motion.div>
               </AnimatePresence>
             ) : null}
 
             {practiceMode === "guided" && guidedPhase !== "complete" ? (
+              !phoneLayout ? (
               <GuidedProgressPanel
                 queue={guidedQueue}
                 results={guidedResults}
@@ -1399,6 +1404,7 @@ export function GesturePracticeView() {
                 onSkip={skipGuidedGesture}
                 onEnd={() => setEndSessionDialogOpen(true)}
               />
+              ) : null
             ) : (
             <div className="mt-2 flex shrink-0 items-center justify-center gap-5 sm:mt-3 sm:gap-8">
               <Button type="button" variant="secondary" size="icon" aria-label="Previous card" onClick={() => moveGesture(-1)} className="h-14 w-14 rounded-full border border-blue-100 bg-white text-[#19294d] shadow-[0_6px_14px_rgba(37,99,235,0.12)] sm:h-16 sm:w-16">
@@ -1421,8 +1427,20 @@ export function GesturePracticeView() {
             </div>
             )}
           </div>
+          {phoneLayout && practiceMode === "guided" && guidedPhase !== "complete" ? (
+            <div className="phone-gesture-journey">
+              <GuidedProgressPanel queue={guidedQueue} results={guidedResults} currentIndex={guidedIndex} onSkip={skipGuidedGesture} onEnd={() => setEndSessionDialogOpen(true)} />
+            </div>
+          ) : null}
         </div>
       </section>
+      {phoneLayout && selectedGesture ? (
+        <Dialog open={referenceDialogOpen} onClose={() => setReferenceDialogOpen(false)} title={`${getLearnerCardLabel(selectedGesture.label)} reference`} className="gesture-reference-dialog max-w-2xl">
+          <div className="relative mt-3 h-[60dvh] min-h-40">
+            <GestureMotion id={selectedGesture.id} fallback={<GestureVideoPreview value={selectedGesture.gestureMediaUrl} label={`${selectedGesture.label} gesture reference`} />} />
+          </div>
+        </Dialog>
+      ) : null}
       <FreeSuccessPopup item={practiceMode === "free" ? freeSuccess : null} onClose={closeFreeSuccess} />
       {practiceMode === "guided" && (guidedPhase === "ready" || (guidedPhase === "feedback" && guidedFeedbackCorrect) || guidedPhase === "complete") ? (
         <GuidedPopup
@@ -1869,7 +1887,7 @@ function GuidedPopup({
     );
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-slate-900/25 p-4 [&>*]:my-auto" role="dialog" aria-modal="true" aria-label="Guided practice">
+    <div className="guided-practice-overlay fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-slate-900/25 p-4 [&>*]:my-auto" role="dialog" aria-modal="true" aria-label="Guided practice">
       <motion.div
         key={phase}
         initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.96 }}
@@ -2299,22 +2317,39 @@ function ensureFixedGestureItems(items: LearningItem[]) {
 }
 
 /** Free Practice keeps the useful video and audio face visible without asking the learner to flip a card. */
-function LearnerReferenceDetailsCard({ item, onPlayAudio }: { item: LearningItem; onPlayAudio: () => void }) {
+type LearnerReferenceProps = { item: LearningItem; onPlayAudio: () => void; onEnlarge?: () => void };
+
+function ReferenceEnlargeButton({ onClick }: { onClick?: () => void }) {
+  if (!onClick) return null;
+  return (
+    <button
+      type="button"
+      className="gesture-reference-enlarge hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-700 focus-visible:outline focus-visible:outline-4 focus-visible:outline-blue-200"
+      onClick={onClick}
+      aria-label="Enlarge gesture reference"
+    >
+      <Maximize2 className="h-5 w-5" aria-hidden="true" />
+    </button>
+  );
+}
+
+function LearnerReferenceDetailsCard({ item, onPlayAudio, onEnlarge }: LearnerReferenceProps) {
   return (
     <div className="mx-auto h-full min-h-0 w-full max-w-[32rem]">
-      <LearnerReferenceDetails item={item} onPlayAudio={onPlayAudio} />
+      <LearnerReferenceDetails item={item} onPlayAudio={onPlayAudio} onEnlarge={onEnlarge} />
     </div>
   );
 }
 
 /** Guided practice: the gesture picture, then its word and a Play button (no flip, like free practice). */
-function LearnerReferencePictureCard({ item, onPlayAudio }: { item: LearningItem; onPlayAudio: () => void }) {
+function LearnerReferencePictureCard({ item, onPlayAudio, onEnlarge }: LearnerReferenceProps) {
   const label = getLearnerCardLabel(item.label);
   const imageSrc = getGestureReferenceImageSrc(item);
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-[32rem] flex-col gap-3 overflow-hidden rounded-[2rem] border border-white/90 bg-white p-3 shadow-[0_10px_28px_rgba(37,99,235,0.1)] sm:p-4">
-      <div className="relative grid min-h-0 w-full flex-1 place-items-center overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-blue-50 to-sky-100 p-2 sm:p-3">
+    <div className="gesture-reference-picture relative mx-auto flex h-full min-h-0 w-full max-w-[32rem] flex-col gap-3 overflow-hidden rounded-[2rem] border border-white/90 bg-white p-3 shadow-[0_10px_28px_rgba(37,99,235,0.1)] sm:p-4">
+      <div className="absolute right-2 top-2 z-10"><ReferenceEnlargeButton onClick={onEnlarge} /></div>
+      <div className="gesture-reference-media relative grid min-h-0 w-full flex-1 place-items-center overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-blue-50 to-sky-100 p-2 sm:p-3">
         <GestureMotion
           id={item.id}
           fallback={imageSrc ? <GestureReferenceImage src={imageSrc} alt={`${label} reference`} /> : <GestureFallbackIllustration />}
@@ -2322,7 +2357,7 @@ function LearnerReferencePictureCard({ item, onPlayAudio }: { item: LearningItem
       </div>
       <div className="flex shrink-0 items-center justify-between gap-3 px-1">
         <h2 className="min-w-0 truncate text-2xl font-black text-ink sm:text-3xl">{label}</h2>
-        <Button type="button" size="lg" onClick={onPlayAudio} className="min-h-12 shrink-0 rounded-full px-5 text-base">
+        <Button type="button" size="lg" onClick={onPlayAudio} aria-label={`Play ${label} audio`} className="min-h-12 shrink-0 rounded-full px-5 text-base">
           <PlayCircle className="h-6 w-6" aria-hidden="true" />
           Play
         </Button>
@@ -2331,24 +2366,28 @@ function LearnerReferencePictureCard({ item, onPlayAudio }: { item: LearningItem
   );
 }
 
-function LearnerReferenceDetails({ item, onPlayAudio }: { item: LearningItem; onPlayAudio: () => void }) {
+function LearnerReferenceDetails({ item, onPlayAudio, onEnlarge }: LearnerReferenceProps) {
   const label = getLearnerCardLabel(item.label);
 
   return (
     <div className="gesture-reference-details flex h-full min-h-0 flex-col overflow-hidden rounded-[2rem] border border-blue-100 bg-white p-4 shadow-[0_10px_28px_rgba(37,99,235,0.1)] sm:p-5">
-      <h2 className="text-center text-3xl font-black text-ink sm:text-5xl">{label}</h2>
+      <div className="gesture-reference-heading flex shrink-0 items-center justify-center gap-2">
+        <h2 className="min-w-0 text-center text-3xl font-black text-ink sm:text-5xl">{label}</h2>
+        <ReferenceEnlargeButton onClick={onEnlarge} />
+      </div>
 
-      <div className="mt-3 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:mt-4 sm:gap-3">
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-2 sm:p-3">
+      <div className="gesture-reference-body mt-3 flex min-h-0 flex-1 flex-col justify-between gap-2 sm:mt-4 sm:gap-3">
+        <div className="gesture-reference-media relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] place-items-center overflow-hidden rounded-3xl border border-blue-100 bg-skywash p-2 sm:p-3">
           <GestureMotion id={item.id} fallback={<GestureVideoPreview value={item.gestureMediaUrl} label={`${item.label} gesture reference`} />} />
         </div>
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-          <div className="rounded-3xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 p-4">
+        <div className="gesture-reference-audio grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="gesture-reference-wave rounded-3xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-blue-50 p-4">
             <AudioWaveform compact />
           </div>
           <Button
             type="button"
             size="lg"
+            aria-label={`Play ${label} audio`}
             onClick={(event) => {
               event.stopPropagation();
               onPlayAudio();
@@ -2605,8 +2644,8 @@ function CorrectiveFeedbackPanel({
             {feedback?.learnerMessage ?? "Preparing feedback..."}
           </p>
         </div>
-        <div className={cn(learnerOnly && "hidden", prominent ? "p-3 sm:p-4" : compact ? "p-3" : "p-4")}>
-          <p className="text-[0.7rem] font-black uppercase tracking-wide text-slate-500">Teacher guide</p>
+        <div className={cn("gesture-teacher-feedback", learnerOnly && "hidden", prominent ? "p-3 sm:p-4" : compact ? "p-3" : "p-4")}>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Teacher guide</p>
           <p className={cn("font-semibold text-slate-700", prominent ? "mt-1 text-sm leading-6" : "mt-1 text-sm leading-6")}>
             {feedback?.teacherNote ?? "Checking the attempt details."}
           </p>

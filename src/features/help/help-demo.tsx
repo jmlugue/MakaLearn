@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion, useReducedMotionConfig } from "framer-motion";
 import { ArrowLeft, ArrowRight, MousePointer2, Pause, Play, RotateCcw, type LucideIcon } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,9 @@ export function HelpDemoDialog({
   goThere?: ReactNode;
   onClose: () => void;
 }) {
-  const reduceMotion = Boolean(useReducedMotion());
+  const reduceMotion = Boolean(useReducedMotionConfig());
+  const [playDemo, setPlayDemo] = useState(false);
+  const stillSteps = reduceMotion && !playDemo;
   const [step, setStep] = useState(0);
   const [t, setT] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -58,12 +60,13 @@ export function HelpDemoDialog({
     setStep(0);
     setT(0);
     setPaused(false);
+    setPlayDemo(false);
   }, [open]);
 
   // The step clock. It stops while paused and when the step is done.
   useEffect(() => {
     if (!open || !scene) return undefined;
-    if (reduceMotion) {
+    if (stillSteps) {
       setT(scene.duration);
       return undefined;
     }
@@ -76,22 +79,23 @@ export function HelpDemoDialog({
       setT((current) => Math.min(scene.duration, current + elapsed));
     }, 50);
     return () => window.clearInterval(id);
-  }, [open, paused, reduceMotion, scene, step]);
+  }, [open, paused, stillSteps, scene, step]);
 
   // A finished step moves on by itself after a short pause, except the last one.
   useEffect(() => {
-    if (!open || !scene || paused || isLast || t < scene.duration) return undefined;
+    if (!open || !scene || stillSteps || paused || isLast || t < scene.duration) return undefined;
     const id = window.setTimeout(() => goTo(step + 1), 900);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLast, open, paused, scene, step, t]);
+  }, [isLast, open, paused, scene, step, stillSteps, t]);
 
   if (!scene) return null;
   const done = isLast && t >= scene.duration;
 
   return (
     <Dialog open={open} onClose={onClose} title={title} className="help-demo-dialog max-w-3xl">
-      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${scenes.length}, minmax(0, 1fr))` }} aria-label="Steps">
+      <div className="help-demo-content">
+      <div className="help-demo-steps grid gap-3" style={{ gridTemplateColumns: `repeat(${scenes.length}, minmax(0, 1fr))` }} aria-label="Steps">
         {scenes.map((item, index) => (
           <button
             key={item.label}
@@ -114,14 +118,15 @@ export function HelpDemoDialog({
         ))}
       </div>
 
-      <p className="mt-3 min-h-[1.5rem] text-base font-semibold text-ink" aria-live="polite">
+      <p className="help-demo-caption mt-3 min-h-[1.5rem] text-base font-semibold text-ink" aria-live="polite">
         {scene.caption}
       </p>
 
-      <div className="mt-3">
-        <DemoStage>
-          {/* Render the next scene immediately, without an empty interval while the
-              previous scene exits or the drawing area resizes after rotation. */}
+      <div className="help-demo-screen mt-3">
+        <MotionConfig reducedMotion={stillSteps ? "always" : "never"}>
+          <DemoStage>
+            {/* Render the next scene immediately, without an empty interval while the
+                previous scene exits or the drawing area resizes after rotation. */}
             <motion.div
               key={step}
               className="absolute inset-0"
@@ -131,17 +136,22 @@ export function HelpDemoDialog({
             >
               {scene.render(t)}
             </motion.div>
-          {paused && !done ? (
-            <span className="absolute right-3 top-3 z-[60] rounded-full bg-slate-900/70 px-3 py-1 text-xs font-bold text-white">Paused</span>
-          ) : null}
-        </DemoStage>
+            {paused && !done ? (
+              <span className="absolute right-3 top-3 z-[60] rounded-full bg-slate-900/70 px-3 py-1 text-xs font-bold text-white">Paused</span>
+            ) : null}
+          </DemoStage>
+        </MotionConfig>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="help-demo-controls mt-4 flex flex-wrap items-center justify-between gap-3">
         <Button type="button" variant="secondary" onClick={() => goTo(step - 1)} disabled={step === 0}>
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
         </Button>
-        {!done ? (
+        {stillSteps ? (
+          <Button type="button" variant="outline" onClick={() => { setPlayDemo(true); setPaused(false); setT(0); }}>
+            <Play className="h-4 w-4" aria-hidden="true" /> Play demo
+          </Button>
+        ) : !done ? (
           <Button type="button" variant="outline" onClick={() => setPaused((current) => !current)} aria-label={paused ? "Play guide" : "Pause guide"}>
             {paused ? <Play className="h-4 w-4" aria-hidden="true" /> : <Pause className="h-4 w-4" aria-hidden="true" />}
             {paused ? "Play" : "Pause"}
@@ -160,6 +170,8 @@ export function HelpDemoDialog({
           </Button>
         )}
       </div>
+      {stillSteps ? <p className="mt-2 text-xs text-slate-600">Motion is reduced. Use Next or choose Play demo.</p> : null}
+      </div>
     </Dialog>
   );
 }
@@ -167,12 +179,13 @@ export function HelpDemoDialog({
 /** The fixed 640 x 360 drawing area, scaled to the pop-up width. */
 function DemoStage({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [size, setSize] = useState({ width: STAGE_W, height: STAGE_H });
+  const scale = Math.min(size.width / STAGE_W, size.height / STAGE_H);
 
   useEffect(() => {
     const element = ref.current;
     if (!element) return undefined;
-    const measure = () => setScale(element.clientWidth / STAGE_W);
+    const measure = () => setSize({ width: element.clientWidth, height: element.clientHeight });
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -182,11 +195,11 @@ function DemoStage({ children }: { children: ReactNode }) {
   return (
     <div
       ref={ref}
-      className="relative w-full overflow-hidden rounded-2xl border border-blue-100 bg-[#f4f8ff] shadow-inner"
+      className="help-demo-stage relative w-full overflow-hidden rounded-2xl border border-blue-100 bg-[#f4f8ff] shadow-inner"
       style={{ aspectRatio: `${STAGE_W} / ${STAGE_H}` }}
       aria-hidden="true"
     >
-      <div className="absolute left-0 top-0 origin-top-left" style={{ width: STAGE_W, height: STAGE_H, transform: `scale(${scale})` }}>
+      <div className="absolute origin-top-left" style={{ left: (size.width - STAGE_W * scale) / 2, top: (size.height - STAGE_H * scale) / 2, width: STAGE_W, height: STAGE_H, transform: `scale(${scale})` }}>
         {children}
       </div>
     </div>
@@ -199,7 +212,7 @@ function DemoStage({ children }: { children: ReactNode }) {
 export type PointerKey = [number, number, number, boolean?];
 
 export function Pointer({ t, path }: { t: number; path: PointerKey[] }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReducedMotionConfig();
   if (reduceMotion || !path.length) return null;
   let current = path[0];
   for (const key of path) if (t >= key[0]) current = key;
