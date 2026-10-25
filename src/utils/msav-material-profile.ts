@@ -4,6 +4,7 @@ import type {
   MsavMaterialProfile,
   MsavPredicateKind,
   MsavSemanticTrait,
+  MsavSingleCardType,
   SentenceRole
 } from "@/types";
 
@@ -77,7 +78,7 @@ function uniqueAllowed<T extends string>(value: unknown, allowed: readonly T[]):
 }
 
 /** Rejects invented roles and contradictory combinations before model output reaches MSAV. */
-export function parseMsavMaterialProfile(value: unknown): MsavMaterialProfile | null {
+export function parseMsavMaterialProfile(value: unknown, materialLabel?: string): MsavMaterialProfile | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
   const roles = uniqueAllowed(candidate.roles, msavSentenceRoles);
@@ -93,11 +94,22 @@ export function parseMsavMaterialProfile(value: unknown): MsavMaterialProfile | 
   if (traits.includes("base_subject") && !roles.includes("subject")) return null;
   if (traits.includes("named_person") && !roles.includes("subject")) return null;
 
+  const singleCardType = candidate.singleCardType;
+  if (singleCardType !== undefined && (typeof singleCardType !== "string" || !["word", "phrase", "sentence"].includes(singleCardType))) return null;
+  // Existing saved profiles remain readable. Fresh Gemini output must include a
+  // classification consistent with the label's word count before it can be saved.
+  if (materialLabel !== undefined) {
+    const label = normalizePecsLabel(materialLabel);
+    if (!label || singleCardType === undefined) return null;
+    if (label.includes(" ") ? singleCardType === "word" : singleCardType !== "word") return null;
+  }
+
   return {
     roles,
     traits,
     ...(predicateKind ? { predicateKind: predicateKind as MsavPredicateKind } : {}),
     ...(beVerbForm ? { beVerbForm: beVerbForm as "am" | "are" | "is" } : {}),
+    ...(singleCardType ? { singleCardType: singleCardType as MsavSingleCardType } : {}),
     schemaVersion: MSAV_PROFILE_SCHEMA_VERSION
   };
 }
@@ -112,11 +124,16 @@ export function buildMsavClassificationPrompt(item: Pick<LearningItem, "id" | "l
     "base_subject is only for I or You-style subjects that use a base-form action.",
     "named_person is a person who can be addressed, such as Mother, Brother, or Nurse.",
     "consumable_description is a describing word that can come before food or drink, such as Hot or Cold.",
+    "singleCardType classifies the printed label when this is the only card on the Playground board; it is required.",
+    "Use word for every one-word label, including commands, greetings, and responses: Listen, Help, Stop, Hello, Yes.",
+    "Use phrase for multi-word labels such as Good morning, Thank you, Wash hands, and Red apple. Short commands count as phrases for this learning feedback.",
+    "Use sentence only for a multi-word label that already contains a complete statement or question with a subject and predicate, such as I am happy or Can you help me?. Do not add implied or missing words.",
+    "Return structured classification only, never learner-facing feedback prose. MakaLearn chooses the feedback locally.",
     "If the material cannot safely participate in the current roles and traits, return unsupported.",
     `Allowed roles: ${msavSentenceRoles.join(", ")}`,
     `Allowed traits: ${msavSemanticTraits.join(", ")}`,
     `Allowed predicateKind values: ${msavPredicateKinds.join(", ")}`,
-    'Return only JSON in one of these forms: {"status":"supported","profile":{"roles":["object"],"traits":["requestable"]}} or {"status":"unsupported"}.',
+    'Return only JSON in one of these forms: {"status":"supported","profile":{"roles":["object"],"traits":["requestable"],"singleCardType":"word"}} or {"status":"unsupported"}.',
     "REFERENCE MATERIAL:",
     JSON.stringify({
       id: item.id,

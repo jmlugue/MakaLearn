@@ -97,15 +97,16 @@ function isConsumable(card: PecsSentenceCard, label: string) {
 
 function classifySingleCard(card: PecsSentenceCard): PecsConstructionType {
   const label = normalizeLabel(card.label);
-  if (hasRole(card, "command")) return "sentence";
-  // Good morning and Thank you are expressions, even though they are two words.
-  if (["greeting", "polite_word", "response", "safety_word"].some((role) => hasRole(card, role as SentenceRole))) return "expression";
-  if (label.includes(" ")) return "phrase";
-  return "word";
+  // Praise the word the learner placed, even when it can also be a command (Help, Listen).
+  if (!label.includes(" ")) return "word";
+  // New materials can contain a complete sentence on one card. Older profiles and
+  // bundled short labels (Good morning, Thank you, Wash hands) default to a phrase.
+  return card.msavProfile?.singleCardType === "sentence" ? "sentence" : "phrase";
 }
 
-/** The playground asks for a phrase or a sentence, so the praise uses only those two words. */
+/** Expressions use the learner-facing word "phrase"; standalone words get their own praise. */
 function validFeedback(type: PecsConstructionType) {
+  if (type === "word") return "You made a word.";
   return type === "sentence" ? "You made a sentence." : "You made a phrase.";
 }
 

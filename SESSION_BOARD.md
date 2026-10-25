@@ -34,6 +34,15 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-playground-feedback-pr
+- Outcome: Prepared a separate branch from origin/main containing only this agent's eight Playground feedback source/test/docs files and own session notes. The source worktree's responsive changes remain untouched.
+- Verification: Fresh npm ci, all 29 Playground tests, TypeScript, lint, production build (21 pages), and whitespace passed in the isolated checkout. No dependency or lockfile changes. Material-validation and live-Gemini limits remain as documented below.
+
+### 2026-10-25-playground-message-types
+- Outcome: Standalone words (including Listen/Help) now say "You made a word"; bundled multi-word labels say "You made a phrase". New Gemini preparations require a validated singleCardType in the existing JSON profile so complete multi-word statements/questions can receive sentence feedback. Older profiles remain compatible; Am/Is/Are and multi-card acceptance are unchanged. No migration or saved-record changes.
+- Audit: Read all 62 hosted materials (55 PECS, seven gestures). Ran all 55 PECS records through the current standalone rules: 48 word results, three phrase results, three incomplete be-verbs, and one unsupported material excluded. The 50-card manifest is covered exhaustively in the regression suite. Gesture materials remain outside Playground.
+- Verification: 29 Playground tests, including the actual preparation route with isolated provider/database stubs, TypeScript, lint, production build (21 pages), and whitespace passed. Full material-validation CLI could not run without local Supabase credentials; the focused live audit used the connected database. No live Gemini request, browser check, dev server, or deployment. Responsive-session files were left untouched.
+
 ### 2026-10-25-responsive-stash-pull-commit
 - Outcome: Stashed all responsive changes, fetched origin, fast-forwarded this branch to main's PR #7 merge commit 93213e8, and restored all nine changed files without conflicts for the local responsive-fix commit. No push performed.
 - Verification: Incoming merge commit has the identical file tree as the prior HEAD; restored application files exactly match the stash. Prior passing build/lint/TypeScript and browser checks remain applicable; whitespace check passed.
