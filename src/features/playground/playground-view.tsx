@@ -679,7 +679,7 @@ export function PlaygroundView() {
                               onClick={() => removeCard(index)}
                               aria-label={`Remove ${card.label} from board`}
                               title={`Remove ${card.label}`}
-                              className="absolute right-0 top-0 z-10 grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-red-200 sm:h-9 sm:w-9"
+                              className="playground-remove absolute right-0 top-0 z-10 grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-red-200 sm:h-9 sm:w-9"
                             >
                               <X className="h-5 w-5" aria-hidden="true" />
                             </button>

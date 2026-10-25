@@ -90,27 +90,50 @@
   section.student-gesture-stage { overflow-y: auto; padding: 0.5rem; gap: 0.5rem; }
   .student-gesture-stage [role="toolbar"] { border-radius: 1rem; padding: 0.25rem; }
   .student-gesture-stage [role="toolbar"] button { min-height: 2.75rem; }
-  .student-gesture-stage .student-gesture-grid { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
-  .student-gesture-stage .student-gesture-camera { min-height: 0; }
-  .student-gesture-camera > .gesture-camera-panel { flex: none; height: clamp(11rem, 32svh, 18rem); min-height: 0; margin-top: 0; }
+  .phone-gesture-status { display: block; position: sticky; top: 0; z-index: 30; margin: 0; flex: none; border-width: 1px; border-radius: 1rem; padding: 0.5rem 0.75rem; font-size: 1rem; line-height: 1.4; font-weight: 800; }
+  .student-gesture-stage .student-gesture-grid { flex: none; min-height: 0; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: 14rem auto auto; grid-template-areas: "camera reference" "progress reference" "feedback feedback"; align-items: stretch; }
+  .student-gesture-stage .student-gesture-grid.student-gesture-focus { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: 14rem auto auto; grid-template-areas: "camera" "progress" "feedback"; }
+  /* Keep the desktop DOM intact; on phones each camera child has its own grid area. */
+  .student-gesture-stage .student-gesture-camera { display: contents; min-height: 0; }
+  .student-gesture-camera > .gesture-camera-panel { grid-area: camera; flex: none; height: 100%; min-height: 0; margin-top: 0; }
+  .student-gesture-camera > .gesture-hold-progress { grid-area: progress; margin-top: 0; padding: 0.5rem; align-self: start; }
+  .student-gesture-camera > .gesture-hold-progress p { font-size: 0.75rem; line-height: 1.3; }
+  .student-gesture-camera > .gesture-hold-progress [role="progressbar"] { height: 0.375rem; margin-top: 0.25rem; }
   .student-gesture-camera .student-gesture-maki { max-width: 4.5rem; }
-  .student-gesture-camera .student-gesture-feedback { margin-top: 0.5rem; min-height: 0; padding: 0.5rem; border-radius: 1rem; }
+  .student-gesture-camera .student-gesture-feedback { grid-area: feedback; margin-top: 0; min-height: 0; padding: 0.5rem; border-radius: 1rem; max-height: none; overflow: visible; }
   .student-gesture-feedback p { font-size: 1rem; line-height: 1.35; }
   .student-gesture-feedback p + p { margin-top: 0.25rem; }
+  .student-gesture-feedback .divide-y { grid-template-columns: minmax(0, 1fr); }
+  .student-gesture-feedback .gesture-teacher-feedback { border-left: 0; border-top: 1px solid #e2e8f0; padding: 0.75rem; }
+  .student-gesture-feedback .gesture-teacher-feedback p { font-size: 0.875rem; line-height: 1.5; }
   .student-gesture-feedback .border-l-4 { padding: 0.5rem; }
   .student-gesture-feedback .border-l-4 > div { gap: 0.5rem; }
   .student-gesture-feedback .border-l-4 > div > span { height: 1.5rem; width: 1.5rem; }
   .student-gesture-feedback .border-l-4 > div p { font-size: 0.75rem; }
-  .student-gesture-stage .student-gesture-reference { min-height: 0; overflow: visible; gap: 0.5rem; }
-  .student-gesture-reference > .student-gesture-card { height: 18rem; flex: none; }
+  .student-gesture-stage .student-gesture-reference { grid-area: reference; min-height: 0; height: 100%; overflow: visible; gap: 0.5rem; }
+  .student-gesture-reference > .student-gesture-card { height: auto; min-height: 14.5rem; flex: 1; }
   .gesture-reference-details { padding: 0.75rem; border-radius: 1rem; }
-  .gesture-reference-details > h2 { font-size: 1.5rem; }
-  .gesture-reference-details > div { margin-top: 0.5rem; gap: 0.5rem; }
-  .gesture-reference-details > div > .grid:last-child { display: flex; justify-content: center; }
-  .gesture-reference-details > div > .grid:last-child > div { display: none; }
+  .gesture-reference-heading { justify-content: space-between; gap: 0.25rem; }
+  .gesture-reference-heading > h2 { font-size: 1.25rem; }
+  .gesture-reference-enlarge { display: inline-flex; }
+  .gesture-reference-details .gesture-reference-body { margin-top: 0.5rem; gap: 0.5rem; }
+  .gesture-reference-details .gesture-reference-audio { display: flex; justify-content: center; }
+  .gesture-reference-details .gesture-reference-wave { display: none; }
+  .student-gesture-reference .gesture-reference-media { min-height: 7.5rem; padding: 0.25rem; }
+  .gesture-reference-media > * { position: absolute; inset: 0; height: 100%; width: 100%; max-height: none; object-fit: contain; }
+  .gesture-reference-dialog video, .gesture-reference-dialog img { height: 100%; width: 100%; max-height: none; object-fit: contain; }
   .gesture-reference-details button { min-height: 2.75rem; font-size: 1rem; padding: 0.5rem 1rem; }
+  .gesture-reference-details .gesture-reference-enlarge { padding: 0; }
+  .student-gesture-reference .gesture-reference-picture { padding: 0.5rem; gap: 0.5rem; }
+  .student-gesture-reference .gesture-reference-picture > div:last-child { flex-wrap: wrap; gap: 0.25rem; }
+  .student-gesture-reference .gesture-reference-picture h2 { font-size: 1.25rem; }
+  .student-gesture-reference .gesture-reference-picture button { min-height: 2.75rem; padding: 0.5rem; }
   .student-gesture-reference > div:last-child:not(.student-gesture-card) { margin-top: 0; gap: 0.75rem; }
   .student-gesture-reference > div:last-child > button { height: 2.75rem; width: 2.75rem; }
+  .student-gesture-reference > div:last-child > div { flex-wrap: wrap; justify-content: center; gap: 0.25rem; }
+  .phone-gesture-journey { grid-column: 1 / -1; grid-row: 4; min-width: 0; }
+  .guided-practice-overlay, .student-intro-overlay { display: flex; padding: 0.75rem; }
+  .guided-practice-overlay > *, .student-intro-overlay > * { flex: none; margin: auto; }
 
   .student-playground-viewport { height: 100dvh; padding: 3.5rem 0.5rem 0.5rem; }
   .phone-playground-title { display: block; position: absolute; left: 4.75rem; top: 1rem; font-size: 1.25rem; font-weight: 900; color: #172033; }
@@ -133,8 +156,11 @@
   .student-playground-viewport .playground-slots { gap: 0.25rem; padding: 0.25rem; }
   .student-playground-viewport .playground-slots > li { flex-shrink: 0; width: min(calc((100cqw - 1.5rem) / 5), 70cqh) !important; }
   .student-playground-viewport .playground-slots > li > span { padding: 0.125rem; }
-  .student-playground-viewport .playground-slots button { min-height: 2rem; height: 2rem; width: 2rem; right: -0.25rem; top: -0.25rem; }
+  .student-playground-viewport .playground-slots .playground-remove { min-height: 2.75rem; height: 2.75rem; width: 2.75rem; right: -0.5rem; top: -0.5rem; border: 0; background: transparent; box-shadow: none; }
+  .student-playground-viewport .playground-remove::before { content: ""; position: absolute; width: 1.25rem; height: 1.25rem; border: 2px solid white; border-radius: 50%; background: #dc2626; box-shadow: 0 1px 3px rgb(15 23 42 / 20%); }
+  .student-playground-viewport .playground-remove > svg { position: relative; width: 0.75rem; height: 0.75rem; }
   .help-demo-dialog { max-height: calc(100dvh - 2rem); overflow-y: auto; }
+  .help-demo-steps button { min-height: 2.75rem; }
 }
 
 @media (max-width: 1024px) and (max-height: 500px) {
@@ -155,24 +181,8 @@
   .student-choice-board > div:first-child .text-3xl { font-size: 1.25rem; line-height: 1.3; }
   .student-choice-board > div:first-child .text-xl { font-size: 1rem; line-height: 1.3; }
 
-  .student-gesture-stage .student-gesture-grid,
-  .student-gesture-stage .student-gesture-grid.student-gesture-focus { flex: 1; min-height: 0; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-  .student-gesture-stage .student-gesture-grid.student-gesture-focus { grid-template-columns: minmax(0, 1fr); }
-  .student-gesture-stage .student-gesture-camera { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
-  .student-gesture-camera > .gesture-hold-progress { grid-area: 1 / 1; align-self: end; z-index: 30; margin: 0.5rem; padding: 0.375rem 0.5rem; pointer-events: none; }
-  .student-gesture-camera > .gesture-hold-progress p { font-size: 0.75rem; }
-  .student-gesture-camera > .gesture-hold-progress [role="progressbar"] { height: 0.375rem; margin-top: 0.25rem; }
-  .student-gesture-camera > .student-gesture-feedback { grid-area: 2 / 1; }
-  .student-gesture-camera .student-gesture-maki { top: 0.5rem; bottom: auto; max-width: 3.5rem; }
-  .student-gesture-camera > .gesture-camera-panel { grid-area: 1 / 1; flex: 1; height: auto; min-height: 5rem; }
-  .student-gesture-stage .student-gesture-reference { overflow-y: auto; }
-  .student-gesture-reference > .student-gesture-card { flex: 1; height: auto; min-height: 7rem; }
-  .student-gesture-reference .gesture-reference-details { padding: 0.5rem; }
+  .student-gesture-stage .student-gesture-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); }
   .student-gesture-reference > div:last-child > button svg { height: 1.25rem; width: 1.25rem; }
-  .student-gesture-feedback { max-height: 7rem; overflow-y: auto; overscroll-behavior: contain; }
-  .student-gesture-feedback .border-l-4 { display: flex; align-items: center; gap: 0.5rem; }
-  .student-gesture-feedback .border-l-4 > div p { display: none; }
-  .student-gesture-feedback .border-l-4 > p { margin-top: 0; }
   .gesture-success-card { display: grid; grid-template-columns: 7rem minmax(0, 1fr); align-items: center; column-gap: 1rem; padding: 1rem; }
   .gesture-success-card .gesture-success-mascot { grid-row: span 2; padding-top: 0; }
   .gesture-success-mascot > svg { width: 7rem; height: 7rem; }
@@ -190,6 +200,24 @@
   .teacher-activity-stage > main { padding: 0.75rem; }
   .teacher-activity-stage header { padding: 0.375rem 0.75rem; gap: 0.5rem; }
   .teacher-activity-stage header .text-lg { font-size: 1rem; }
+  .student-intro-overlay .student-intro-dialog { max-width: 42rem; grid-template-columns: 14rem minmax(0, 1fr); gap: 0.5rem; padding: 0.75rem; }
+  .student-intro-dialog > span { grid-column: 1 / -1; }
+  .student-intro-dialog .student-intro-demo { grid-column: 1; grid-row: 2 / span 2; height: 10rem; }
+  .student-intro-instruction { grid-column: 2; padding: 0.75rem; }
+  .student-intro-instruction > p { font-size: 1.25rem; }
+  .student-intro-actions { grid-column: 2; flex-direction: row; gap: 0.5rem; }
+  .student-intro-actions > button { min-height: 2.75rem; min-width: 0; padding: 0.5rem; font-size: 1rem; }
+  .student-intro-motion { grid-column: 1 / -1; grid-row: 4; }
+  .help-demo-dialog.help-demo-dialog { padding: 0.75rem; }
+  .help-demo-dialog > .relative.mt-4 { margin-top: 0.5rem; }
+  .help-demo-dialog > div:first-of-type { padding-bottom: 0; }
+  .help-demo-dialog .help-demo-content { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); column-gap: 1rem; }
+  .help-demo-steps { grid-column: 1 / -1; gap: 0.5rem; }
+  .help-demo-screen { grid-column: 1; grid-row: 2 / span 3; }
+  .help-demo-screen .help-demo-stage { height: min(42dvh, 9rem); }
+  .help-demo-caption { grid-column: 2; font-size: 0.875rem; }
+  .help-demo-controls { grid-column: 2; justify-content: start; gap: 0.5rem; }
+  .help-demo-controls button, .help-demo-controls a { min-height: 2.75rem; padding: 0.5rem; }
 }
 
 :root {

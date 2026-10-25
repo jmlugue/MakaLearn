@@ -184,10 +184,13 @@ Every screen is designed for three layouts. Write phone styles first, then add `
   occupy a consistent two-line area under the picture.
 - Phone Student screens (under 768px wide, or up to 1024px wide and 500px high) use compact layouts. Activities keep
   targets and pictures together; touch selection survives scrolling. Landscape choice games place the prompt beside
-  the pictures. Gesture practice keeps learner feedback under the camera and the reference beside it in landscape;
-  teacher notes remain on larger screens. Playground pins the board above the card picker in portrait and beside it
+  the pictures. Gesture practice uses a stable camera beside a reserved reference preview, with Enlarge, progress
+  below the camera, a sticky learner status, and full learner/teacher feedback below. It scrolls naturally on short
+  screens; the guided journey follows feedback on phones. Playground pins the board above the card picker in portrait and beside it
   in landscape, with independently scrolling cards and one row of category chips. Normal-height tablets and desktop
-  retain their established layouts. Help demos have explicit Pause/Play controls and scroll within short screens.
+  retain their established layouts. Phone remove buttons show a 20px circle and 12px X within a 44px tap target.
+  Help and activity tutorials respect both app and system reduced-motion settings, with manual steps and an explicit
+  Play demo action. Help drawings fit both available width and height; tutorial dialogs scroll safely on short screens.
 - Phones: a long row of filter chips scrolls sideways in one row instead of wrapping into many rows. Section tabs
   (`PillTabs`) become a 2 x 2 grid. A search box takes its own row.
 - A grid with one column that holds a sideways-scrolling row or a wide `<select>` needs `grid-cols-1` (or `min-w-0`),
