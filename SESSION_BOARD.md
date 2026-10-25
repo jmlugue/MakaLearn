@@ -34,6 +34,10 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-pr6-base-merge
+- Outcome: Merged origin/main into jmlugue/fix-free-mode-mobile for PR #6. Resolved the sole conflict in SESSION_BOARD.md by preserving both branches' completion notes. Base content-upload changes and the PR's free-gesture feedback fix are retained.
+- Verification: 10 media tests, 6 gesture capture tests, 3 gesture stability tests, TypeScript, lint, production build (21 pages), and whitespace checks passed. Development server was stopped for the build and remains stopped. Merge completed locally; no push performed.
+
 ### 2026-10-25-branch-reference-repair
 - Outcome: Reattached this worktree's stale unborn `jmlugue/ruffe` HEAD to the existing renamed `jmlugue/fix-free-mode-mobile` branch at `7fea443`. Preserved all working files and index entries; saved a backup patch in the system temporary directory.
 - Verification: Git now shows only three modified files (gesture view, AGENTS, session board), no staged additions, and the existing commit history. No commit or push was made.
@@ -58,6 +62,20 @@ Use this file to coordinate work across terminal sessions in this repository. It
 - Outcome: Free-practice feedback now remains visible while the next pose is being captured and is replaced when that attempt is evaluated. Camera restart/stop still clears stale feedback; guided behavior is unchanged.
 - Files/areas: `src/features/gesture/gesture-practice-view.tsx`.
 - Verification: `git diff --check` passed. No build or lint run.
+
+### 2026-10-25-local-sign-in-config
+- Outcome: Restored missing Git-ignored `.env.local` in batfish from the original checkout's existing local configuration. Missing Supabase browser settings caused the administrator-setup message; no account or auth code changes were needed.
+- Verification: Next.js environment loader sees the URL and browser key, Supabase Auth settings endpoint responds HTTP 200, and Git confirms the file is ignored. No secret values displayed. User must restart their dev server to reload public configuration; no server was started automatically.
+
+### 2026-10-25-card-template-choice
+- Outcome: Supersedes the display-only frame below. Add material defaults to a 900×1200 PECS template matching bundled outline geometry, with an explicit Use image as uploaded option for pre-framed pictures. Canvas fits the complete image proportionally inside the border without extra padding. The exact preview PNG is saved so Content and Playground agree; original files remain available while switching styles. Mobile now shows the preview. Activity pictures and gestures are unchanged; shared renderers add no border.
+- Files/areas: Card form, new `pecs-card-template.ts`, media test command/fitting test, README/CLAUDE.
+- Verification: TypeScript, lint, 10 media tests, production build, whitespace, and actual Chrome canvas pixel/format/error checks passed. Visually inspected a comparison using the supplied screenshot. Build reported ENOSPC cache warnings but exited successfully; automatic review blocked cache cleanup and no cleanup occurred. No deployment or database writes performed.
+
+### 2026-10-25-content-card-outline
+- Outcome: Uploaded PECS pictures receive a rounded black display frame in the Content material grid, live upload preview, material details, and collection picker/preview. Known bundled/local and migrated artwork keeps its baked-in outline; gesture references and stored files are unchanged. Updated the upload hint.
+- Files/areas: Content `PictureBox`, card tile/form/detail, and collection form/preview.
+- Verification: TypeScript, lint, production build, and whitespace passed. Render checks passed for uploads, blob previews, replaced built-in artwork, original local/hosted assets, gesture references, empty values, and malformed URLs. No browser visual verification or deployment performed.
 
 ### 2026-10-21-remove-account-requests
 - Outcome: Removed the public request page/form, submission and approval/rejection APIs, hidden admin UI/dialogs/polling, adapters/types, obsolete test command/suite, and schema/audit script references. Direct admin account creation remains; historical audit log formatting and applied migration history remain readable. Updated README/CLAUDE and readiness history.
