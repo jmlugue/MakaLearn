@@ -440,6 +440,14 @@ Create or update `README.md` with:
 
 Use npm.
 
+### Dependencies in worktrees
+
+- Treat `package.json` and `package-lock.json` as the shared source of dependency requirements. Each worktree must install its own `node_modules`; do not copy it between worktrees.
+- Run `npm ci` when setting up a new worktree and after receiving changes to `package-lock.json`. Stop that worktree's development server before replacing dependencies.
+- For missing dependency files, invalid native binaries, or dependency-related startup errors, restore the complete installation with `npm ci`. Do not treat `npm install` reporting "up to date" as proof that installed files are complete.
+- Preserve the lockfile during repairs. When intentionally adding or updating dependencies, include both `package.json` and `package-lock.json` in the change so other worktrees receive the requirements.
+- After repairing dependencies, run `npx tsc --noEmit`, `npm run lint`, and `npm run build` with the development server stopped. Verify the full application build before handing the work back.
+
 Common commands:
 - `npm run dev`
 - `npm run build`

@@ -15,6 +15,7 @@ import { acceptFor, expectedFileName, extensionError, fileNameError, guessFromFi
 import { pecsCardManifest } from "@/data/pecs-card-manifest";
 import { symbolVocabulary } from "@/data/symbol-vocabulary";
 import { NO_CATEGORY_ID, noCategory } from "@/lib/no-category";
+import { createPecsTemplateImage } from "@/utils/pecs-card-template";
 import type { Category } from "@/types";
 
 export type NewCardFiles = Partial<Record<"symbol" | "activity" | "audio", File>>;
@@ -52,6 +53,22 @@ function useObjectUrl(file?: File) {
   const url = useMemo(() => (file ? URL.createObjectURL(file) : undefined), [file]);
   useEffect(() => () => (url ? URL.revokeObjectURL(url) : undefined), [url]);
   return url;
+}
+
+/** Keep stale asynchronous previews from being shown or saved after a file/style change. */
+function useCardTemplate(source: File | undefined, enabled: boolean) {
+  const [result, setResult] = useState<{ source?: File; file?: File; error?: string }>({});
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    createPecsTemplateImage(source).then(
+      (file) => { if (!cancelled) setResult({ source, file }); },
+      (error: unknown) => { if (!cancelled) setResult({ source, error: error instanceof Error ? error.message : "The card picture could not be prepared." }); }
+    );
+    return () => { cancelled = true; };
+  }, [source, enabled]);
+  const current = enabled && result.source === source ? result : undefined;
+  return { file: current?.file, error: current?.error, pending: enabled && !current?.file && !current?.error };
 }
 
 function Box({ title, tone, children }: { title: string; tone: string; children: ReactNode }) {
@@ -107,9 +124,12 @@ function CardForm({
   const [autoCategory, setAutoCategory] = useState(false);
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<NewCardFiles>({});
+  const [cardStyle, setCardStyle] = useState<"outline" | "original">("outline");
   const [error, setError] = useState("");
 
-  const imagePreview = useObjectUrl(files.symbol);
+  const useOutline = kind === "pecs" && cardStyle === "outline";
+  const template = useCardTemplate(files.symbol, useOutline);
+  const imagePreview = useObjectUrl(useOutline ? template.file : files.symbol);
   const tone = kindTone(kind);
   const category = categories.find((candidate) => candidate.id === categoryId);
   const categoryName = fileCategoryName(category);
@@ -181,6 +201,11 @@ function CardForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving || template.pending) return;
+    if (template.error) {
+      setError(template.error);
+      return;
+    }
     // Description is optional.
     if (!label.trim()) {
       setError("Add a label.");
@@ -192,8 +217,10 @@ function CardForm({
     // Each file is renamed to match the card (word_category) unless it already does.
     const named: NewCardFiles = {};
     for (const key of Object.keys(fileBuckets) as Array<keyof NewCardFiles>) {
-      const file = files[key];
-      if (!file) continue;
+      const original = files[key];
+      if (!original) continue;
+      const file = key === "symbol" && useOutline ? template.file : original;
+      if (!file) return;
       const bucket = fileBuckets[key];
       const problem = sizeError(file, bucket) || extensionError(file, bucket);
       if (problem) {
@@ -205,9 +232,14 @@ function CardForm({
         : file;
     }
     setSaving(true);
-    const saved = await onSubmit({ kind, label: label.trim(), categoryId: savedCategoryId, description: description.trim(), files: named });
-    setSaving(false);
-    if (saved) onClose();
+    try {
+      const saved = await onSubmit({ kind, label: label.trim(), categoryId: savedCategoryId, description: description.trim(), files: named });
+      if (saved) onClose();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "The material could not be saved. Try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const example = expectedFileName(label.trim() || "eat", categoryName || "food");
@@ -277,6 +309,23 @@ function CardForm({
         <FileNameNote example={example} className="md:hidden" />
 
         <Box title="Media" tone={tone.soft}>
+          {kind === "pecs" ? (
+            <fieldset disabled={saving} className="space-y-2">
+              <legend className="text-sm font-semibold text-slate-700">Card template</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {([
+                  { value: "outline", title: "Use card outline", hint: "Fit the whole picture inside a black rectangle." },
+                  { value: "original", title: "Use image as uploaded", hint: "For pictures that already have an outline." }
+                ] as const).map((option) => (
+                  <label key={option.value} className={cn("flex min-h-14 cursor-pointer items-start gap-2 rounded-xl border p-3", cardStyle === option.value ? "border-blue-600 bg-blue-50" : "border-blue-100 bg-[#fff]")}>
+                    <input type="radio" name="card-template" value={option.value} checked={cardStyle === option.value} onChange={() => setCardStyle(option.value)} className="mt-1 accent-blue-600" />
+                    <span><span className="block text-sm font-semibold text-ink">{option.title}</span><span className="block text-xs leading-5 text-slate-500">{option.hint}</span></span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs leading-5 text-slate-500">Keeps the picture proportions without extra padding; wide pictures have white space above and below.</p>
+            </fieldset>
+          ) : null}
           <FileUpload
             key="symbol"
             compact
@@ -285,7 +334,7 @@ function CardForm({
             accept={acceptFor["symbol-images"]}
             hint={`${kind === "pecs" ? "Required for Playground. " : ""}PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
             maxBytes={mediaSizeLimits["symbol-images"]}
-            storageNote="Saved with the material."
+            storageNote={useOutline ? "Saved with the card outline shown in the preview." : "Saved as uploaded."}
             successMessage="Ready to save."
             onUpload={stage("symbol")}
             onRemove={unstage("symbol")}
@@ -319,14 +368,16 @@ function CardForm({
             onRemove={unstage("audio")}
           />
         </Box>
+        <FieldError message={template.error} />
         <FieldError message={error} />
       </div>
 
-      <div className="hidden md:block">
-        <div className="sticky top-0 mt-12">
+      <div className="mx-auto w-full max-w-[13rem] md:max-w-none">
+        <div className="md:sticky md:top-0 md:mt-12">
           <SectionLabel className="mb-2">Live preview</SectionLabel>
+          {template.pending ? <p role="status" className="mb-2 text-xs text-slate-500">Preparing card preview...</p> : null}
           <CardTile item={{ label, contentType: kind, symbolImageUrl: imagePreview, audioUrl: files.audio ? "staged" : undefined }} category={category} />
-          <FileNameNote example={example} className="mt-3" />
+          <FileNameNote example={example} className="mt-3 hidden md:flex" />
         </div>
       </div>
 
@@ -334,7 +385,7 @@ function CardForm({
         <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saving}>
+        <Button type="submit" disabled={saving || template.pending || Boolean(template.error)}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           {saving ? "Saving..." : "Save"}
         </Button>
