@@ -50,7 +50,7 @@ export function StudentGameFrame({
       <div className="student-game-content grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2 rounded-[2rem] border border-white/80 bg-white/30 p-2 shadow-[0_18px_58px_rgba(37,99,235,0.12)] backdrop-blur-[2px] sm:gap-3 sm:p-3">
         {topBar}
         <p
-          className="mx-auto flex w-full max-w-4xl items-center justify-center gap-3 rounded-2xl bg-blue-600 px-4 py-2.5 text-center text-white shadow-[0_6px_0_rgba(30,64,175,0.3)] sm:py-3"
+          className="student-game-instruction mx-auto flex w-full max-w-4xl items-center justify-center gap-3 rounded-2xl bg-blue-600 px-4 py-2.5 text-center text-white shadow-[0_6px_0_rgba(30,64,175,0.3)] sm:py-3"
           role="status"
         >
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/20 sm:h-10 sm:w-10" aria-hidden="true">
@@ -90,7 +90,7 @@ export function StudentTopBar({
 }) {
   const [confirmExit, setConfirmExit] = useState(false);
   return (
-    <header className="flex flex-wrap items-center justify-between gap-2 pl-[3.75rem] sm:gap-3 sm:pl-16">
+    <header className="student-game-toolbar flex flex-wrap items-center justify-between gap-2 pl-[3.75rem] sm:gap-3 sm:pl-16">
       <button type="button" className={cn(studentButton.base, studentButton.exit)} onClick={() => setConfirmExit(true)} aria-label="Exit">
         <LogOut className="h-6 w-6" aria-hidden="true" />
         <span className="hidden sm:inline">Exit</span>

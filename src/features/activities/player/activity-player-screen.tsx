@@ -60,7 +60,7 @@ export function ActivityPlayerScreen({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(191,219,254,0.7),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(186,230,253,0.6),transparent_40%),linear-gradient(135deg,#eef6ff,#f8fbff_50%,#e3eeff)]"
+      className="teacher-activity-stage fixed inset-0 z-[80] flex flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(191,219,254,0.7),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(186,230,253,0.6),transparent_40%),linear-gradient(135deg,#eef6ff,#f8fbff_50%,#e3eeff)]"
       role="region"
       data-scroll-lock=""
       aria-label={`${title} player`}

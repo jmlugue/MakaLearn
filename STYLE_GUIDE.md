@@ -182,6 +182,12 @@ Every screen is designed for three layouts. Write phone styles first, then add `
   independently when its links exceed the available height.
 - Content tiles reserve their 3:4 picture height using percentage padding for Safari compatibility; gesture names
   occupy a consistent two-line area under the picture.
+- Phone Student screens (under 768px wide, or up to 1024px wide and 500px high) use compact layouts. Activities keep
+  targets and pictures together; touch selection survives scrolling. Landscape choice games place the prompt beside
+  the pictures. Gesture practice keeps learner feedback under the camera and the reference beside it in landscape;
+  teacher notes remain on larger screens. Playground pins the board above the card picker in portrait and beside it
+  in landscape, with independently scrolling cards and one row of category chips. Normal-height tablets and desktop
+  retain their established layouts. Help demos have explicit Pause/Play controls and scroll within short screens.
 - Phones: a long row of filter chips scrolls sideways in one row instead of wrapping into many rows. Section tabs
   (`PillTabs`) become a 2 x 2 grid. A search box takes its own row.
 - A grid with one column that holds a sideways-scrolling row or a wide `<select>` needs `grid-cols-1` (or `min-w-0`),

@@ -42,7 +42,7 @@ export function StudentChoiceBoard({
   const reduceMotion = useReducedMotion();
   const missed = locked && picked !== question.answer;
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 sm:gap-4">
+    <div className="student-choice-board grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 sm:gap-4">
       <div
         className={cn(
           "mx-auto grid min-h-24 w-full max-w-5xl place-items-center rounded-[2rem] border-4 border-white bg-white/95 px-4 py-3 text-center shadow-[0_10px_0_rgba(147,197,253,0.26),0_22px_40px_rgba(37,99,235,0.12)] transition sm:min-h-28 sm:px-6",
