@@ -219,10 +219,71 @@ test("every two-card result across the 50-card manifest matches the approved pai
   }
 });
 
-test("one card on its own is right, except Am, Is, and Are", () => {
+test("every bundled card has correct standalone feedback, except the incomplete Am, Is, and Are", () => {
+  const phrases = new Set(["Good morning", "Thank you", "Wash hands"]);
   for (const card of manifest) {
     const result = validateLabels([card.label]);
     assert.equal(result.isValid, card.sentence_role !== "be_verb", card.label);
+    if (card.sentence_role === "be_verb") {
+      assert.equal(result.constructionType, undefined, card.label);
+      assert.equal(result.feedback, "Add who it is about, and a word like Happy.", card.label);
+    } else {
+      assert.equal(result.constructionType, phrases.has(card.label) ? "phrase" : "word", card.label);
+      assert.equal(result.feedback, phrases.has(card.label) ? "You made a phrase." : "You made a word.", card.label);
+    }
+  }
+});
+
+test("multiple cards retain sentence and phrase feedback for their accepted patterns", () => {
+  for (const [labels, type] of [
+    [["I", "Am", "Happy"], "sentence"],
+    [["I", "Want", "Water"], "sentence"],
+    [["I", "Eat", "Rice"], "sentence"],
+    [["I", "Listen"], "sentence"],
+    [["Please", "Listen"], "sentence"],
+    [["Eat", "Rice"], "sentence"],
+    [["Help", "Please"], "sentence"],
+    [["Eat", "Rice", "Please"], "sentence"],
+    [["Hello", "I", "Want", "Water"], "sentence"],
+    [["Mother", "I", "Am", "Happy"], "sentence"],
+    [["Water", "Please"], "phrase"],
+    [["More", "Water"], "phrase"],
+    [["Hot", "Rice"], "phrase"],
+    [["Hello", "Mother"], "expression"],
+    [["Yes", "Please"], "expression"]
+  ]) {
+    const result = validateLabels(labels);
+    assert.equal(result.isValid, true, labels.join(" "));
+    assert.equal(result.constructionType, type, labels.join(" "));
+    assert.equal(result.feedback, type === "sentence" ? "You made a sentence." : "You made a phrase.", labels.join(" "));
+  }
+});
+
+test("new and legacy saved profiles give standalone words, phrases, and complete sentences appropriate praise", () => {
+  const check = (label, roles, singleCardType) => {
+    const card = {
+      id: "custom", label,
+      msavProfile: { roles, traits: [], schemaVersion: 1, ...(singleCardType ? { singleCardType } : {}) }
+    };
+    return validatePecsSentence([card], new Set([card.id]));
+  };
+  for (const [label, roles, classification, expected] of [
+    ["Listen", ["command"], "word", "word"],
+    ["Help", ["command"], undefined, "word"],
+    ["crying", ["emotion"], undefined, "word"],
+    ["test_pear", ["object"], undefined, "word"],
+    ["Red apple", ["object"], "phrase", "phrase"],
+    ["Sit down", ["command"], "phrase", "phrase"],
+    ["  Good   morning  ", ["greeting"], undefined, "phrase"],
+    ["I am happy", ["emotion"], "sentence", "sentence"],
+    ["Can you help me?", ["command"], "sentence", "sentence"],
+    // Even stale or contradictory metadata must not call a single word a sentence.
+    ["Listen", ["command"], "sentence", "word"]
+  ]) {
+    const result = check(label, roles, classification);
+    assert.equal(result.isValid, true, label);
+    assert.equal(result.constructionType, expected, label);
+    assert.equal(result.feedback, `You made a ${expected}.`, label);
   }
 });
 

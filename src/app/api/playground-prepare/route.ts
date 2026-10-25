@@ -153,7 +153,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ status: "unsupported" });
     }
 
-    const profile = parsed.status === "supported" ? parseMsavMaterialProfile(parsed.profile) : null;
+    const profile = parsed.status === "supported" ? parseMsavMaterialProfile(parsed.profile, item.label) : null;
     if (!profile) {
       await setPending("invalid_model_response");
       await logUsage("model-failure");

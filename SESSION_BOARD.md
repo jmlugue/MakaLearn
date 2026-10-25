@@ -34,6 +34,18 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-playground-pr-base-merge
+- Outcome: Merged origin/main (3b046a8) into PR #10's jmlugue/playground-feedback-pr branch. Resolved the sole conflict in SESSION_BOARD.md by preserving both branches' completion notes. Incoming iPhone layouts and interactions are retained alongside the PR's Playground word/phrase/sentence feedback.
+- Verification: 29 Playground tests, 60 activity tests (including PECS-over-gesture resolution and all bundled no-text assets), 6 gesture capture tests, 3 gesture stability tests, feedback checks, TypeScript, lint, production build (21 pages), and whitespace passed. Material validation could not run without NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. No dev server was started. Merge completed locally; no push performed.
+
+### 2026-10-25-playground-feedback-pr
+- Outcome: Prepared a separate branch from origin/main containing only this agent's eight Playground feedback source/test/docs files and own session notes. The source worktree's responsive changes remain untouched.
+- Verification: Fresh npm ci, all 29 Playground tests, TypeScript, lint, production build (21 pages), and whitespace passed in the isolated checkout. No dependency or lockfile changes. Material-validation and live-Gemini limits remain as documented below.
+
+### 2026-10-25-playground-message-types
+- Outcome: Standalone words (including Listen/Help) now say "You made a word"; bundled multi-word labels say "You made a phrase". New Gemini preparations require a validated singleCardType in the existing JSON profile so complete multi-word statements/questions can receive sentence feedback. Older profiles remain compatible; Am/Is/Are and multi-card acceptance are unchanged. No migration or saved-record changes.
+- Audit: Read all 62 hosted materials (55 PECS, seven gestures). Ran all 55 PECS records through the current standalone rules: 48 word results, three phrase results, three incomplete be-verbs, and one unsupported material excluded. The 50-card manifest is covered exhaustively in the regression suite. Gesture materials remain outside Playground.
+- Verification: 29 Playground tests, including the actual preparation route with isolated provider/database stubs, TypeScript, lint, production build (21 pages), and whitespace passed. Full material-validation CLI could not run without local Supabase credentials; the focused live audit used the connected database. No live Gemini request, browser check, dev server, or deployment. Responsive-session files were left untouched.
 ### 2026-10-25-iphone-layout-pr
 - Outcome: Prepared a separate PR on jmlugue/iphone-browser-hosted-ui containing only the iPhone layout, activity input, gesture feedback, Playground layout, Help demo, and style guidance changes. The other session's message-classification implementation, tests, and docs are excluded.
 - Verification: Source changes match the tested local files; TypeScript, lint, build, focused suites, and browser fixture checks passed. Material validation remains unavailable without local Supabase configuration; physical iPhone confirmation remains pending.

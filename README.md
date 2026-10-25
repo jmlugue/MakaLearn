@@ -160,6 +160,10 @@ Planned updates before production:
 
 The 50 built-in Playground cards keep their reviewed, source-controlled MSAV roles and semantic rules. They are never sent to Gemini. A newly created teacher PECS material is saved first, then MakaLearn makes one server-side classification request using `GEMINI_MSAV_API_KEY`. Only the material label, category, description, generated instruction, and tags are sent; uploaded media is not sent.
 
+Standalone feedback distinguishes words, phrases, and sentences. One-word labels, including Listen, Help, Hello, and Yes, receive **You made a word.** The bundled Good morning, Thank you, and Wash hands cards receive **You made a phrase.** Am, Is, and Are still need other cards. This learning feedback describes the visible label, so a single command word is praised as a word even when it can function as an imperative sentence.
+
+New Gemini preparations also require `singleCardType` (`word`, `phrase`, or `sentence`) in the existing JSON profile. Multi-word labels default to phrases; a prepared complete statement or question, such as I am happy, can receive **You made a sentence.** The server rejects missing, unknown, or word-count-inconsistent classifications. Older profiles remain compatible and use word/phrase fallback without a new model call. Gemini supplies metadata once; every Check and its feedback still run locally with fixed wording. No database migration is required.
+
 If preparation succeeds, the validated profile is stored on `learning_items`. The card becomes available in Playground once it also has a public standard card picture; audio is optional. If the key or provider is unavailable, the material remains in Content with a **Try preparing again** button and stays out of the Playground picker. There are no scheduled or automatic retries. Configure the optional classifier with:
 
 ```env

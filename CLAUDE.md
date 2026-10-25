@@ -1044,7 +1044,8 @@ The owner asked for three layouts like a CSS media query diagram. Rules live in 
 - New non-manifest PECS materials are saved with a Playground preparation state. MakaLearn attempts one server-side Gemini classification after creation; uploaded media is not sent.
 - A successful, locally validated profile makes the material eligible for Playground. Pending, processing, and unsupported new materials are excluded from the picker.
 - Failed preparation has no automatic retry. Teachers use **Try preparing again** from the material details. A 60-second server cooldown prevents duplicate calls.
-- Gemini only maps new materials into the existing roles and semantic traits. The deterministic MSAV validator still decides every Playground result without calling Gemini.
+- Gemini maps new materials into the existing roles and semantic traits and supplies `singleCardType` (word, phrase, or sentence). Fresh preparation validates that type against the label before storing the JSON profile. The deterministic MSAV validator still decides every Playground result and its fixed feedback without calling Gemini.
+- Oct 25: Single-word cards, including Listen, Help, greetings, and responses, say **You made a word.** Good morning, Thank you, and Wash hands say **You made a phrase.** A new multi-word card explicitly prepared as a complete sentence can say **You made a sentence.** Legacy profiles fall back to word/phrase feedback; no reclassification or migration is needed. Am/Is/Are still require supporting cards. Multi-card acceptance and sentence/phrase feedback are unchanged.
 - Configuration uses the separate server-only `GEMINI_MSAV_API_KEY` and optional `GEMINI_MSAV_MODEL`.
 - Playground readiness now requires both prepared MSAV rules and a public card picture. If Gemini preparation succeeds
   without a picture, Content says **Picture needed** and directs the teacher to upload one instead of claiming the

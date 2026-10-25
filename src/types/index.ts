@@ -49,12 +49,16 @@ export type MsavSemanticTrait =
 
 export type MsavPredicateKind = "generic" | "eat" | "drink" | "help";
 
+export type MsavSingleCardType = "word" | "phrase" | "sentence";
+
 /** Structured language metadata generated once for a new PECS material. */
 export type MsavMaterialProfile = {
   roles: SentenceRole[];
   traits: MsavSemanticTrait[];
   predicateKind?: MsavPredicateKind;
   beVerbForm?: "am" | "are" | "is";
+  /** Optional for older profiles; new preparations classify the printed label on its own. */
+  singleCardType?: MsavSingleCardType;
   schemaVersion: 1;
 };
 
