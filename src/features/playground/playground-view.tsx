@@ -35,7 +35,7 @@ import {
 } from "@/data/pecs-card-manifest";
 import { fetchMakaLearnData } from "@/lib/supabase/app-data";
 import { placeLibraryItem } from "@/utils/playground-board";
-import { validatePecsSentence, type PecsSentenceValidationResult } from "@/utils/pecs-sentence-validation";
+import type { PecsSentenceValidationResult } from "@/utils/pecs-sentence-validation";
 import { ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import { isPlaygroundReady } from "@/utils/msav-material-profile";
 import { normalizeLearningSpeechText } from "@/utils/speech-text";
@@ -44,8 +44,11 @@ import { playCue } from "@/lib/sound-cues";
 import { Maki } from "@/features/student-mode/maki";
 import { encourageAfterWrong, pickCheer, sayMakiLine, type MakiReaction } from "@/features/student-mode/maki-voice";
 import type { Category, LearningItem } from "@/types";
+import { isGrammarCardLabel } from "@/data/grammar-card-manifest";
+import { checkPlayground } from "@/utils/check-playground";
 
-type PlaygroundCard = Omit<PecsManifestCard, "category"> & {
+type PlaygroundCard = Omit<PecsManifestCard, "category" | "sentenceRole"> & {
+  sentenceRole?: LearningItem["sentenceRole"];
   id: string;
   learningItemId?: string;
   category: string;
@@ -124,7 +127,7 @@ function buildPlaygroundCards(items: LearningItem[], categories: Category[]): Pl
         filename: manifestCard?.filename ?? `${item.id}.png`,
         label: item.label,
         category: categoryById.get(item.categoryId) ?? manifestCard?.category ?? "Daily Needs",
-        sentenceRole: item.msavProfile?.roles[0] ?? item.sentenceRole ?? manifestCard?.sentenceRole ?? "object",
+        sentenceRole: isGrammarCardLabel(item.label) ? undefined : item.msavProfile?.roles[0] ?? item.sentenceRole ?? manifestCard?.sentenceRole ?? "object",
         msavProfile: item.msavProfile,
         id: item.id,
         learningItemId: item.id,
@@ -195,6 +198,9 @@ export function PlaygroundView() {
   const pendingRef = useRef<{ source: DragSource; pointerId: number; pointerType: string; startX: number; startY: number; timer?: number } | null>(null);
   const [result, setResult] = useState<PecsSentenceValidationResult | null>(null);
   const [speaking, setSpeaking] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const pendingCheck = useRef<AbortController | null>(null);
+  const checkingRef = useRef(false);
   // Invalidate callbacks from an older board or Check, even if Maki finishes after a card is removed.
   const narrationRevision = useRef(0);
   // The card being read aloud, so Listen can highlight each card in turn.
@@ -239,6 +245,7 @@ export function PlaygroundView() {
     setToolbarReady(true);
     return () => {
       narrationRevision.current += 1;
+      pendingCheck.current?.abort();
       window.speechSynthesis?.cancel();
     };
   }, []);
@@ -400,15 +407,28 @@ export function PlaygroundView() {
 
   function cancelNarration() {
     narrationRevision.current += 1;
+    pendingCheck.current?.abort();
+    pendingCheck.current = null;
+    checkingRef.current = false;
+    setChecking(false);
     window.speechSynthesis?.cancel();
     setSpeaking(false);
     setSpeakingIndex(null);
   }
 
-  function checkSentence() {
+  async function checkSentence() {
+    if (checkingRef.current) return;
     cancelNarration();
     const revision = narrationRevision.current;
-    const nextResult = validatePecsSentence(sentenceCards, approvedCardIds);
+    const controller = new AbortController();
+    pendingCheck.current = controller;
+    checkingRef.current = true;
+    setChecking(true);
+    const nextResult = await checkPlayground(sentenceCards, approvedCardIds, controller.signal);
+    if (revision !== narrationRevision.current || controller.signal.aborted) return;
+    pendingCheck.current = null;
+    checkingRef.current = false;
+    setChecking(false);
     setResult(nextResult);
 
     // Maki's voice (owner's request): right is the chime, Maki's line, then the sentence read aloud; wrong is the buzz
@@ -429,11 +449,20 @@ export function PlaygroundView() {
   }
 
   async function speakSentence() {
-    if (!sentenceCards.length || speaking) return;
+    if (!sentenceCards.length || speaking || checkingRef.current) return;
     cancelNarration();
     const revision = narrationRevision.current;
 
-    const currentResult = validatePecsSentence(sentenceCards, approvedCardIds);
+    const controller = new AbortController();
+    pendingCheck.current = controller;
+    checkingRef.current = true;
+    setChecking(true);
+    const currentResult = result ?? await checkPlayground(sentenceCards, approvedCardIds, controller.signal);
+    if (revision !== narrationRevision.current || controller.signal.aborted) return;
+    pendingCheck.current = null;
+    checkingRef.current = false;
+    setChecking(false);
+    setResult(currentResult);
     if (currentResult.isValid && "speechSynthesis" in window) {
       await speakSentenceLike(revision);
       return;
@@ -458,11 +487,11 @@ export function PlaygroundView() {
     if (revision !== narrationRevision.current || !sentenceCards.length || !("speechSynthesis" in window)) return;
 
     setSpeaking(true);
-    const words = sentenceCards.map((card) => getSpeechLabel(card.label));
+    const words = sentenceCards.map((card) => card.label);
     const wordStarts = words.map((_, index) => (index ? words.slice(0, index).join(" ").length + 1 : 0));
     try {
       // Word boundaries move the highlight. Voices that do not report them simply show no highlight.
-      await speakText(words.join(" "), (charIndex) => {
+      await speakText(getSpeechLabel(words.join(" ")), (charIndex) => {
         if (revision !== narrationRevision.current) return;
         let index = 0;
         wordStarts.forEach((start, position) => {
@@ -696,7 +725,7 @@ export function PlaygroundView() {
                         type="button"
                         className={`${gameButtonClass} bg-emerald-500 shadow-[0_5px_0_#047857] hover:bg-emerald-600`}
                         onClick={checkSentence}
-                        disabled={!sentenceCards.length}
+                        disabled={!sentenceCards.length || checking}
                       >
                         <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
                         Check
@@ -705,7 +734,7 @@ export function PlaygroundView() {
                         type="button"
                         className={`${gameButtonClass} bg-blue-600 shadow-[0_5px_0_#1e40af] hover:bg-blue-700`}
                         onClick={speakSentence}
-                        disabled={!sentenceCards.length || speaking}
+                        disabled={!sentenceCards.length || speaking || checking}
                       >
                         <Volume2 className="h-6 w-6" aria-hidden="true" />
                         {speaking ? "Listening..." : "Listen"}

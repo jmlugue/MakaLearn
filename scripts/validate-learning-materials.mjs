@@ -35,6 +35,7 @@ function localAudioFileNameForManifestCard(card) {
 function storedAudioFileNameForManifestCard(card) {
   const normalizedLabel = normalize(card.label);
   const replacementFileNames = {
+    i: "i-pronoun-v2.wav",
     am: "am-spoken-word.wav",
     hurt: "hurt-clear.wav"
   };
@@ -151,7 +152,7 @@ const [
   promptTemplates,
   mediaAssets
 ] = await Promise.all([
-  selectAll(supabase, "learning_items", "id,label,content_type,symbol_image_url,activity_image_url,audio_url"),
+  selectAll(supabase, "learning_items", "id,label,content_type,symbol_image_url,activity_image_url,audio_url,grammar_kind,sentence_role"),
   selectAll(supabase, "activities", "id,title,type,learning_item_ids"),
   selectAll(supabase, "activity_items", "id,activity_id,answer,options,learning_item_id"),
   selectAll(supabase, "collection_items", "collection_id,learning_item_id"),
@@ -214,6 +215,28 @@ for (const [itemId, gesture] of gestureMaterials) {
 }
 
 await Promise.all(remoteAudioChecks);
+
+// Grammar artwork is supplied separately but not enabled for generic picture
+// choices. Validate these new assets too, without adding invented MSAV roles.
+const grammarManifest = JSON.parse(await readFile(path.join(root, "public/pecs/grammar_card_manifest.json"), "utf8"));
+await Promise.all(grammarManifest.map(async (card) => {
+  const item = itemById.get(`pecs-${card.label.toLowerCase()}`);
+  if (!item || item.grammar_kind !== card.kind || item.sentence_role !== null) {
+    errors.push(`Grammar metadata missing or incorrect for ${card.label}.`);
+    return;
+  }
+  const standard = await readFile(path.join(root, "public/pecs/generated_cards", card.filename));
+  const activity = await readFile(path.join(root, "public/pecs/generated_cards_no_text", card.filename));
+  if (standard.equals(activity)) errors.push(`Grammar card ${card.label} reuses its labelled image for Activities.`);
+  for (const bytes of [standard, activity]) {
+    if (bytes.readUInt32BE(16) !== 900 || bytes.readUInt32BE(20) !== 1200) errors.push(`Incorrect grammar card dimensions for ${card.label}.`);
+  }
+  const audioName = card.filename.replace(/\.png$/, ".wav");
+  await validateLocalWave(path.join("public", "audio", "pecs", audioName), card.label, errors);
+  await validateRemoteWave(item, audioName, errors);
+  const imageResponse = await fetch(item.symbol_image_url);
+  if (!imageResponse.ok || !standard.equals(Buffer.from(await imageResponse.arrayBuffer()))) errors.push(`Hosted grammar artwork differs for ${card.label}.`);
+}));
 
 function hasActivityArtwork(item) {
   return Boolean(

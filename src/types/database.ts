@@ -11,10 +11,22 @@ import type {
 
 type Visibility = "shared" | "private";
 type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+type PlaygroundDecisionRow = {
+  policy_version: string; input_hash: string; normalized_text: string;
+  is_valid: boolean | null; construction_type: "word" | "phrase" | "sentence" | null;
+  model: string; lease_token: string | null; lease_until: string | null;
+  decided_at: string | null; created_at: string;
+};
 
 export type Database = {
   public: {
     Tables: {
+      playground_check_decisions: {
+        Row: PlaygroundDecisionRow;
+        Insert: Pick<PlaygroundDecisionRow, "policy_version" | "input_hash" | "normalized_text"> & Partial<PlaygroundDecisionRow>;
+        Update: Partial<PlaygroundDecisionRow>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -89,6 +101,7 @@ export type Database = {
           audio_url: string | null;
           tags: string[];
           sentence_role: LearningItem["sentenceRole"] | null;
+          grammar_kind: LearningItem["grammarKind"] | null;
           playground_preparation_status: LearningItem["playgroundPreparationStatus"] | null;
           msav_profile: LearningItem["msavProfile"] | null;
           playground_prepared_at: string | null;
@@ -112,6 +125,7 @@ export type Database = {
           audio_url?: string | null;
           tags?: string[];
           sentence_role?: LearningItem["sentenceRole"] | null;
+          grammar_kind?: LearningItem["grammarKind"] | null;
           playground_preparation_status?: LearningItem["playgroundPreparationStatus"] | null;
           msav_profile?: LearningItem["msavProfile"] | null;
           playground_prepared_at?: string | null;
@@ -135,6 +149,7 @@ export type Database = {
           audio_url?: string | null;
           tags?: string[];
           sentence_role?: LearningItem["sentenceRole"] | null;
+          grammar_kind?: LearningItem["grammarKind"] | null;
           playground_preparation_status?: LearningItem["playgroundPreparationStatus"] | null;
           msav_profile?: LearningItem["msavProfile"] | null;
           playground_prepared_at?: string | null;
@@ -549,6 +564,14 @@ export type Database = {
       };
     };
     Functions: {
+      claim_playground_check: {
+        Args: { p_policy: string; p_hash: string; p_text: string; p_user: string };
+        Returns: Json;
+      };
+      correct_playground_check: {
+        Args: { p_policy: string; p_hash: string; p_text: string; p_user: string; p_valid: boolean; p_type: string | null };
+        Returns: undefined;
+      };
       upsert_collection_items: {
         Args: { items: Json };
         Returns: undefined;

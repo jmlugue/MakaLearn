@@ -62,7 +62,7 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - The Playground loads the standard PECS/AAC card image from Supabase, groups cards by their saved Supabase category, and reads every card with the one browser voice selected in Settings. Uploaded audio remains available in Content but is not required for Playground.
 - Learning material media under `public/pecs`, `public/audio/pecs`, `public/gesture-references`, and gesture audio is migration source material only. Runtime learning media should come from Supabase Storage.
 - Playground is available in teacher UI and Student Mode. Other teacher-only pages remain restricted while Student Mode is active.
-- Playground sentence checks use `validatePecsSentence`, a rule-based PECS arrangement validator with supported patterns such as `I want water`, `I am happy`, `Please sit`, greetings, responses, and safety expressions.
+- Playground can use a separate strict-English checker with permanent Supabase decisions and fixed local feedback. `validatePecsSentence` remains unchanged as the temporary fallback and algorithm-only mode.
 - Teachers can store additional gesture records in Content Library.
 - Gesture Recognition uses MediaPipe hand landmarks and the bundled trained MakaLearn gesture model for seven fixed labels: I want to go to toilet, I want to eat, I want to drink, Help, Yes, No, and Sit down. These prototype labels/media are not official Makaton content.
 - Gesture Practice is free practice: the side card is a reference aid, while corrective feedback is based on the gesture actually recognized by the model.
@@ -155,8 +155,13 @@ Planned updates before production:
 - `generateCorrectiveFeedbackPlaceholder` and `generateFeedbackPlaceholder` are marked for future model/AI replacement.
 - Gesture hand tracking uses real MediaPipe landmarks and the bundled trained recognizer. Corrective feedback uses Gemini with local template fallback; gesture attempts are session-only.
 - The AI activity draft can use its isolated Gemini key when configured, but only after Supabase cache and usage checks pass. Gesture-practice, match, drag/drop, and local scoring do not call the activity model.
-- Playground validation is local rule-based logic, not NLP, grammar correction, or AI.
+- Playground's original local validator remains available; the optional primary checker below judges standard English without changing that algorithm.
 ## MSAV preparation for new materials
+
+For the optional strict-English Playground checker, saved decisions, six grammar
+cards, pronunciation correction, setup, and rollback switch, see
+[Playground checker](docs/playground-checker.md). Material preparation below
+remains a separate feature.
 
 The 50 built-in Playground cards keep their reviewed, source-controlled MSAV roles and semantic rules. They are never sent to Gemini. A newly created teacher PECS material is saved first, then MakaLearn makes one server-side classification request using `GEMINI_MSAV_API_KEY`. Only the material label, category, description, generated instruction, and tags are sent; uploaded media is not sent.
 

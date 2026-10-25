@@ -25,6 +25,7 @@ import { acceptFor, extensionError, fileNameError } from "@/utils/media-filename
 import { RenameFileDialog } from "@/features/content/rename-file-dialog";
 import { getPlaygroundAvailability } from "@/utils/msav-material-profile";
 import { getActivityOptionImageUrl, hasActivityOptionImage } from "@/utils/activity-symbol-options";
+import { needsGrammarActivityContext } from "@/data/grammar-card-manifest";
 import type { Category, LearningItem, MediaAsset } from "@/types";
 
 export type CardTextValues = { label: string; categoryId: string; description: string };
@@ -95,7 +96,8 @@ export function CardDetailDialog({
   // A built-in gesture keeps its hidden category unless the teacher picks a real one.
   const categoryChoices = visibleCategories(categories);
   const playgroundAvailability = item ? getPlaygroundAvailability(item) : "pending";
-  const activityPictureUrl = item ? getActivityOptionImageUrl(item.id, item) : undefined;
+  const activityPictureUrl = item ? item.activityImageUrl ?? getActivityOptionImageUrl(item.id, item) : undefined;
+  const grammarContextNeeded = item ? needsGrammarActivityContext(item.label) : false;
   const activityReady = item ? hasActivityOptionImage(item) : false;
 
   async function prepareForPlayground() {
@@ -234,6 +236,10 @@ export function CardDetailDialog({
                     <p className="flex items-start gap-2 text-sm leading-6 text-emerald-800">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                       <span><span className="font-bold">Ready for Activities.</span> A word-free answer picture is available.</span>
+                    </p>
+                  ) : grammarContextNeeded ? (
+                    <p className="text-sm leading-6 text-amber-800">
+                      <span className="font-bold">Sentence context needed.</span> This grammar word is available for Playground. Its picture alone cannot identify one answer in the current Activities.
                     </p>
                   ) : (
                     <p className="flex items-start gap-2 text-sm leading-6 text-amber-800">

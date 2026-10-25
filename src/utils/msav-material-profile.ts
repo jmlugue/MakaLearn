@@ -1,4 +1,5 @@
 import { normalizePecsLabel, pecsCardManifest } from "@/data/pecs-card-manifest";
+import { isGrammarCardLabel } from "@/data/grammar-card-manifest";
 import type {
   LearningItem,
   MsavMaterialProfile,
@@ -41,7 +42,7 @@ export const msavPredicateKinds: MsavPredicateKind[] = ["generic", "eat", "drink
 const builtInLabels = new Set(pecsCardManifest.map((card) => normalizePecsLabel(card.label)));
 
 export function isBuiltInMsavLabel(label: string) {
-  return builtInLabels.has(normalizePecsLabel(label));
+  return builtInLabels.has(normalizePecsLabel(label)) || isGrammarCardLabel(label);
 }
 
 export type PlaygroundAvailability = "ready" | "missing-image" | "processing" | "unsupported" | "pending";

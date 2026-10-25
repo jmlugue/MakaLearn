@@ -87,6 +87,7 @@ function mapLearningItem(row: LearningItemRow): LearningItem {
     gestureMediaUrl: row.gesture_media_url ?? undefined,
     audioUrl: row.audio_url ?? undefined,
     sentenceRole: row.sentence_role ?? undefined,
+    grammarKind: row.grammar_kind ?? undefined,
     playgroundPreparationStatus: row.playground_preparation_status ?? undefined,
     msavProfile: row.msav_profile ?? undefined,
     playgroundPreparedAt: row.playground_prepared_at ?? undefined,

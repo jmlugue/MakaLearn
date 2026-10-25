@@ -31,6 +31,7 @@ import { isNoCategory, noCategory, withNoCategory } from "@/lib/no-category";
 import { upgradeStarterLearningItemPrompts } from "@/utils/starter-learning-item-prompts";
 import { getPlaygroundAvailability, isBuiltInMsavLabel } from "@/utils/msav-material-profile";
 import { hasActivityOptionImage } from "@/utils/activity-symbol-options";
+import { needsGrammarActivityContext } from "@/data/grammar-card-manifest";
 import { CardDetailDialog, type CardTextValues } from "@/features/content/card-detail-dialog";
 import { CardFormDialog, type NewCardFiles, type NewCardValues } from "@/features/content/card-form-dialog";
 import { CategoriesTab } from "@/features/content/categories-tab";
@@ -358,7 +359,7 @@ export function ContentLibraryView({
         title: `${kindLabel(values.kind)} added`,
         description:
           playgroundAvailability === "ready"
-            ? `${completedItem.label} is ready for Playground.${activityReady ? " It is also ready for Activities." : " Add a word-free Activity picture to use it in Activities."}`
+            ? `${completedItem.label} is ready for Playground.${activityReady ? " It is also ready for Activities." : needsGrammarActivityContext(completedItem.label) ? " This grammar word needs sentence context in Activities." : " Add a word-free Activity picture to use it in Activities."}`
             : playgroundAvailability === "missing-image"
               ? `${completedItem.label} was prepared. Add a card image to use it in Playground.`
             : completedItem.playgroundPreparationStatus === "pending"
