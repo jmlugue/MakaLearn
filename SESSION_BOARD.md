@@ -34,6 +34,15 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-25-phone-status-flow-pr
+- Outcome: Prepared jmlugue/phone-status-natural-scroll against main with only phone status CSS, STYLE_GUIDE, and own notes. Other sessions' changes and the shared branch/index are preserved.
+- Verification: Exact source matches the isolated copy that passed lint and production build (21 pages with TypeScript checks). Chromium/WebKit passed 54 layout states, including unchanged tablet/desktop geometry. Whitespace passed; physical iPhone/live recognition confirmation remains pending.
+
+### 2026-10-25-phone-status-flow
+- Outcome: Phone learner status is full width below the toolbar and above camera/reference, with no sticky positioning or menu offset. It scrolls naturally with both previews. Strong border/icon and long-message wrapping remain. Updated STYLE_GUIDE; no component/recognition or other sessions' files changed.
+- Verification: Chromium and WebKit passed 54 fixture states across six phone portrait/landscape sizes and three tablet/desktop sizes, covering neutral/success/long feedback, full-width alignment, initial toolbar/menu clearance, natural scroll displacement, Focus mode, and unchanged tablet/desktop grid geometry. The isolated gesture source copy passed lint and production build (21 pages with TypeScript checks). Whitespace passed. WebKit fixture readiness was changed from a fixed delay to an explicit ready wait after an initial fixture-only timing failure.
+- Limits: Sample data and simulated camera/feedback, not physical iPhone or live recognition. Artifacts: D:/Downloads/makalearn-phone-status-flow. Changes are local; PR #12 was already merged. No dev server, commit, push, new PR, deployment, or production-data write.
+
 ### 2026-10-25-phone-guided-sizing-pr
 - Outcome: Prepared jmlugue/fix-phone-guided-sizing against main with only gesture view, phone CSS, STYLE_GUIDE, and own session notes. Shared branch/index and other sessions' changes are preserved.
 - Verification: These exact source files passed isolated TypeScript, lint, production build (21 pages), and four tutorial tests; Chromium/WebKit passed 82 layout states. Source matches the tested copy, and main's source tree equals the previously validated PR #11 base. Physical iPhone/live recognition confirmation remains pending.

@@ -185,14 +185,14 @@ Every screen is designed for three layouts. Write phone styles first, then add `
 - Phone Student screens (under 768px wide, or up to 1024px wide and 500px high) use compact layouts. Activities keep
   targets and pictures together; touch selection survives scrolling. Landscape choice games place the prompt beside
   the pictures. Gesture practice uses a stable camera beside a reserved reference preview, with Enlarge, progress
-  below the camera, a sticky learner status, and full learner/teacher feedback below. It scrolls naturally on short
-  screens; the guided journey follows feedback on phones. Playground pins the board above the card picker in portrait and beside it
+  below the camera, a full-width learner status above both previews, and full learner/teacher feedback below. It scrolls
+  naturally on short screens; the guided journey follows feedback on phones. Playground pins the board above the card picker in portrait and beside it
   in landscape, with independently scrolling cards and one row of category chips. Normal-height tablets and desktop
   retain their established layouts. Phone remove buttons show a 20px circle and 12px X within a 44px tap target.
   Help and activity tutorials respect both app and system reduced-motion settings, with manual steps and an explicit
   Play demo action. Help drawings fit both available width and height; tutorial dialogs scroll safely on short screens.
-- Phone gesture status reserves the fixed menu's space even while sticky. Portrait camera/reference height grows
-  with the viewport; feedback does not shrink the camera. Guided startup uses a compact two-column card on short
+- Phone gesture status sits below the toolbar and scrolls naturally with the camera/reference instead of sticking over
+  them. Portrait camera/reference height grows with the viewport; feedback does not shrink the camera. Guided startup uses a compact two-column card on short
   landscape screens. Its countdown typography and circle size follow the camera container, with a side-by-side
   countdown below 140px camera height. Visible English copy uses "practice".
 - Phones: a long row of filter chips scrolls sideways in one row instead of wrapping into many rows. Section tabs
