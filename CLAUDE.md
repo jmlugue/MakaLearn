@@ -1085,6 +1085,14 @@ The owner asked for three layouts like a CSS media query diagram. Rules live in 
 - Isolated I uses a speech-only pronunciation alias; sentence text remains intact. The hosted recording is versioned as `i-pronoun-v2.wav`. Playground keeps the selected browser voice. Check/Listen share decisions; edits/unmount abort pending work and suppress late responses.
 
 
+## Oct 26: Free-practice feedback and Sit down hand order
+
+- Free practice clears corrective feedback and its loading state when a new capture starts, either after hands return or after a meaningful change from the completed pose. Holding the same completed pose leaves feedback readable. Successful recognition also clears any old correction.
+- Clearing feedback invalidates pending feedback responses, including fallback responses, so an earlier attempt cannot restore a stale correction. Guided practice keeps its existing feedback lifecycle.
+- Sit down accepts either hand on top and does not depend on MediaPipe's handedness labels or hand array order. Both hands must still be visible and vertically separated; the normal two-hand consistency check remains. Candidate capture and final recognition share this rule.
+- `npm run test:feedback` includes capture/feedback lifecycle regressions alongside the existing guard, template, and mocked API checks.
+
+
 ## Oct 26: Playground grammar primary and Friend correction
 
 - Playground defaults to the separate AI grammar checker unless `PLAYGROUND_CHECKER_MODE=algorithm` is explicitly set. Only ordered text is sent to Gemini; card roles do not restrict its grammar verdict. A dedicated `GEMINI_PLAYGROUND_API_KEY` is required for uncached provider calls.

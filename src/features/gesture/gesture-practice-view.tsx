@@ -823,6 +823,8 @@ export function GesturePracticeView() {
 
       if (!gestureCaptureActiveRef.current) {
         clearPrediction();
+        // A new free-practice attempt also invalidates any late feedback response.
+        if (practiceModeRef.current === "free") clearCorrectiveFeedback();
         resetConsecutiveGestureCapture();
         resetLiveGestureBuffer(liveGestureFramesRef.current);
         liveGestureHandFramesRef.current = [];
@@ -1089,8 +1091,7 @@ export function GesturePracticeView() {
     setPrediction(nextPrediction);
     setStatusMessage("");
     if (nextPrediction) {
-      // Keep the last corrective feedback visible while free practice recognizes the
-      // next attempt. The next completed attempt replaces it when feedback is requested.
+      clearCorrectiveFeedback();
       return;
     }
 

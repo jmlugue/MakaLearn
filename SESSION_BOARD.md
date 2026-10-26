@@ -34,6 +34,12 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-26-free-gesture-feedback
+- Outcome: Free practice clears corrective feedback/loading at new capture start and on success; pending responses cannot restore an older correction. Holding the completed pose keeps feedback readable, and guided feedback behavior is preserved. Sit down accepts either hand on top without handedness labels, retaining two-hand consistency and vertical separation in candidate/final guards.
+- Files: gesture-practice-view.tsx, gesture-shape-safety.ts, focused feedback tests and npm script, current CLAUDE guidance, and the AI guide's Sit down description. Preserved all pre-existing working edits and staged documentation.
+- Verification: Feedback unit/mocked-route checks plus five lifecycle regressions, six capture tests, three stability tests, TypeScript, lint, production build (23 pages), and whitespace passed. New cases cover either hand order, unknown/reordered hand labels, invalid one-hand/level-hand input, late responses/fallbacks, and fresh wrong attempts. No dev server, live webcam/provider check, database writes, commit, or deployment.
+
+
 ### 2026-10-26-remove-caption-reminder
 - Outcome: Removed the as-uploaded blank-caption checkbox, reminder panel, and acknowledgment-based Save restriction at the owner's request. The Add label to picture toggle, two previews, generation/error guards, and separate Activity upload behavior are unchanged. Updated targeted README/CLAUDE guidance.
 - PR handling: Replaces the earlier checkbox-only PR #18 with the complete checkbox-and-reminder removal. No image-generation, Activity-renderer, database, audio, or existing-material changes.

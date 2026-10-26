@@ -9,7 +9,7 @@
     "validate:materials": "node scripts/validate-learning-materials.mjs",
     "supabase:migrate-learning-media": "node scripts/upload-learning-media.mjs",
     "supabase:migrate-learning-media:dry-run": "node scripts/upload-learning-media.mjs --dry-run",
-    "test:feedback": "node scripts/test-gesture-feedback.mjs",
+    "test:feedback": "node scripts/test-gesture-feedback.mjs && node --test scripts/test-gesture-free-feedback.mjs",
     "test:gesture-capture": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-gesture-capture-state.mjs",
     "test:gesture-stability": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-gesture-stability.mjs",
     "test:activities": "node --test scripts/test-activity-ai-draft.mjs scripts/test-activity-ai-rate-limit.mjs scripts/test-activity-option-sets.mjs scripts/test-activity-rules.mjs scripts/test-question-bank.mjs",
