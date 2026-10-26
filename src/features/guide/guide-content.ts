@@ -136,8 +136,8 @@ export const pageGuides: Record<string, PageGuide> = {
         scene: "activity"
       },
       {
-        title: "Play full screen",
-        text: "Play opens the game full screen with a score at the end. The top bar can exit, restart, or edit.",
+        title: "Preview the activity",
+        text: "Preview lets you check the activity. Use Student mode to play with the learner.",
         icon: GraduationCap,
         scene: "student"
       }
@@ -190,7 +190,7 @@ export const guideTips: Record<string, string> = {
   "nav.student":
     "Hands the screen to the learner. Student mode shows only the playground, gesture practice, and activities, with nothing to edit. Exit it from its menu.",
   "content.addMaterial":
-    "Make a new PECS card or gesture. Add a picture and a sound, then pick a category. Files are saved as word_category, like eat_food.",
+    "Add a PECS card or gesture, upload its picture, then review and save.",
   "content.addLesson":
     "Plan a collection: give it a title and put cards in the order you teach them. Make activities from it later in Activities.",
   "activities.create":

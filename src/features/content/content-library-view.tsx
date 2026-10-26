@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { LoadError } from "@/components/common/load-error";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, FolderOpen, Image as ImageIcon, Layers, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -45,7 +47,8 @@ import { LessonPreviewDialog } from "@/features/content/lesson-preview-dialog";
 import { LessonsTab } from "@/features/content/lessons-tab";
 import { MediaPreviewDialog } from "@/features/content/media-preview-dialog";
 import { MediaTab } from "@/features/content/media-tab";
-import type { ActivityType, AppUser, Category, LearningItem, Lesson, MediaAsset } from "@/types";
+import { duplicateMaterialMessage } from "@/utils/material-label";
+import type { Activity, ActivityType, AppUser, Category, LearningItem, Lesson, MediaAsset } from "@/types";
 
 type Tab = "materials" | "lessons" | "categories" | "media";
 const tabs: Tab[] = ["materials", "lessons", "categories", "media"];
@@ -89,8 +92,11 @@ export function ContentLibraryView({
   const { user } = useAuthUser();
   const [tab, setTab] = useState<Tab>(() => (tabs.includes(initialTab as Tab) ? (initialTab as Tab) : "materials"));
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [items, setItems] = useState<LearningItem[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [linkedActivities, setLinkedActivities] = useState<Activity[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [media, setMedia] = useState<MediaAsset[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -118,7 +124,9 @@ export function ContentLibraryView({
 
   useEffect(() => {
     let active = true;
-    fetchMakaLearnData()
+    setReady(false);
+    setLoadError(false);
+    fetchMakaLearnData("content")
       .then((data) => {
         if (!active) return;
         setUsers(data.users);
@@ -127,12 +135,14 @@ export function ContentLibraryView({
           contentType: item.contentType ?? (item.tags?.includes("gesture") ? "gesture" : "pecs")
         })), { builtInOnly: true }));
         setLessons(data.collections);
+        setLinkedActivities(data.activities);
         setCategories(withNoCategory(ensurePecsManifestCategories(data.categories), user.id));
         setNoCategorySaved(data.categories.some((category) => isNoCategory(category.id)));
         setMedia(data.mediaAssets);
       })
       .catch(() => {
         if (!active) return;
+        setLoadError(true);
         notify({ title: "Content unavailable", description: "Content could not be loaded.", tone: "error" });
       })
       .finally(() => {
@@ -142,12 +152,12 @@ export function ContentLibraryView({
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load once; the user does not change here.
-  }, [notify]);
+  }, [notify, loadAttempt]);
 
   // Help's Go there (/content?open=add or ?open=lesson): open the form once content has loaded.
   const openLinkHandled = useRef(false);
   useEffect(() => {
-    if (!ready || !initialOpen || openLinkHandled.current || user.role !== "teacher") return;
+    if (!ready || loadError || !initialOpen || openLinkHandled.current || user.role !== "teacher") return;
     openLinkHandled.current = true;
     if (initialOpen === "add") {
       setTab("materials");
@@ -156,12 +166,12 @@ export function ContentLibraryView({
       setTab("lessons");
       setLessonMode({ kind: "new" });
     }
-  }, [initialOpen, ready, user.role]);
+  }, [initialOpen, loadError, ready, user.role]);
 
   // Deep link from the Admin page (/content?item=<id>): open that material once content has loaded.
   const deepLinkHandled = useRef(false);
   useEffect(() => {
-    if (!ready || !initialItemId || deepLinkHandled.current) return;
+    if (!ready || loadError || !initialItemId || deepLinkHandled.current) return;
     deepLinkHandled.current = true;
     const target = items.find((item) => item.id === initialItemId);
     if (!target) {
@@ -171,7 +181,7 @@ export function ContentLibraryView({
     setTab("materials");
     setKind(target.contentType);
     setOpenItemId(target.id);
-  }, [initialItemId, items, notify, ready]);
+  }, [initialItemId, items, loadError, notify, ready]);
 
   // "Fixed gestures" stays in the data for Guided 7 but is not shown as a category.
   const shownCategories = useMemo(() => visibleCategories(categories), [categories]);
@@ -186,7 +196,7 @@ export function ContentLibraryView({
     return lesson.learningItemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
   }
 
-  // Others' private lessons stay hidden. The read rules allow them, so this is the only filter.
+  // Match the database visibility rules for shared and private collections.
   const visibleLessons = useMemo(() => lessons.filter((lesson) => canSee(lesson, user)), [lessons, user]);
 
   /** Teachers collaborate on shared lessons; private lessons stay with their creator. */
@@ -223,7 +233,7 @@ export function ContentLibraryView({
       playgroundLastAttemptAt: new Date().toISOString(),
       playgroundPreparationError: undefined
     };
-    setItems((current) => current.map((candidate) => candidate.id === item.id ? processing : candidate));
+    setItems((current) => current.map((candidate) => candidate.id === item.id && candidate.updatedAt === item.updatedAt ? processing : candidate));
 
     try {
       const response = await fetch("/api/playground-prepare", {
@@ -254,11 +264,11 @@ export function ContentLibraryView({
             msavProfile: undefined,
             playgroundPreparationError: result.status === "unsupported" ? "unsupported" : "provider_unavailable"
           };
-      setItems((current) => current.map((candidate) => candidate.id === item.id ? next : candidate));
+      setItems((current) => current.map((candidate) => candidate.id === item.id && candidate.updatedAt === item.updatedAt ? next : candidate));
       return next;
     } catch {
       const pending = { ...processing, playgroundPreparationStatus: "pending" as const, playgroundPreparationError: "provider_unavailable" };
-      setItems((current) => current.map((candidate) => candidate.id === item.id ? pending : candidate));
+      setItems((current) => current.map((candidate) => candidate.id === item.id && candidate.updatedAt === item.updatedAt ? pending : candidate));
       return pending;
     }
   }
@@ -269,13 +279,24 @@ export function ContentLibraryView({
     if (playgroundAvailability === "ready") {
       notify({ title: "Ready for Playground", description: `${prepared.label} can now be used in Playground.`, tone: "success" });
     } else if (playgroundAvailability === "missing-image") {
-      notify({ title: "Picture needed", description: "MSAV is ready. Upload a card image to use this material in Playground.", tone: "info" });
+      notify({ title: "Picture needed", description: "Upload a card image to use this material in Playground.", tone: "info" });
     } else if (prepared.playgroundPreparationStatus === "unsupported") {
-      notify({ title: "Not supported in Playground", description: "This material does not fit the current MSAV rules.", tone: "info" });
+      notify({ title: "Not supported in Playground", description: "This material cannot be used in Playground yet.", tone: "info" });
     } else {
       notify({ title: "Not ready for Playground", description: "Preparation is unavailable right now. Try again later.", tone: "info" });
     }
   }
+
+  const refreshSavedContent = useCallback(async () => {
+    try {
+      const data = await fetchMakaLearnData("content");
+      setItems(ensurePecsManifestItems(upgradeStarterLearningItemPrompts(data.learningItems), { builtInOnly: true }));
+      setMedia(data.mediaAssets);
+      setLessons(data.collections);
+      setLinkedActivities(data.activities);
+      setLoadError(false);
+    } catch { setLoadError(true); }
+  }, []);
 
   // Materials
 
@@ -316,6 +337,8 @@ export function ContentLibraryView({
 
   // Save the material, attach its uploads, and prepare PECS cards for Playground use.
   async function addCard(values: NewCardValues) {
+    const duplicate = duplicateMaterialMessage(values.label, values.kind, items);
+    if (duplicate) { notify({ title: "Label already used", description: duplicate, tone: "error" }); return false; }
     const draft: LearningItem = {
       id: `item-${Date.now()}`,
       contentType: values.kind,
@@ -389,6 +412,8 @@ export function ContentLibraryView({
   }
 
   async function saveCardText(item: LearningItem, values: CardTextValues) {
+    const duplicate = duplicateMaterialMessage(values.label, item.contentType, items, item.id);
+    if (duplicate) { notify({ title: "Label already used", description: duplicate, tone: "error" }); return false; }
     const meaningChanged =
       item.label !== values.label || item.categoryId !== values.categoryId || item.description !== values.description;
     const needsPreparation = item.contentType === "pecs" && !isBuiltInMsavLabel(values.label) && meaningChanged;
@@ -490,6 +515,7 @@ export function ContentLibraryView({
       });
       setMediaToRemove(null);
     } catch (error) {
+      await refreshSavedContent();
       notify({ title: "Not removed", description: errorText(error, "The file could not be removed."), tone: "error" });
     } finally {
       setDeleting(false);
@@ -503,13 +529,16 @@ export function ContentLibraryView({
       await deleteMediaAssetFromSupabase(assetToDelete);
       setMedia((current) => current.filter((candidate) => candidate.id !== assetToDelete.id));
       if (assetToDelete.relatedItemId) {
-        clearMediaUrlInState(assetToDelete.relatedItemId, assetToDelete.type);
+        const linked = itemById.get(assetToDelete.relatedItemId);
+        if (linked && urlOnItem(linked, assetToDelete.type) === assetToDelete.publicUrl) clearMediaUrlInState(assetToDelete.relatedItemId, assetToDelete.type);
       }
+      await refreshSavedContent();
       log("delete", "media", assetToDelete.title, `Deleted ${assetToDelete.fileName} from the media library.`, assetToDelete.id);
       notify({ title: "File deleted", tone: "success" });
       setAssetToDelete(null);
       setOpenAssetId("");
     } catch (error) {
+      await refreshSavedContent();
       notify({ title: "Delete failed", description: errorText(error, "The file could not be deleted."), tone: "error" });
     } finally {
       setDeleting(false);
@@ -521,14 +550,15 @@ export function ContentLibraryView({
     if (!itemToDelete) return;
     setDeleting(true);
     try {
-      await deleteLearningItem(itemToDelete.id, deleteMedia);
+      const outcome = await deleteLearningItem(itemToDelete.id, deleteMedia);
       setItems((current) => current.filter((candidate) => candidate.id !== itemToDelete.id));
-      if (deleteMedia) setMedia((current) => current.filter((asset) => asset.relatedItemId !== itemToDelete.id));
+      await refreshSavedContent();
       log("delete", "learning-item", itemToDelete.label, deleteMedia ? "Deleted a material and its media." : "Deleted a material and kept its media.", itemToDelete.id);
-      notify({ title: "Material deleted", tone: "success" });
+      notify({ title: "Material deleted", description: outcome.cleanupPending ? `${outcome.cleanupPending} files need cleanup. Open them in Media and retry Delete.` : undefined, tone: outcome.cleanupPending ? "info" : "success", persistent: Boolean(outcome.cleanupPending) });
       setItemToDelete(null);
       setOpenItemId("");
     } catch (error) {
+      await refreshSavedContent();
       notify({ title: "Delete failed", description: errorText(error, "The material could not be deleted."), tone: "error" });
     } finally {
       setDeleting(false);
@@ -600,6 +630,7 @@ export function ContentLibraryView({
       setLessonToDelete(null);
       setOpenLessonId("");
     } catch (error) {
+      await refreshSavedContent();
       notify({ title: "Delete failed", description: errorText(error, "The collection could not be deleted."), tone: "error" });
     } finally {
       setDeleting(false);
@@ -658,6 +689,12 @@ export function ContentLibraryView({
     }
   }
 
+  const affectedCollections = itemToDelete ? lessons.filter((entry) => entry.learningItemIds.includes(itemToDelete.id)) : [];
+  const affectedActivities = itemToDelete ? linkedActivities.filter((entry) => entry.learningItemIds.includes(itemToDelete.id) || entry.questions.some((q) => q.learningItemId === itemToDelete.id)) : [];
+  const emptiesCollection = affectedCollections.some((entry) => !entry.learningItemIds.some((id) => id !== itemToDelete?.id && itemById.has(id)));
+  const emptiesActivity = affectedActivities.some((entry) => !entry.questions.some((q) => q.learningItemId !== itemToDelete?.id && itemById.has(q.learningItemId)));
+  const deletionBlocked = emptiesCollection || emptiesActivity;
+
   const sections: Array<{ value: Tab; label: string; count: number; icon: LucideIcon }> = [
     { value: "materials", label: "Materials", count: items.length, icon: Layers },
     { value: "lessons", label: "Collections", count: lessons.length, icon: BookOpen },
@@ -676,7 +713,7 @@ export function ContentLibraryView({
       <div className="mt-5">
         {!ready ? (
           <LoadingState label="Loading content" />
-        ) : tab === "materials" ? (
+        ) : loadError ? <LoadError label="your content" onRetry={() => setLoadAttempt((n) => n + 1)} /> : tab === "materials" ? (
           <MaterialsTab
             items={items}
             categories={categories}
@@ -719,11 +756,13 @@ export function ContentLibraryView({
         open={cardFormOpen}
         initialKind={kind}
         categories={categories}
+        existingItems={items}
         knownLabels={items.map((item) => item.label)}
         onClose={() => setCardFormOpen(false)} onSubmit={addCard} />
 
       <CardDetailDialog
         item={openItem}
+        existingItems={items}
         categories={categories}
         creator={openItem ? nameFor(userNames, openItem.createdBy) : ""}
         canManage={Boolean(openItem && user.role === "teacher")}
@@ -751,12 +790,17 @@ export function ContentLibraryView({
             <Button type="button" variant="ghost" onClick={() => setItemToDelete(null)} disabled={deleting}>
               Cancel
             </Button>
-            <Button type="button" variant="danger" onClick={confirmDeleteItem} disabled={deleting}>
+            <Button type="button" variant="danger" onClick={confirmDeleteItem} disabled={deleting || deletionBlocked}>
               {deleting ? "Deleting..." : "Delete"}
             </Button>
           </>
         }
       >
+        {affectedCollections.length || affectedActivities.length ? <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-slate-700">
+          <p className="font-semibold">Used in {affectedCollections.length} {affectedCollections.length === 1 ? "collection" : "collections"} and {affectedActivities.length} {affectedActivities.length === 1 ? "activity" : "activities"}.</p>
+          <p className="mt-1 break-words">{[...affectedCollections, ...affectedActivities].map((entry) => entry.title).join(", ")}</p>
+          <p className="mt-1">{deletionBlocked ? "This is the last card or question in one of them. Edit or delete that collection or activity first." : "This card and its questions will be removed. The other cards and questions stay."}</p>
+        </div> : null}
         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-blue-100 bg-[#fff] p-3">
           <input
             type="checkbox"

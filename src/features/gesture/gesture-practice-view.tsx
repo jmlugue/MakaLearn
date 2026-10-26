@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadError } from "@/components/common/load-error";
+
 import { usePhoneLayout } from "@/components/common/use-phone-layout";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -218,6 +220,8 @@ export function GesturePracticeView() {
   const readyGestureStartedAtRef = useRef(0);
   const guidedTimeoutsRef = useRef<number[]>([]);
   const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
+  const [referenceLoadError, setReferenceLoadError] = useState(false);
+  const [referenceLoadAttempt, setReferenceLoadAttempt] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cameraStarted, setCameraStarted] = useState(false);
   const [trackerStatus, setTrackerStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -315,14 +319,17 @@ export function GesturePracticeView() {
   useEffect(() => {
     let active = true;
 
+    setReferenceLoadError(false);
     async function loadSupabaseData() {
       try {
-        const data = await fetchMakaLearnData();
+        const data = await fetchMakaLearnData("gesture");
         if (!active) return;
         const gestureItems = ensureFixedGestureItems(data.learningItems);
         setLearningItems(gestureItems);
         setCategories(data.categories);
       } catch (error) {
+        if (!active) return;
+        setReferenceLoadError(true);
         notify({
           title: "Gesture data unavailable",
           description: "Supabase gesture references could not be loaded.",
@@ -340,7 +347,7 @@ export function GesturePracticeView() {
       guidedTimeoutsRef.current = [];
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
-  }, [notify]);
+  }, [notify, referenceLoadAttempt]);
 
   useEffect(() => {
     if (!learningItems.length) return;
@@ -1238,6 +1245,7 @@ export function GesturePracticeView() {
       {/* Portrait tablets and short landscape phones scroll; desktop keeps its fitted stage. */}
       <section className="student-gesture-stage absolute inset-0 isolate flex flex-col gap-2 overflow-y-auto overflow-x-hidden bg-[#f4fbff] p-2 sm:gap-3 sm:overflow-hidden sm:p-3 lg:p-4">
         <StudentGestureImageBackground />
+        {referenceLoadError ? <div className="relative z-10 shrink-0"><LoadError label="gesture references" onRetry={() => setReferenceLoadAttempt((n) => n + 1)} /></div> : null}
         {/* pl-14 on phones keeps the toolbar clear of the Student mode logo button. */}
         <div className="relative z-10 flex shrink-0 justify-center pl-14 lg:pl-0">
           <div
@@ -2202,7 +2210,7 @@ function GuidedSessionSummary({
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         <Button type="button" variant="outline" size="lg" className="rounded-full" onClick={onCancel}>
-          Cancel
+          Back to practice
         </Button>
         <Button type="button" size="lg" className="rounded-full" onClick={onTryAgain}>
           <RotateCw className="h-5 w-5" aria-hidden="true" />

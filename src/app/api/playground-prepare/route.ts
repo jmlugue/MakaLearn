@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { buildMsavClassificationPrompt, isBuiltInMsavLabel, parseMsavMaterialProfile } from "@/utils/msav-material-profile";
+import type { Database } from "@/types/database";
 
 const FEATURE = "msav-material-preparation";
 const DEFAULT_MODEL = "gemini-3.5-flash-lite";
-const COOLDOWN_MS = 60_000;
 const PROVIDER_TIMEOUT_MS = 20_000;
 
 type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
@@ -17,7 +17,7 @@ function extractJson(text: string) {
   return start >= 0 && end > start ? trimmed.slice(start, end + 1) : "";
 }
 
-// Prepare a new PECS card's MSAV profile separately from Playground sentence grading.
+// Prepare a new PECS card's MSAV profile for eligibility and the algorithm fallback.
 export async function POST(request: Request) {
   let learningItemId = "";
   try {
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
   const { data: item, error: itemError } = await supabase
     .from("learning_items")
-    .select("id,content_type,label,description,instruction,tags,category_id,playground_preparation_status,playground_last_attempt_at")
+    .select("id,content_type,label,description,instruction,tags,category_id,updated_at,msav_profile,playground_prepared_at,playground_classifier_model,playground_preparation_status,playground_last_attempt_at")
     .eq("id", learningItemId)
     .single();
   if (itemError || !item) return NextResponse.json({ error: "That learning material was not found." }, { status: 404 });
@@ -56,33 +56,40 @@ export async function POST(request: Request) {
 
   // Built-in cards always use the reviewed source-controlled rules and never consume AI quota.
   if (isBuiltInMsavLabel(item.label)) return NextResponse.json({ status: "ready", builtIn: true });
-  if (item.playground_preparation_status === "processing") {
-    return NextResponse.json({ error: "This material is already being prepared." }, { status: 409 });
+  if (item.playground_preparation_status === "ready" && item.msav_profile) {
+    const existing = parseMsavMaterialProfile(item.msav_profile);
+    if (existing) return NextResponse.json({ status: "ready", profile: existing, preparedAt: item.playground_prepared_at, classifierModel: item.playground_classifier_model });
   }
 
-  const lastAttempt = item.playground_last_attempt_at ? Date.parse(item.playground_last_attempt_at) : 0;
-  const retryAfterMs = lastAttempt + COOLDOWN_MS - Date.now();
-  if (retryAfterMs > 0) {
-    return NextResponse.json(
-      { error: "Please wait a moment before trying again.", retryAfterSeconds: Math.ceil(retryAfterMs / 1000) },
-      { status: 429 }
-    );
-  }
+  const apiKey = process.env.GEMINI_MSAV_API_KEY?.trim();
+  if (!apiKey) return NextResponse.json({ status: "pending", error: "Preparation is unavailable. Try again later." }, { status: 503 });
 
-  const attemptedAt = new Date().toISOString();
-  const { data: claimedItem, error: processingError } = await supabase.from("learning_items").update({
-    playground_preparation_status: "processing",
-    playground_last_attempt_at: attemptedAt,
-    playground_preparation_error: null
-  }).eq("id", learningItemId).or("playground_preparation_status.is.null,playground_preparation_status.neq.processing").select("id").maybeSingle();
-  if (processingError) return NextResponse.json({ error: "This material could not be prepared right now." }, { status: 503 });
-  if (!claimedItem) return NextResponse.json({ error: "This material is already being prepared." }, { status: 409 });
+  let claim: { state: string; attemptedAt?: string; version?: string };
+  try {
+    const result = await createSupabaseServiceRoleClient().rpc("claim_material_preparation", { p_user: userId, p_item: learningItemId, p_version: item.updated_at });
+    if (result.error || !result.data || typeof result.data !== "object" || Array.isArray(result.data)) throw new Error("Claim unavailable");
+    claim = result.data as typeof claim;
+  } catch {
+    return NextResponse.json({ status: "pending", error: "Preparation is unavailable. Try again later." }, { status: 503 });
+  }
+  if (claim.state !== "claimed" || !claim.attemptedAt || !claim.version) {
+    const busy = claim.state === "busy" || claim.state === "ready";
+    return NextResponse.json({ error: busy ? "This material is already being prepared or is ready. Refresh its details." : "Preparation limit reached. Try again later." }, { status: busy ? 409 : 429 });
+  }
+  // A late provider response cannot overwrite an edit, a deletion, or a replacement claim.
+  const writeClaim = async (patch: Database["public"]["Tables"]["learning_items"]["Update"]) => {
+    const result = await supabase.from("learning_items").update(patch).eq("id", learningItemId)
+      .eq("updated_at", claim.version!).eq("playground_last_attempt_at", claim.attemptedAt!)
+      .eq("playground_preparation_status", "processing").select("id");
+    if (result.error) throw result.error;
+    return Boolean(result.data?.length);
+  };
 
   const setPending = async (code: string) => {
-    await supabase.from("learning_items").update({
+    await writeClaim({
       playground_preparation_status: "pending",
       playground_preparation_error: code
-    }).eq("id", learningItemId);
+    });
   };
   const logUsage = async (eventType: "model-request" | "model-success" | "model-failure" | "fallback-used") => {
     const { error } = await supabase.from("ai_usage_events").insert({
@@ -95,16 +102,6 @@ export async function POST(request: Request) {
     });
     if (error) console.error("MSAV AI usage event was not recorded.", error);
   };
-
-  const apiKey = process.env.GEMINI_MSAV_API_KEY?.trim();
-  if (!apiKey) {
-    await setPending("provider_unavailable");
-    await logUsage("fallback-used");
-    return NextResponse.json(
-      { status: "pending", error: "Playground preparation is unavailable right now. Try again later." },
-      { status: 503 }
-    );
-  }
 
   const { data: category } = await supabase.from("categories").select("name").eq("id", item.category_id).maybeSingle();
   const controller = new AbortController();
@@ -144,12 +141,13 @@ export async function POST(request: Request) {
     }
 
     if (parsed.status === "unsupported") {
-      await supabase.from("learning_items").update({
+      const saved = await writeClaim({
         playground_preparation_status: "unsupported",
         msav_profile: null,
         playground_classifier_model: model,
         playground_preparation_error: "unsupported"
-      }).eq("id", learningItemId);
+      });
+      if (!saved) return NextResponse.json({ error: "This material changed. Refresh its details." }, { status: 409 });
       await logUsage("model-success");
       return NextResponse.json({ status: "unsupported" });
     }
@@ -162,19 +160,19 @@ export async function POST(request: Request) {
     }
 
     const preparedAt = new Date().toISOString();
-    const { error: saveError } = await supabase.from("learning_items").update({
+    const saved = await writeClaim({
       playground_preparation_status: "ready",
       msav_profile: profile,
       playground_prepared_at: preparedAt,
       playground_classifier_model: model,
       playground_preparation_error: null
-    }).eq("id", learningItemId);
-    if (saveError) throw saveError;
+    });
+    if (!saved) return NextResponse.json({ error: "This material changed. Refresh its details." }, { status: 409 });
     await logUsage("model-success");
     return NextResponse.json({ status: "ready", profile, preparedAt, classifierModel: model });
   } catch (error) {
     console.error("MSAV Gemini preparation failed.", error);
-    await setPending(controller.signal.aborted ? "provider_timeout" : "provider_unavailable");
+    await setPending(controller.signal.aborted ? "provider_timeout" : "provider_unavailable").catch(() => undefined);
     await logUsage("model-failure");
     return NextResponse.json(
       { status: "pending", error: "Playground preparation is unavailable right now. Try again later." },

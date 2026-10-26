@@ -6,6 +6,8 @@ Current learning content is placeholder-only. The app includes a local trained s
 
 For thesis-panel questions about where features are implemented, see the [Codebase Guide for Thesis Defense](docs/codebase-guide.md), with feature-to-file maps, important function names, data flows, and short presentation answers.
 
+For current product behavior and approved reliability rules, see [Current system](docs/current-system.md). Historical handoff notes are archived and do not override it.
+
 ## Tech stack
 
 - Next.js App Router
@@ -18,7 +20,7 @@ For thesis-panel questions about where features are implemented, see the [Codeba
 ## Run locally
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -50,10 +52,11 @@ src/
 - `/content` PECS and gesture content library with in-app media previews
 - `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, trained local recognition, and Gemini-first corrective feedback with template fallback
 - `/activities` PECS activity library, player, manual creator, adaptive question generation, and draft helper
-- `/playground` PECS/AAC sentence builder with category filters, drag/drop or tap card selection, rule-based sentence checking, and speech/audio playback
-- `/settings` profile, accessibility, and display settings
+- `/playground` PECS/AAC sentence builder with category filters, drag/drop or tap card selection, AI English checking with local fallback, and speech playback
+- `/profile` personal name and password settings
+- `/settings` accessibility, guidance, motion, and device voice preferences
 - `/help` teacher/admin guide
-- `/admin` admin-only teacher account, content monitoring, uploads, logs, and development tools
+- `/admin` admin-only accounts, content monitoring, uploads, usage, and logs
 
 Legacy route `/learners` redirects to `/content` because learner management is not active in the current navigation.
 
@@ -63,12 +66,12 @@ Legacy route `/learners` redirects to `/content` because learner management is n
 - PECS materials support a standard card picture, a separate word-free Activity picture, and optional audio. The standard picture may contain the printed label; the Activity picture must not.
 - The Playground loads the standard PECS/AAC card image from Supabase, groups cards by their saved Supabase category, and reads every card with the one browser voice selected in Settings. Uploaded audio remains available in Content but is not required for Playground.
 - Learning material media under `public/pecs`, `public/audio/pecs`, `public/gesture-references`, and gesture audio is migration source material only. Runtime learning media should come from Supabase Storage.
-- Playground is available in teacher UI and Student Mode. Other teacher-only pages remain restricted while Student Mode is active.
+- Playground opens inside Student Mode. Other teacher-only pages remain restricted while Student Mode is active.
 - Playground uses AI English grammar checking first, with permanent Supabase decisions and fixed local feedback. AI receives only ordered text and ignores card roles. `validatePecsSentence` uses roles only as the outage fallback or in explicit algorithm mode; it also accepts simple person descriptions such as `I am a friend`. Configure the dedicated key as described in [Playground checking](docs/playground-checker.md).
 - Teachers can store additional gesture records in Content Library.
 - Gesture Recognition uses MediaPipe hand landmarks and the bundled trained MakaLearn gesture model for seven fixed labels: I want to go to toilet, I want to eat, I want to drink, Help, Yes, No, and Sit down. These prototype labels/media are not official Makaton content.
 - Gesture Practice is free practice: the side card is a reference aid, while corrective feedback is based on the gesture actually recognized by the model.
-- See `GESTURE_SAMPLE_POSES.md` for the complete demo pose-to-prediction mapping.
+- See [the gesture reference](GESTURE_SAMPLE_POSES.md) for supported signs and current implementation links.
 - Gesture records support reference image, gesture image/video, and audio uploads.
 - PECS and gesture images/videos/audio can be previewed inside the website.
 - Active Activities use PECS materials only. Built-in cards use `public/pecs/generated_cards_no_text`; teacher-created cards must have `learning_items.activity_image_url` before they can appear as answers or distractors. The standard labelled card image is never used as an Activity answer fallback.
@@ -154,13 +157,15 @@ Planned updates before production:
 - When adding a PECS material, **Add label to picture** is on by default. Upload word-free artwork and enter its Label to preview a captioned Content card and a word-free Activity card. Both PNGs use the same picture placement; captions shrink or wrap to two lines, with an error if they cannot fit legibly. **Use card outline** fits the whole picture above the caption on the white 900 × 1200 template. **Use image as uploaded** preserves an existing card's layout and proportions, and adds no frame. Use plain artwork if the caption overlaps content. If the upload already contains words, turn off **Add label to picture** and upload a separate word-free Activity picture. Existing saved materials and their replacement controls are unchanged. Preview generation blocks Save until the current settings are ready; filenames, upload limits, audio, and gesture references keep their existing rules.
 
 - PECS and gesture media are placeholders and must not be treated as official Makaton content.
-- `generateCorrectiveFeedbackPlaceholder` and `generateFeedbackPlaceholder` are marked for future model/AI replacement.
+- Some legacy helper names contain `Placeholder`; runtime recognition is trained and feedback already supports AI with checked local fallback.
 - Gesture hand tracking uses real MediaPipe landmarks and the bundled trained recognizer. Corrective feedback uses Gemini with local template fallback; gesture attempts are session-only.
 - The AI activity draft can use its isolated Gemini key when configured, but only after Supabase cache and usage checks pass. Gesture-practice, match, drag/drop, and local scoring do not call the activity model.
-- Playground's original local validator remains available; the optional primary checker below judges standard English without changing that algorithm.
+- Playground's original local validator remains available; the primary checker below judges standard English without changing that algorithm.
+For the implemented feedback/preparation budgets, deletion safeguards, settings saves, and deferred post-defense tasks, see [Current system](docs/current-system.md).
+
 ## MSAV preparation for new materials
 
-For the optional strict-English Playground checker, saved decisions, six grammar
+For the primary strict-English Playground checker, saved decisions, six grammar
 cards, pronunciation correction, setup, and rollback switch, see
 [Playground checker](docs/playground-checker.md). Material preparation below
 remains a separate feature.
@@ -169,9 +174,9 @@ The 50 built-in Playground cards keep their reviewed, source-controlled MSAV rol
 
 Standalone feedback distinguishes words, phrases, and sentences. One-word labels, including Listen, Help, Hello, and Yes, receive **You made a word.** The bundled Good morning, Thank you, and Wash hands cards receive **You made a phrase.** Am, Is, and Are still need other cards. This learning feedback describes the visible label, so a single command word is praised as a word even when it can function as an imperative sentence.
 
-New Gemini preparations also require `singleCardType` (`word`, `phrase`, or `sentence`) in the existing JSON profile. Multi-word labels default to phrases; a prepared complete statement or question, such as I am happy, can receive **You made a sentence.** The server rejects missing, unknown, or word-count-inconsistent classifications. Older profiles remain compatible and use word/phrase fallback without a new model call. Gemini supplies metadata once; every Check and its feedback still run locally with fixed wording. No database migration is required.
+New Gemini preparations also require `singleCardType` (`word`, `phrase`, or `sentence`) in the existing JSON profile. Multi-word labels default to phrases; a prepared complete statement or question, such as I am happy, can receive **You made a sentence.** The server rejects missing, unknown, or word-count-inconsistent classifications. Older profiles remain compatible and use word/phrase fallback without a new model call. Gemini supplies metadata once; Check uses AI grammar first with fixed feedback and local fallback. No database migration is required.
 
-If preparation succeeds, the validated profile is stored on `learning_items`. The card becomes available in Playground once it also has a public standard card picture; audio is optional. If the key or provider is unavailable, the material remains in Content with a **Try preparing again** button and stays out of the Playground picker. There are no scheduled or automatic retries. Configure the optional classifier with:
+If preparation succeeds, the validated profile is stored on `learning_items`. The card becomes available in Playground once it also has a public standard card picture; audio is optional. If the key or provider is unavailable, the material remains in Content with a **Try preparing again** button and stays out of the Playground picker. There are no scheduled or automatic retries. Preparation uses server-enforced 10/hour and 40/day attempt limits per teacher, a 60-second per-material cooldown, and an expiring claim for explicit recovery. Configure the optional classifier with:
 
 ```env
 GEMINI_MSAV_API_KEY=

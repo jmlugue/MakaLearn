@@ -61,6 +61,7 @@ export function MediaPreviewDialog({
     >
       {asset ? (
         <div className="space-y-4">
+          {asset.cleanupPending ? <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Cleanup unfinished. Choose Delete file to retry.</p> : null}
           <PopupTitle title={item?.label ?? asset.title}>
             <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide", tone.badge)}>
               <Icon className="h-3 w-3" aria-hidden="true" />

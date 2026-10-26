@@ -6,6 +6,8 @@ license: Complete terms in LICENSE.txt
 
 # Frontend Design
 
+For MakaLearn maintenance, preserve the existing design in `STYLE_GUIDE.md`. The owner's current request is incremental polish, so the exploratory redesign guidance below does not authorize new fonts, palettes, or layouts.
+
 Approach this as the design lead at a small studio known for giving every client a visual identity that could not be mistaken for anyone else's. This client has already rejected proposals that felt templated, and is paying for a distinctive point of view: make deliberate, opinionated choices about palette, typography, and layout that are specific to this brief, and take one real aesthetic risk you can justify.
 
 ## Ground it in the subject

@@ -50,7 +50,7 @@ const addMaterial: HelpTopic = {
   href: "/content?open=add",
   steps: [
     { title: "Add material", text: "In Content, choose Add material. Pick PECS or Gesture and type the word.", icon: Layers, scene: "cards" },
-    { title: "Picture and sound", text: "Add a picture and a sound. Files are saved as word_category, like eat_food.", icon: ImageIcon, scene: "media" },
+    { title: "Picture and sound", text: "Upload a picture. Add audio if you want a recorded word.", icon: ImageIcon, scene: "media" },
     { title: "Pick a category", text: "Or leave it blank: it goes to No category, and you can sort it later.", icon: FolderOpen, scene: "category" }
   ]
 };
@@ -77,7 +77,7 @@ const createActivity: HelpTopic = {
   steps: [
     { title: "Pick a format", text: "Match, Fill in the blank, or Drag and drop. Tick From a collection to use its cards.", icon: Shapes, scene: "activity" },
     { title: "Choose cards", text: "Pick up to 5 cards. Each one gets a ready question.", icon: Layers, scene: "cards" },
-    { title: "Save and play", text: "Check the questions, save, then press Play.", icon: ListChecks, scene: "activity" }
+    { title: "Save and play", text: "Check the questions, save, then choose Preview. Play it with the learner in Student mode.", icon: ListChecks, scene: "activity" }
   ]
 };
 
@@ -203,7 +203,7 @@ const sharedFaqs: HelpFaq[] = [
   },
   {
     question: "Are scores or Guided 7 results saved?",
-    answer: "No. Activity scores show at the end of a round, and Guided 7 shows a short summary at the end of the session. Neither is saved."
+    answer: "Teacher-run Student mode activity results are saved for Admin reports. Teacher previews and gesture practice results are not saved."
   },
   {
     question: "Why is some media shown as placeholder content?",

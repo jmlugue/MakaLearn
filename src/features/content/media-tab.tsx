@@ -151,6 +151,7 @@ export function MediaTab({
                       <ImageOff className="h-6 w-6 text-slate-300" aria-hidden="true" />
                     )}
                   </span>
+                  {asset.cleanupPending ? <span className="mt-1 rounded-lg bg-amber-50 px-1 py-1 text-xs font-semibold text-amber-800">Cleanup needed</span> : null}
                 </button>
               );
             })}
@@ -181,6 +182,7 @@ export function MediaTab({
                       <button type="button" onClick={() => onOpenAsset(asset)} className="block max-w-full truncate font-semibold text-ink hover:text-blue-700">
                         {asset.fileName}
                       </button>
+                      {asset.cleanupPending ? <span className="block text-xs font-semibold text-amber-800">Cleanup needed</span> : null}
                     </td>
                     <td className="hidden px-2 py-2 text-slate-600 sm:table-cell">{cardLabel(asset) ?? <span className="text-slate-400">None</span>}</td>
                     <td className="hidden px-2 py-2 text-slate-600 md:table-cell">{nameFor(userNames, asset.uploadedBy)}</td>

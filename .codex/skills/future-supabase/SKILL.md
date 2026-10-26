@@ -1,128 +1,17 @@
 ---
 name: future-supabase
-description: Use this skill when preparing MakaLearn for Supabase Auth, database tables, storage buckets, Row Level Security, environment variables, or later backend integration.
+description: Use when preparing or modifying MakaLearn Supabase Auth, tables, Storage, RLS, environment variables, or backend integrations.
 ---
 
-# Future Supabase Skill
+# MakaLearn Supabase integration
 
-Use this skill when preparing backend integration for MakaLearn.
+Supabase is already the runtime backend. The old mock-first/future-integration brief is superseded by `CLAUDE.md` and `docs/current-system.md`. Also load the Supabase plugin skill for current platform guidance.
 
-## Current phase
-
-The first build should work without Supabase configured.
-
-Prepare the codebase for Supabase, but do not make Supabase required until the user asks to connect it.
-
-## Planned Supabase features
-
-Supabase will later handle:
-- Authentication
-- Profiles and roles
-- Learner records
-- Learning items
-- Categories
-- Lessons
-- Activities
-- Practice attempts
-- Activity results
-- Storage uploads
-- Row Level Security
-
-## Auth
-
-Use email/password auth later.
-
-Roles should be stored in a `profiles` table.
-
-Roles:
-- admin
-- teacher
-
-Learners do not authenticate.
-
-Login page should include:
-- Email
-- Password
-- Forgot password link
-- Demo login buttons
-
-Demo login buttons can use local demo users first.
-
-## Planned tables
-
-Prepare types/schema thinking for:
-
-- profiles
-- learners
-- categories
-- learning_items
-- media_assets
-- lessons
-- lesson_items
-- activities
-- activity_items
-- practice_attempts
-- activity_results
-
-Teacher notes are not part of the MVP.
-
-## Visibility rules
-
-Planned behavior:
-- Admin can access all relevant records.
-- Teacher can access assigned learners.
-- Teacher can access learning items, lessons, and categories shared across the center.
-- Practice attempts are visible to assigned teacher and admin.
-- Activity results are visible to assigned teacher and admin.
-- Demo mode does not save results.
-
-## Storage buckets
-
-Prepare for these buckets:
-
-- symbol-images
-- gesture-media
-- audio-files
-- learner-photos
-
-Upload restrictions:
-- Symbol/profile photos: image files only
-- Audio: audio files only
-- Gesture media: image or video files only
-
-## Environment variables
-
-Prepare `.env.example` with:
-
-```txt
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-```
-
-Do not commit real keys.
-
-## Code comments
-
-At future integration points, add comments like:
-
-```ts
-// Future Supabase: replace mock data with a query to the learning_items table.
-```
-
-```ts
-// Future Supabase Storage: upload this file to the symbol-images bucket.
-```
-
-```ts
-// Future RLS: teacher should only access assigned learners.
-```
-
-## SQL files
-
-When asked to connect Supabase, create:
-- SQL schema
-- RLS policies
-- seed data
-- storage bucket notes
-
-Keep this separated from the UI build unless requested.
+- Auth uses active teacher/admin profiles. Public signup is disabled; guarded admin routes provision accounts.
+- Runtime materials, categories, media, collections, activities, settings, result usage, and AI cache/quota use Supabase. Browser storage is not record persistence.
+- No learner management or saved gesture attempts. Empty compatibility views are intentional. Keep `activity_results`, which stores teacher-run Student Mode completions.
+- Collection API views use invoker security over legacy backing tables. Preserve current private/shared RLS and creator rules. Admins are view-only for teaching content.
+- Keep service-role credentials server-only. Verify active accounts at API boundaries. Atomic server reservations protect paid requests; browser callers cannot set/reset their quota.
+- Storage uses symbol-images, gesture-media, audio-files. Preserve file-size/type checks, standard/word-free image separation, and retryable media cleanup records.
+- Use migrations for reviewed schema changes; never replay historical `schema.sql` or reset the hosted project. Fresh-project bootstrap is deferred until after the defense.
+- Verify changes with focused local tests and rolled-back database checks. Never claim live storage/auth/provider behavior without exercising it.

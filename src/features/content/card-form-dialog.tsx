@@ -1,9 +1,11 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { FileAudio, Image as ImageIcon, Info, Plus } from "lucide-react";
+import { FileAudio, Image as ImageIcon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { useDiscardChanges } from "@/components/common/use-discard-changes";
+import { duplicateMaterialMessage } from "@/utils/material-label";
 import { FieldError, Input, Label, Select, Textarea } from "@/components/ui/form";
 import { FileUpload } from "@/components/ui/file-upload";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -16,7 +18,7 @@ import { pecsCardManifest } from "@/data/pecs-card-manifest";
 import { symbolVocabulary } from "@/data/symbol-vocabulary";
 import { NO_CATEGORY_ID, noCategory } from "@/lib/no-category";
 import { createPecsCardImages, type PecsCardImages, type PecsCardSettings } from "@/utils/pecs-card-template";
-import type { Category } from "@/types";
+import type { Category, LearningItem } from "@/types";
 
 export type NewCardFiles = Partial<Record<"symbol" | "activity" | "audio", File>>;
 export type NewCardValues = { kind: ContentKind; label: string; categoryId: string; description: string; files: NewCardFiles };
@@ -28,6 +30,7 @@ export function CardFormDialog({
   initialKind,
   categories,
   knownLabels = [],
+  existingItems = [],
   onClose,
   onSubmit
 }: {
@@ -36,16 +39,18 @@ export function CardFormDialog({
   categories: Category[];
   /** Labels of the symbols and gestures MakaLearn already has. Only these may fill the label from a file name. */
   knownLabels?: string[];
+  existingItems?: LearningItem[];
   onClose: () => void;
   /** Resolves true when the material was saved. */
   onSubmit: (values: NewCardValues) => Promise<boolean>;
 }) {
   const [saving, setSaving] = useState(false);
+  const discard = useDiscardChanges(onClose);
 
   return (
-    <Dialog open={open} onClose={saving ? () => undefined : onClose} title="Add material" className="max-w-3xl" hideHeader>
-      {open ? <CardForm initialKind={initialKind} categories={categories} knownLabels={knownLabels} saving={saving} setSaving={setSaving} onClose={onClose} onSubmit={onSubmit} /> : null}
-    </Dialog>
+    <><Dialog open={open} onClose={saving ? () => undefined : discard.requestClose} title="Add material" className="max-w-3xl" hideHeader>
+      {open ? <CardForm initialKind={initialKind} categories={categories} knownLabels={knownLabels} existingItems={existingItems} onDirtyChange={discard.setDirty} saving={saving} setSaving={setSaving} onClose={discard.requestClose} onSaved={onClose} onSubmit={onSubmit} /> : null}
+    </Dialog>{discard.confirmation}</>
   );
 }
 
@@ -88,6 +93,9 @@ function CardForm({
   initialKind,
   categories,
   knownLabels,
+  existingItems,
+  onDirtyChange,
+  onSaved,
   saving,
   setSaving,
   onClose,
@@ -96,6 +104,9 @@ function CardForm({
   initialKind: ContentKind;
   categories: Category[];
   knownLabels: string[];
+  existingItems: LearningItem[];
+  onDirtyChange: (dirty: boolean) => void;
+  onSaved: () => void;
   saving: boolean;
   setSaving: (value: boolean) => void;
   onClose: () => void;
@@ -129,6 +140,8 @@ function CardForm({
   const [cardStyle, setCardStyle] = useState<"outline" | "original">("outline");
   const [addLabel, setAddLabel] = useState(true);
   const [error, setError] = useState("");
+  const duplicate = duplicateMaterialMessage(label, kind, existingItems);
+  useEffect(() => { onDirtyChange(Boolean(label || categoryId || description || Object.keys(files).length || cardStyle !== "outline" || !addLabel)); }, [label, categoryId, description, files, cardStyle, addLabel, onDirtyChange]);
 
   const template = useCardTemplate(files.symbol, kind === "pecs", { style: cardStyle, addLabel, label: addLabel ? label : "" });
   const imagePreview = useObjectUrl(kind === "pecs" ? template.files?.symbol : files.symbol);
@@ -206,6 +219,7 @@ function CardForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving || template.pending) return;
+    if (duplicate) { setError(duplicate); return; }
     if (!files.symbol) {
       setError(kind === "pecs" ? "Add a card image before saving this PECS material." : "Add a reference image before saving this Gesture material.");
       return;
@@ -243,7 +257,7 @@ function CardForm({
     setSaving(true);
     try {
       const saved = await onSubmit({ kind, label: label.trim(), categoryId: savedCategoryId, description: description.trim(), files: named });
-      if (saved) onClose();
+      if (saved) onSaved();
       else setError("The material could not be saved. Your pictures are still here. Try again.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "The material could not be saved. Try again.");
@@ -252,7 +266,6 @@ function CardForm({
     }
   }
 
-  const example = expectedFileName(label.trim() || "eat", categoryName || "food");
 
   return (
     <form onSubmit={submit} className="grid gap-5 md:grid-cols-[minmax(0,1fr)_13rem]">
@@ -264,6 +277,7 @@ function CardForm({
           onChange={setKind}
           options={(["pecs", "gesture"] as ContentKind[]).map((option) => ({ value: option, label: kindMeta[option].label, icon: kindMeta[option].icon }))}
         />
+        {kind === "gesture" ? <p className="text-xs leading-5 text-slate-500">Uploading a gesture does not add it to gesture recognition.</p> : null}
 
         <Box title="Details" tone={tone.soft}>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -273,6 +287,8 @@ function CardForm({
                 id="card-label"
                 className={fieldClass}
                 value={label}
+                aria-invalid={Boolean(duplicate)}
+                aria-describedby={duplicate ? "card-label-duplicate" : undefined}
                 placeholder={kind === "pecs" ? "Eat" : "Sit down"}
                 onChange={(event) => {
                   setLabel(event.target.value);
@@ -280,6 +296,7 @@ function CardForm({
                   setError("");
                 }}
               />
+              <FieldError id="card-label-duplicate" message={duplicate} />
             </div>
             <div>
               <Label htmlFor="card-category">Category</Label>
@@ -316,7 +333,6 @@ function CardForm({
           </div>
         </Box>
 
-        <FileNameNote example={example} className="md:hidden" />
 
         <Box title="Media" tone={tone.soft}>
           {kind === "pecs" ? (
@@ -333,12 +349,11 @@ function CardForm({
                   </label>
                 ))}
               </div>
-              <p className="text-xs leading-5 text-slate-500">Choose Use image as uploaded if your picture already has a border.</p>
               <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm font-semibold text-ink">
                 <input type="checkbox" role="switch" checked={addLabel} onChange={(event) => setAddLabel(event.target.checked)} className="h-5 w-5 shrink-0 accent-blue-600" />
                 Add label to picture
               </label>
-              <p className="text-xs leading-5 text-slate-500">Upload a picture without words to create both cards. Only the Content card gets the label. Turn this off if your picture already has words.</p>
+              <p className="text-xs leading-5 text-slate-500">Use artwork without words to create both cards. Turn this off for an image that already has words.</p>
             </fieldset>
           ) : null}
           <FileUpload
@@ -398,7 +413,6 @@ function CardForm({
               <CardPreview title="Activity card" url={activityPreview} hint="Word-free answer picture" />
             </div>
           ) : <CardTile item={{ label, contentType: kind, symbolImageUrl: imagePreview, audioUrl: files.audio ? "staged" : undefined }} category={category} />}
-          <FileNameNote example={example} className="mt-3 hidden md:flex" />
         </div>
       </div>
 
@@ -406,7 +420,7 @@ function CardForm({
         <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saving || template.pending || Boolean(template.error)}>
+        <Button type="submit" disabled={saving || template.pending || Boolean(template.error) || Boolean(duplicate)}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           {saving ? "Saving..." : "Save"}
         </Button>
@@ -430,18 +444,5 @@ function CardPreview({ title, url, hint }: { title: string; url?: string; hint: 
       </div>
       <p className="mt-1 text-xs leading-5 text-slate-500">{hint}</p>
     </figure>
-  );
-}
-
-/** The file name rule. Files are renamed on Save; the example follows the label and category typed so far. */
-function FileNameNote({ example, className }: { example: string; className?: string }) {
-  return (
-    <p className={cn("flex gap-2 rounded-xl bg-blue-50 p-3 text-xs leading-5 text-blue-900 ring-1 ring-blue-100", className)}>
-      <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" aria-hidden="true" />
-      <span>
-        Files are saved in the <span className="font-semibold">word_category</span> format, like{" "}
-        <span className="font-semibold">{example}</span>.
-      </span>
-    </p>
   );
 }

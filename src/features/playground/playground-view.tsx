@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadError } from "@/components/common/load-error";
+
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -214,6 +216,8 @@ export function PlaygroundView() {
   const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [activeCategory, setActiveCategory] = useState<string>(allCategoriesLabel);
   const [cardSearch, setCardSearch] = useState("");
   const [cardOrderIds, setCardOrderIds] = useState<string[]>([]);
@@ -240,17 +244,18 @@ export function PlaygroundView() {
   useEffect(() => {
     let active = true;
 
+    setReady(false);
+    setLoadError(false);
     async function loadCards() {
       try {
-        const data = await fetchMakaLearnData();
+        const data = await fetchMakaLearnData("playground");
         if (!active) return;
         setLearningItems(data.learningItems);
         setCategories(data.categories);
         setReady(true);
       } catch (error) {
         if (!active) return;
-        setLearningItems([]);
-        setCategories([]);
+        setLoadError(true);
         setReady(true);
         notify({
           title: "PECS cards unavailable",
@@ -265,7 +270,7 @@ export function PlaygroundView() {
     return () => {
       active = false;
     };
-  }, [notify]);
+  }, [notify, loadAttempt]);
 
   useEffect(() => {
     setToolbarReady(true);
@@ -442,6 +447,7 @@ export function PlaygroundView() {
     setSpeakingIndex(null);
   }
 
+  // Use the grammar checker first, with local MSAV when it is unavailable.
   // Check the cards through the AI-first adapter, which uses local MSAV if unavailable.
   async function checkSentence() {
     if (checkingRef.current) return;
@@ -636,7 +642,7 @@ export function PlaygroundView() {
                         <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-blue-100 bg-[#f8fbff] text-sm font-semibold text-slate-600">
                           Loading PECS cards...
                         </div>
-                      ) : filteredCards.length ? (
+                      ) : loadError ? <LoadError label="cards" onRetry={() => setLoadAttempt((n) => n + 1)} /> : filteredCards.length ? (
                         <div className={`grid ${isStudentMode ? "grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:portrait:grid-cols-5" : "gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"}`}>
                           {filteredCards.map((card) => (
                             <button
@@ -764,7 +770,7 @@ export function PlaygroundView() {
                         disabled={!sentenceCards.length || speaking || checking}
                       >
                         <Volume2 className="h-6 w-6" aria-hidden="true" />
-                        {speaking ? "Listening..." : "Listen"}
+                        {speaking ? "Reading aloud..." : "Listen"}
                       </button>
                       <button
                         type="button"

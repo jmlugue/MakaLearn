@@ -1,5 +1,7 @@
 "use client";
 
+import { LoadError } from "@/components/common/load-error";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PlayCircle, Plus, Shapes } from "lucide-react";
@@ -83,6 +85,8 @@ export function ActivitiesView() {
   const createLinkHandled = useRef(false);
 
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -94,10 +98,10 @@ export function ActivitiesView() {
   const [formMode, setFormMode] = useState<ActivityFormMode | null>(null);
 
   useEffect(() => {
-    if (!ready || !wantsCreate || createLinkHandled.current || user.role !== "teacher") return;
+    if (!ready || loadError || !wantsCreate || createLinkHandled.current || user.role !== "teacher") return;
     createLinkHandled.current = true;
     setFormMode({ kind: "new" });
-  }, [ready, user.role, wantsCreate]);
+  }, [loadError, ready, user.role, wantsCreate]);
   const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -115,7 +119,9 @@ export function ActivitiesView() {
 
   useEffect(() => {
     let active = true;
-    fetchMakaLearnData()
+    setReady(false);
+    setLoadError(false);
+    fetchMakaLearnData("activities")
       .then((data) => {
         if (!active) return;
         const sourceItems = upgradeStarterLearningItemPrompts(data.learningItems);
@@ -157,6 +163,7 @@ export function ActivitiesView() {
       })
       .catch(() => {
         if (!active) return;
+        setLoadError(true);
         notify({ title: "Activities unavailable", description: "Activity records could not be loaded.", tone: "error" });
       })
       .finally(() => {
@@ -165,14 +172,14 @@ export function ActivitiesView() {
     return () => {
       active = false;
     };
-  }, [notify, user.id]);
+  }, [notify, user.id, loadAttempt]);
 
   const itemById = useMemo(() => new Map(learningItems.map((item) => [item.id, item])), [learningItems]);
   const categoryNameById = useMemo(
     () => Object.fromEntries(categories.map((category) => [category.id, category.name])),
     [categories]
   );
-  // Others' private activities and lessons stay hidden. The read rules allow them, so this is the only filter.
+  // Keep UI visibility consistent with the database read policies.
   const visibleActivities = useMemo(
     () => activities.filter((activity) => canSee(activity, user) && !isRetiredActivity(activity)),
     [activities, user]
@@ -224,7 +231,7 @@ export function ActivitiesView() {
 
   // A player link to an activity that no longer exists falls back to the library.
   useEffect(() => {
-    if (!ready || isStudentMode || !playId || playingActivity) return;
+    if (!ready || loadError || isStudentMode || !playId || playingActivity) return;
     if (!canPlay && visibleActivities.some((activity) => activity.id === playId)) {
       // An admin following a player link sees the preview instead.
       setOpenActivityId(playId);
@@ -233,7 +240,7 @@ export function ActivitiesView() {
     }
     notify({ title: "Activity not found", description: "It may have been deleted." });
     router.replace(pathname);
-  }, [canPlay, isStudentMode, notify, pathname, playId, playingActivity, ready, router, visibleActivities]);
+  }, [canPlay, isStudentMode, loadError, notify, pathname, playId, playingActivity, ready, router, visibleActivities]);
 
   function canManage(activity: Activity) {
     return user.role === "teacher" && (activity.createdBy === user.id || activity.visibility === "shared");
@@ -447,6 +454,7 @@ export function ActivitiesView() {
 
   if (isStudentMode) {
     if (!ready) return <LoadingState label="Loading activities" />;
+    if (loadError) return <LoadError label="activities" onRetry={() => setLoadAttempt((n) => n + 1)} />;
     if (player) return player;
     if (!visibleActivities.length) {
       return <EmptyState icon={PlayCircle} title="No activities yet" description="Ask your teacher to add an activity." />;
@@ -466,7 +474,7 @@ export function ActivitiesView() {
         icon={Shapes}
         actions={user.role === "teacher" ? (
           <GuideTip id="activities.create">
-            <Button type="button" onClick={() => setFormMode({ kind: "new" })} disabled={!ready}>
+            <Button type="button" onClick={() => setFormMode({ kind: "new" })} disabled={!ready || loadError}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               Create activity
             </Button>
@@ -477,7 +485,7 @@ export function ActivitiesView() {
 
       {!ready ? (
         <LoadingState label="Loading activities" />
-      ) : (
+      ) : loadError ? <LoadError label="activities" onRetry={() => setLoadAttempt((n) => n + 1)} /> : (
         <ActivityLibrary
           activities={visibleActivities}
           itemById={itemById}
