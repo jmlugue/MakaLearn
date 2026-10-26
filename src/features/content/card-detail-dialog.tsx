@@ -230,7 +230,7 @@ export function CardDetailDialog({
                     </div>
                   )}
                 </div>
-                <div className={cn("p-4", glassBoxClass)}>
+                {!grammarContextNeeded ? <div className={cn("p-4", glassBoxClass)}>
                   <SectionLabel className="mb-2">Activities</SectionLabel>
                   {activityReady ? (
                     <p className="flex items-start gap-2 text-sm leading-6 text-emerald-800">
@@ -247,7 +247,7 @@ export function CardDetailDialog({
                       <span><span className="font-bold">Activity picture needed.</span> Upload a picture with no printed words. Until then, this material stays out of Activity choices.</span>
                     </p>
                   )}
-                </div>
+                </div> : null}
               </div>
             ) : null}
 
