@@ -51,6 +51,22 @@ test("the activity prompt gives Gemini strict classroom-question instructions", 
   assert.match(prompt, /Return only valid JSON/i);
   assert.match(prompt, /custom-umbrella/);
   assert.match(prompt, /Used to stay dry in rain/);
+  assert.match(prompt, /Do not use semicolons or em dashes/);
+  assert.doesNotMatch(prompt, /[;\u2014]/);
+});
+
+test("generated activity wording rejects semicolons and em dashes", () => {
+  for (const punctuation of [";", "\u2014"]) {
+    const result = draft.parsePromptDraftText(JSON.stringify({
+      prompts: [{ learningItemId: material.id, prompt: `Rain falls outside${punctuation} so I carry my ____.` }]
+    }), "fill-blank", [material]);
+    assert.deepEqual(result.suggestions, []);
+    assert.match(result.issues[0].reasons.join(" "), /semicolons or em dashes/);
+  }
+  const result = draft.parsePromptDraftText(JSON.stringify({
+    prompts: [{ learningItemId: material.id, prompt: "Rain falls outside, so I carry my ____." }]
+  }), "fill-blank", [material]);
+  assert.equal(result.suggestions.length, 1);
 });
 
 test("regeneration tells Gemini which sentence must change and uses more variation", () => {

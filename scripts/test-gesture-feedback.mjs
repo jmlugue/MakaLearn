@@ -75,6 +75,8 @@ for (const issueCategory of categories) {
   assert.equal(feedback.issueCategory, issueCategory);
   assert.ok(feedback.learnerMessage.length > 5);
   assert.ok(feedback.teacherNote.length > 10);
+  assert.doesNotMatch(feedback.learnerMessage, /[;\u2014]/);
+  assert.doesNotMatch(feedback.teacherNote, /[;\u2014]/);
 }
 
 const request = buildGestureFeedbackRequest({
@@ -119,6 +121,13 @@ const valid = validateGeminiGestureFeedback(
 );
 assert.equal(valid?.source, "gemini");
 assert.equal(valid?.learnerMessage, "Great job!");
+
+for (const punctuation of [";", "\u2014"]) {
+  assert.equal(validateGeminiGestureFeedback({
+    learnerMessage: "Try again.",
+    teacherNote: `The local result matched Help${punctuation} repeat the gesture slowly.`
+  }, request), null, "Generated teacher notes must follow the punctuation rule");
+}
 
 assert.equal(
   validateGeminiGestureFeedback(
@@ -450,7 +459,25 @@ try {
     learnerMessage: "Nice work signing help.",
     teacherNote: "The local result matched Help clearly. Keep supervising the next attempt."
   }));
+  let receivedPrompt = "";
+  const successfulFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    receivedPrompt = JSON.parse(options.body).contents[0].parts[0].text;
+    return successfulFetch(url, options);
+  };
   assert.equal((await (await postRoute(request)).json()).source, "gemini");
+  assert.match(receivedPrompt, /short, direct sentences and familiar words in both fields/i);
+  assert.match(receivedPrompt, /Do not use semicolons or em dashes/);
+
+  for (const punctuation of [";", "\u2014"]) {
+    mockGeminiText(JSON.stringify({
+      learnerMessage: "Try again.",
+      teacherNote: `The local result matched Help${punctuation} repeat the gesture slowly.`
+    }));
+    const fallback = await (await postRoute(request)).json();
+    assert.equal(fallback.source, "template");
+    assert.doesNotMatch(fallback.teacherNote, /[;\u2014]/);
+  }
 
   let palmFeedbackFetchCalled = false;
   globalThis.fetch = async () => {

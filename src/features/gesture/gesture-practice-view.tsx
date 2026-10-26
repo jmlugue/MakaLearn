@@ -832,7 +832,7 @@ export function GesturePracticeView() {
         stablePoseStartedAtRef.current = now;
         stablePoseAnchorRef.current = currentHands;
         stableStatusStepRef.current = 0;
-        setStatusMessage("Hold still — 2.0 seconds to prediction.");
+        setStatusMessage("Hold still for 2.0 seconds.");
       }
 
       appendLiveGestureFrame(liveGestureFramesRef.current, hands);
@@ -848,7 +848,7 @@ export function GesturePracticeView() {
         stablePoseStartedAtRef.current = now;
         stablePoseAnchorRef.current = currentHands;
         stableStatusStepRef.current = 0;
-        setStatusMessage("Hold still — 2.0 seconds to prediction.");
+        setStatusMessage("Hold still for 2.0 seconds.");
         return;
       }
 
@@ -857,7 +857,7 @@ export function GesturePracticeView() {
       if (statusStep !== stableStatusStepRef.current && statusStep < 4) {
         stableStatusStepRef.current = statusStep;
         const secondsRemaining = (STABLE_POSE_AUTO_PREDICT_DELAY_MS - statusStep * 500) / 1000;
-        setStatusMessage(`Hold still — ${secondsRemaining.toFixed(1)} seconds to prediction.`);
+        setStatusMessage(`Hold still for ${secondsRemaining.toFixed(1)} seconds.`);
       }
 
       if (stableDuration >= STABLE_POSE_AUTO_PREDICT_DELAY_MS) {
@@ -2305,7 +2305,7 @@ function getPredictionWaitingLabel(status: GestureModelStatus, hasValidHands: bo
 function getConfidenceWaitingLabel(status: GestureModelStatus, hasValidHands: boolean) {
   if (status === "loading") return "Predicting held gesture...";
   if (status === "error") return "Model file not loaded";
-  return hasValidHands ? "Recording — hold still to submit" : "Move hands into frame";
+  return hasValidHands ? "Recording. Hold still." : "Move hands into frame";
 }
 
 function getFixedGestureItems(items: LearningItem[]) {

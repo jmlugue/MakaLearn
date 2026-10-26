@@ -259,7 +259,7 @@ function isUnsafeFeedbackText(value: string) {
 function isContinuousTeacherNote(value: string) {
   // Reject label-like generated copy such as "Observation:" or "Next cue:".
   // The route will use the sentence-based template fallback instead.
-  return !/[:;\u2022]/.test(value) && !/(^|\s)[*-]\s/.test(value);
+  return !/[:;\u2014\u2022]/.test(value) && !/(^|\s)[*-]\s/.test(value);
 }
 
 function isGroundedFeedbackText(value: string, request: GestureFeedbackRequest) {

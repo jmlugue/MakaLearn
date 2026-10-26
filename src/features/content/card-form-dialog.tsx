@@ -329,12 +329,12 @@ function CardForm({
                   </label>
                 ))}
               </div>
-              <p className="text-xs leading-5 text-slate-500">Keeps the complete picture in proportion. Use image as uploaded for an existing card to avoid a second border.</p>
+              <p className="text-xs leading-5 text-slate-500">Choose Use image as uploaded if your picture already has a border.</p>
               <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm font-semibold text-ink">
                 <input type="checkbox" role="switch" checked={addLabel} onChange={(event) => setAddLabel(event.target.checked)} className="h-5 w-5 shrink-0 accent-blue-600" />
                 Add label to picture
               </label>
-              <p className="text-xs leading-5 text-slate-500">Use a picture without words. The Label above appears on the Content card; the Activity card keeps the same picture without the caption. Turn this off if your picture already contains its word.</p>
+              <p className="text-xs leading-5 text-slate-500">Upload a picture without words to create both cards. Only the Content card gets the label. Turn this off if your picture already has words.</p>
             </fieldset>
           ) : null}
           <FileUpload
@@ -360,7 +360,7 @@ function CardForm({
               accept={acceptFor["symbol-images"]}
               hint={`No printed words. Required for Activities. PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
               maxBytes={mediaSizeLimits["symbol-images"]}
-              storageNote="Upload a separate word-free picture for Activities. Words are never removed from the Content picture."
+              storageNote="Upload a separate picture without words for Activities."
               successMessage="Ready to save."
               onUpload={stage("activity")}
               onRemove={unstage("activity")}
