@@ -34,6 +34,12 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-26-two-pecs-versions
+- Outcome: Add material now defaults to adding the Label to new word-free PECS artwork and generates captioned Content plus word-free Activity PNGs through the existing file interface. Both previews appear on desktop/mobile. Fixed artwork/caption bounds, readable one/two-line captions, as-uploaded layout preservation with blank-area confirmation, current-request guards, neutral missing states, separate Activity upload for existing-word sources, and save retry feedback are implemented. Original uploads, existing saved-card replacement controls, filenames/limits, audio, gestures, database fields, and activity renderers are preserved.
+- Files: card-form-dialog.tsx, pecs-card-template.ts, four additional media regressions, README.md, CLAUDE.md and own board entry. Pre-existing unrelated edits/index entries were retained.
+- Verification: 14 media tests, all 62 activity tests (including PECS-over-gesture and no-text assets), TypeScript, lint, production build (23 pages), and whitespace passed. Chromium/WebKit passed eight viewport fixtures plus real-canvas checks for portrait/landscape/square/transparent artwork, existing frames, labelled sources, and long captions; checked delayed generation, corrupt images, confirmation resets, filenames/MIME, separate activity uploads, save failures/retry, and gesture preservation. Visually compared Eat, Good Morning, Thank You, and Wash Hands. Artifacts: system temp directory, makalearn-two-pecs.
+- Limits: validate:materials was attempted but cannot run without NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Browser saving used a captured callback, not hosted uploads. No app dev server, database writes, commit, push, or deployment.
+
 ### 2026-10-26-playground-grammar-pr
 - Outcome: Made AI grammar the default while retaining card roles and new-material role preparation for the MSAV fallback. Added the I am a friend prompt example and a role-based A/The person-description fallback, plus regression coverage and current configuration guidance.
 - Supabase: Corrected only the existing english-v1 / i am a friend decision to valid sentence, with correction history and a Git-ignored backup. Verified the actual store reads the corrected result. No learning-item roles or schema changed.

@@ -15,7 +15,7 @@ import { acceptFor, expectedFileName, extensionError, fileNameError, guessFromFi
 import { pecsCardManifest } from "@/data/pecs-card-manifest";
 import { symbolVocabulary } from "@/data/symbol-vocabulary";
 import { NO_CATEGORY_ID, noCategory } from "@/lib/no-category";
-import { createPecsTemplateImage } from "@/utils/pecs-card-template";
+import { createPecsCardImages, type PecsCardImages, type PecsCardSettings } from "@/utils/pecs-card-template";
 import type { Category } from "@/types";
 
 export type NewCardFiles = Partial<Record<"symbol" | "activity" | "audio", File>>;
@@ -56,19 +56,21 @@ function useObjectUrl(file?: File) {
 }
 
 /** Keep stale asynchronous previews from being shown or saved after a file/style change. */
-function useCardTemplate(source: File | undefined, enabled: boolean) {
-  const [result, setResult] = useState<{ source?: File; file?: File; error?: string }>({});
+function useCardTemplate(source: File | undefined, enabled: boolean, settings: PecsCardSettings) {
+  const { style, addLabel, label } = settings;
+  const request = useMemo(() => ({ source, enabled, style, addLabel, label }), [source, enabled, style, addLabel, label]);
+  const [result, setResult] = useState<{ request: typeof request; files?: PecsCardImages; error?: string }>();
   useEffect(() => {
-    if (!enabled) return;
+    if (!request.enabled || !request.source) return;
     let cancelled = false;
-    createPecsTemplateImage(source).then(
-      (file) => { if (!cancelled) setResult({ source, file }); },
-      (error: unknown) => { if (!cancelled) setResult({ source, error: error instanceof Error ? error.message : "The card picture could not be prepared." }); }
+    createPecsCardImages(request.source, request).then(
+      (files) => { if (!cancelled) setResult({ request, files }); },
+      (error: unknown) => { if (!cancelled) setResult({ request, error: error instanceof Error ? error.message : "The card picture could not be prepared." }); }
     );
     return () => { cancelled = true; };
-  }, [source, enabled]);
-  const current = enabled && result.source === source ? result : undefined;
-  return { file: current?.file, error: current?.error, pending: enabled && !current?.file && !current?.error };
+  }, [request]);
+  const current = enabled && result?.request === request ? result : undefined;
+  return { files: current?.files, error: current?.error, pending: enabled && Boolean(source) && !current?.files && !current?.error };
 }
 
 function Box({ title, tone, children }: { title: string; tone: string; children: ReactNode }) {
@@ -125,11 +127,15 @@ function CardForm({
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<NewCardFiles>({});
   const [cardStyle, setCardStyle] = useState<"outline" | "original">("outline");
+  const [addLabel, setAddLabel] = useState(true);
+  const [blankCaptionConfirmed, setBlankCaptionConfirmed] = useState(false);
   const [error, setError] = useState("");
 
-  const useOutline = kind === "pecs" && cardStyle === "outline";
-  const template = useCardTemplate(files.symbol, useOutline);
-  const imagePreview = useObjectUrl(useOutline ? template.file : files.symbol);
+  const template = useCardTemplate(files.symbol, kind === "pecs", { style: cardStyle, addLabel, label: addLabel ? label : "" });
+  const imagePreview = useObjectUrl(kind === "pecs" ? template.files?.symbol : files.symbol);
+  const activityFile = kind === "pecs" && addLabel && files.symbol ? template.files?.activity : files.activity;
+  const activityPreview = useObjectUrl(activityFile);
+  const needsBlankConfirmation = kind === "pecs" && Boolean(files.symbol) && addLabel && cardStyle === "original" && !blankCaptionConfirmed;
   const tone = kindTone(kind);
   const category = categories.find((candidate) => candidate.id === categoryId);
   const categoryName = fileCategoryName(category);
@@ -179,6 +185,7 @@ function CardForm({
         .filter((other): other is File => Boolean(other));
       fillFromNames([file, ...others]);
       setError("");
+      if (key === "symbol") setBlankCaptionConfirmed(false);
       setFiles((current) => ({ ...current, [key]: file }));
       return Promise.resolve(file);
     };
@@ -201,7 +208,7 @@ function CardForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving || template.pending) return;
+    if (saving || template.pending || needsBlankConfirmation) return;
     if (template.error) {
       setError(template.error);
       return;
@@ -215,12 +222,13 @@ function CardForm({
     const savedCategoryId = categoryId || NO_CATEGORY_ID;
     const savedCategoryName = categoryId ? categoryName : fileCategoryName(noCategory(""));
     // Each file is renamed to match the card (word_category) unless it already does.
+    const prepared: NewCardFiles = kind === "pecs"
+      ? { ...files, symbol: template.files?.symbol, activity: activityFile }
+      : { symbol: files.symbol, audio: files.audio };
     const named: NewCardFiles = {};
     for (const key of Object.keys(fileBuckets) as Array<keyof NewCardFiles>) {
-      const original = files[key];
-      if (!original) continue;
-      const file = key === "symbol" && useOutline ? template.file : original;
-      if (!file) return;
+      const file = prepared[key];
+      if (!file) continue;
       const bucket = fileBuckets[key];
       const problem = sizeError(file, bucket) || extensionError(file, bucket);
       if (problem) {
@@ -235,6 +243,7 @@ function CardForm({
     try {
       const saved = await onSubmit({ kind, label: label.trim(), categoryId: savedCategoryId, description: description.trim(), files: named });
       if (saved) onClose();
+      else setError("The material could not be saved. Your pictures are still here. Try again.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "The material could not be saved. Try again.");
     } finally {
@@ -246,7 +255,7 @@ function CardForm({
 
   return (
     <form onSubmit={submit} className="grid gap-5 md:grid-cols-[minmax(0,1fr)_13rem]">
-      <div className="space-y-4">
+      <fieldset disabled={saving} className="min-w-0 space-y-4">
         <PopupTitle title="Add material" />
         <SegmentedControl
           label="Material type"
@@ -318,12 +327,26 @@ function CardForm({
                   { value: "original", title: "Use image as uploaded", hint: "For pictures that already have an outline." }
                 ] as const).map((option) => (
                   <label key={option.value} className={cn("flex min-h-14 cursor-pointer items-start gap-2 rounded-xl border p-3", cardStyle === option.value ? "border-blue-600 bg-blue-50" : "border-blue-100 bg-[#fff]")}>
-                    <input type="radio" name="card-template" value={option.value} checked={cardStyle === option.value} onChange={() => setCardStyle(option.value)} className="mt-1 accent-blue-600" />
+                    <input type="radio" name="card-template" value={option.value} checked={cardStyle === option.value} onChange={() => { setCardStyle(option.value); setBlankCaptionConfirmed(false); }} className="mt-1 accent-blue-600" />
                     <span><span className="block text-sm font-semibold text-ink">{option.title}</span><span className="block text-xs leading-5 text-slate-500">{option.hint}</span></span>
                   </label>
                 ))}
               </div>
-              <p className="text-xs leading-5 text-slate-500">Keeps the picture proportions without extra padding; wide pictures have white space above and below.</p>
+              <p className="text-xs leading-5 text-slate-500">Keeps the complete picture in proportion. Use image as uploaded for an existing card to avoid a second border.</p>
+              <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm font-semibold text-ink">
+                <input type="checkbox" role="switch" checked={addLabel} onChange={(event) => { setAddLabel(event.target.checked); setBlankCaptionConfirmed(false); }} className="h-5 w-5 shrink-0 accent-blue-600" />
+                Add label to picture
+              </label>
+              <p className="text-xs leading-5 text-slate-500">Use a picture without words. The Label above appears on the Content card; the Activity card keeps the same picture without the caption. Turn this off if your picture already contains its word.</p>
+              {addLabel && cardStyle === "original" ? (
+                <div className="space-y-2 rounded-xl border border-blue-200 p-3">
+                  <label className="flex min-h-11 cursor-pointer items-start gap-2 text-sm text-slate-700">
+                    <input type="checkbox" checked={blankCaptionConfirmed} onChange={(event) => setBlankCaptionConfirmed(event.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-blue-600" />
+                    The bottom caption area is blank and the picture has no words.
+                  </label>
+                  <p className="text-xs leading-5 text-slate-500">Check both previews. If the new caption overlaps any artwork, choose plain artwork with the card outline instead. Confirm before saving.</p>
+                </div>
+              ) : null}
             </fieldset>
           ) : null}
           <FileUpload
@@ -334,21 +357,22 @@ function CardForm({
             accept={acceptFor["symbol-images"]}
             hint={`${kind === "pecs" ? "Required for Playground. " : ""}PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
             maxBytes={mediaSizeLimits["symbol-images"]}
-            storageNote={useOutline ? "Saved with the card outline shown in the preview." : "Saved as uploaded."}
+            storageNote={kind === "pecs" ? addLabel ? "Creates both card versions shown in the previews." : "Used for Content and Playground only." : "Saved as uploaded."}
             successMessage="Ready to save."
             onUpload={stage("symbol")}
             onRemove={unstage("symbol")}
           />
-          {kind === "pecs" ? (
+          {kind === "pecs" && !addLabel ? (
             <FileUpload
               key="activity"
               compact
               icon={ImageIcon}
               label="Activity picture"
+              existingFileName={files.activity?.name}
               accept={acceptFor["symbol-images"]}
               hint={`No printed words. Required for Activities. PNG, JPG, or WebP, up to ${limitLabel("symbol-images")}`}
               maxBytes={mediaSizeLimits["symbol-images"]}
-              storageNote="Shown as an answer choice."
+              storageNote="Upload a separate word-free picture for Activities. Words are never removed from the Content picture."
               successMessage="Ready to save."
               onUpload={stage("activity")}
               onRemove={unstage("activity")}
@@ -370,13 +394,18 @@ function CardForm({
         </Box>
         <FieldError message={template.error} />
         <FieldError message={error} />
-      </div>
+      </fieldset>
 
-      <div className="mx-auto w-full max-w-[13rem] md:max-w-none">
+      <div className="mx-auto w-full max-w-md md:max-w-none">
         <div className="md:sticky md:top-0 md:mt-12">
           <SectionLabel className="mb-2">Live preview</SectionLabel>
           {template.pending ? <p role="status" className="mb-2 text-xs text-slate-500">Preparing card preview...</p> : null}
-          <CardTile item={{ label, contentType: kind, symbolImageUrl: imagePreview, audioUrl: files.audio ? "staged" : undefined }} category={category} />
+          {kind === "pecs" ? (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-1">
+              <CardPreview title="Content card" url={imagePreview} hint="Content and Playground" />
+              <CardPreview title="Activity card" url={activityPreview} hint="Word-free answer picture" />
+            </div>
+          ) : <CardTile item={{ label, contentType: kind, symbolImageUrl: imagePreview, audioUrl: files.audio ? "staged" : undefined }} category={category} />}
           <FileNameNote example={example} className="mt-3 hidden md:flex" />
         </div>
       </div>
@@ -385,13 +414,30 @@ function CardForm({
         <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saving || template.pending || Boolean(template.error)}>
+        <Button type="submit" disabled={saving || template.pending || Boolean(template.error) || needsBlankConfirmation}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           {saving ? "Saving..." : "Save"}
         </Button>
       </div>
 
     </form>
+  );
+}
+
+/** Neutral empty/error states never reveal an Activity answer as visible fallback text. */
+function CardPreview({ title, url, hint }: { title: string; url?: string; hint: string }) {
+  const [failedUrl, setFailedUrl] = useState<string>();
+  return (
+    <figure className="min-w-0">
+      <figcaption className="mb-1 text-sm font-semibold text-ink">{title}</figcaption>
+      <div className="relative aspect-[3/4] overflow-hidden rounded-xl border border-blue-200 bg-white">
+        {url && failedUrl !== url ? (
+          // eslint-disable-next-line @next/next/no-img-element -- preview the exact local file that will be uploaded.
+          <img src={url} alt={`${title} preview`} onError={() => setFailedUrl(url)} className="absolute inset-0 h-full w-full object-contain" />
+        ) : <span className="absolute inset-0 grid place-content-center gap-2 p-3 text-center text-xs text-slate-500"><ImageIcon className="mx-auto h-7 w-7" aria-hidden="true" />{url ? "Picture unavailable" : "No picture yet"}</span>}
+      </div>
+      <p className="mt-1 text-xs leading-5 text-slate-500">{hint}</p>
+    </figure>
   );
 }
 
