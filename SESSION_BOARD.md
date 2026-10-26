@@ -34,6 +34,10 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-26-simple-upload-copy
+- Outcome: Simplified the Add material upload instructions with short, direct sentences. Removed the instructional semicolon and shortened the border and separate Activity picture hints. Recorded the owner's preference to avoid semicolons in instructions and em dashes in UI copy.
+- Scope: Wording and style guidance only. Upload behavior, card generation, previews, and saving are unchanged.
+
 ### 2026-10-26-material-category-audit
 - Outcome: Reviewed all 67 hosted materials, added Polite Words/People/Health, and corrected 17 saved category assignments. Reused existing Grammar/Choices; retained reserved gestures, empty categories, and the ambiguous test material in No category. Updated corresponding built-in tags and 14 untouched generated descriptions, preserving the teacher-edited Sick description.
 - Files: PECS manifest/types, library defaults, media importer, category colors, Playground category styles, maintenance SQL, category regression tests, targeted README/CLAUDE guidance, and docs/material-category-audit.md. Before/after data snapshots are Git-ignored under supabase/backups/.

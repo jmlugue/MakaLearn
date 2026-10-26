@@ -293,7 +293,7 @@ This is the current accepted behavior for every activity surface:
 
 ## 7. Working conventions
 
-- Concise output, no em dashes, in UI copy and in chat.
+- Use short, direct sentences for instructions. No semicolons in instructions. No em dashes in UI copy or chat.
 - Plan before building. The user says "let us plan" and expects questions and options first.
 - The user commits and pushes. Do not commit unless asked.
 - Secrets go in `.env.local`, which is git-ignored, pasted by the user. Never ask for them in chat.
