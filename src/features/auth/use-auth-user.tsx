@@ -16,6 +16,8 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+const INACTIVITY_CHANNEL_NAME = "makalearn-auth-activity";
 
 function mapProfile(row: {
   id: string;
@@ -156,14 +158,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshProfile]);
 
   const signOut = useCallback(async () => {
-    if (user) {
+    const signedInUser = currentUser.current;
+    if (signedInUser) {
       await insertAuditLog({
         category: "auth",
         action: "logout",
-        actor: user,
+        actor: signedInUser,
         targetType: "session",
         targetTitle: "Sign out",
-        detail: `${user.name} signed out.`
+        detail: `${signedInUser.name} signed out.`
       }).catch(() => undefined);
     }
     const supabase = getSupabaseBrowserClient();
@@ -173,7 +176,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearStudentModePreference();
     setCurrentUser(null);
     router.replace("/login");
-  }, [router, setCurrentUser, user]);
+  }, [router, setCurrentUser]);
+
+  // End the authenticated session after five quiet minutes. BroadcastChannel keeps
+  // activity in another MakaLearn tab from expiring this tab's session.
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const userId = user.id;
+
+    let lastActivityAt = Date.now();
+    let timeoutId: number | undefined;
+    let signingOutForInactivity = false;
+    const channel = typeof BroadcastChannel === "undefined"
+      ? null
+      : new BroadcastChannel(INACTIVITY_CHANNEL_NAME);
+
+    const scheduleSignOut = () => {
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      const remaining = Math.max(0, INACTIVITY_TIMEOUT_MS - (Date.now() - lastActivityAt));
+      timeoutId = window.setTimeout(() => {
+        if (signingOutForInactivity) return;
+        signingOutForInactivity = true;
+        void signOut();
+      }, remaining);
+    };
+
+    const recordActivity = () => {
+      lastActivityAt = Date.now();
+      channel?.postMessage({ userId, activityAt: lastActivityAt });
+      scheduleSignOut();
+    };
+
+    const handleBroadcast = (event: MessageEvent<{ userId?: string; activityAt?: number }>) => {
+      if (event.data?.userId === userId && typeof event.data.activityAt === "number") {
+        lastActivityAt = Math.max(lastActivityAt, event.data.activityAt);
+        scheduleSignOut();
+      }
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart", "wheel", "scroll"];
+    const handleActivity = () => recordActivity();
+
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, handleActivity, { passive: true }));
+    channel?.addEventListener("message", handleBroadcast);
+    scheduleSignOut();
+
+    return () => {
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, handleActivity));
+      channel?.removeEventListener("message", handleBroadcast);
+      channel?.close();
+    };
+  }, [signOut, user?.id]);
 
   const value = useMemo(
     () => ({ user, loading, error, refreshProfile, signOut }),
@@ -202,3 +256,4 @@ export function useAuthUser() {
     signOut: value.signOut
   };
 }
+
