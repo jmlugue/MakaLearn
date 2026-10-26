@@ -40,6 +40,10 @@ Use this file to coordinate work across terminal sessions in this repository. It
 - Verification: Feedback unit/mocked-route checks plus five lifecycle regressions, six capture tests, three stability tests, TypeScript, lint, production build (23 pages), and whitespace passed. New cases cover either hand order, unknown/reordered hand labels, invalid one-hand/level-hand input, late responses/fallbacks, and fresh wrong attempts. No dev server, live webcam/provider check, database writes, commit, or deployment.
 
 
+### 2026-10-26-remove-caption-reminder
+- Outcome: Removed the as-uploaded blank-caption checkbox, reminder panel, and acknowledgment-based Save restriction at the owner's request. The Add label to picture toggle, two previews, generation/error guards, and separate Activity upload behavior are unchanged. Updated targeted README/CLAUDE guidance.
+- PR handling: Replaces the earlier checkbox-only PR #18 with the complete checkbox-and-reminder removal. No image-generation, Activity-renderer, database, audio, or existing-material changes.
+
 ### 2026-10-26-two-pecs-versions
 - Outcome: Add material now defaults to adding the Label to new word-free PECS artwork and generates captioned Content plus word-free Activity PNGs through the existing file interface. Both previews appear on desktop/mobile. Fixed artwork/caption bounds, readable one/two-line captions, as-uploaded layout preservation with blank-area confirmation, current-request guards, neutral missing states, separate Activity upload for existing-word sources, and save retry feedback are implemented. Original uploads, existing saved-card replacement controls, filenames/limits, audio, gestures, database fields, and activity renderers are preserved.
 - Files: card-form-dialog.tsx, pecs-card-template.ts, four additional media regressions, README.md, CLAUDE.md and own board entry. Pre-existing unrelated edits/index entries were retained.
