@@ -175,3 +175,5 @@ If preparation succeeds, the validated profile is stored on `learning_items`. Th
 GEMINI_MSAV_API_KEY=
 GEMINI_MSAV_MODEL=gemini-3.5-flash-lite
 ```
+
+The October 26 material review added Polite Words, People, and Health and corrected the saved category assignments. See [the category audit](docs/material-category-audit.md) for the full inventory and data maintenance record. Run its regressions with `node --test scripts/test-material-categories.mjs`.

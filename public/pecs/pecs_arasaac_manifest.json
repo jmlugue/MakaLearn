@@ -29,7 +29,7 @@
   {
     "filename": "thank_you.png",
     "label": "Thank you",
-    "category": "Greetings",
+    "category": "Polite Words",
     "sentence_role": "polite_word",
     "arasaac_search_term": "thanks",
     "special_card_type": "",
@@ -38,7 +38,7 @@
   {
     "filename": "please.png",
     "label": "Please",
-    "category": "Greetings",
+    "category": "Polite Words",
     "sentence_role": "polite_word",
     "arasaac_search_term": "please",
     "special_card_type": "",
@@ -47,7 +47,7 @@
   {
     "filename": "sorry.png",
     "label": "Sorry",
-    "category": "Greetings",
+    "category": "Polite Words",
     "sentence_role": "greeting",
     "arasaac_search_term": "sorry",
     "special_card_type": "",
@@ -92,7 +92,7 @@
   {
     "filename": "tired.png",
     "label": "Tired",
-    "category": "Emotions",
+    "category": "Health",
     "sentence_role": "emotion",
     "arasaac_search_term": "tired",
     "special_card_type": "",
@@ -101,7 +101,7 @@
   {
     "filename": "sick.png",
     "label": "Sick",
-    "category": "Emotions",
+    "category": "Health",
     "sentence_role": "emotion",
     "arasaac_search_term": "sick",
     "special_card_type": "",
@@ -110,7 +110,7 @@
   {
     "filename": "i.png",
     "label": "I",
-    "category": "Family",
+    "category": "Grammar",
     "sentence_role": "subject",
     "arasaac_search_term": "I",
     "special_card_type": "",
@@ -119,7 +119,7 @@
   {
     "filename": "you.png",
     "label": "You",
-    "category": "Family",
+    "category": "Grammar",
     "sentence_role": "subject",
     "arasaac_search_term": "you",
     "special_card_type": "",
@@ -146,7 +146,7 @@
   {
     "filename": "teacher.png",
     "label": "Teacher",
-    "category": "Family",
+    "category": "People",
     "sentence_role": "subject",
     "arasaac_search_term": "teacher",
     "special_card_type": "",
@@ -155,7 +155,7 @@
   {
     "filename": "friend.png",
     "label": "Friend",
-    "category": "Family",
+    "category": "People",
     "sentence_role": "subject",
     "arasaac_search_term": "friend",
     "special_card_type": "",
@@ -389,7 +389,7 @@
   {
     "filename": "hurt.png",
     "label": "Hurt",
-    "category": "Safety Words",
+    "category": "Health",
     "sentence_role": "safety_word",
     "arasaac_search_term": "pain",
     "special_card_type": "safe_hurt_no_blood",
@@ -398,7 +398,7 @@
   {
     "filename": "yes.png",
     "label": "Yes",
-    "category": "Safety Words",
+    "category": "Choices",
     "sentence_role": "response",
     "arasaac_search_term": "yes",
     "special_card_type": "",
@@ -407,7 +407,7 @@
   {
     "filename": "no.png",
     "label": "No",
-    "category": "Safety Words",
+    "category": "Choices",
     "sentence_role": "response",
     "arasaac_search_term": "no",
     "special_card_type": "",
@@ -425,7 +425,7 @@
   {
     "filename": "am.png",
     "label": "Am",
-    "category": "Daily Needs",
+    "category": "Grammar",
     "sentence_role": "be_verb",
     "arasaac_search_term": "am",
     "special_card_type": "text_only",
@@ -434,7 +434,7 @@
   {
     "filename": "is.png",
     "label": "Is",
-    "category": "Daily Needs",
+    "category": "Grammar",
     "sentence_role": "be_verb",
     "arasaac_search_term": "is",
     "special_card_type": "text_only",
@@ -443,7 +443,7 @@
   {
     "filename": "are.png",
     "label": "Are",
-    "category": "Daily Needs",
+    "category": "Grammar",
     "sentence_role": "be_verb",
     "arasaac_search_term": "are",
     "special_card_type": "text_only",

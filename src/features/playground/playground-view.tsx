@@ -73,15 +73,40 @@ const categoryStyles: Record<string, { icon: LucideIcon; idle: string; active: s
     idle: "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100",
     active: "border-amber-400 bg-amber-400 text-amber-950"
   },
+  "Polite Words": {
+    icon: Hand,
+    idle: "border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100",
+    active: "border-sky-600 bg-sky-600 text-white"
+  },
   Emotions: {
     icon: Smile,
     idle: "border-pink-200 bg-pink-50 text-pink-800 hover:bg-pink-100",
     active: "border-pink-600 bg-pink-600 text-white"
   },
+  Health: {
+    icon: Heart,
+    idle: "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100",
+    active: "border-rose-600 bg-rose-600 text-white"
+  },
   Family: {
     icon: Heart,
     idle: "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100",
     active: "border-violet-600 bg-violet-600 text-white"
+  },
+  People: {
+    icon: Heart,
+    idle: "border-cyan-200 bg-cyan-50 text-cyan-800 hover:bg-cyan-100",
+    active: "border-cyan-600 bg-cyan-600 text-white"
+  },
+  Grammar: {
+    icon: School,
+    idle: "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100",
+    active: "border-blue-600 bg-blue-600 text-white"
+  },
+  Choices: {
+    icon: LayoutGrid,
+    idle: "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100",
+    active: "border-amber-400 bg-amber-400 text-amber-950"
   },
   Food: {
     icon: Apple,

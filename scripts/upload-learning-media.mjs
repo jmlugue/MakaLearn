@@ -52,8 +52,13 @@ const manifest = JSON.parse(
 
 const categoryColors = {
   Greetings: "#dbeafe",
+  "Polite Words": "#e0f2fe",
   Emotions: "#fce7f3",
+  Health: "#ffe4e6",
   Family: "#ede9fe",
+  People: "#cffafe",
+  Grammar: "#dbeafe",
+  Choices: "#fef3c7",
   Food: "#dcfce7",
   "Classroom Commands": "#e0f2fe",
   "Daily Needs": "#fef3c7",
@@ -242,6 +247,11 @@ function createPecsDescription(label, category) {
   const lowerLabel = label.toLowerCase();
   if (category === "Greetings") return `Use when greeting someone, saying goodbye, or starting a classroom interaction with "${label}".`;
   if (category === "Emotions") return `Use when the learner needs to express feeling ${lowerLabel} or talk about emotions.`;
+  if (category === "Polite Words") return `Use "${label}" when making a polite request, thanking someone, or apologising.`;
+  if (category === "Health") return `Use "${label}" to communicate a physical condition, discomfort, or a need for care.`;
+  if (category === "People") return `Use "${label}" to identify a familiar person or talk about people at school.`;
+  if (category === "Grammar") return `Use "${label}" when building English phrases and sentences.`;
+  if (category === "Choices") return `Use "${label}" to answer a question, accept, or refuse.`;
   if (category === "Food") return `Use when the learner wants ${lowerLabel}, is choosing food, or is talking about snack and meal routines.`;
   if (category === "Daily Needs") return `Use when the learner needs ${lowerLabel} or wants to communicate an everyday request.`;
   if (category === "Classroom Commands") return `Use when practising the classroom direction "${label}" or following a teacher-guided routine.`;
@@ -252,7 +262,7 @@ function createPecsDescription(label, category) {
 
 async function upsertCategories(adminId) {
   const categories = Object.keys(categoryColors).map((name) => ({
-    id: `cat-pecs-${slugify(name)}`,
+    id: name === "Choices" ? "cat-choices" : `cat-pecs-${slugify(name)}`,
     name,
     description: `PECS/AAC cards for ${name.toLowerCase()} practice.`,
     color: categoryColors[name],

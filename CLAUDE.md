@@ -1100,3 +1100,11 @@ The owner asked for three layouts like a CSS media query diagram. Rules live in 
 - The fallback now accepts four-card built-in person descriptions with A or The, including `I Am A Friend` and `You Are A Teacher`, while retaining subject/be agreement and complement exclusions. Articles keep their separate grammar metadata.
 - The hosted `english-v1` decision for `i am a friend` was unfinished, not a stored negative grade. It is now valid with type sentence, with one owner-approved correction history entry and a Git-ignored backup. No learning-item roles were changed.
 - Current configuration and decision behavior are documented in `docs/playground-checker.md`.
+
+
+## Oct 26: reviewed material categories (verified in hosted Supabase)
+
+- Reviewed all 67 saved materials and corrected 17 category assignments. Added Polite Words (Please/Thank you/Sorry), People (Teacher/Friend), and Health (Sick/Tired/Hurt). Family now contains relatives; I/You/Am/Is/Are use the existing Grammar category, and Yes/No use the existing Choices row (`cat-choices`). Two legacy Eat/Drink rows now match Food.
+- Updated the 50-card manifest's category metadata, importer/default mappings, and Content/Playground colors. All labels, assets, sentence roles, grammar metadata, preparation profiles, and saved activity/collection records are preserved. Runtime loading still respects saved category edits. The guided seven stay in the reserved Fixed gestures category.
+- Matching old category tags and untouched generated descriptions were corrected; teacher-written descriptions were kept. Unknown testnopic stays in No category. Empty existing categories were retained.
+- See `docs/material-category-audit.md` and `supabase/maintenance/reclassify-learning-materials.sql`; before/after snapshots are Git-ignored under `supabase/backups/`. Category tests (`node --test scripts/test-material-categories.mjs`), all 62 activity tests, all 50 Playground tests, TypeScript, lint, and production build passed. Full material validation was attempted but requires unavailable local Supabase credentials; connected database checks verified destinations and reference integrity.
