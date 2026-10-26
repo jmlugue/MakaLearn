@@ -34,6 +34,12 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-26-free-gesture-feedback
+- Outcome: Free practice clears corrective feedback/loading at new capture start and on success; pending responses cannot restore an older correction. Holding the completed pose keeps feedback readable, and guided feedback behavior is preserved. Sit down accepts either hand on top without handedness labels, retaining two-hand consistency and vertical separation in candidate/final guards.
+- Files: gesture-practice-view.tsx, gesture-shape-safety.ts, focused feedback tests and npm script, current CLAUDE guidance, and the AI guide's Sit down description. Preserved all pre-existing working edits and staged documentation.
+- Verification: Feedback unit/mocked-route checks plus five lifecycle regressions, six capture tests, three stability tests, TypeScript, lint, production build (23 pages), and whitespace passed. New cases cover either hand order, unknown/reordered hand labels, invalid one-hand/level-hand input, late responses/fallbacks, and fresh wrong attempts. No dev server, live webcam/provider check, database writes, commit, or deployment.
+
+
 ### 2026-10-26-two-pecs-versions
 - Outcome: Add material now defaults to adding the Label to new word-free PECS artwork and generates captioned Content plus word-free Activity PNGs through the existing file interface. Both previews appear on desktop/mobile. Fixed artwork/caption bounds, readable one/two-line captions, as-uploaded layout preservation with blank-area confirmation, current-request guards, neutral missing states, separate Activity upload for existing-word sources, and save retry feedback are implemented. Original uploads, existing saved-card replacement controls, filenames/limits, audio, gestures, database fields, and activity renderers are preserved.
 - Files: card-form-dialog.tsx, pecs-card-template.ts, four additional media regressions, README.md, CLAUDE.md and own board entry. Pre-existing unrelated edits/index entries were retained.

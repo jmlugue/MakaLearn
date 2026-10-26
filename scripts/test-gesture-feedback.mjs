@@ -272,6 +272,30 @@ const helpShapedModelCandidate = applyGestureCandidateGuards(
 );
 assert.equal(helpShapedModelCandidate.prediction?.label, "Sit down");
 
+// Both recognition paths accept either hand on top, even when MediaPipe cannot
+// assign handedness or returns the hands in a different order.
+const sitPrediction = {
+  label: "Sit down", pose: "Sit gesture", fingers: [], handCount: 2, matchPercent: 91
+};
+for (const frames of [
+  sitFrames,
+  sitFrames.map(({ hands }) => ({ hands: [...hands].reverse(), handedness: ["Left", "Right"] })),
+  sitFrames.map(({ hands }) => ({ hands, handedness: ["Unknown", "Unknown"] })),
+  sitFrames.map(({ hands }) => ({ hands: [...hands].reverse(), handedness: ["Right", "Left"] }))
+]) {
+  assert.equal(applyBasicGesturePredictionGuards(sitPrediction, frames).prediction?.label, "Sit down");
+  assert.equal(applyGestureCandidateGuards(sitPrediction, frames).prediction?.label, "Sit down");
+  assert.equal(applyGestureCandidateGuards({ ...sitPrediction, label: "Help" }, frames).prediction?.label, "Sit down");
+}
+const levelHands = sitFrames.map(() => ({
+  hands: [makeHand(0.4), makeHand(0.4)], handedness: ["Left", "Right"]
+}));
+const levelSitResult = applyBasicGesturePredictionGuards(sitPrediction, levelHands);
+assert.equal(levelSitResult.prediction, null);
+assert.match(levelSitResult.feedback, /either hand can be on top/i);
+assert.equal(applyGestureCandidateGuards({ ...sitPrediction, label: "Help" }, levelHands).prediction, null);
+assert.equal(applyBasicGesturePredictionGuards(sitPrediction, makeFrames(Array(8).fill(0.4))).issueCategory, "hand-count-mismatch");
+
 const changingHandCountResult = applyBasicGesturePredictionGuards(
   {
     label: "Sit down",

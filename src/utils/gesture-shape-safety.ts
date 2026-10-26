@@ -48,7 +48,7 @@ export function applyBasicGesturePredictionGuards(
   if (prediction.label === YES_LABEL) return validateYesClosedFist(prediction, capturedFrames);
   if (prediction.label === NO_LABEL) return validateNoPalmFacing(prediction, capturedFrames);
   if (prediction.label === HELP_LABEL) return validateHelpTwoHandShape(prediction, capturedFrames);
-  if (prediction.label === SIT_LABEL) return validateSitHandOrder(prediction, capturedFrames);
+  if (prediction.label === SIT_LABEL) return validateSitHandPosition(prediction, capturedFrames);
   if (prediction.label === EAT_LABEL) return validateEatPalmNotFacing(prediction, capturedFrames);
   if (prediction.label === DRINK_LABEL) {
     return (
@@ -241,12 +241,12 @@ function validateHelpTwoHandShape(
   return { prediction };
 }
 
-function validateSitHandOrder(
+function validateSitHandPosition(
   prediction: DemoGesturePrediction,
   capturedFrames: CapturedGestureFrame[]
 ): EatToiletSafetyResult {
-  const order = summarizeSitHandOrder(capturedFrames);
-  if (order.usableFrames < 6) {
+  const position = summarizeSitHandPosition(capturedFrames);
+  if (position.usableFrames < 6) {
     return {
       prediction: null,
       feedback: "For sit down, keep both hands clearly visible so their positions can be checked.",
@@ -254,10 +254,10 @@ function validateSitHandOrder(
     };
   }
 
-  if (order.rightAboveRatio < 0.65) {
+  if (position.stackedRatio < 0.65) {
     return {
       prediction: null,
-      feedback: "For sit down, place your right hand above your left hand.",
+      feedback: "For sit down, place one hand above the other. Either hand can be on top.",
       issueCategory: "hand-shape-mismatch"
     };
   }
@@ -366,26 +366,26 @@ function summarizeHandCounts(capturedFrames: CapturedGestureFrame[]) {
   };
 }
 
-function summarizeSitHandOrder(capturedFrames: CapturedGestureFrame[]) {
+function summarizeSitHandPosition(capturedFrames: CapturedGestureFrame[]) {
   let usableFrames = 0;
-  let rightAboveFrames = 0;
+  let stackedFrames = 0;
 
-  capturedFrames.forEach(({ handedness, hands }) => {
-    const leftIndex = handedness.findIndex((label, index) => label === "Left" && hands[index]?.length >= 21);
-    const rightIndex = handedness.findIndex((label, index) => label === "Right" && hands[index]?.length >= 21);
-    if (leftIndex < 0 || rightIndex < 0) return;
+  capturedFrames.forEach(({ hands }) => {
+    const validHands = hands.filter((hand) => hand.length >= 21).slice(0, 2);
+    if (validHands.length !== 2) return;
 
     usableFrames += 1;
-    const leftCenter = getCenter(hands[leftIndex]);
-    const rightCenter = getCenter(hands[rightIndex]);
+    const firstCenter = getCenter(validHands[0]);
+    const secondCenter = getCenter(validHands[1]);
 
-    // MediaPipe's y coordinate increases down the camera frame.
-    if (rightCenter.y < leftCenter.y) rightAboveFrames += 1;
+    // Check vertical separation without relying on handedness or detector order.
+    // Use the same small separation margin as Help's stacked-hand check.
+    if (Math.abs(firstCenter.y - secondCenter.y) > 0.015) stackedFrames += 1;
   });
 
   return {
     usableFrames,
-    rightAboveRatio: usableFrames ? rightAboveFrames / usableFrames : 0
+    stackedRatio: usableFrames ? stackedFrames / usableFrames : 0
   };
 }
 
