@@ -34,6 +34,10 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-26-caption-reminder
+- Outcome: Removed the as-uploaded blank-caption confirmation checkbox and its Save gate at the owner's request. Kept the word-free/blank-area and overlap guidance as a plain reminder. Preview-generation and error guards remain in place.
+- Scope: Add-material form and targeted README/CLAUDE guidance; no image-generation, Activity-renderer, database, audio, or existing-material changes.
+
 ### 2026-10-26-two-pecs-versions
 - Outcome: Add material now defaults to adding the Label to new word-free PECS artwork and generates captioned Content plus word-free Activity PNGs through the existing file interface. Both previews appear on desktop/mobile. Fixed artwork/caption bounds, readable one/two-line captions, as-uploaded layout preservation with blank-area confirmation, current-request guards, neutral missing states, separate Activity upload for existing-word sources, and save retry feedback are implemented. Original uploads, existing saved-card replacement controls, filenames/limits, audio, gestures, database fields, and activity renderers are preserved.
 - Files: card-form-dialog.tsx, pecs-card-template.ts, four additional media regressions, README.md, CLAUDE.md and own board entry. Pre-existing unrelated edits/index entries were retained.

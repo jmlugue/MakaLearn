@@ -128,14 +128,12 @@ function CardForm({
   const [files, setFiles] = useState<NewCardFiles>({});
   const [cardStyle, setCardStyle] = useState<"outline" | "original">("outline");
   const [addLabel, setAddLabel] = useState(true);
-  const [blankCaptionConfirmed, setBlankCaptionConfirmed] = useState(false);
   const [error, setError] = useState("");
 
   const template = useCardTemplate(files.symbol, kind === "pecs", { style: cardStyle, addLabel, label: addLabel ? label : "" });
   const imagePreview = useObjectUrl(kind === "pecs" ? template.files?.symbol : files.symbol);
   const activityFile = kind === "pecs" && addLabel && files.symbol ? template.files?.activity : files.activity;
   const activityPreview = useObjectUrl(activityFile);
-  const needsBlankConfirmation = kind === "pecs" && Boolean(files.symbol) && addLabel && cardStyle === "original" && !blankCaptionConfirmed;
   const tone = kindTone(kind);
   const category = categories.find((candidate) => candidate.id === categoryId);
   const categoryName = fileCategoryName(category);
@@ -185,7 +183,6 @@ function CardForm({
         .filter((other): other is File => Boolean(other));
       fillFromNames([file, ...others]);
       setError("");
-      if (key === "symbol") setBlankCaptionConfirmed(false);
       setFiles((current) => ({ ...current, [key]: file }));
       return Promise.resolve(file);
     };
@@ -208,7 +205,7 @@ function CardForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving || template.pending || needsBlankConfirmation) return;
+    if (saving || template.pending) return;
     if (template.error) {
       setError(template.error);
       return;
@@ -327,25 +324,19 @@ function CardForm({
                   { value: "original", title: "Use image as uploaded", hint: "For pictures that already have an outline." }
                 ] as const).map((option) => (
                   <label key={option.value} className={cn("flex min-h-14 cursor-pointer items-start gap-2 rounded-xl border p-3", cardStyle === option.value ? "border-blue-600 bg-blue-50" : "border-blue-100 bg-[#fff]")}>
-                    <input type="radio" name="card-template" value={option.value} checked={cardStyle === option.value} onChange={() => { setCardStyle(option.value); setBlankCaptionConfirmed(false); }} className="mt-1 accent-blue-600" />
+                    <input type="radio" name="card-template" value={option.value} checked={cardStyle === option.value} onChange={() => setCardStyle(option.value)} className="mt-1 accent-blue-600" />
                     <span><span className="block text-sm font-semibold text-ink">{option.title}</span><span className="block text-xs leading-5 text-slate-500">{option.hint}</span></span>
                   </label>
                 ))}
               </div>
               <p className="text-xs leading-5 text-slate-500">Keeps the complete picture in proportion. Use image as uploaded for an existing card to avoid a second border.</p>
               <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm font-semibold text-ink">
-                <input type="checkbox" role="switch" checked={addLabel} onChange={(event) => { setAddLabel(event.target.checked); setBlankCaptionConfirmed(false); }} className="h-5 w-5 shrink-0 accent-blue-600" />
+                <input type="checkbox" role="switch" checked={addLabel} onChange={(event) => setAddLabel(event.target.checked)} className="h-5 w-5 shrink-0 accent-blue-600" />
                 Add label to picture
               </label>
               <p className="text-xs leading-5 text-slate-500">Use a picture without words. The Label above appears on the Content card; the Activity card keeps the same picture without the caption. Turn this off if your picture already contains its word.</p>
               {addLabel && cardStyle === "original" ? (
-                <div className="space-y-2 rounded-xl border border-blue-200 p-3">
-                  <label className="flex min-h-11 cursor-pointer items-start gap-2 text-sm text-slate-700">
-                    <input type="checkbox" checked={blankCaptionConfirmed} onChange={(event) => setBlankCaptionConfirmed(event.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-blue-600" />
-                    The bottom caption area is blank and the picture has no words.
-                  </label>
-                  <p className="text-xs leading-5 text-slate-500">Check both previews. If the new caption overlaps any artwork, choose plain artwork with the card outline instead. Confirm before saving.</p>
-                </div>
+                <p className="rounded-xl border border-blue-200 p-3 text-xs leading-5 text-slate-500">Use a picture without words and leave the bottom caption area blank. Check both previews. If the new caption overlaps any artwork, choose plain artwork with the card outline instead.</p>
               ) : null}
             </fieldset>
           ) : null}
@@ -414,7 +405,7 @@ function CardForm({
         <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saving || template.pending || Boolean(template.error) || needsBlankConfirmation}>
+        <Button type="submit" disabled={saving || template.pending || Boolean(template.error)}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           {saving ? "Saving..." : "Save"}
         </Button>
