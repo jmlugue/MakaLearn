@@ -347,8 +347,7 @@ function invalidFeedback(cards: PecsSentenceCard[]) {
   return "Try again.";
 }
 
-// Rule-based PECS/AAC arrangement validation. Each multi-card pattern checks
-// both order and meaning so a matching role alone cannot make nonsense valid.
+// Check card order and meaning against fixed PECS sentence rules without calling AI.
 export function validatePecsSentence(
   cards: PecsSentenceCard[],
   approvedCardIds: Set<string>

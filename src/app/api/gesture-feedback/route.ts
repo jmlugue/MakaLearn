@@ -37,6 +37,7 @@ type GeminiGenerateContentResponse = {
   }>;
 };
 
+// Generate feedback from structured recognition results, with checked local wording as fallback.
 export async function POST(request: Request) {
   let payload: GestureFeedbackRequest;
 

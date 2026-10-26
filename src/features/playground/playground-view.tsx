@@ -207,6 +207,7 @@ function shuffleValues<T>(values: T[]) {
   return shuffled;
 }
 
+// Build the picture-card board and connect card movement, checking, and speech.
 export function PlaygroundView() {
   const { notify } = useToast();
   const { isStudentMode } = useStudentMode();
@@ -441,6 +442,7 @@ export function PlaygroundView() {
     setSpeakingIndex(null);
   }
 
+  // Check the cards through the AI-first adapter, which uses local MSAV if unavailable.
   async function checkSentence() {
     if (checkingRef.current) return;
     cancelNarration();

@@ -276,6 +276,7 @@ export function ActivitiesView() {
     setResult(null);
   }
 
+  // Compare selected values with saved answers and calculate the teacher preview percentage.
   function scoreActivity(questionIds?: string[]) {
     if (!playingActivity) return;
     const scored = questionIds?.length

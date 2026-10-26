@@ -28,6 +28,7 @@ export function clearStudentModePreference() {
   }
 }
 
+// Switch the signed-in teacher or admin into a learner-facing view without another login.
 export function StudentModeProvider({ children }: { children: ReactNode }) {
   const [isStudentMode, setIsStudentMode] = useState(false);
   // Keep the menu state above individual pages so navigation cannot reopen it

@@ -487,7 +487,7 @@ function MostPlayedCard({ ranking, activityById }: { ranking: ActivityRank[]; ac
   );
 }
 
-/** Activity usage: finished Student mode rounds for a chosen period. Total and average time, bars beside a donut of plays by type, then the most played activities. */
+// Summarize saved Student Mode plays by date, activity type, and time spent.
 function ActivityUsage({ plays, activities }: { plays: ActivityPlay[]; activities: ActivityRecord[] }) {
   const reduceMotion = useReducedMotion();
   const [range, setRange] = useState<UsageRange>("month");

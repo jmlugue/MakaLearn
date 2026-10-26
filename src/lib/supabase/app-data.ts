@@ -74,6 +74,7 @@ function mapCategory(row: CategoryRow): Category {
   };
 }
 
+// Convert database column names into the learning-material fields used by the UI.
 function mapLearningItem(row: LearningItemRow): LearningItem {
   return {
     id: row.id,
@@ -180,6 +181,7 @@ async function writeLessonRow(
   }
 }
 
+// Load saved app records together and convert them into shared TypeScript models.
 export async function fetchMakaLearnData(): Promise<MakaLearnData> {
   const supabase = getClientOrThrow();
   const [

@@ -127,6 +127,7 @@ function StudentRound({
   useEffect(() => {
     if (phase === "play" && startedAt.current === null) startedAt.current = Date.now();
     if (phase !== "done" || reported.current || !onFinish) return;
+    // Report this completed round once so a rerender cannot save the same play again.
     reported.current = true;
     const elapsed = startedAt.current === null ? 0 : Date.now() - startedAt.current;
     onFinish({

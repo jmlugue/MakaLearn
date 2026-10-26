@@ -132,6 +132,7 @@ export function deriveGestureFeedbackIssue(input: {
   return "correct";
 }
 
+// Provide fixed corrective wording when generated feedback is unavailable or unsuitable.
 export function createTemplateGestureFeedback(request: GestureFeedbackRequest): GestureFeedbackResponse {
   const matchPercent = request.matchPercent ?? 0;
 

@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+  // Load the account's role and status from its saved profile after checking the session.
   const refreshProfile = useCallback(async () => {
     if (!isSupabaseConfigured()) {
       setCurrentUser(null);

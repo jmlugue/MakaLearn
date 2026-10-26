@@ -624,6 +624,7 @@ export function GesturePracticeView() {
     return handLandmarker;
   }
 
+  // Read camera frames, draw detected hands, and feed landmarks into gesture capture.
   function runHandTracking() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -686,6 +687,7 @@ export function GesturePracticeView() {
     animationFrameRef.current = window.requestAnimationFrame(runHandTracking);
   }
 
+  // Request webcam permission and start the live hand-tracking loop.
   async function startCamera() {
     if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -739,6 +741,7 @@ export function GesturePracticeView() {
     }
   }
 
+  // Release the webcam and tracking resources when practice stops.
   function stopCamera() {
     if (animationFrameRef.current !== null) {
       window.cancelAnimationFrame(animationFrameRef.current);
@@ -983,6 +986,7 @@ export function GesturePracticeView() {
     processCompletedGestureCapture(completion);
   }
 
+  // Turn a completed local recognition attempt into feedback and session-only progress.
   function processCompletedGestureCapture(completion: PendingGestureCompletion) {
     captureStateRef.current = completeGestureCapture(captureStateRef.current);
     const reservedGesture = shouldUseReservedGesture(captureStateRef.current)

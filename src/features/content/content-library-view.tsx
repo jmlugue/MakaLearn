@@ -73,6 +73,7 @@ function mediaTypeText(type: MediaAsset["type"]) {
   return "audio";
 }
 
+// Coordinate the Content tabs, saved records, and create/edit/delete dialogs.
 export function ContentLibraryView({
   initialItemId,
   initialTab,
@@ -212,6 +213,7 @@ export function ContentLibraryView({
     return error instanceof Error ? error.message : fallback;
   }
 
+  // Ask the server to prepare a new PECS card's roles for the fixed Playground rules.
   async function requestPlaygroundPreparation(item: LearningItem): Promise<LearningItem> {
     if (item.contentType !== "pecs" || isBuiltInMsavLabel(item.label)) return item;
 
@@ -312,6 +314,7 @@ export function ContentLibraryView({
     setNoCategorySaved(true);
   }
 
+  // Save the material, attach its uploads, and prepare PECS cards for Playground use.
   async function addCard(values: NewCardValues) {
     const draft: LearningItem = {
       id: `item-${Date.now()}`,
@@ -513,6 +516,7 @@ export function ContentLibraryView({
     }
   }
 
+  // Delete the material and optionally remove its uploaded files after confirmation.
   async function confirmDeleteItem() {
     if (!itemToDelete) return;
     setDeleting(true);
@@ -533,6 +537,7 @@ export function ContentLibraryView({
 
   // Lessons
 
+  // Save a Collection and its ordered cards; lesson names here are legacy code names.
   async function saveLesson(mode: LessonFormMode, values: LessonFormValues) {
     const selected = values.itemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
     const hasPecs = selected.some((item) => item.contentType === "pecs");

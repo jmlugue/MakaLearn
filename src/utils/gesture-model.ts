@@ -110,6 +110,7 @@ export function resetLiveGestureBuffer(buffer: Float32Array[]) {
   buffer.length = 0;
 }
 
+// Resize the captured landmarks to 64 frames and run the trained gesture model locally.
 export async function predictMakaLearnGesture(buffer: Float32Array[]) {
   if (buffer.length < MIN_LIVE_GESTURE_FRAMES) return null;
   const model = await loadMakaLearnGestureModel();

@@ -34,6 +34,11 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-26-codebase-guide-pr
+- Outcome: Added the thesis feature-to-code guide, README link, and simple explanatory comments in 24 source files. Aligned Playground documentation with the current AI-first checker and local MSAV fallback. Runtime behavior and database schema are unchanged.
+- Scope: This PR excludes the separate AI implementation guide and concurrent reliability work.
+- Verification: Fresh npm ci, TypeScript, lint, production build (23 pages), focused activity/Playground/gesture/feedback/auth/audio/media suites, 162 local links, and whitespace passed. All 24 source files compile identically with comments removed. Material validation lacks the required Supabase configuration. No live provider or hosted database write.
+
 ### 2026-10-26-app-instruction-copy
 - Outcome: Audited app instruction strings and all four Gemini prompts. Removed visible semicolons and em dashes, simplified the upload and gesture cues, made the corrective feedback and activity punctuation rule explicit, and rejected generated wording that violates it through the existing fallback. Classification and grading rules are unchanged.
 - Scope: Replaces PR #22 and includes its upload/style changes. Adds focused feedback/activity regressions, a source copy check, and docs/instruction-copy-audit.md. Concurrent reliability changes are excluded.

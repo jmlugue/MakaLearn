@@ -17,6 +17,7 @@ function extractJson(text: string) {
   return start >= 0 && end > start ? trimmed.slice(start, end + 1) : "";
 }
 
+// Prepare a new PECS card's MSAV profile separately from Playground sentence grading.
 export async function POST(request: Request) {
   let learningItemId = "";
   try {
