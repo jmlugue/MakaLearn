@@ -34,6 +34,12 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-26-material-category-audit
+- Outcome: Reviewed all 67 hosted materials, added Polite Words/People/Health, and corrected 17 saved category assignments. Reused existing Grammar/Choices; retained reserved gestures, empty categories, and the ambiguous test material in No category. Updated corresponding built-in tags and 14 untouched generated descriptions, preserving the teacher-edited Sick description.
+- Files: PECS manifest/types, library defaults, media importer, category colors, Playground category styles, maintenance SQL, category regression tests, targeted README/CLAUDE guidance, and docs/material-category-audit.md. Before/after data snapshots are Git-ignored under supabase/backups/.
+- Verification: All 17 destinations and all 67 before/after records checked; existing categories and unrelated material fields preserved. Zero missing category/activity/collection references or duplicate category names. Three category regressions, 62 activity tests, 50 Playground tests, TypeScript, lint, build (23 pages), and whitespace passed. Full material validator attempted but unavailable without local Supabase URL/service-role credentials.
+- Preservation: No activity option/renderer, role, grammar/preparation metadata, media URL, saved activity, collection, or shared index changes. No dev server, commit, push, or deployment.
+
 ### 2026-10-26-free-gesture-feedback
 - Outcome: Free practice clears corrective feedback/loading at new capture start and on success; pending responses cannot restore an older correction. Holding the completed pose keeps feedback readable, and guided feedback behavior is preserved. Sit down accepts either hand on top without handedness labels, retaining two-hand consistency and vertical separation in candidate/final guards.
 - Files: gesture-practice-view.tsx, gesture-shape-safety.ts, focused feedback tests and npm script, current CLAUDE guidance, and the AI guide's Sit down description. Preserved all pre-existing working edits and staged documentation.

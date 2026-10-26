@@ -13,6 +13,8 @@ function slugify(value: string) {
 }
 
 function getPecsCategoryId(category: PecsCardCategory) {
+  // Reuse the existing quick-answer category instead of creating a duplicate.
+  if (category === "Choices") return "cat-choices";
   return `cat-pecs-${slugify(category)}`;
 }
 
@@ -49,6 +51,26 @@ function createPecsDescription(label: string, category: PecsCardCategory) {
 
   if (category === "Emotions") {
     return `Use when the learner needs to express feeling ${lowerLabel} or talk about emotions.`;
+  }
+
+  if (category === "Polite Words") {
+    return `Use "${label}" when making a polite request, thanking someone, or apologising.`;
+  }
+
+  if (category === "Health") {
+    return `Use "${label}" to communicate a physical condition, discomfort, or a need for care.`;
+  }
+
+  if (category === "People") {
+    return `Use "${label}" to identify a familiar person or talk about people at school.`;
+  }
+
+  if (category === "Grammar") {
+    return `Use "${label}" when building English phrases and sentences.`;
+  }
+
+  if (category === "Choices") {
+    return `Use "${label}" to answer a question, accept, or refuse.`;
   }
 
   if (category === "Food") {

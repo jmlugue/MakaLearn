@@ -3,8 +3,13 @@ import type { SentenceRole } from "@/types";
 
 export type PecsCardCategory =
   | "Greetings"
+  | "Polite Words"
   | "Emotions"
+  | "Health"
   | "Family"
+  | "People"
+  | "Grammar"
+  | "Choices"
   | "Food"
   | "Classroom Commands"
   | "Daily Needs"
@@ -26,8 +31,13 @@ type ManifestRow = {
 
 export const pecsCardCategories: PecsCardCategory[] = [
   "Greetings",
+  "Polite Words",
   "Emotions",
+  "Health",
   "Family",
+  "People",
+  "Grammar",
+  "Choices",
   "Food",
   "Classroom Commands",
   "Daily Needs",

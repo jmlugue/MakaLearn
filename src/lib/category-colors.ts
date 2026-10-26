@@ -1,12 +1,17 @@
-// The 7 built-in PECS categories keep one color everywhere: Content (these light tints) and the Student mode
+// Built-in PECS categories keep one color everywhere: Content (these light tints) and the Student mode
 // playground (solid versions of the same hue in `playground-view.tsx`). A saved tint for these categories is
 // ignored so they always match. Teacher-made categories keep the color the teacher picked.
 import type { Category } from "@/types";
 
 const builtInCategoryTints: Record<string, string> = {
   greetings: "#fef3c7", // yellow (amber)
+  "polite words": "#e0f2fe", // sky
   emotions: "#fce7f3", // pink
+  health: "#ffe4e6", // rose
   family: "#ede9fe", // violet
+  people: "#cffafe", // cyan
+  grammar: "#dbeafe", // blue
+  choices: "#fef3c7", // amber, preserving the existing Choices tint
   food: "#ffedd5", // orange
   "classroom commands": "#ccfbf1", // teal
   "daily needs": "#d1fae5", // green
