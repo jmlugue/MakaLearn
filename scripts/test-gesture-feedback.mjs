@@ -203,6 +203,10 @@ assert.equal(
 );
 
 const route = loadTypeScriptModule("../src/app/api/gesture-feedback/route.ts", {
+  "@/lib/ai-request-guard": {
+    requireFeedbackAccount: async () => ({ userId: "test-teacher" }),
+    reserveGestureFeedback: async () => true
+  },
   "next/server": {
     NextResponse: {
       json(body, init) {

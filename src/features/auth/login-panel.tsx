@@ -185,7 +185,7 @@ export function LoginPanel() {
               type="email"
               value={email}
               onChange={(event) => handleEmailChange(event.target.value)}
-              placeholder="Enter username"
+              placeholder="Enter email address"
               className={cn(fieldClass, "pr-10", emailHasError && errorInputClass)}
               aria-invalid={emailHasError}
               aria-describedby={emailDescription || undefined}

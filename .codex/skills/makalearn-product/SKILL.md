@@ -1,150 +1,19 @@
 ---
 name: makalearn-product
-description: Use this skill when deciding MakaLearn product behavior, MVP scope, page contents, roles, learner flows, content library behavior, gesture practice behavior, activities, and progress tracking.
+description: Use when deciding MakaLearn product behavior, roles, content, collections, gesture practice, activities, Playground, and Student mode.
 ---
 
-# MakaLearn Product Skill
+# MakaLearn product
 
-Use this skill to keep the app aligned with the planned MVP.
+Read `CLAUDE.md` and `docs/current-system.md` for current behavior. `AGENTS.md` began as an older brief; its activity-option contract remains mandatory. Current owner decisions override historical examples.
 
-## MVP identity
-
-MakaLearn is a teacher-guided web app for supporting Makaton learning workflows.
-
-It should feel like a semi-working school/classroom system, not just a static mockup.
-
-## Users
-
-Roles:
-- Admin
-- Teacher
-
-Learners are managed as profiles, not login accounts.
-
-## Role behavior
-
-After login:
-- Teacher goes to Content Library.
-- Admin goes to Admin Dashboard.
-
-Admin:
-- Sees all relevant data.
-- Can manage teacher accounts.
-- Can access Admin Panel.
-
-Teacher:
-- Sees assigned learners.
-- Can create learners.
-- Can create content.
-- Can run activities and gesture practice.
-
-## Pages
-
-Required pages:
-- Landing page
-- Login
-- Dashboard
-- Learners
-- Content Library
-- Gesture Practice
-- Activities
-- Progress
-- Settings
-- Help / Guide
-- Admin Panel
-
-Admin Panel should only show for admin users.
-
-## Content Library
-
-Tabs:
-- Learning Items
-- Lessons
-- Categories
-- Media Library
-
-Learning items use a card grid and include:
-- Word/label
-- Category
-- Description/instruction
-- Symbol image upload
-- Gesture image/video upload
-- Audio upload
-- Tags
-- Created by
-- Last updated
-
-No difficulty level.
-
-Lessons:
-- Auto-generated from a learning item
-- Manually created from multiple learning items
-
-Auto-generated lessons:
-- Create a draft lesson.
-- Let teacher review/edit before saving.
-
-## Learners
-
-Fields:
-- Learner name
-- Age
-- Grade/level
-- Communication needs/notes
-- Preferred learning mode
-- Assigned teacher
-- Profile photo
-- Active/inactive status
-
-Do not add extra sensitive fields unless requested.
-
-## Gesture practice
-
-Use:
-- Real webcam preview
-- Fake/simulated recognition controls
-- Rule-based placeholder feedback
-- Optional learner assignment before saving
-
-Do not visually label the model as disconnected in the UI. Use code comments only.
-
-## Activities
-
-Include:
-- Match word to symbol
-- Choose correct symbol
-- Fill in the blank
-- Drag and drop symbol cards
-- Gesture practice activity
-- Simple quiz
-
-Activities should be fully working with scoring.
-
-### Current activity option contract
-
-The repository's current `AGENTS.md` and `CLAUDE.md` override the original activity brief. Preserve these rules when deciding activity behavior:
-
-- Only image-backed PECS learning materials may appear as answer options; gesture materials never appear in activity choices.
-- Draw randomized distractors from the full eligible PECS library, while excluding duplicates and semantically valid alternative answers.
-- Use the dedicated `public/pecs/generated_cards_no_text` artwork for every visible option. Never reveal the answer with a printed label or visible text fallback.
-- "Choose the word" stores word values for scoring but presents no-text PECS pictures.
-- Keep Student Mode, teacher player, all activity types, drag/drop states, results, and activity samples consistent.
-- Sanitize legacy saved options at playback and run the focused activity regression tests after changes.
-
-## Progress
-
-Calculate progress from:
-- Activity results
-- Gesture practice attempts
-
-Show:
-- Learner overview
-- Individual report
-- Charts
-- Activity results
-- Practice attempts
-- PDF export action
-
-## Removed feature
-
-Teacher Notes were removed from the MVP. Do not create a Teacher Notes page, table, or sidebar item.
+- Teacher-guided communication support with teacher/admin accounts and Supabase persistence.
+- Teachers create Content and activities. Admins manage accounts and view teaching content. Both can enter Student mode.
+- Materials and ordered collections live in Content with categories and Media. Collection is the current visible name.
+- Student mode contains Playground, real camera gesture recognition, and activities. Teacher activities are Preview; Student Mode activities are Play.
+- No Learners/Progress page, learner login, saved gesture attempt, or individual learner tracking.
+- Teacher previews are session-only. Completed teacher-run Student Mode rounds save results/duration for Admin usage.
+- Active activities are Match, Fill in the blank, and Drag and drop. Choices use PECS materials only, word-free artwork, the full eligible library, per-question/round randomization, unique choices, and semantic-conflict exclusions. Sanitize legacy options in all renderers and run focused activity regressions.
+- Recognition supports seven trained signs. Uploading a gesture reference does not add a recognition class.
+- New/renamed material labels must be unique within type. Deletion must not leave linked collections/activities empty. Partial media cleanup remains retryable.
+- Preserve short copy and existing UI. Do not add retired scope or change result persistence without an explicit request.

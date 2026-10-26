@@ -5,13 +5,16 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const TOAST_MS = 3000;
+const TOAST_MS = 4000;
 
 type Toast = {
   id: number;
   title: string;
   description?: string;
   tone?: "success" | "info" | "error";
+  /** Recovery instructions stay available until explicitly dismissed. Errors do this by default. */
+  persistent?: boolean;
+  durationMs?: number;
 };
 
 type ToastContextValue = {
@@ -55,8 +58,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (toast: Omit<Toast, "id">) => {
       nextIdRef.current += 1;
       const id = nextIdRef.current;
-      setToasts((current) => [...current, { ...toast, id }]);
-      startTimer(id, TOAST_MS);
+      const durationMs = toast.description ? 8000 : TOAST_MS;
+      setToasts((current) => [...current, { ...toast, durationMs, id }]);
+      if (!toast.persistent && toast.tone !== "error") startTimer(id, durationMs);
     },
     [startTimer]
   );
@@ -104,7 +108,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 40 }}
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                 onMouseEnter={() => pause(toast.id)}
-                onMouseLeave={() => resume(toast.id)}
+                onMouseLeave={(event) => { if (!event.currentTarget.contains(document.activeElement)) resume(toast.id); }}
+                onFocusCapture={() => pause(toast.id)}
+                onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null) && !event.currentTarget.matches(":hover")) resume(toast.id); }}
                 className="glass-panel-strong pointer-events-auto relative overflow-hidden rounded-2xl border pl-1.5"
                 role={toast.tone === "error" ? "alert" : "status"}
               >
@@ -126,11 +132,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
-                <span
+                {!toast.persistent && toast.tone !== "error" ? <span
                   className={cn("toast-timer absolute bottom-0 left-1.5 right-0 h-1 origin-left", style.bar)}
-                  style={{ animationDuration: `${TOAST_MS}ms`, animationPlayState: pausedId === toast.id ? "paused" : "running" }}
+                  style={{ animationDuration: `${toast.durationMs}ms`, animationPlayState: pausedId === toast.id ? "paused" : "running" }}
                   aria-hidden="true"
-                />
+                /> : null}
               </motion.div>
             );
           })}

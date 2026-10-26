@@ -4,7 +4,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { MotionConfig } from "framer-motion";
 import { useToast } from "@/components/common/toast-provider";
 import { useAuthState } from "@/features/auth/use-auth-user";
-import { fetchUserSettings, upsertUserSettings } from "@/lib/supabase/app-data";
+import { fetchUserSettings, patchUserPreferences } from "@/lib/supabase/app-data";
 
 export type TextSize = "default" | "large" | "extra-large";
 
@@ -93,7 +93,7 @@ function writeGuideSeen(userId: string, keys: string[]) {
 
 /** Union of the stored and remote lists, so a key dismissed anywhere stays dismissed. */
 function mergeSeen(remote: string[], local: string[]) {
-  return Array.from(new Set([...remote, ...local]));
+  return Array.from(new Set([...remote, ...local.filter((key) => !key.startsWith(HIDDEN_ACTIVITY_PREFIX))]));
 }
 
 const UserSettingsContext = createContext<UserSettingsContextValue | null>(null);
@@ -108,6 +108,24 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
   const preferencesRef = useRef(preferences);
   const guideSeenRef = useRef<string[]>([]);
   const userId = user?.id ?? null;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const preferenceRevision = useRef(0);
+  const preferenceRevisions = useRef(new Map<string, number>());
+  const savedPreferencesRef = useRef({ ...preferences });
+  const savedHiddenRef = useRef(new Set<string>());
+  const visibilityRevisions = useRef(new Map<string, number>());
+
+  // Queue local writes. The database also applies partial patches under a row lock across devices.
+  const persistPatch = useCallback((accountId: string, patch: Record<string, boolean | string>) => {
+    const operation = saveQueue.current.catch(() => undefined).then(() => {
+      if (userIdRef.current !== accountId) throw new Error("Account changed.");
+      return patchUserPreferences(patch);
+    });
+    saveQueue.current = operation;
+    return operation;
+  }, []);
 
   useEffect(() => {
     preferencesRef.current = preferences;
@@ -120,6 +138,13 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     setLoaded(false);
+    preferenceRevisions.current.clear();
+    preferencesRef.current = { ...defaultPreferences };
+    guideSeenRef.current = [];
+    setPreferences({ ...defaultPreferences });
+    setGuideSeen([]);
+    savedPreferencesRef.current = { ...defaultPreferences };
+    savedHiddenRef.current = new Set();
 
     if (!userId) {
       setPreferences(defaultPreferences);
@@ -131,13 +156,17 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
       .then((settings) => {
         if (!active) return;
         if (settings) {
-          setPreferences({
+          const savedPreferences: Preferences = {
             textSize: settings.largeText ? (readExtraLarge(userId) ? "extra-large" : "large") : "default",
             highContrast: settings.highContrast || settings.theme === "high-contrast",
             reduceMotion: settings.reduceMotion,
             audioGuidance: settings.audioGuidance,
             guideMode: settings.guideMode
-          });
+          };
+          preferencesRef.current = savedPreferences;
+          savedPreferencesRef.current = { ...savedPreferences };
+          savedHiddenRef.current = new Set(settings.guideSeen.filter((key) => key.startsWith(HIDDEN_ACTIVITY_PREFIX)));
+          setPreferences(savedPreferences);
           setGuideSeen(mergeSeen(settings.guideSeen, readGuideSeen(userId)));
         } else {
           setGuideSeen(readGuideSeen(userId));
@@ -164,93 +193,86 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
   const updatePreferences = useCallback(
     async (next: Partial<Preferences>) => {
       if (!userId) return false;
-      const previous = preferencesRef.current;
-      const merged = { ...previous, ...next };
+      const merged = { ...preferencesRef.current, ...next };
+      const revision = ++preferenceRevision.current;
+      Object.keys(next).forEach((key) => preferenceRevisions.current.set(key, revision));
+      preferencesRef.current = merged;
       setPreferences(merged);
-
+      const fields = { textSize: "large_text", highContrast: "high_contrast", reduceMotion: "reduce_motion", audioGuidance: "audio_guidance", guideMode: "guide_mode" } as const;
+      const patch = Object.fromEntries(Object.entries(next).map(([key, value]) => [fields[key as keyof Preferences], key === "textSize" ? value !== "default" : value])) as Record<string, boolean>;
       try {
-        await upsertUserSettings({
-          userId,
-          largeText: merged.textSize !== "default",
-          highContrast: merged.highContrast,
-          reduceMotion: merged.reduceMotion,
-          audioGuidance: merged.audioGuidance,
-          guideMode: merged.guideMode,
-          guideSeen: guideSeenRef.current,
-          // Theme is no longer a separate choice; keep the stored value in step with High contrast.
-          theme: merged.highContrast ? "high-contrast" : "soft-blue"
-        });
-        writeExtraLarge(userId, merged.textSize === "extra-large");
-        return true;
-      } catch (error) {
-        setPreferences(previous);
-        notify({
-          title: "Setting not saved",
-          description: error instanceof Error ? error.message : "The setting could not be saved.",
-          tone: "error"
-        });
-        return false;
-      }
-    },
-    [notify, userId]
-  );
-
-  /** Writes the seen list without touching preferences, and keeps the current ones intact. */
-  const saveGuideSeen = useCallback(
-    async (nextSeen: string[]) => {
-      if (!userId) return false;
-      setGuideSeen(nextSeen);
-      guideSeenRef.current = nextSeen;
-      writeGuideSeen(userId, nextSeen);
-      const current = preferencesRef.current;
-
-      try {
-        await upsertUserSettings({
-          userId,
-          largeText: current.textSize !== "default",
-          highContrast: current.highContrast,
-          reduceMotion: current.reduceMotion,
-          audioGuidance: current.audioGuidance,
-          guideMode: current.guideMode,
-          guideSeen: nextSeen,
-          theme: current.highContrast ? "high-contrast" : "soft-blue"
-        });
+        await persistPatch(userId, patch);
+        if (userIdRef.current !== userId) return false;
+        Object.assign(savedPreferencesRef.current, next);
+        if (next.textSize !== undefined) writeExtraLarge(userId, next.textSize === "extra-large");
         return true;
       } catch {
-        // The browser copy above already holds the change, so the guide stays dismissed either way.
-        // Reverting here would re-open the tour immediately, so it deliberately does not.
+        if (userIdRef.current !== userId) return false;
+        // Roll back only the failed fields whose values have not been changed again.
+        const restored = { ...preferencesRef.current };
+        for (const key of Object.keys(next) as Array<keyof Preferences>) {
+          if (preferenceRevisions.current.get(key) === revision) Object.assign(restored, { [key]: savedPreferencesRef.current[key] });
+        }
+        preferencesRef.current = restored;
+        setPreferences(restored);
+        notify({ title: "Setting not saved", description: "Please try that change again.", tone: "error" });
         return false;
       }
-    },
-    [userId]
+    }, [notify, persistPatch, userId]
   );
 
-  const markGuideSeen = useCallback(
-    async (key: string) => {
-      if (guideSeenRef.current.includes(key)) return;
-      await saveGuideSeen([...guideSeenRef.current, key]);
-    },
-    [saveGuideSeen]
-  );
+  const applySeen = useCallback((accountId: string, keys: string[]) => {
+    guideSeenRef.current = keys;
+    setGuideSeen(keys);
+    writeGuideSeen(accountId, keys);
+  }, []);
 
-  const resetGuide = useCallback(
-    () => saveGuideSeen(guideSeenRef.current.filter((key) => key.startsWith(HIDDEN_ACTIVITY_PREFIX))),
-    [saveGuideSeen]
-  );
+  const markGuideSeen = useCallback(async (key: string) => {
+    if (!userId || guideSeenRef.current.includes(key)) return;
+    applySeen(userId, [...guideSeenRef.current, key]);
+    // A dismissal remains local on failure, so the welcome tour never immediately reopens.
+    await persistPatch(userId, { guide_key: key, guide_seen: true }).catch(() => undefined);
+  }, [applySeen, persistPatch, userId]);
+
+  const resetGuide = useCallback(async () => {
+    if (!userId) return false;
+    try {
+      await persistPatch(userId, { guide_reset: true });
+      if (userIdRef.current !== userId) return false;
+      applySeen(userId, guideSeenRef.current.filter((key) => key.startsWith(HIDDEN_ACTIVITY_PREFIX)));
+      return true;
+    } catch {
+      if (userIdRef.current === userId) notify({ title: "Tour not reset", description: "Please try again.", tone: "error" });
+      return false;
+    }
+  }, [applySeen, notify, persistPatch, userId]);
 
   const hiddenActivityIds = useMemo(
-    () => guideSeen.filter((key) => key.startsWith(HIDDEN_ACTIVITY_PREFIX)).map((key) => key.slice(HIDDEN_ACTIVITY_PREFIX.length)),
-    [guideSeen]
+    () => guideSeen.filter((key) => key.startsWith(HIDDEN_ACTIVITY_PREFIX)).map((key) => key.slice(HIDDEN_ACTIVITY_PREFIX.length)), [guideSeen]
   );
 
-  const setActivityHidden = useCallback(
-    async (activityId: string, hidden: boolean) => {
-      const key = `${HIDDEN_ACTIVITY_PREFIX}${activityId}`;
+  const setActivityHidden = useCallback(async (activityId: string, hidden: boolean) => {
+    if (!userId) return;
+    const key = `${HIDDEN_ACTIVITY_PREFIX}${activityId}`;
+    const revision = (visibilityRevisions.current.get(key) ?? 0) + 1;
+    visibilityRevisions.current.set(key, revision);
+    const setHidden = (value: boolean) => {
       const others = guideSeenRef.current.filter((entry) => entry !== key);
-      await saveGuideSeen(hidden ? [...others, key] : others);
-    },
-    [saveGuideSeen]
-  );
+      applySeen(userId, value ? [...others, key] : others);
+    };
+    setHidden(hidden);
+    try {
+      await persistPatch(userId, { guide_key: key, guide_seen: hidden });
+      if (userIdRef.current === userId) {
+        if (hidden) savedHiddenRef.current.add(key);
+        else savedHiddenRef.current.delete(key);
+      }
+    } catch {
+      if (userIdRef.current !== userId) return;
+      if (visibilityRevisions.current.get(key) === revision) setHidden(savedHiddenRef.current.has(key));
+      notify({ title: "Visibility not saved", description: "Please try changing it again.", tone: "error" });
+    }
+  }, [applySeen, notify, persistPatch, userId]);
 
   const value = useMemo(
     () => ({ preferences, loaded, updatePreferences, guideSeen, markGuideSeen, resetGuide, hiddenActivityIds, setActivityHidden }),

@@ -1,5 +1,8 @@
 "use client";
 
+import { LoadError } from "@/components/common/load-error";
+import { LoadingState } from "@/components/common/loading-state";
+
 import { withBuiltInCategoryColors } from "@/lib/category-colors";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -54,6 +57,15 @@ export function AdminPanelView() {
   const { notify } = useToast();
   const reduceMotion = useReducedMotion();
   const [section, setSection] = useState<Section>("home");
+  const [reloadAttempt, setReloadAttempt] = useState(0);
+  const [dataReady, setDataReady] = useState(false);
+  const [usageReady, setUsageReady] = useState(false);
+  const [dashboardReady, setDashboardReady] = useState(false);
+  const [logsReady, setLogsReady] = useState(false);
+  const [dataError, setDataError] = useState(false);
+  const [usageError, setUsageError] = useState(false);
+  const [dashboardError, setDashboardError] = useState(false);
+  const [logsError, setLogsError] = useState(false);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [items, setItems] = useState<LearningItem[]>([]);
   const [media, setMedia] = useState<MediaAsset[]>([]);
@@ -89,7 +101,9 @@ export function AdminPanelView() {
 
   useEffect(() => {
     let active = true;
-    fetchMakaLearnData()
+    setDataReady(false);
+    setDataError(false);
+    fetchMakaLearnData("content")
       .then((data) => {
         if (!active) return;
         setUsers(data.users);
@@ -100,12 +114,14 @@ export function AdminPanelView() {
         setCategories(withBuiltInCategoryColors(data.categories));
       })
       .catch(() => {
+        if (!active) return;
+        setDataError(true);
         notify({ title: "Admin data unavailable", description: "Data could not be loaded. Try refreshing.", tone: "error" });
-      });
+      }).finally(() => { if (active) setDataReady(true); });
     return () => {
       active = false;
     };
-  }, [notify]);
+  }, [notify, reloadAttempt]);
 
   // Activity usage on Home covers up to 12 months. A failed load leaves the chart empty, not the whole page.
   useEffect(() => {
@@ -113,27 +129,30 @@ export function AdminPanelView() {
     const since = new Date();
     since.setMonth(since.getMonth() - 12, 1);
     since.setHours(0, 0, 0, 0);
+    setUsageReady(false);
+    setUsageError(false);
     fetchActivityPlays(since)
       .then((next) => {
         if (active) setPlays(next);
       })
       .catch(() => {
-        if (active) setPlays([]);
-      });
+        if (active) setUsageError(true);
+      }).finally(() => { if (active) setUsageReady(true); });
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadAttempt]);
 
   const reloadActivityLogs = useCallback(async () => {
+    setLogsReady(false);
+    setLogsError(false);
     try {
       const firstPage = await fetchAuditLogs({ limit: LOG_PAGE_SIZE, ...rangeBounds(logRange) });
       setLogs(firstPage);
       setHasMoreLogs(firstPage.length === LOG_PAGE_SIZE);
     } catch {
-      setLogs([]);
-      setHasMoreLogs(false);
-    }
+      setLogsError(true);
+    } finally { setLogsReady(true); }
   }, [logRange]);
 
   // Home's today counts and recent list, independent of the Activity log's paging and date range.
@@ -141,11 +160,13 @@ export function AdminPanelView() {
     const since = new Date();
     since.setMonth(since.getMonth() - 6);
     since.setHours(0, 0, 0, 0);
+    setDashboardReady(false);
+    setDashboardError(false);
     try {
       setDashboardLogs(await fetchAuditLogs({ limit: 5000, since: since.toISOString() }));
     } catch {
-      setDashboardLogs([]);
-    }
+      setDashboardError(true);
+    } finally { setDashboardReady(true); }
   }, []);
 
   const reloadLogs = useCallback(() => {
@@ -155,11 +176,11 @@ export function AdminPanelView() {
 
   useEffect(() => {
     reloadActivityLogs();
-  }, [reloadActivityLogs]);
+  }, [reloadActivityLogs, reloadAttempt]);
 
   useEffect(() => {
     reloadDashboardLogs();
-  }, [reloadDashboardLogs]);
+  }, [reloadDashboardLogs, reloadAttempt]);
 
   async function loadMoreLogs() {
     const last = logs[logs.length - 1];
@@ -214,7 +235,8 @@ export function AdminPanelView() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       >
-        {section === "home" ? (
+        {!dataReady || (section === "home" && (!usageReady || !dashboardReady)) || (section === "activity" && !logsReady) ? <LoadingState label="Loading admin data" /> :
+          dataError || (section === "home" && (usageError || dashboardError)) || (section === "activity" && logsError) ? <LoadError label="admin data" onRetry={() => setReloadAttempt((n) => n + 1)} /> : section === "home" ? (
           <OverviewSection
             adminName={user.name}
             users={users}

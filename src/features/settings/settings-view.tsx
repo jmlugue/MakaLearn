@@ -70,7 +70,7 @@ export function SettingsView() {
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
         <div className="grid min-w-0 grid-cols-1 gap-4">
           <SettingsGroup title="Display">
-            <SettingsRow icon={Type} label="Text size" hint="Makes text bigger across the app.">
+            <SettingsRow icon={Type} label="Text size" hint="Extra large is saved on this device.">
               <SegmentedControl
                 label="Text size"
                 options={textSizes}
@@ -162,11 +162,11 @@ function VoiceSettings() {
 
   return (
     <>
-      <SettingsRow icon={Mic} label="Voice" hint={voices.length ? "Reads questions and sentences. Card audio stays the same." : "No voices found on this device."}>
-        <div className="flex items-center gap-2">
+      <SettingsRow icon={Mic} label="Voice" hint={voices.length ? "Saved on this device. Card audio stays the same." : "No voices found on this device."}>
+        <div className="flex max-w-full flex-wrap items-center gap-2">
           <Select
             aria-label="Voice"
-            className="w-56 py-2"
+            className="w-44 py-2 sm:w-56"
             value={voiceURI}
             disabled={!voices.length}
             onChange={(event) => {
@@ -252,7 +252,7 @@ function SettingsRow({
           <p className="text-sm text-slate-500">{hint}</p>
         </div>
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="min-w-0 max-w-full">{children}</div>
     </div>
   );
 }

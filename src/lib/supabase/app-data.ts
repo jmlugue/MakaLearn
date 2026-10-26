@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { mapMediaAssetRow } from "@/lib/supabase/media";
+import { mapMediaAssetRow, deleteMediaAssetFromSupabase } from "@/lib/supabase/media";
+import { readAllRows } from "@/lib/supabase/pagination";
 import { hasActivityOptionImage } from "@/utils/activity-symbol-options";
 import {
   deleteActivityRecord,
@@ -182,8 +183,9 @@ async function writeLessonRow(
 }
 
 // Load saved app records together and convert them into shared TypeScript models.
-export async function fetchMakaLearnData(): Promise<MakaLearnData> {
+export async function fetchMakaLearnData(scope: "all" | "content" | "activities" | "playground" | "gesture" = "all"): Promise<MakaLearnData> {
   const supabase = getClientOrThrow();
+  const smallLibrary = scope === "playground" || scope === "gesture";
   const [
     profiles,
     categories,
@@ -195,15 +197,18 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData> {
     activityItems,
     promptTemplates
   ] = await Promise.all([
-    expectData(supabase.from("profiles").select("*").order("name")),
-    expectData(supabase.from("categories").select("*").order("name")),
-    expectData(supabase.from("learning_items").select("*").order("label")),
-    expectData(supabase.from("media_assets").select("*").order("uploaded_at", { ascending: false })),
-    expectData(supabase.from("collections").select("*").order("created_at", { ascending: false })),
-    expectData(supabase.from("collection_items").select("*").order("position")),
-    expectData(supabase.from("activities").select("*").order("created_at", { ascending: false })),
-    expectData(supabase.from("activity_items").select("*").order("position")),
-    expectData(supabase.from("activity_prompt_templates").select("*").order("updated_at", { ascending: false }))
+    smallLibrary ? [] as ProfileRow[] : awaitRows(() => supabase.from("profiles").select("*").order("name").order("id")),
+    awaitRows(() => supabase.from("categories").select("*").order("name").order("id")),
+    awaitRows(() => {
+      const query = supabase.from("learning_items").select("*").order("label").order("id");
+      return smallLibrary ? query.eq("content_type", scope === "gesture" ? "gesture" : "pecs") : query;
+    }),
+    smallLibrary || scope === "activities" ? [] as Tables["media_assets"]["Row"][] : awaitRows(() => supabase.from("media_assets").select("*").order("uploaded_at", { ascending: false }).order("id")),
+    smallLibrary ? [] as LessonRow[] : awaitRows(() => supabase.from("collections").select("*").order("created_at", { ascending: false }).order("id")),
+    smallLibrary ? [] as LessonItemRow[] : awaitRows(() => supabase.from("collection_items").select("*").order("collection_id").order("position").order("learning_item_id")),
+    smallLibrary ? [] as ActivityRow[] : awaitRows(() => supabase.from("activities").select("*").order("created_at", { ascending: false }).order("id")),
+    smallLibrary ? [] as ActivityItemRow[] : awaitRows(() => supabase.from("activity_items").select("*").order("position").order("id")),
+    smallLibrary || scope === "content" ? [] as ActivityPromptTemplateRow[] : awaitRows(() => supabase.from("activity_prompt_templates").select("*").order("updated_at", { ascending: false }).order("id"))
   ]);
 
   return {
@@ -215,6 +220,10 @@ export async function fetchMakaLearnData(): Promise<MakaLearnData> {
     activities: activities.map((activity) => mapActivity(activity, activityItems)),
     promptTemplates: promptTemplates.map(mapActivityPromptTemplate)
   };
+}
+
+function awaitRows<T>(query: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }> }) {
+  return readAllRows<T>((from, to) => query().range(from, to));
 }
 
 export async function insertCategory(category: Category) {
@@ -532,8 +541,8 @@ export async function deleteLearningItem(learningItemId: string, deleteMedia: bo
   // link to its uploads is gone with it and the files could never be found again.
   const assets = deleteMedia
     ? ((await expectData(
-        supabase.from("media_assets").select("id, bucket, storage_path").eq("related_item_id", learningItemId)
-      )) as Array<{ id: string; bucket: MediaAsset["bucket"]; storage_path: string }>)
+        supabase.from("media_assets").select("*").eq("related_item_id", learningItemId)
+      )) as Tables["media_assets"]["Row"][])
     : [];
 
   // Delete the material before its media, so a refused delete does not destroy the files anyway.
@@ -545,22 +554,17 @@ export async function deleteLearningItem(learningItemId: string, deleteMedia: bo
     throw new Error("Only teachers can delete shared materials.");
   }
 
-  if (!assets.length) return;
-
-  // Remove the stored files too. Deleting only the rows would leave the uploads orphaned in the bucket.
-  const byBucket = new Map<MediaAsset["bucket"], string[]>();
+  let cleanupPending = 0;
   for (const asset of assets) {
-    if (!asset.storage_path) continue;
-    byBucket.set(asset.bucket, [...(byBucket.get(asset.bucket) ?? []), asset.storage_path]);
+    try {
+      await deleteMediaAssetFromSupabase(mapMediaAssetRow(asset));
+    } catch {
+      // The material is gone, but the Media row retains the path and supports an explicit retry.
+      cleanupPending += 1;
+    }
   }
-  for (const [bucket, paths] of byBucket) {
-    // A missing object should not stop the rest of the cleanup.
-    await supabase.storage.from(bucket).remove(paths);
-  }
+  return { cleanupPending };
 
-  await expectData(
-    supabase.from("media_assets").delete().in("id", assets.map((asset) => asset.id)).select("id")
-  );
 }
 
 export async function updateProfileRole(userId: string, role: AppUser["role"]) {
@@ -677,13 +681,13 @@ export async function insertActivityPlay(play: {
 /** Finished Student mode rounds since a date, newest first. Admins read every teacher's plays. */
 export async function fetchActivityPlays(since: Date): Promise<ActivityPlay[]> {
   const supabase = getClientOrThrow();
-  const rows = (await expectData(
+  const rows = (await awaitRows(() =>
     supabase
       .from("activity_results")
       .select("activity_id, teacher_id, answers, created_at")
       .contains("answers", { source: STUDENT_PLAY_SOURCE })
       .gte("created_at", since.toISOString())
-      .order("created_at", { ascending: false })
+      .order("created_at", { ascending: false }).order("id")
   )) as Pick<ActivityResultRow, "activity_id" | "teacher_id" | "answers" | "created_at">[];
 
   return rows.flatMap((row) => {
@@ -709,6 +713,13 @@ export async function fetchUserSettings(userId: string): Promise<UserSettings | 
   }
 
   return data ? mapUserSettings(data) : null;
+}
+
+/** Update only the requested setting. Guide operations merge atomically with other tabs/devices. */
+export async function patchUserPreferences(patch: Record<string, boolean | string>) {
+  const { data, error } = await getClientOrThrow().rpc("patch_user_preferences", { p_patch: patch });
+  if (error || !data) throw new Error("Your setting could not be saved. Try again.");
+  return mapUserSettings(data as unknown as UserSettingsRow);
 }
 
 export async function upsertUserSettings(settings: Omit<UserSettings, "updatedAt">) {

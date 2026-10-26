@@ -67,7 +67,7 @@ Include UI for:
 - Reduce motion
 - Audio guidance toggle
 
-These can use local state first.
+Use the current account settings provider and Supabase persistence. Voice/speed and the extra-large text extension keep their established device-specific behavior.
 
 ## Feedback patterns
 

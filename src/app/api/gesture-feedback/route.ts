@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireFeedbackAccount, reserveGestureFeedback } from "@/lib/ai-request-guard";
 import {
   createTemplateGestureFeedback,
   validateGeminiGestureFeedback,
@@ -39,10 +40,21 @@ type GeminiGenerateContentResponse = {
 
 // Generate feedback from structured recognition results, with checked local wording as fallback.
 export async function POST(request: Request) {
+  let userId: string;
+  try {
+    const account = await requireFeedbackAccount();
+    if ("status" in account) return NextResponse.json({ error: "Sign in with an active account." }, { status: account.status });
+    userId = account.userId;
+  } catch {
+    return NextResponse.json({ error: "Feedback is unavailable right now." }, { status: 503 });
+  }
   let payload: GestureFeedbackRequest;
 
   try {
-    const body: unknown = await request.json();
+    // Bound the body as well as individual fields before parsing or sending provider context.
+    const raw = await request.text();
+    if (raw.length > 6000) throw new Error("Request too large");
+    const body: unknown = JSON.parse(raw);
     payload = parseFeedbackRequest(body);
   } catch {
     return NextResponse.json({ error: "Invalid gesture feedback request." }, { status: 400 });
@@ -61,6 +73,12 @@ export async function POST(request: Request) {
   const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
 
   if (!apiKey) {
+    return NextResponse.json(fallback);
+  }
+
+  try {
+    if (!(await reserveGestureFeedback(userId))) return NextResponse.json(fallback);
+  } catch {
     return NextResponse.json(fallback);
   }
 
@@ -118,6 +136,11 @@ function parseFeedbackRequest(value: unknown): GestureFeedbackRequest {
   if (typeof input.trackingState !== "string" || !TRACKING_STATES.has(input.trackingState as GestureFeedbackTrackingState)) throw new Error("Invalid trackingState");
   if (typeof input.issueCategory !== "string" || !ISSUE_CATEGORIES.has(input.issueCategory as GestureFeedbackIssueCategory)) throw new Error("Invalid issueCategory");
   if (input.localFeedbackHint !== undefined && typeof input.localFeedbackHint !== "string") throw new Error("Invalid localFeedbackHint");
+  if (input.selectedGestureLabel.length > 120 || (typeof input.predictedGestureLabel === "string" && input.predictedGestureLabel.length > 120)) throw new Error("Label too long");
+  if (typeof input.localFeedbackHint === "string" && input.localFeedbackHint.length > 600) throw new Error("Hint too long");
+  if (input.matchPercent !== null && (!Number.isFinite(input.matchPercent) || input.matchPercent < 0 || input.matchPercent > 100)) throw new Error("Invalid confidence");
+  if (!Number.isInteger(input.detectedHandCount) || input.detectedHandCount < 0 || input.detectedHandCount > 4) throw new Error("Invalid hand count");
+  if (input.expectedHandCount !== null && (!Number.isInteger(input.expectedHandCount) || input.expectedHandCount < 0 || input.expectedHandCount > 2)) throw new Error("Invalid expected hands");
 
   return {
     selectedGestureLabel: input.selectedGestureLabel.trim(),

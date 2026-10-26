@@ -164,6 +164,7 @@ export type Database = {
       };
       media_assets: {
         Row: {
+          deletion_pending: boolean;
           id: string;
           title: string;
           type: MediaAsset["type"];
@@ -176,6 +177,7 @@ export type Database = {
           related_item_id: string | null;
         };
         Insert: {
+          deletion_pending?: boolean;
           id?: string;
           title: string;
           type: MediaAsset["type"];
@@ -188,6 +190,7 @@ export type Database = {
           related_item_id?: string | null;
         };
         Update: {
+          deletion_pending?: boolean;
           id?: string;
           title?: string;
           type?: MediaAsset["type"];
@@ -564,6 +567,18 @@ export type Database = {
       };
     };
     Functions: {
+      patch_user_preferences: {
+        Args: { p_patch: Json };
+        Returns: Json;
+      };
+      reserve_optional_ai_request: {
+        Args: { p_user: string; p_feature: string };
+        Returns: boolean;
+      };
+      claim_material_preparation: {
+        Args: { p_user: string; p_item: string; p_version: string };
+        Returns: Json;
+      };
       claim_playground_check: {
         Args: { p_policy: string; p_hash: string; p_text: string; p_user: string };
         Returns: Json;

@@ -26,6 +26,8 @@ import { RenameFileDialog } from "@/features/content/rename-file-dialog";
 import { getPlaygroundAvailability } from "@/utils/msav-material-profile";
 import { getActivityOptionImageUrl, hasActivityOptionImage } from "@/utils/activity-symbol-options";
 import { needsGrammarActivityContext } from "@/data/grammar-card-manifest";
+import { duplicateMaterialMessage } from "@/utils/material-label";
+import { useDiscardChanges } from "@/components/common/use-discard-changes";
 import type { Category, LearningItem, MediaAsset } from "@/types";
 
 export type CardTextValues = { label: string; categoryId: string; description: string };
@@ -33,6 +35,7 @@ type UploadConfig = Pick<MediaAsset, "bucket" | "type">;
 
 export function CardDetailDialog({
   item,
+  existingItems = [],
   categories,
   creator,
   canManage,
@@ -44,6 +47,7 @@ export function CardDetailDialog({
   onDelete
 }: {
   item: LearningItem | null;
+  existingItems?: LearningItem[];
   categories: Category[];
   creator: string;
   /** Teachers manage shared materials. Admins receive a read-only view. */
@@ -62,6 +66,15 @@ export function CardDetailDialog({
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [preparing, setPreparing] = useState(false);
+  const discardClose = useDiscardChanges(onClose);
+  const discardEdit = useDiscardChanges(() => setEditing(false));
+  const setCloseDirty = discardClose.setDirty;
+  const setEditDirty = discardEdit.setDirty;
+  useEffect(() => {
+    const dirty = Boolean(editing && item && (label !== item.label || categoryId !== item.categoryId || description !== item.description));
+    setCloseDirty(dirty);
+    setEditDirty(dirty);
+  }, [editing, item, label, categoryId, description, setCloseDirty, setEditDirty]);
 
   useEffect(() => {
     setEditing(false);
@@ -79,6 +92,8 @@ export function CardDetailDialog({
 
   async function save() {
     if (!item) return;
+    const duplicate = duplicateMaterialMessage(label, item.contentType, existingItems, item.id);
+    if (duplicate) { setError(duplicate); return; }
     // Description is optional.
     if (!label.trim() || !categoryId) {
       setError("Add a label and category.");
@@ -113,7 +128,7 @@ export function CardDetailDialog({
   const footer = item ? (
     editing ? (
       <>
-        <Button type="button" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
+        <Button type="button" variant="ghost" onClick={discardEdit.requestClose} disabled={saving}>
           Cancel
         </Button>
         <Button type="button" onClick={save} disabled={saving}>
@@ -137,7 +152,7 @@ export function CardDetailDialog({
   ) : null;
 
   return (
-    <Dialog open={Boolean(item)} onClose={saving ? () => undefined : onClose} title={item?.label ?? ""} className="max-w-3xl" footer={footer} hideHeader>
+    <><Dialog open={Boolean(item)} onClose={saving ? () => undefined : discardClose.requestClose} title={item?.label ?? ""} className="max-w-3xl" footer={footer} hideHeader>
       {item ? (
         <div className="grid gap-5 md:grid-cols-[15rem_minmax(0,1fr)]">
           <div className={cn("self-start rounded-2xl border p-3", tone.soft, tone.border)}>
@@ -200,12 +215,12 @@ export function CardDetailDialog({
                   {playgroundAvailability === "ready" ? (
                     <p className="flex items-start gap-2 text-sm leading-6 text-emerald-800">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                      <span><span className="font-bold">Ready for Playground.</span> The card picture and MSAV checks are complete. Audio is optional.</span>
+                      <span className="font-bold">Ready for Playground.</span>
                     </p>
                   ) : playgroundAvailability === "missing-image" ? (
                     <p className="flex items-start gap-2 text-sm leading-6 text-amber-800">
                       <ImageIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                      <span><span className="font-bold">Card picture needed.</span> MSAV is ready. Upload a Card picture below to show this material in Playground.</span>
+                      <span><span className="font-bold">Card picture needed.</span> Upload a picture to use this material in Playground.</span>
                     </p>
                   ) : playgroundAvailability === "unsupported" ? (
                     <p className="text-sm leading-6 text-slate-600">
@@ -215,16 +230,16 @@ export function CardDetailDialog({
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="flex min-w-0 flex-1 items-start gap-2 text-sm leading-6 text-amber-800">
                         <Clock3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                        <span><span className="font-bold">MSAV preparation incomplete.</span> Try preparing it again later. Audio is not required.</span>
+                        <span><span className="font-bold">Not ready for Playground yet.</span> Try preparing it again later.</span>
                       </p>
                       {canManage ? (
-                        <Button type="button" variant="outline" size="sm" disabled={preparing || playgroundAvailability === "processing"} onClick={prepareForPlayground}>
+                        <Button type="button" variant="outline" size="sm" disabled={preparing} onClick={prepareForPlayground}>
                           {preparing || playgroundAvailability === "processing" ? (
                             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                           ) : (
                             <RefreshCw className="h-4 w-4" aria-hidden="true" />
                           )}
-                          {preparing || playgroundAvailability === "processing" ? "Preparing..." : "Try preparing again"}
+                          {preparing ? "Preparing..." : "Prepare for Playground"}
                         </Button>
                       ) : null}
                     </div>
@@ -304,7 +319,7 @@ export function CardDetailDialog({
           </div>
         </div>
       ) : null}
-    </Dialog>
+    </Dialog>{discardClose.confirmation}{discardEdit.confirmation}</>
   );
 }
 

@@ -73,6 +73,7 @@ export type MediaAsset = {
   uploadedBy: string;
   uploadedAt: string;
   relatedItemId?: string;
+  cleanupPending?: boolean;
 };
 
 export type LearningItem = {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Layers, Loader2, Lock, LockOpen, Sparkles, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { useDiscardChanges } from "@/components/common/use-discard-changes";
 import { FieldError, Input, Label } from "@/components/ui/form";
 import { useToast } from "@/components/common/toast-provider";
 import { cn } from "@/lib/utils";
@@ -76,12 +77,14 @@ export function ActivityFormDialog({
   onSave: (mode: ActivityFormMode, values: ActivityFormValues) => Promise<boolean>;
 }) {
   const [saving, setSaving] = useState(false);
+  const discard = useDiscardChanges(onClose);
   const title = mode?.kind === "edit" ? "Edit activity" : "Create activity";
 
   return (
-    <Dialog open={Boolean(mode)} onClose={saving ? () => undefined : onClose} title={title} className="max-w-3xl" hideHeader>
+    <><Dialog open={Boolean(mode)} onClose={saving ? () => undefined : discard.requestClose} title={title} className="max-w-3xl" hideHeader>
       {mode ? (
         <ActivityForm
+          onDirtyChange={discard.setDirty}
           key={mode.kind === "edit" ? mode.activity.id : "new"}
           title={title}
           mode={mode}
@@ -92,7 +95,7 @@ export function ActivityFormDialog({
           lessonOfActivity={lessonOfActivity}
           onPromptStoreChange={onPromptStoreChange}
           saving={saving}
-          onClose={onClose}
+          onClose={discard.requestClose}
           onSave={async (values) => {
             setSaving(true);
             const saved = await onSave(mode, values);
@@ -101,7 +104,7 @@ export function ActivityFormDialog({
           }}
         />
       ) : null}
-    </Dialog>
+    </Dialog>{discard.confirmation}</>
   );
 }
 
@@ -121,6 +124,7 @@ function initialValues(mode: ActivityFormMode, lessonOfActivity?: Lesson): Activ
 }
 
 function ActivityForm({
+  onDirtyChange,
   title,
   mode,
   items,
@@ -133,6 +137,7 @@ function ActivityForm({
   onClose,
   onSave
 }: {
+  onDirtyChange: (dirty: boolean) => void;
   title: string;
   mode: ActivityFormMode;
   items: LearningItem[];
@@ -147,6 +152,7 @@ function ActivityForm({
 }) {
   const { notify } = useToast();
   const [values, setValues] = useState<ActivityFormValues>(() => initialValues(mode, lessonOfActivity));
+  useEffect(() => { onDirtyChange(JSON.stringify(values) !== JSON.stringify(initialValues(mode, lessonOfActivity))); }, [values, mode, lessonOfActivity, onDirtyChange]);
   // Editing normally starts with changing the selected cards. Opening on Review made Back → Cards → Next
   // look like a loop because Next returned to the same screen that first appeared after pressing Edit.
   const [step, setStep] = useState(mode.kind === "edit" ? 1 : 0);

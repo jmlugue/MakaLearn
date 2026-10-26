@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDiscardChanges } from "@/components/common/use-discard-changes";
 import { Check, ChevronLeft, ChevronRight, Copy, Lock, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -56,19 +57,22 @@ export function LessonFormDialog({
   onSave: (mode: LessonFormMode, values: LessonFormValues) => Promise<boolean>;
 }) {
   const [saving, setSaving] = useState(false);
+  const discard = useDiscardChanges(onClose);
   const title = formTitle(mode);
 
   return (
-    <Dialog open={Boolean(mode)} onClose={saving ? () => undefined : onClose} title={title} className="max-w-3xl" hideHeader>
+    <><Dialog open={Boolean(mode)} onClose={saving ? () => undefined : discard.requestClose} title={title} className="max-w-3xl" hideHeader>
       {mode ? (
         <LessonForm
+          key={mode.kind === "edit" ? mode.lesson.id : mode.kind === "copy" ? mode.source.id : "new"}
+          onDirtyChange={discard.setDirty}
           title={title}
           mode={mode}
           items={items}
           categories={categories}
           takenTitles={takenTitles}
           saving={saving}
-          onClose={onClose}
+          onClose={discard.requestClose}
           onSave={async (values) => {
             setSaving(true);
             const saved = await onSave(mode, values);
@@ -77,7 +81,7 @@ export function LessonFormDialog({
           }}
         />
       ) : null}
-    </Dialog>
+    </Dialog>{discard.confirmation}</>
   );
 }
 
@@ -96,6 +100,7 @@ function initialValues(mode: LessonFormMode): LessonFormValues {
 }
 
 function LessonForm({
+  onDirtyChange,
   title,
   mode,
   items,
@@ -105,6 +110,7 @@ function LessonForm({
   onClose,
   onSave
 }: {
+  onDirtyChange: (dirty: boolean) => void;
   title: string;
   mode: LessonFormMode;
   items: LearningItem[];
@@ -117,6 +123,7 @@ function LessonForm({
   const [values, setValues] = useState<LessonFormValues>(() => initialValues(mode));
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
+  useEffect(() => { onDirtyChange(JSON.stringify(values) !== JSON.stringify(initialValues(mode))); }, [values, mode, onDirtyChange]);
 
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const selectedItems = values.itemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));

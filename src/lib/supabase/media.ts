@@ -45,7 +45,8 @@ export function mapMediaAssetRow(row: MediaAssetRow): MediaAsset {
     publicUrl: row.public_url ?? undefined,
     uploadedBy: row.uploaded_by,
     uploadedAt: row.uploaded_at,
-    relatedItemId: row.related_item_id ?? undefined
+    relatedItemId: row.related_item_id ?? undefined,
+    cleanupPending: row.deletion_pending ?? false
   };
 }
 
@@ -125,9 +126,8 @@ export async function deleteMediaAssetFromSupabase(asset: MediaAsset) {
     throw new Error("Supabase is not configured.");
   }
 
-  // Delete the database record first. If Storage cleanup later fails, an unreferenced object is safer
-  // than a visible database row whose file has already disappeared.
-  const { data, error } = await supabase.from("media_assets").delete().eq("id", asset.id).select("id");
+  // Keep a retryable record until every step finishes. Check authorization before touching Storage.
+  const { data, error } = await supabase.from("media_assets").update({ deletion_pending: true }).eq("id", asset.id).select("id");
   if (error) {
     throw error;
   }
@@ -138,22 +138,24 @@ export async function deleteMediaAssetFromSupabase(asset: MediaAsset) {
   if (asset.storagePath) {
     const removal = await supabase.storage.from(asset.bucket).remove([asset.storagePath]);
     if (removal.error) {
-      // The row is already gone, so keep the app consistent and leave the unreferenced object for cleanup.
-      console.error("Media row was deleted, but the storage object could not be removed.", removal.error);
+      throw new Error("The file could not be removed from storage. It stays in Media so you can retry Delete.");
     }
   }
 
   if (asset.relatedItemId && asset.publicUrl) {
     const updatedAt = new Date().toISOString();
-    const items = supabase.from("learning_items");
-    if (asset.type === "symbol-image") {
-      await items.update({ symbol_image_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("symbol_image_url", asset.publicUrl);
-    } else if (asset.type === "activity-image") {
-      await items.update({ activity_image_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("activity_image_url", asset.publicUrl);
-    } else if (asset.type === "gesture-media") {
-      await items.update({ gesture_media_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("gesture_media_url", asset.publicUrl);
-    } else {
-      await items.update({ audio_url: null, updated_at: updatedAt }).eq("id", asset.relatedItemId).eq("audio_url", asset.publicUrl);
+    const column = asset.type === "symbol-image" ? "symbol_image_url" : asset.type === "activity-image" ? "activity_image_url" : asset.type === "gesture-media" ? "gesture_media_url" : "audio_url";
+    const patch: Database["public"]["Tables"]["learning_items"]["Update"] = { updated_at: updatedAt };
+    patch[column] = null;
+    const detached = await supabase.from("learning_items").update(patch)
+      .eq("id", asset.relatedItemId).eq(column, asset.publicUrl).select("id");
+    if (detached.error) throw new Error("The file was removed, but its material link needs cleanup. Retry Delete in Media.");
+    if (!detached.data?.length) {
+      // Zero rows is safe only if the material disappeared or now uses a different file.
+      const current = await supabase.from("learning_items").select("symbol_image_url,activity_image_url,gesture_media_url,audio_url").eq("id", asset.relatedItemId).maybeSingle();
+      if (current.error || current.data?.[column] === asset.publicUrl) throw new Error("The material link could not be cleared. Retry Delete in Media.");
     }
   }
+  const removed = await supabase.from("media_assets").delete().eq("id", asset.id).select("id");
+  if (removed.error || !removed.data?.length) throw new Error("The file was removed, but its Media entry needs cleanup. Retry Delete.");
 }

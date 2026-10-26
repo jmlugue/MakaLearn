@@ -550,7 +550,7 @@ function ScoreDialog({ result, onRestart, onExit }: { result: ActivityScore | nu
           </Button>
           <Button type="button" onClick={onRestart}>
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            Play again
+            Preview again
           </Button>
         </div>
       </div>
