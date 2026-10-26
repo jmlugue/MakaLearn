@@ -206,6 +206,10 @@ function CardForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving || template.pending) return;
+    if (!files.symbol) {
+      setError(kind === "pecs" ? "Add a card image before saving this PECS material." : "Add a reference image before saving this Gesture material.");
+      return;
+    }
     if (template.error) {
       setError(template.error);
       return;
