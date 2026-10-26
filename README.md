@@ -4,6 +4,8 @@ MakaLearn is an MVP for teacher-guided Makaton learning support. The current sco
 
 Current learning content is placeholder-only. The app includes a local trained seven-label gesture recognizer for the thesis prototype, but it does not include official Makaton symbols, official gesture videos, official audio, or clinically validated assessment logic.
 
+For thesis-panel questions about where features are implemented, see the [Codebase Guide for Thesis Defense](docs/codebase-guide.md), with feature-to-file maps, important function names, data flows, and short presentation answers.
+
 ## Tech stack
 
 - Next.js App Router

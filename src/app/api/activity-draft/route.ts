@@ -318,6 +318,7 @@ async function requestGeminiDraft(
   }
 }
 
+// Check the teacher, cache, and quota before drafting editable activity wording with Gemini.
 export async function POST(request: Request) {
   let body: ActivityDraftRequest;
 

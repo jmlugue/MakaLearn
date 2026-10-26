@@ -49,6 +49,7 @@ export function mapMediaAssetRow(row: MediaAssetRow): MediaAsset {
   };
 }
 
+// Upload the file to Storage, then save its searchable media record in the database.
 export async function uploadMediaAssetToSupabase({
   file,
   bucket,
@@ -88,7 +89,7 @@ export async function uploadMediaAssetToSupabase({
     data: { publicUrl }
   } = supabase.storage.from(bucket).getPublicUrl(storagePath);
 
-  // Future Supabase Auth: replace the local uploadedBy value with auth.user().id.
+  // The calling feature supplies the signed-in user's ID for the media ownership record.
   const insert = await supabase
     .from("media_assets")
     .insert({

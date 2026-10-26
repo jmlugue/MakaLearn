@@ -25,6 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return <AuthenticatedShell>{children}</AuthenticatedShell>;
 }
 
+// Check the signed-in account and choose the teacher or Student Mode layout.
 function AuthenticatedShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();

@@ -78,7 +78,7 @@ function uniqueAllowed<T extends string>(value: unknown, allowed: readonly T[]):
   return [...new Set(value as T[])];
 }
 
-/** Rejects invented roles and contradictory combinations before model output reaches MSAV. */
+// Reject invented roles, unknown traits, and contradictory profiles before MSAV uses them.
 export function parseMsavMaterialProfile(value: unknown, materialLabel?: string): MsavMaterialProfile | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;

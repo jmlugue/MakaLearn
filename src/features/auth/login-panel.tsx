@@ -39,6 +39,7 @@ export function LoginPanel() {
     return data as Pick<AppUser, "id" | "name" | "email" | "role" | "status">;
   }
 
+  // Sign in with Supabase, check account status, and open the page for the user's role.
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError("");

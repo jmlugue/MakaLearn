@@ -48,6 +48,7 @@ function sectionFromHash(): Section {
   return sections.some((section) => section.value === hash) ? (hash as Section) : "home";
 }
 
+// Load the admin overview, account management, content monitoring, and activity logs.
 export function AdminPanelView() {
   const { user } = useAuthUser();
   const { notify } = useToast();

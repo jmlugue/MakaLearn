@@ -33,6 +33,7 @@ async function loadVisionFileset() {
   return filesetPromise;
 }
 
+// Load MediaPipe's hand detector for landmark tracking inside the browser.
 export async function loadGestureHandTracker() {
   if (!handTrackerPromise) {
     handTrackerPromise = Promise.all([loadVisionTasks(), loadVisionFileset()]).then(async ([vision, fileset]) => {

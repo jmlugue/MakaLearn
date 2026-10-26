@@ -98,7 +98,7 @@ function mergeSeen(remote: string[], local: string[]) {
 
 const UserSettingsContext = createContext<UserSettingsContextValue | null>(null);
 
-/** Loads the signed-in user's accessibility preferences once and applies them on every page. */
+// Load account preferences and apply text size, contrast, and motion settings across pages.
 export function UserSettingsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuthState();
   const { notify } = useToast();

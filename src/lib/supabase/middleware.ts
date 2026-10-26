@@ -27,6 +27,7 @@ export async function updateSession(request: NextRequest) {
     }
   });
 
+  // Refresh the Auth session cookies before the request continues to its page or API.
   await supabase.auth.getUser();
 
   return response;
