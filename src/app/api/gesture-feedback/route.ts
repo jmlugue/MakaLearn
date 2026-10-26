@@ -133,8 +133,9 @@ function parseFeedbackRequest(value: unknown): GestureFeedbackRequest {
 function buildGeminiPrompt(payload: GestureFeedbackRequest) {
   return `You write corrective feedback for MakaLearn gesture practice.
 Return only strict JSON with exactly these string keys: learnerMessage, teacherNote.
+Use short, direct sentences and familiar words in both fields. Do not use semicolons or em dashes. Use periods or commas instead.
 learnerMessage: short, simple, encouraging, suitable for a learner.
-teacherNote: write one or two connected, natural sentences that are easy for a teacher to read. Include the useful recognition detail and the next cue the teacher can give. Do not use headings, labels, bullet points, colons, or semicolons.
+teacherNote: write one or two short sentences for the teacher. Explain the recognition result and give one clear next step. Do not use headings, labels, bullet points, or colons.
 Ground the feedback only in this structured local recognition result. Do not diagnose, assess communication ability, invent gestures, mention learner identity, mention camera images, mention Gemini, mention AI, or override teacher judgment.
 Structured result:
 ${JSON.stringify(payload, null, 2)}`;

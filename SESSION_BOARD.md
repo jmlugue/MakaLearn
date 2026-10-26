@@ -34,6 +34,10 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-26-app-instruction-copy
+- Outcome: Audited app instruction strings and all four Gemini prompts. Removed visible semicolons and em dashes, simplified the upload and gesture cues, made the corrective feedback and activity punctuation rule explicit, and rejected generated wording that violates it through the existing fallback. Classification and grading rules are unchanged.
+- Scope: Replaces PR #22 and includes its upload/style changes. Adds focused feedback/activity regressions, a source copy check, and docs/instruction-copy-audit.md. Concurrent reliability changes are excluded.
+
 ### 2026-10-26-material-category-audit
 - Outcome: Reviewed all 67 hosted materials, added Polite Words/People/Health, and corrected 17 saved category assignments. Reused existing Grammar/Choices; retained reserved gestures, empty categories, and the ambiguous test material in No category. Updated corresponding built-in tags and 14 untouched generated descriptions, preserving the teacher-edited Sick description.
 - Files: PECS manifest/types, library defaults, media importer, category colors, Playground category styles, maintenance SQL, category regression tests, targeted README/CLAUDE guidance, and docs/material-category-audit.md. Before/after data snapshots are Git-ignored under supabase/backups/.

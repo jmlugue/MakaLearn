@@ -635,7 +635,7 @@ export async function POST(request: Request) {
       : "gemini";
     const promptName = activityType === "fill-blank" ? "sentence" : "question";
     const note = missingItems.length
-      ? `${suggestions.length} ${suggestions.length === 1 ? promptName : `${promptName}s`} ready; ${missingItems.length} still ${missingItems.length === 1 ? "needs" : "need"} your wording.`
+      ? `${suggestions.length} ${suggestions.length === 1 ? promptName : `${promptName}s`} ready. ${missingItems.length} still ${missingItems.length === 1 ? "needs" : "need"} your wording.`
       : `${suggestions.length} ${suggestions.length === 1 ? promptName : `${promptName}s`} ready. Check ${suggestions.length === 1 ? "it" : "them"} before saving.`;
 
     return jsonDraft({

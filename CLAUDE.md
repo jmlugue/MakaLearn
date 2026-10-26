@@ -293,7 +293,7 @@ This is the current accepted behavior for every activity surface:
 
 ## 7. Working conventions
 
-- Concise output, no em dashes, in UI copy and in chat.
+- Use short, direct sentences for instructions. No semicolons in instructions. No em dashes in UI copy or chat.
 - Plan before building. The user says "let us plan" and expects questions and options first.
 - The user commits and pushes. Do not commit unless asked.
 - Secrets go in `.env.local`, which is git-ignored, pasted by the user. Never ask for them in chat.
@@ -1108,3 +1108,7 @@ The owner asked for three layouts like a CSS media query diagram. Rules live in 
 - Updated the 50-card manifest's category metadata, importer/default mappings, and Content/Playground colors. All labels, assets, sentence roles, grammar metadata, preparation profiles, and saved activity/collection records are preserved. Runtime loading still respects saved category edits. The guided seven stay in the reserved Fixed gestures category.
 - Matching old category tags and untouched generated descriptions were corrected; teacher-written descriptions were kept. Unknown testnopic stays in No category. Empty existing categories were retained.
 - See `docs/material-category-audit.md` and `supabase/maintenance/reclassify-learning-materials.sql`; before/after snapshots are Git-ignored under `supabase/backups/`. Category tests (`node --test scripts/test-material-categories.mjs`), all 62 activity tests, all 50 Playground tests, TypeScript, lint, and production build passed. Full material validation was attempted but requires unavailable local Supabase credentials; connected database checks verified destinations and reference integrity.
+
+## Instruction wording
+
+Gemini corrective feedback and generated activity wording use short, direct sentences with no semicolons or em dashes. Validate generated text and use the existing local fallback when it breaks this rule. See [the instruction wording check](docs/instruction-copy-audit.md). Run `node --test scripts/test-instruction-copy.mjs` with the focused provider tests after wording changes.

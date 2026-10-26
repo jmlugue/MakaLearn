@@ -20,7 +20,7 @@ Stack: Next.js 14, React 18, Tailwind CSS 3.4, Framer Motion, lucide-react icons
 | Blue-toned glassmorphism | Frosted white panels over a soft blue wash. Blue is the only brand color. |
 | Calm teacher UI, playful student UI | Teacher and Admin screens are quiet and blue. Student mode may be big, bold, and colorful. |
 | Incremental, not overhauls | Improve a screen step by step. Keep what teammates built; hide rather than delete. |
-| Show, don't explain | Short labels, one short sentence at most. No em dashes in any copy. |
+| Show, don't explain | Short labels and simple instructions. No semicolons in instructions or em dashes in any copy. |
 | Color means something | Green, amber, red only for success, warning, error. |
 
 ---
@@ -500,7 +500,7 @@ Rules:
 ## 13. Copy
 
 - Short: a label plus a short phrase. One sentence at most.
-- No em dashes. Use a comma, colon, period, or parentheses.
+- Use simple, direct instructions with short sentences. Avoid semicolons and em dashes. Use periods or commas instead.
 - Sentence case for buttons and titles ("Add PECS card", not "Add PECS Card").
 - Say what happened ("File deleted", "Could not save"), never a false success.
 - Names: PECS cards, Gestures, Lessons, Activities, Student mode, Playground. Activity types in teacher
