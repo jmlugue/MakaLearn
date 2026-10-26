@@ -12,7 +12,9 @@ const { gradePlaygroundText } = loadTs("src/lib/playground-provider.ts");
 const model = process.env.GEMINI_PLAYGROUND_MODEL?.trim() || "gemini-3.5-flash-lite";
 const cases = [
   ["Water", true, "word"], ["More water", true, "phrase"],
-  ["I am sorry", true, "sentence"], ["You are a teacher", true, "sentence"],
+  ["I am sorry", true, "sentence"], ["I am a friend", true, "sentence"],
+  ["I am a teacher", true, "sentence"], ["You are a teacher", true, "sentence"],
+  ["I are a friend", false, null], ["I am an friend", false, null],
   ["You are teacher", false, null], ["You am a teacher", false, null],
   ["I want hot water", true, "sentence"], ["I want hot food", true, "sentence"],
   ["I want water please", true, "sentence"], ["I want rice please", true, "sentence"],

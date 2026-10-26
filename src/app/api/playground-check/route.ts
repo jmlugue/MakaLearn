@@ -12,7 +12,7 @@ const reply = (decision: unknown = null, status = 200) =>
 export async function POST(request: Request) {
   try {
     // Explicit off switch also bypasses stored decisions and restores local MSAV.
-    if (process.env.PLAYGROUND_CHECKER_MODE !== "ai") return reply();
+    if (process.env.PLAYGROUND_CHECKER_MODE?.trim() === "algorithm") return reply();
     const db = createSupabaseServerClient();
     const { data: auth, error: authError } = await db.auth.getUser();
     if (authError || !auth.user) return reply(null, 401);

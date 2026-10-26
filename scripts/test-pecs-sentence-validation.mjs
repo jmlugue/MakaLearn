@@ -115,6 +115,25 @@ test("apologies and person descriptions accept matching be-verbs and reject unre
   assert.equal(validateLabels(["Mother", "You", "Are", "Teacher"]).isValid, true);
 });
 
+test("fallback person descriptions accept articles without inventing roles", () => {
+  const personDescription = (labels) => validate(labels.map((label) => [label, manifestByLabel.get(label)?.sentence_role]));
+  for (const [subject, beVerb] of subjects) {
+    for (const person of people) {
+      for (const article of ["A", "The"]) {
+        const result = personDescription([subject, beVerb, article, person]);
+        assert.equal(result.isValid, true, result.generatedSentence);
+        assert.equal(result.constructionType, "sentence");
+      }
+    }
+  }
+  for (const labels of [
+    ["I", "Are", "A", "Friend"], ["You", "Am", "A", "Teacher"],
+    ["I", "Am", "An", "Friend"], ["I", "Am", "A", "Water"],
+    ["I", "Am", "A", "Banana"], ["I", "Am", "A", "I"],
+    ["I", "A", "Am", "Friend"], ["I", "Am", "And", "Friend"]
+  ]) assert.equal(personDescription(labels).isValid, false, labels.join(" "));
+});
+
 test("base-form action cards only follow I or You", () => {
   for (const subject of ["I", "You"]) {
     for (const predicate of actionPredicates) {

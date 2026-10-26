@@ -34,6 +34,12 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-26-playground-grammar-pr
+- Outcome: Made AI grammar the default while retaining card roles and new-material role preparation for the MSAV fallback. Added the I am a friend prompt example and a role-based A/The person-description fallback, plus regression coverage and current configuration guidance.
+- Supabase: Corrected only the existing english-v1 / i am a friend decision to valid sentence, with correction history and a Git-ignored backup. Verified the actual store reads the corrected result. No learning-item roles or schema changed.
+- Verification: 50 Playground tests, 62 activity tests, TypeScript, lint, production build (23 pages), and whitespace passed. Hosted material validation retains three previously documented missing-material activity references and two Eat/Drink duplicate-label warnings. The owner reports hosted environment configuration is complete; fresh hosted AI behavior still needs a post-deployment smoke check.
+- Scope: Only this Playground change and its own documentation/session notes are included. Existing staged documentation and unrelated working edits are preserved. No merge or deployment.
+
 ### 2026-10-25-login-placeholders
 - Outcome: Updated login placeholders to Enter username and Enter password in `src/features/auth/login-panel.tsx`.
 - Verification: Lint, production build (including TypeScript), and whitespace checks passed.
