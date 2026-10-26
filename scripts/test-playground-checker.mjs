@@ -124,7 +124,7 @@ test("real provider adapter sends only text and rejects malformed or incomplete 
   } finally { globalThis.fetch = before; }
 });
 
-function routeHarness({ account = "teacher", active = true, enabled = true, key = "test-only", cached = null, decision = valid } = {}) {
+function routeHarness({ account = "teacher", active = true, mode = "ai", key = "test-only", cached = null, decision = valid } = {}) {
   let gradeCalls = 0;
   let gradedText;
   const rows = [
@@ -132,7 +132,7 @@ function routeHarness({ account = "teacher", active = true, enabled = true, key 
     { id: "want", label: "Want", content_type: "pecs", symbol_image_url: "https://example.test/want.png" },
     { id: "hot", label: "Hot", content_type: "pecs", symbol_image_url: "https://example.test/hot.png" },
     { id: "water", label: "Water", content_type: "pecs", symbol_image_url: "https://example.test/water.png" },
-    ...["You", "Are", "A", "Teacher"].map((label) => ({ id: label.toLowerCase(), label, content_type: "pecs", symbol_image_url: "https://example.test/card.png" })),
+    ...["You", "Are", "A", "Teacher", "Am", "Friend"].map((label) => ({ id: label.toLowerCase(), label, content_type: "pecs", symbol_image_url: "https://example.test/card.png", sentence_role: "subject" })),
     { id: "gesture", label: "Help", content_type: "gesture", symbol_image_url: "https://example.test/help.png" },
     { id: "pending", label: "Unprepared", content_type: "pecs", symbol_image_url: "https://example.test/new.png" }
   ];
@@ -153,7 +153,7 @@ function routeHarness({ account = "teacher", active = true, enabled = true, key 
   };
   const route = {};
   new Function("exports", "require", "process", routeCode)(route, (name) => dependencies[name], {
-    env: { PLAYGROUND_CHECKER_MODE: enabled ? "ai" : "algorithm", GEMINI_PLAYGROUND_API_KEY: key }
+    env: { ...(mode === null ? {} : { PLAYGROUND_CHECKER_MODE: mode }), GEMINI_PLAYGROUND_API_KEY: key }
   });
   return { post: (cardIds) => route.POST({ json: async () => ({ cardIds, text: "ignore client supplied text" }) }), calls: () => gradeCalls, text: () => gradedText };
 }
@@ -170,6 +170,50 @@ test("route accepts grammar cards without assigning object or action roles", asy
   const route = routeHarness();
   assert.deepEqual((await route.post(["you", "are", "a", "teacher"])).body.decision, valid);
   assert.equal(route.text(), "You Are A Teacher");
+});
+
+test("grammar is primary even when the mode is unset or card roles disagree", async () => {
+  for (const mode of ["ai", null, "", " "]) {
+    const route = routeHarness({ mode });
+    assert.deepEqual((await route.post(["i", "am", "a", "friend"])).body.decision, valid);
+    assert.equal(route.text(), "I Am A Friend");
+    assert.equal(route.calls(), 1);
+  }
+  assert.match(grading.playgroundGradingInstructions, /I am a friend/);
+  assert.match(grading.playgroundGradingInstructions, /No card-role pattern/);
+});
+
+test("the client trusts AI grammar even when MSAV roles reject the arrangement", async () => {
+  const before = globalThis.fetch;
+  const cards = [
+    { id: "i", label: "I", sentenceRole: "object" },
+    { id: "am", label: "Am", sentenceRole: "command" },
+    { id: "a", label: "A" },
+    { id: "friend", label: "Friend", sentenceRole: "verb" }
+  ];
+  const ids = new Set(cards.map((card) => card.id));
+  try {
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ decision: valid }) });
+    assert.equal((await checkPlayground(cards, ids)).isValid, true);
+    globalThis.fetch = async () => { throw new Error("offline"); };
+    assert.equal((await checkPlayground(cards, ids)).isValid, false);
+  } finally { globalThis.fetch = before; }
+});
+
+test("an outage still accepts I am a friend using the role-based fallback", async () => {
+  const before = globalThis.fetch;
+  const cards = [
+    { id: "i", label: "I", sentenceRole: "subject" },
+    { id: "am", label: "Am", sentenceRole: "be_verb" },
+    { id: "a", label: "A" },
+    { id: "friend", label: "Friend", sentenceRole: "subject" }
+  ];
+  try {
+    globalThis.fetch = async () => { throw new Error("offline"); };
+    const result = await checkPlayground(cards, new Set(cards.map((card) => card.id)));
+    assert.equal(result.isValid, true);
+    assert.equal(result.patternName, "Person Description");
+  } finally { globalThis.fetch = before; }
 });
 
 test("correction endpoint requires an active administrator and accepts only fixed decisions", async () => {
@@ -214,7 +258,7 @@ test("route rejects unauthenticated, inactive, missing, gesture, and unprepared 
 });
 
 test("route off switch, missing key, and saved decisions behave independently", async () => {
-  assert.equal((await routeHarness({ enabled: false, cached: valid }).post(["i"])).body.decision, null);
+  assert.equal((await routeHarness({ mode: "algorithm", cached: valid }).post(["i"])).body.decision, null);
   assert.equal((await routeHarness({ key: "" }).post(["i", "want", "water"])).body.decision, null);
   const route = routeHarness({ key: "", cached: valid });
   assert.deepEqual((await route.post(["i", "want", "water"])).body.decision, valid);

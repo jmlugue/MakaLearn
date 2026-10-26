@@ -1,11 +1,13 @@
 # Playground checking and grammar materials
 
-The optional primary checker accepts standard-English words, phrases, sentences,
+The primary checker accepts standard-English words, phrases, sentences,
 commands, and questions. It permits missing capitalization and final punctuation
 because the board uses printed cards. It does not supply missing articles or
 other words: **You are a teacher** is valid; **You are teacher** is invalid.
 Card roles are not restrictions on this checker. Gemini receives only assembled
 text, never images, uploaded recordings, user identities, or learner information.
+For example, **I am a friend** is a valid sentence even though Friend has the
+MSAV subject role. Card roles and traits are consulted only by the fallback.
 
 ## Configuration
 
@@ -24,7 +26,8 @@ new-material preparation. Never put it in a `NEXT_PUBLIC_` variable. Use
 `PLAYGROUND_CHECKER_MODE=algorithm` to bypass both the provider and saved grades
 and restore the original validator. Restart the locally managed server after
 changing environment settings. Application deployment and hosted environment
-settings are separate from applying the database migration.
+settings are separate from applying the database migration. Leaving the mode
+unset also selects the AI path; the API key is still required for new AI decisions.
 
 ## Decisions and outages
 
@@ -53,6 +56,9 @@ algorithm without saving its grade as an AI decision. Failed claims have a
 60-second cooldown. Therefore an uncached fallback verdict can differ from a
 later authoritative AI decision. Saved grades remain available without a
 provider key, provided mode is `ai` and Supabase is available.
+The fallback also recognizes built-in person descriptions with A or The, such
+as **I am a friend** and **You are a teacher**, without assigning articles fake
+MSAV roles. Its other limitations still apply during outages.
 
 Editing, clearing, or leaving the board aborts pending client work and invalidates
 late responses. No AI labels, provider errors, or generated explanations are

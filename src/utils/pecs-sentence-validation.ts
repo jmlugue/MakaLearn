@@ -162,6 +162,16 @@ function isAllowedWantTarget(card: PecsSentenceCard, label: string) {
   return hasRole(card, "object") || hasTrait(card, "requestable") || label === "more" || label === "help";
 }
 
+/** Keep common person descriptions usable during an AI outage. This small rule
+ * covers the built-in person nouns, whose indefinite article is always A. */
+function isArticlePersonDescription(cards: PecsSentenceCard[]) {
+  if (cards.length !== 4) return false;
+  const labels = cards.map((card) => normalizeLabel(card.label));
+  return hasRole(cards[0], "subject") && hasRole(cards[1], "be_verb") &&
+    expectedBeVerb(cards[0], labels[0]) === labels[1] &&
+    ["a", "the"].includes(labels[2]) && namedPersonLabels.has(labels[3]);
+}
+
 function validateCoreConstruction(cards: PecsSentenceCard[]): PecsSentenceValidationResult | undefined {
   const labels = cards.map((card) => normalizeLabel(card.label));
 
@@ -364,6 +374,12 @@ export function validatePecsSentence(
     }
     const constructionType = classifySingleCard(cards[0]);
     return validResult(constructionType, "Single Card", cards);
+  }
+
+  // Articles intentionally have no MSAV role; recognize this complete pattern
+  // before the role guard rather than assigning grammar cards a fake role.
+  if (isArticlePersonDescription(cards)) {
+    return validResult("sentence", "Person Description", cards);
   }
 
   if (cards.some((card) => !rolesOf(card).length)) {

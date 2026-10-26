@@ -1081,3 +1081,12 @@ The owner asked for three layouts like a CSS media query diagram. Rules live in 
 - Supabase service-only tables retain positive/negative grades under `english-v1` plus normalized ordered text. Model changes do not regrade. Database leases coordinate requests and quotas; failures never pin fallback decisions. Admin correction is an authenticated, audited maintenance endpoint outside Playground. See `docs/playground-checker.md` for limits and operations.
 - Six original grammar materials (A, An, The, To, And, Not) use separate `grammar_kind` metadata, labelled card artwork, word-free context cues, and recordings. The original 50-card manifest is preserved. Grammar words and Am/Is/Are need contextual questions and are excluded from current generic picture options and legacy grammar questions; saved records are not rewritten.
 - Isolated I uses a speech-only pronunciation alias; sentence text remains intact. The hosted recording is versioned as `i-pronoun-v2.wav`. Playground keeps the selected browser voice. Check/Listen share decisions; edits/unmount abort pending work and suppress late responses.
+
+
+## Oct 26: Playground grammar primary and Friend correction
+
+- Playground defaults to the separate AI grammar checker unless `PLAYGROUND_CHECKER_MODE=algorithm` is explicitly set. Only ordered text is sent to Gemini; card roles do not restrict its grammar verdict. A dedicated `GEMINI_PLAYGROUND_API_KEY` is required for uncached provider calls.
+- Supabase saved decisions remain authoritative and reusable without a provider key. Missing credentials, quota, provider, and database failures use the role-based MSAV fallback without saving its grade as an AI verdict.
+- The fallback now accepts four-card built-in person descriptions with A or The, including `I Am A Friend` and `You Are A Teacher`, while retaining subject/be agreement and complement exclusions. Articles keep their separate grammar metadata.
+- The hosted `english-v1` decision for `i am a friend` was unfinished, not a stored negative grade. It is now valid with type sentence, with one owner-approved correction history entry and a Git-ignored backup. No learning-item roles were changed.
+- Current configuration and decision behavior are documented in `docs/playground-checker.md`.
