@@ -12,6 +12,7 @@ The current product reference is [docs/current-system.md](docs/current-system.md
 - Collection is the visible name. The `collections` and `collection_items` invoker views retain legacy lesson backing tables. Activities can belong to a collection through the existing ID/compatibility links.
 - Supabase Auth/Database/Storage provide runtime persistence. Browser storage is only a preference/guide fallback, never the database for app records or AI quota/cache.
 - Playground uses standard-English AI grading first, permanent positive/negative decisions, and fixed local feedback. Explicit algorithm mode and failures use the existing local MSAV fallback. Material preparation is a separate process.
+- Playground's owner-approved AAC exception accepts exactly I + am + one Family/People card without an article as a sentence. Apply it before saved/AI grades and in the local fallback. Keep agreement, order, and non-person checks for other constructions.
 - Recognition is real and local: MediaPipe plus a trained seven-label model. Free practice and Guided 7 never save gesture attempts. Uploading a custom gesture reference does not train recognition.
 - Teacher preview scores stay in memory. Completed teacher-run Student Mode rounds save score/counts/duration to `activity_results` for Admin usage. Admin Student Mode rounds are not tracked. This is not individual learner assessment.
 

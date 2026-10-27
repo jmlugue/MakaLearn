@@ -3,6 +3,7 @@ import type { MsavMaterialProfile, MsavSemanticTrait, SentenceRole } from "@/typ
 export type PecsSentenceCard = {
   id: string;
   label: string;
+  category?: string;
   sentenceRole?: SentenceRole;
   msavProfile?: MsavMaterialProfile;
 };
@@ -77,6 +78,14 @@ function isBaseVerbSubject(card: PecsSentenceCard, label: string) {
 
 function isNamedPerson(card: PecsSentenceCard, label: string) {
   return hasTrait(card, "named_person") || namedPersonLabels.has(label);
+}
+
+/** Owner-approved AAC exception. Keep the exact I + am order and one person card. */
+export function isPlaygroundPersonIdentity(cards: PecsSentenceCard[]) {
+  return cards.length === 3 && normalizeLabel(cards[0].label) === "i" &&
+    normalizeLabel(cards[1].label) === "am" &&
+    (["family", "people"].includes(normalizeLabel(cards[2].category ?? "")) ||
+      isNamedPerson(cards[2], normalizeLabel(cards[2].label)));
 }
 
 function expectedBeVerb(card: PecsSentenceCard, label: string) {
@@ -377,7 +386,7 @@ export function validatePecsSentence(
 
   // Articles intentionally have no MSAV role; recognize this complete pattern
   // before the role guard rather than assigning grammar cards a fake role.
-  if (isArticlePersonDescription(cards)) {
+  if (isPlaygroundPersonIdentity(cards) || isArticlePersonDescription(cards)) {
     return validResult("sentence", "Person Description", cards);
   }
 

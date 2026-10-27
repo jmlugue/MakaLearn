@@ -4,6 +4,7 @@ import { createPlaygroundStore } from "@/lib/playground-store";
 import { getPlaygroundDecision } from "@/lib/playground-checker";
 import { gradePlaygroundText } from "@/lib/playground-provider";
 import { isPlaygroundReady } from "@/utils/msav-material-profile";
+import { isPlaygroundPersonIdentity } from "@/utils/pecs-sentence-validation";
 
 export const maxDuration = 30;
 const reply = (decision: unknown = null, status = 200) =>
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     const ids: unknown = body?.cardIds;
     if (!Array.isArray(ids) || !ids.length || ids.length > 5 || ids.some((id) => typeof id !== "string" || !id || id.length > 120)) return reply(null, 400);
     const { data: rows, error } = await db.from("learning_items")
-      .select("id,label,content_type,symbol_image_url,playground_preparation_status,msav_profile")
+      .select("id,label,content_type,symbol_image_url,playground_preparation_status,msav_profile,category_id")
       .in("id", [...new Set(ids as string[])]);
     if (error) return reply();
     const ordered = (ids as string[]).map((id) => rows?.find((row) => row.id === id));
@@ -32,6 +33,23 @@ export async function POST(request: Request) {
     } as Parameters<typeof isPlaygroundReady>[0]))) return reply({ valid: false, type: null });
     const text = ordered.map((row) => row!.label).join(" ");
     if (!text.trim() || text.length > 500) return reply(null, 400);
+    // Apply the explicit teaching rule before legacy cache/provider decisions.
+    // Categories come from the database, never from caller-supplied labels.
+    const identityCards = ordered.map((row) => ({
+      id: row!.id, label: row!.label,
+      msavProfile: row!.msav_profile ?? undefined
+    }));
+    if (isPlaygroundPersonIdentity(identityCards)) return reply({ valid: true, type: "sentence" });
+    if (ordered.length === 3 && ordered[0]!.label.trim().toLowerCase() === "i" &&
+      ordered[1]!.label.trim().toLowerCase() === "am") {
+      const { data: category, error: categoryError } = await db.from("categories")
+        .select("name").eq("id", ordered[2]!.category_id).maybeSingle();
+      if (categoryError) return reply();
+      if (isPlaygroundPersonIdentity(identityCards.map((card, index) =>
+        index === 2 ? { ...card, category: category?.name } : card))) {
+        return reply({ valid: true, type: "sentence" });
+      }
+    }
     const model = process.env.GEMINI_PLAYGROUND_MODEL?.trim() || "gemini-3.5-flash-lite";
     const apiKey = process.env.GEMINI_PLAYGROUND_API_KEY?.trim();
     const store = createPlaygroundStore(text, auth.user.id, model);
