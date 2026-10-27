@@ -9,7 +9,9 @@ const { mediaUploaderName } = loadTs("src/lib/media-display.ts");
 
 test("media shows actual account names and falls back only for missing names", () => {
   assert.equal(mediaUploaderName("Alex Chen"), "Alex Chen");
-  for (const name of [undefined, null, "", "   "]) assert.equal(mediaUploaderName(name), "Jordan Lee");
+  assert.equal(mediaUploaderName("Marites Mercado"), "Marites Mercado");
+  assert.equal(mediaUploaderName(" Jordan Lee "), "Jordan Lee");
+  for (const name of [undefined, null, "", "   "]) assert.equal(mediaUploaderName(name), "Unknown uploader");
 });
 let requests = [], replies = [];
 const client = createClient("https://fixture.supabase.co", "fixture-key", {
@@ -64,12 +66,12 @@ test("search includes matching material/uploader IDs and quotes punctuation and 
 
 test("fallback uploader search includes unknown profiles without matching other named accounts", async () => {
   requests = [];
-  await media.fetchMediaPage({ ...defaults, search: "Jordan", userIds: ["jordan-id"], namedUploaderIds: ["jordan-id", "alex-id"] }, 1);
+  await media.fetchMediaPage({ ...defaults, search: "Unknown uploader", userIds: [], namedUploaderIds: ["jordan-id", "alex-id"] }, 1);
   let expression = requests.at(-1).url.searchParams.get("or");
-  assert(expression.includes('uploaded_by.in.("jordan-id")'));
+  assert(!expression.includes('uploaded_by.in.'));
   assert(expression.includes('uploaded_by.not.in.("jordan-id","alex-id")'));
   assert(expression.includes("uploaded_by.is.null"));
-  await media.fetchMediaPage({ ...defaults, search: "Jordan", namedUploaderIds: [] }, 1);
+  await media.fetchMediaPage({ ...defaults, search: "Unknown uploader", namedUploaderIds: [] }, 1);
   expression = requests.at(-1).url.searchParams.get("or");
   assert(expression.includes("uploaded_by.not.is.null"));
   assert(!expression.includes("not.in.()"));

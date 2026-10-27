@@ -34,6 +34,16 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-27-media-owner-pr
+- Outcome: Reviewed the focused attribution diff against current main and prepared jmlugue/fix-media-creator-role for the uploader ownership PR. Includes the name-only RPC, legacy correction script, import fixes, and regression checks. Hosted changes are already applied; UI deployment is pending.
+- Verification: Reused the completed media/category suites, TypeScript, lint, production build, and rolled-back hosted role tests. Final whitespace review passed. Backups and credentials are excluded.
+
+### 2026-10-27-media-real-owner
+- Outcome: Corrected 140 legacy media uploaders and 64 material creators from Marites Mercado to Jordan Lee in hosted Supabase (147 media/65 materials now Jordan). Captured a Git-ignored pre-change snapshot. Attribution uses saved account names through an active-account ID/name RPC without exposing full profiles, with Unknown uploader for unavailable names. Import scripts require the Jordan Lee teacher account and preserve existing category creators.
+- Verification: 21 media tests, 3 category tests, TypeScript, clean lint, production build (23 pages), script syntax and whitespace checks passed. Hosted rolled-back tests verified cross-account name lookup, private full profiles, immutable uploaders, no directory for unknown/anonymous accounts, and admin create/update/delete denial for materials/media. Existing security-advisor notices only. Both ownership guards remain enabled.
+- Rollout: Attribution RPC migration and ownership correction are applied. UI/import changes are local and need deployment. No dev server, browser sign-in, commit, push, or deployment.
+
+
 ### 2026-10-27-media-uploader-pr
 - Outcome: Reviewed the uploader-only PR diff against main on jmlugue/fix-jordan-lee-upload. Includes the actual-name display, Jordan Lee fallback, matching search, and two focused regressions. No database migrations or record changes.
 - Verification: Existing 21 media tests, TypeScript, clean lint, production build (23 pages), and whitespace checks passed. No source changes since those checks.

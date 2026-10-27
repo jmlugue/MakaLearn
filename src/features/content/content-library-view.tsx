@@ -20,6 +20,7 @@ import {
   deleteCollection,
   detachLearningItemMedia,
   fetchMakaLearnData,
+  fetchContentAuthorNames,
   insertCategory,
   insertLearningItem,
   insertCollection,
@@ -102,7 +103,7 @@ export function ContentLibraryView({
   const [categories, setCategories] = useState<Category[]>([]);
   const [mediaRevision, setMediaRevision] = useState(0);
   const [mediaCounts, setMediaCounts] = useState<Awaited<ReturnType<typeof fetchMediaCounts>>>();
-  const [users, setUsers] = useState<AppUser[]>([]);
+  const [users, setUsers] = useState<Pick<AppUser, "id" | "name">[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -136,10 +137,10 @@ export function ContentLibraryView({
     let active = true;
     setReady(false);
     setLoadError(false);
-    fetchMakaLearnData("content", { skipMedia: true })
-      .then((data) => {
+    Promise.all([fetchMakaLearnData("content", { skipMedia: true }), fetchContentAuthorNames()])
+      .then(([data, authors]) => {
         if (!active) return;
-        setUsers(data.users);
+        setUsers(authors);
         setItems(ensurePecsManifestItems(upgradeStarterLearningItemPrompts(data.learningItems).map((item) => ({
           ...item,
           contentType: item.contentType ?? (item.tags?.includes("gesture") ? "gesture" : "pecs")

@@ -199,21 +199,12 @@ async function expectData(request, label) {
 }
 
 async function getProfileIds() {
-  const profiles = await expectData(
-    supabase.from("profiles").select("id,email,role"),
-    "Load profiles"
+  const teacher = await expectData(
+    supabase.from("profiles").select("id").eq("role", "teacher").eq("status", "active")
+      .eq("name", "Jordan Lee").single(),
+    "Find the Jordan Lee teacher account"
   );
-  const admin = profiles.find((profile) => profile.role === "admin") ?? profiles[0];
-  const teacher = profiles.find((profile) => profile.role === "teacher") ?? admin;
-
-  if (!admin || !teacher) {
-    throw new Error("Create active admin and teacher profiles before migrating learning media.");
-  }
-
-  return {
-    adminId: admin.id,
-    teacherId: teacher.id
-  };
+  return { teacherId: teacher.id };
 }
 
 async function getExistingLearningItems() {
@@ -260,13 +251,15 @@ function createPecsDescription(label, category) {
   return `Use when the learner needs to communicate "${label}" in a classroom routine.`;
 }
 
-async function upsertCategories(adminId) {
+async function upsertCategories(teacherId) {
+  const existing = await expectData(supabase.from("categories").select("id,created_by"), "Load category creators");
+  const creators = new Map(existing.map((category) => [category.id, category.created_by]));
   const categories = Object.keys(categoryColors).map((name) => ({
     id: name === "Choices" ? "cat-choices" : `cat-pecs-${slugify(name)}`,
     name,
     description: `PECS/AAC cards for ${name.toLowerCase()} practice.`,
     color: categoryColors[name],
-    created_by: adminId,
+    created_by: teacherId,
     updated_at: new Date().toISOString()
   }));
 
@@ -275,12 +268,14 @@ async function upsertCategories(adminId) {
     name: "Fixed gestures",
     description: "Gesture references available in guided gesture practice.",
     color: "#dcfce7",
-    created_by: adminId,
+    created_by: teacherId,
     updated_at: new Date().toISOString()
   });
 
   if (!dryRun) {
-    await expectData(supabase.from("categories").upsert(categories).select("id"), "Upsert categories");
+    await expectData(supabase.from("categories").upsert(categories.map((category) => ({
+      ...category, created_by: creators.get(category.id) ?? teacherId
+    }))).select("id"), "Upsert categories");
   }
 
   return categories.length;
@@ -302,7 +297,7 @@ async function updateLearningItem(row) {
   );
 }
 
-async function migratePecs(existingItems, adminId, cards = manifest) {
+async function migratePecs(existingItems, teacherId, cards = manifest) {
   const summary = { items: 0, images: 0, audio: 0, mediaRows: 0, missingFiles: [] };
 
   for (const card of cards) {
@@ -340,7 +335,7 @@ async function migratePecs(existingItems, adminId, cards = manifest) {
         audio_url: audioUrl,
         sentence_role: card.sentence_role,
         tags: unique([...(target.tags ?? []), "pecs", "classroom", "playground", card.category.toLowerCase(), card.sentence_role]),
-        created_by: target.created_by ?? adminId,
+        created_by: target.created_by ?? teacherId,
         updated_at: new Date().toISOString()
       });
       summary.items += 1;
@@ -354,7 +349,7 @@ async function migratePecs(existingItems, adminId, cards = manifest) {
           bucket: "symbol-images",
           storage_path: imageStoragePath,
           public_url: imageUrl,
-          uploaded_by: target.created_by ?? adminId,
+          uploaded_by: teacherId,
           related_item_id: target.id,
           uploaded_at: new Date().toISOString()
         });
@@ -370,7 +365,7 @@ async function migratePecs(existingItems, adminId, cards = manifest) {
           bucket: "audio-files",
           storage_path: audioStoragePath,
           public_url: audioUrl,
-          uploaded_by: target.created_by ?? adminId,
+          uploaded_by: teacherId,
           related_item_id: target.id,
           uploaded_at: new Date().toISOString()
         });
@@ -382,7 +377,7 @@ async function migratePecs(existingItems, adminId, cards = manifest) {
   return summary;
 }
 
-async function migrateGestures(existingItems, adminId, selectedGestures = gestures) {
+async function migrateGestures(existingItems, teacherId, selectedGestures = gestures) {
   const summary = { items: 0, referenceImages: 0, gestureMedia: 0, audio: 0, mediaRows: 0, missingFiles: [] };
 
   for (const gesture of selectedGestures) {
@@ -420,7 +415,7 @@ async function migrateGestures(existingItems, adminId, selectedGestures = gestur
         audio_url: audioUrl,
         sentence_role: "command",
         tags: unique([...(target.tags ?? []), "gesture", "fixed", "classroom"]),
-        created_by: target.created_by ?? adminId,
+        created_by: target.created_by ?? teacherId,
         updated_at: new Date().toISOString()
       });
       summary.items += 1;
@@ -458,7 +453,7 @@ async function migrateGestures(existingItems, adminId, selectedGestures = gestur
       for (const asset of mediaAssets.filter((asset) => asset.public_url)) {
         await upsertMediaAsset({
           ...asset,
-          uploaded_by: target.created_by ?? adminId,
+          uploaded_by: teacherId,
           related_item_id: target.id,
           uploaded_at: new Date().toISOString()
         });
@@ -470,7 +465,7 @@ async function migrateGestures(existingItems, adminId, selectedGestures = gestur
   return summary;
 }
 
-const { adminId } = await getProfileIds();
+const { teacherId } = await getProfileIds();
 const existingItems = await getExistingLearningItems();
 const selectedPecsCards = onlyGestureValue
   ? []
@@ -491,9 +486,9 @@ if (onlyGestureValue && selectedGestures.length === 0) {
   throw new Error(`No gesture material matches --only-gesture=${onlyGestureValue}.`);
 }
 
-const categoryCount = onlyPecsLabel || onlyGestureValue ? 0 : await upsertCategories(adminId);
-const pecs = await migratePecs(existingItems, adminId, selectedPecsCards);
-const gesturesSummary = await migrateGestures(existingItems, adminId, selectedGestures);
+const categoryCount = onlyPecsLabel || onlyGestureValue ? 0 : await upsertCategories(teacherId);
+const pecs = await migratePecs(existingItems, teacherId, selectedPecsCards);
+const gesturesSummary = await migrateGestures(existingItems, teacherId, selectedGestures);
 
 console.log(
   JSON.stringify(
