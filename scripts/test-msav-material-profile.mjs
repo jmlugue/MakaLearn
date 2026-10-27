@@ -103,6 +103,7 @@ test("preparation saves checked standalone metadata and rejects incomplete or co
         const record = table === "profiles" ? { role: "teacher", status: "active" } : table === "categories" ? { name: "Daily Needs" } : item;
         return {
           select() { return this; }, eq() { return this; }, or() { return this; },
+          then(resolve) { resolve({ data: [{ id: "new" }], error: null }); },
           single: async () => ({ data: record }), maybeSingle: async () => ({ data: record }),
           update(value) { updates.push(value); return this; },
           insert: async () => ({ error: null })
@@ -112,7 +113,12 @@ test("preparation saves checked standalone metadata and rejects incomplete or co
     const route = {};
     const dependencies = (specifier) => {
       if (specifier === "next/server") return { NextResponse: { json: (body, options) => ({ body, status: options?.status ?? 200 }) } };
-      if (specifier === "@/lib/supabase/server") return { createSupabaseServerClient: () => supabase };
+      if (specifier === "@/lib/supabase/server") return {
+        createSupabaseServerClient: () => supabase,
+        createSupabaseServiceRoleClient: () => ({ rpc: async () => ({
+          data: { state: "claimed", attemptedAt: "2026-10-27T00:00:00Z", version: "2026-10-26T00:00:00Z" }
+        }) })
+      };
       if (specifier === "@/utils/msav-material-profile") return profileModule;
       throw new Error(`Unexpected import: ${specifier}`);
     };

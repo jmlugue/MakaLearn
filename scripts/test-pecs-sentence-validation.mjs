@@ -36,6 +36,18 @@ const subjects = [
   ["Friend", "Is"]
 ];
 const people = ["Mother", "Father", "Teacher", "Friend"];
+test("I am accepts custom Family and People cards without article or fixed roles", () => {
+  for (const [label, category] of [["Grandmother", "Family"], ["Doctor", " people "]]) {
+    const cards = [{ id: "i", label: "I" }, { id: "am", label: "Am" }, { id: "person", label, category }];
+    const ids = new Set(cards.map((card) => card.id));
+    assert.equal(validatePecsSentence(cards, ids).constructionType, "sentence");
+    assert.equal(validatePecsSentence(cards, new Set(["i", "am"])).isValid, false);
+    assert.equal(validatePecsSentence([cards[1], cards[0], cards[2]], ids).isValid, false);
+    assert.equal(validatePecsSentence([...cards, cards[2]], ids).isValid, false);
+    assert.equal(validatePecsSentence([{ ...cards[0], label: "You" }, ...cards.slice(1)], ids).isValid, false);
+    assert.equal(validatePecsSentence([cards[0], cards[1], { ...cards[2], label: "Banana", category: "Food" }], ids).isValid, false);
+  }
+});
 const emotions = ["Happy", "Sad", "Angry", "Scared", "Tired", "Sick"];
 const describingComplements = [...emotions, "Hot", "Hurt", "Finished"];
 const actionPredicates = [

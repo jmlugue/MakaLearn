@@ -34,6 +34,11 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-27-playground-person-identity
+- Outcome: Exactly I + am + one Family/People card is accepted without an article before cached/model grades and by the local fallback. Added the explicit Gemini exception, category/custom-card regressions, and current guidance. Updated the stale preparation-test mock for the existing claim flow.
+- Hosted data: Corrected I am father/teacher/friend with three audit entries through supabase/maintenance/allow-playground-person-identities.sql. Verified all four built-in identities are valid and I am banana remains invalid.
+- Verification: 53 Playground tests, instruction-copy check, TypeScript, lint, production build (23 pages), and whitespace checks passed. No live Gemini call, dev server, commit, or deployment.
+
 ### 2026-10-27-inactivity-hour
 - Outcome: Changed the shared inactivity logout timeout from five minutes to one hour and updated its comment in `src/features/auth/use-auth-user.tsx`.
 - Verification: Four auth tests, TypeScript, lint, production build (23 pages), and whitespace checks passed. Restored this worktree's dependencies with npm ci, preserving the lockfile. No dev server or deployment.

@@ -124,7 +124,7 @@ test("real provider adapter sends only text and rejects malformed or incomplete 
   } finally { globalThis.fetch = before; }
 });
 
-function routeHarness({ account = "teacher", active = true, mode = "ai", key = "test-only", cached = null, decision = valid } = {}) {
+function routeHarness({ account = "teacher", active = true, mode = "ai", key = "test-only", cached = null, decision = valid, category = "People" } = {}) {
   let gradeCalls = 0;
   let gradedText;
   const rows = [
@@ -132,14 +132,16 @@ function routeHarness({ account = "teacher", active = true, mode = "ai", key = "
     { id: "want", label: "Want", content_type: "pecs", symbol_image_url: "https://example.test/want.png" },
     { id: "hot", label: "Hot", content_type: "pecs", symbol_image_url: "https://example.test/hot.png" },
     { id: "water", label: "Water", content_type: "pecs", symbol_image_url: "https://example.test/water.png" },
-    ...["You", "Are", "A", "Teacher", "Am", "Friend"].map((label) => ({ id: label.toLowerCase(), label, content_type: "pecs", symbol_image_url: "https://example.test/card.png", sentence_role: "subject" })),
+    { id: "custom", label: "Doctor", content_type: "pecs", category_id: "custom-category", symbol_image_url: "https://example.test/doctor.png", playground_preparation_status: "ready", msav_profile: { schemaVersion: 1, roles: ["subject"], traits: [], singleCardType: "word" } },
+    ...["You", "Are", "A", "Teacher", "Am", "Friend", "Mother", "Father"].map((label) => ({ id: label.toLowerCase(), label, content_type: "pecs", symbol_image_url: "https://example.test/card.png", sentence_role: "subject" })),
     { id: "gesture", label: "Help", content_type: "gesture", symbol_image_url: "https://example.test/help.png" },
     { id: "pending", label: "Unprepared", content_type: "pecs", symbol_image_url: "https://example.test/new.png" }
   ];
   const db = {
     auth: { getUser: async () => ({ data: { user: account ? { id: "signed-in" } : null } }) },
-    from: () => ({ select() { return this; }, eq() { return this; },
+    from: () => ({ select() { return this; }, eq(_, value) { this.lookupId = value; return this; },
       single: async () => ({ data: { role: account, status: active ? "active" : "inactive" } }),
+      async maybeSingle() { return { data: { name: this.lookupId === "custom-category" ? category : "Food" } }; },
       in: async (_, ids) => ({ data: rows.filter((row) => ids.includes(row.id)) }) })
   };
   const routeCode = ts.transpileModule(fs.readFileSync("src/app/api/playground-check/route.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
@@ -149,7 +151,8 @@ function routeHarness({ account = "teacher", active = true, mode = "ai", key = "
     "@/lib/playground-store": { createPlaygroundStore: () => ({ ...memoryStore(), read: async () => cached }) },
     "@/lib/playground-checker": { getPlaygroundDecision },
     "@/lib/playground-provider": { gradePlaygroundText: async (text) => { gradeCalls += 1; gradedText = text; return decision; } },
-    "@/utils/msav-material-profile": { isPlaygroundReady }
+    "@/utils/msav-material-profile": { isPlaygroundReady },
+    "@/utils/pecs-sentence-validation": loadTs("src/utils/pecs-sentence-validation.ts")
   };
   const route = {};
   new Function("exports", "require", "process", routeCode)(route, (name) => dependencies[name], {
@@ -170,6 +173,32 @@ test("route accepts grammar cards without assigning object or action roles", asy
   const route = routeHarness();
   assert.deepEqual((await route.post(["you", "are", "a", "teacher"])).body.decision, valid);
   assert.equal(route.text(), "You Are A Teacher");
+});
+
+test("owner-approved I am person identities override negative cache and provider without a paid call", async () => {
+  for (const person of ["mother", "father", "teacher", "friend"]) {
+    const route = routeHarness({ cached: invalid, decision: invalid, key: "" });
+    assert.deepEqual((await route.post(["i", "am", person])).body.decision, valid);
+    assert.equal(route.calls(), 0);
+  }
+  const route = routeHarness({ decision: invalid });
+  for (const ids of [["i", "are", "teacher"], ["i", "teacher", "am"], ["i", "am", "water"], ["you", "are", "teacher"]]) {
+    assert.deepEqual((await route.post(ids)).body.decision, invalid);
+  }
+  assert.match(grading.playgroundGradingInstructions, /overrides the missing-article rule/);
+  for (const person of ["mother", "father", "teacher", "friend"]) {
+    assert.ok(grading.playgroundGradingInstructions.includes(`I am ${person}`));
+  }
+});
+
+test("route uses saved Family/People categories for custom prepared cards", async () => {
+  for (const category of ["People", "Family"]) {
+    const route = routeHarness({ category, cached: invalid, key: "" });
+    assert.deepEqual((await route.post(["i", "am", "custom"])).body.decision, valid);
+    assert.equal(route.calls(), 0);
+  }
+  const route = routeHarness({ category: "Food", decision: invalid });
+  assert.deepEqual((await route.post(["i", "am", "custom"])).body.decision, invalid);
 });
 
 test("grammar is primary even when the mode is unset or card roles disagree", async () => {
