@@ -13,6 +13,7 @@ This is the current product reference. [CLAUDE.md](../CLAUDE.md) covers working 
 ## Content
 
 - Materials are PECS cards or gesture references. Collections are ordered materials. Categories organize materials. Media owns uploaded files; material details control which files are attached.
+- Uploader attribution uses the saved `uploaded_by` account and its current name for both roles. Content loads only IDs/names through `content_author_names`, while full profiles retain self/admin access. Missing names show Unknown uploader. Legacy imported media/material ownership was corrected to Jordan Lee on October 27 using `supabase/maintenance/correct-legacy-media-owner.sql`. New interactive uploads keep the signed-in teacher as uploader.
 - New or renamed materials cannot reuse another label within the same type. Comparison ignores case and redundant whitespace. A PECS card and a gesture may share a label. Existing duplicates are retained for separate review.
 - A PECS upload can produce a labelled Content/Playground picture and a word-free Activity picture. Existing labelled sources require a separate word-free Activity picture. Never remove the dedicated Activity-image requirement or reintroduce a blank-caption acknowledgment gate.
 - Images are limited to 10 MB, audio to 20 MB, and gesture video to 50 MB. Stored filenames follow `word_category`; teachers do not need to rename files before selecting them.

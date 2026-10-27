@@ -567,6 +567,10 @@ export type Database = {
       };
     };
     Functions: {
+      content_author_names: {
+        Args: Record<string, never>;
+        Returns: { id: string; name: string }[];
+      };
       patch_user_preferences: {
         Args: { p_patch: Json };
         Returns: Json;

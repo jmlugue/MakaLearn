@@ -25,8 +25,8 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABA
   auth: { persistSession: false, autoRefreshToken: false }
 });
 const must = async (operation) => { const { data, error } = await operation; if (error) throw error; return data; };
-const admin = (await must(db.from("profiles").select("id").eq("role", "admin").eq("status", "active").limit(1)))[0];
-if (!admin) throw new Error("An active administrator is required.");
+const teacher = await must(db.from("profiles").select("id").eq("role", "teacher").eq("status", "active").eq("name", "Jordan Lee").single());
+if (!teacher) throw new Error("The active Jordan Lee teacher account is required.");
 const backupDir = path.join(root, "supabase/backups/playground-grammar", new Date().toISOString().replace(/[:.]/g, "-"));
 await fs.mkdir(backupDir, { recursive: true });
 const ids = manifest.map((card) => `pecs-${card.label.toLowerCase()}`);
@@ -47,12 +47,13 @@ async function upload(bucket, storagePath, localFile, type, itemId) {
   return { url, media: {
     id: `media-${itemId}-${type}`, title: `${itemId.replace(/^pecs-/, "")} ${type}`,
     type, file_name: path.basename(storagePath), bucket, storage_path: storagePath,
-    public_url: url, uploaded_by: admin.id, related_item_id: itemId
+    public_url: url, uploaded_by: teacher.id, related_item_id: itemId
   } };
 }
+const grammarCategory = await must(db.from("categories").select("created_by").eq("id", "cat-pecs-grammar").maybeSingle());
 await must(db.from("categories").upsert({
   id: "cat-pecs-grammar", name: "Grammar", description: "Words for building English phrases and sentences.",
-  color: "#dbeafe", created_by: admin.id
+  color: "#dbeafe", created_by: grammarCategory?.created_by ?? teacher.id
 }, { onConflict: "id" }));
 for (const card of manifest) {
   const id = `pecs-${card.label.toLowerCase()}`;
@@ -67,7 +68,7 @@ for (const card of manifest) {
     description: `English ${card.kind} for sentence building. Example: ${card.example} Original educational placeholder; not official Makaton content.`,
     instruction: `Use this word in a phrase or sentence, such as: ${card.example}`,
     symbol_image_url: standard.url, activity_image_url: null, audio_url: audio.url,
-    tags: ["pecs", "playground", "grammar", "context-required", card.kind], created_by: admin.id
+    tags: ["pecs", "playground", "grammar", "context-required", card.kind], created_by: teacher.id
   }, { onConflict: "id" }));
   await must(db.from("media_assets").upsert([standard.media, activity.media, audio.media], { onConflict: "id" }));
 }

@@ -226,6 +226,12 @@ function awaitRows<T>(query: () => { range: (from: number, to: number) => Promis
   return readAllRows<T>((from, to) => query().range(from, to));
 }
 
+/** Shared attribution names without granting teachers access to other account details. */
+export async function fetchContentAuthorNames() {
+  const supabase = getClientOrThrow();
+  return awaitRows(() => supabase.rpc("content_author_names").order("name").order("id"));
+}
+
 export async function insertCategory(category: Category) {
   const supabase = getClientOrThrow();
   const row = (await expectData(
