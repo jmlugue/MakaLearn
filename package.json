@@ -21,7 +21,7 @@
     "test:auth:live": "node --test --test-concurrency=1 scripts/test-auth-security-live.mjs",
     "test:playground": "node --test scripts/test-msav-material-profile.mjs scripts/test-pecs-sentence-validation.mjs scripts/test-playground-board.mjs scripts/test-playground-checker.mjs",
     "test:audio": "node --test scripts/test-speech-text.mjs",
-    "test:media": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-media-filename.mjs scripts/test-pecs-card-template.mjs"
+    "test:media": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-media-filename.mjs scripts/test-pecs-card-template.mjs scripts/test-media-pagination.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.35",

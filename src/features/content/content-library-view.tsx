@@ -26,7 +26,7 @@ import {
   updateLearningItemMedia,
   updateCollection
 } from "@/lib/supabase/app-data";
-import { deleteMediaAssetFromSupabase, uploadMediaAssetToSupabase } from "@/lib/supabase/media";
+import { deleteMediaAssetFromSupabase, uploadMediaAssetToSupabase, fetchLinkedMedia, fetchMediaCounts } from "@/lib/supabase/media";
 import { canSee, uniqueCopyTitle } from "@/utils/lesson-activity";
 import { ensurePecsManifestCategories, ensurePecsManifestItems } from "@/utils/pecs-content-library";
 import { isNoCategory, noCategory, withNoCategory } from "@/lib/no-category";
@@ -98,8 +98,16 @@ export function ContentLibraryView({
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [linkedActivities, setLinkedActivities] = useState<Activity[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [media, setMedia] = useState<MediaAsset[]>([]);
+  const [mediaRevision, setMediaRevision] = useState(0);
+  const [mediaCounts, setMediaCounts] = useState<Awaited<ReturnType<typeof fetchMediaCounts>>>();
   const [users, setUsers] = useState<AppUser[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    setMediaCounts(undefined);
+    fetchMediaCounts().then((counts) => { if (active) setMediaCounts(counts); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [mediaRevision]);
 
   // Materials filters live here so a deep link can open the right type.
   const [kind, setKind] = useState<ContentKind>("pecs");
@@ -120,13 +128,13 @@ export function ContentLibraryView({
   const [noCategorySaved, setNoCategorySaved] = useState(false);
   const [categoryDialog, setCategoryDialog] = useState<{ categoryId: string | null; mode: "view" | "edit" } | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
-  const [openAssetId, setOpenAssetId] = useState("");
+  const [openAsset, setOpenAsset] = useState<MediaAsset | null>(null);
 
   useEffect(() => {
     let active = true;
     setReady(false);
     setLoadError(false);
-    fetchMakaLearnData("content")
+    fetchMakaLearnData("content", { skipMedia: true })
       .then((data) => {
         if (!active) return;
         setUsers(data.users);
@@ -138,7 +146,7 @@ export function ContentLibraryView({
         setLinkedActivities(data.activities);
         setCategories(withNoCategory(ensurePecsManifestCategories(data.categories), user.id));
         setNoCategorySaved(data.categories.some((category) => isNoCategory(category.id)));
-        setMedia(data.mediaAssets);
+        setMediaRevision((revision) => revision + 1);
       })
       .catch(() => {
         if (!active) return;
@@ -190,7 +198,6 @@ export function ContentLibraryView({
   const openItem = itemById.get(openItemId) ?? null;
   const openLesson = lessons.find((lesson) => lesson.id === openLessonId) ?? null;
   const dialogCategory = categoryDialog?.categoryId ? categories.find((category) => category.id === categoryDialog.categoryId) ?? null : null;
-  const openAsset = media.find((asset) => asset.id === openAssetId) ?? null;
 
   function itemsOf(lesson: Lesson) {
     return lesson.learningItemIds.map((id) => itemById.get(id)).filter((item): item is LearningItem => Boolean(item));
@@ -289,9 +296,9 @@ export function ContentLibraryView({
 
   const refreshSavedContent = useCallback(async () => {
     try {
-      const data = await fetchMakaLearnData("content");
+      const data = await fetchMakaLearnData("content", { skipMedia: true });
       setItems(ensurePecsManifestItems(upgradeStarterLearningItemPrompts(data.learningItems), { builtInOnly: true }));
-      setMedia(data.mediaAssets);
+      setMediaRevision((revision) => revision + 1);
       setLessons(data.collections);
       setLinkedActivities(data.activities);
       setLoadError(false);
@@ -319,7 +326,7 @@ export function ContentLibraryView({
         throw error;
       }
     }
-    setMedia((current) => [uploaded, ...current]);
+    setMediaRevision((revision) => revision + 1);
     return uploaded;
   }
 
@@ -465,10 +472,10 @@ export function ContentLibraryView({
   }
 
   /** The Media library row behind a material's image, video, or audio, when one exists. */
-  function assetFor(item: LearningItem, type: MediaAsset["type"]) {
+  async function assetFor(item: LearningItem, type: MediaAsset["type"]) {
     const url = urlOnItem(item, type);
     if (!url) return undefined;
-    return media.find((asset) => asset.relatedItemId === item.id && asset.type === type && asset.publicUrl === url);
+    return fetchLinkedMedia(item.id, type, url);
   }
 
   function clearMediaUrlInState(itemId: string, type: MediaAsset["type"]) {
@@ -487,20 +494,20 @@ export function ContentLibraryView({
   async function confirmRemoveMedia() {
     if (!mediaToRemove) return;
     const { item, type } = mediaToRemove;
-    const asset = assetFor(item, type);
     // Seeded materials point at a URL with no Media row behind it, so there is no file to delete even
     // when the box is ticked. The message has to reflect what actually happened, not what was asked.
-    const fileDeleted = removeFile && Boolean(asset);
     setDeleting(true);
     try {
+      const asset = removeFile ? await assetFor(item, type) : undefined;
+      const fileDeleted = removeFile && Boolean(asset);
       // Deleting the file already nulls the column, so only a detach needs the separate call.
       if (fileDeleted && asset) {
         await deleteMediaAssetFromSupabase(asset);
-        setMedia((current) => current.filter((candidate) => candidate.id !== asset.id));
       } else {
         await detachLearningItemMedia(item.id, type);
       }
       clearMediaUrlInState(item.id, type);
+      setMediaRevision((revision) => revision + 1);
       log(
         "delete",
         "media",
@@ -527,7 +534,7 @@ export function ContentLibraryView({
     setDeleting(true);
     try {
       await deleteMediaAssetFromSupabase(assetToDelete);
-      setMedia((current) => current.filter((candidate) => candidate.id !== assetToDelete.id));
+      setMediaRevision((revision) => revision + 1);
       if (assetToDelete.relatedItemId) {
         const linked = itemById.get(assetToDelete.relatedItemId);
         if (linked && urlOnItem(linked, assetToDelete.type) === assetToDelete.publicUrl) clearMediaUrlInState(assetToDelete.relatedItemId, assetToDelete.type);
@@ -536,7 +543,7 @@ export function ContentLibraryView({
       log("delete", "media", assetToDelete.title, `Deleted ${assetToDelete.fileName} from the media library.`, assetToDelete.id);
       notify({ title: "File deleted", tone: "success" });
       setAssetToDelete(null);
-      setOpenAssetId("");
+      setOpenAsset(null);
     } catch (error) {
       await refreshSavedContent();
       notify({ title: "Delete failed", description: errorText(error, "The file could not be deleted."), tone: "error" });
@@ -695,11 +702,11 @@ export function ContentLibraryView({
   const emptiesActivity = affectedActivities.some((entry) => !entry.questions.some((q) => q.learningItemId !== itemToDelete?.id && itemById.has(q.learningItemId)));
   const deletionBlocked = emptiesCollection || emptiesActivity;
 
-  const sections: Array<{ value: Tab; label: string; count: number; icon: LucideIcon }> = [
+  const sections: Array<{ value: Tab; label: string; count?: number; icon: LucideIcon }> = [
     { value: "materials", label: "Materials", count: items.length, icon: Layers },
     { value: "lessons", label: "Collections", count: lessons.length, icon: BookOpen },
     { value: "categories", label: "Categories", count: shownCategories.length, icon: FolderOpen },
-    { value: "media", label: "Media", count: media.length, icon: ImageIcon }
+    { value: "media", label: "Media", count: mediaCounts?.all, icon: ImageIcon }
   ];
 
   return (
@@ -748,7 +755,7 @@ export function ContentLibraryView({
             onNewCategory={() => setCategoryDialog({ categoryId: null, mode: "edit" })}
           />
         ) : (
-          <MediaTab media={media} itemById={itemById} userNames={userNames} onOpenAsset={(asset) => setOpenAssetId(asset.id)} />
+          <MediaTab revision={mediaRevision} counts={mediaCounts} itemById={itemById} userNames={userNames} onOpenAsset={setOpenAsset} />
         )}
       </div>
 
@@ -879,9 +886,9 @@ export function ContentLibraryView({
         item={openAsset?.relatedItemId ? itemById.get(openAsset.relatedItemId) : undefined}
         uploaderName={openAsset ? nameFor(userNames, openAsset.uploadedBy) : ""}
         canDelete={Boolean(openAsset && user.role === "teacher")}
-        onClose={() => setOpenAssetId("")}
+        onClose={() => setOpenAsset(null)}
         onOpenCard={(item) => {
-          setOpenAssetId("");
+          setOpenAsset(null);
           setOpenItemId(item.id);
         }}
         onDelete={setAssetToDelete}

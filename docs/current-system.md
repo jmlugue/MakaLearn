@@ -19,6 +19,7 @@ This is the current product reference. [CLAUDE.md](../CLAUDE.md) covers working 
 - A custom gesture upload is a reference. It does not add a recognition class to the trained model.
 - Shared teaching content is collaborative; private collections/activities are visible only to their creator and admins. Current database policies enforce this. Admins remain read-only for teaching content.
 - Material deletion removes that material's collection links and activity questions, while keeping parent records and other cards. The database blocks deletion when it would leave an affected collection or activity without cards/questions. The confirmation explains visible dependencies; the server also protects hidden dependencies.
+- The Content Media tab fetches 24 file records per page on demand. All, Images, and Audio share pagination, with full-library search (including material/uploader), linked filters, stable sorting, count-only badges, and retryable page errors. Material file removal looks up only the matching file. Tablet thumbnails use explicit full-width square containers.
 - Media deletion retains its row with `deletion_pending` until Storage removal and material unlinking finish. A failure remains retryable through Delete in Media. Material deletion can succeed while individual media files still need cleanup, which is reported explicitly.
 - Material, collection, and activity creation/edit forms protect unfinished work with a discard confirmation. Successful Save closes normally.
 
