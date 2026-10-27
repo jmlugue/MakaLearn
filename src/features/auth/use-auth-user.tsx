@@ -16,7 +16,7 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000;
 const INACTIVITY_CHANNEL_NAME = "makalearn-auth-activity";
 
 function mapProfile(row: {
@@ -178,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace("/login");
   }, [router, setCurrentUser]);
 
-  // End the authenticated session after five quiet minutes. BroadcastChannel keeps
+  // End the authenticated session after one quiet hour. BroadcastChannel keeps
   // activity in another MakaLearn tab from expiring this tab's session.
   useEffect(() => {
     if (!user?.id) return undefined;

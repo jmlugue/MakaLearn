@@ -34,6 +34,10 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-27-inactivity-hour
+- Outcome: Changed the shared inactivity logout timeout from five minutes to one hour and updated its comment in `src/features/auth/use-auth-user.tsx`.
+- Verification: Four auth tests, TypeScript, lint, production build (23 pages), and whitespace checks passed. Restored this worktree's dependencies with npm ci, preserving the lockfile. No dev server or deployment.
+
 ### 2026-10-27-media-pagination
 - Outcome: Content Media fetches 24 file records per page for All/Images/Audio instead of preloading the complete library. Full-library search, filters, stable ordering, count-only badges, retryable failures, late-response guards, and last-page deletion recovery are included. Material file removal uses a bounded lookup. Explicit square thumbnail containers fix tablet collapse, with responsive filters and pagination controls.
 - Files: Content view/Media tab, optional media omission in shared loader, Supabase media query helpers, five pagination regressions included in test:media, README/current-system notes.
