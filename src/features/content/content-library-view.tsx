@@ -1,5 +1,7 @@
 "use client";
 
+import { mediaUploaderName } from "@/lib/media-display";
+
 import { LoadError } from "@/components/common/load-error";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -884,7 +886,7 @@ export function ContentLibraryView({
       <MediaPreviewDialog
         asset={openAsset}
         item={openAsset?.relatedItemId ? itemById.get(openAsset.relatedItemId) : undefined}
-        uploaderName={openAsset ? nameFor(userNames, openAsset.uploadedBy) : ""}
+        uploaderName={mediaUploaderName(openAsset ? userNames.get(openAsset.uploadedBy) : undefined)}
         canDelete={Boolean(openAsset && user.role === "teacher")}
         onClose={() => setOpenAsset(null)}
         onOpenCard={(item) => {

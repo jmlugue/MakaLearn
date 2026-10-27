@@ -1,5 +1,7 @@
 "use client";
 
+import { mediaUploaderName } from "@/lib/media-display";
+
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Film, Image as ImageIcon, ImageOff, Layers, Volume2, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +15,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { cn, formatDate } from "@/lib/utils";
 import { FilterSelect, SearchInput } from "@/features/admin/admin-shared";
 import { AudioButton, isVideoUrl } from "@/features/content/content-media";
-import { kindTone, nameFor, sortLabels, type SortOrder, type Tone } from "@/features/content/content-shared";
+import { kindTone, sortLabels, type SortOrder, type Tone } from "@/features/content/content-shared";
 import { GuideTip } from "@/features/guide/guide-tip";
 import type { LearningItem, MediaAsset } from "@/types";
 
@@ -66,7 +68,9 @@ export function MediaTab({
     const query = search.trim().toLowerCase();
     return { page, revision, attempt, filters: { type: filter, link, sort, search,
       itemIds: query ? [...itemById.values()].filter((item) => item.label.toLowerCase().includes(query)).map((item) => item.id) : [],
-      userIds: query ? [...userNames].filter(([, name]) => name.toLowerCase().includes(query)).map(([id]) => id) : []
+      userIds: query ? [...userNames].filter(([, name]) => mediaUploaderName(name).toLowerCase().includes(query)).map(([id]) => id) : [],
+      namedUploaderIds: query && mediaUploaderName(undefined).toLowerCase().includes(query)
+        ? [...userNames].filter(([, name]) => name?.trim()).map(([id]) => id) : undefined
     } };
   }, [filter, link, sort, search, page, revision, itemById, userNames, attempt]);
   const [result, setResult] = useState<{ request: typeof request; assets: MediaAsset[]; count: number; failed?: boolean }>();
@@ -219,7 +223,7 @@ export function MediaTab({
                       {asset.cleanupPending ? <span className="block text-xs font-semibold text-amber-800">Cleanup needed</span> : null}
                     </td>
                     <td className="hidden px-2 py-2 text-slate-600 sm:table-cell">{cardLabel(asset) ?? <span className="text-slate-400">None</span>}</td>
-                    <td className="hidden px-2 py-2 text-slate-600 md:table-cell">{nameFor(userNames, asset.uploadedBy)}</td>
+                    <td className="hidden px-2 py-2 text-slate-600 md:table-cell">{mediaUploaderName(userNames.get(asset.uploadedBy))}</td>
                     <td className="hidden whitespace-nowrap px-4 py-2 text-right text-xs text-slate-400 sm:table-cell">{formatDate(asset.uploadedAt)}</td>
                   </tr>
                 ))}

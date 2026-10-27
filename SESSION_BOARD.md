@@ -34,6 +34,18 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-27-media-uploader-pr
+- Outcome: Reviewed the uploader-only PR diff against main on jmlugue/fix-jordan-lee-upload. Includes the actual-name display, Jordan Lee fallback, matching search, and two focused regressions. No database migrations or record changes.
+- Verification: Existing 21 media tests, TypeScript, clean lint, production build (23 pages), and whitespace checks passed. No source changes since those checks.
+
+### 2026-10-27-media-uploader-fallback
+- Outcome: Supersedes the fixed uploader display below. Media lists/details use available profile names and fall back to Jordan Lee only for missing/blank names. Paginated search includes matching named profiles and missing-profile uploads when the fallback matches. Stored ownership/access checks remain unchanged.
+- Verification: 21 media tests including actual/missing-name and mocked paginated-query regressions, TypeScript, lint, production build (23 pages), React review, and whitespace checks passed. No live signed-in browser/database check, dev server, or database writes.
+
+### 2026-10-27-media-uploader-name
+- Outcome: Teacher/admin media lists and details now display Jordan Lee for every uploader using one temporary display constant. Media search matches the displayed name. Stored ownership/access checks are unchanged.
+- Verification: 19 media tests, TypeScript, lint without warnings, production build (23 pages), and whitespace checks passed. React review completed. No dev server or database writes.
+
 ### 2026-10-27-playground-person-identity
 - Outcome: Exactly I + am + one Family/People card is accepted without an article before cached/model grades and by the local fallback. Added the explicit Gemini exception, category/custom-card regressions, and current guidance. Updated the stale preparation-test mock for the existing claim flow.
 - Hosted data: Corrected I am father/teacher/friend with three audit entries through supabase/maintenance/allow-playground-person-identities.sql. Verified all four built-in identities are valid and I am banana remains invalid.
