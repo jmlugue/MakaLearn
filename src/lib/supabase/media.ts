@@ -3,6 +3,43 @@ import { sizeError } from "@/utils/media-limits";
 import { fileNameError } from "@/utils/media-filename";
 import type { MediaAsset } from "@/types";
 import type { Database } from "@/types/database";
+import { mediaPageQuery, type MediaFilters } from "@/lib/supabase/media-library-query";
+
+export async function fetchMediaPage(filters: MediaFilters, page: number): Promise<{ assets: MediaAsset[]; count: number }> {
+  const client = getSupabaseBrowserClient();
+  if (!client) throw new Error("Media is unavailable.");
+  const { data, error, count } = await mediaPageQuery(client, filters, page);
+  // A concurrent deletion may remove the last page. Recount through a valid range so the UI can clamp.
+  if (error?.code === "PGRST103" && page > 1) {
+    const first = await fetchMediaPage(filters, 1);
+    return { assets: [] as MediaAsset[], count: first.count };
+  }
+  if (error) throw error;
+  if (!data || count === null) throw new Error("Media is unavailable.");
+  return { assets: data.map(mapMediaAssetRow), count };
+}
+
+/** Count-only requests keep badges accurate without downloading file records. */
+export async function fetchMediaCounts() {
+  const client = getSupabaseBrowserClient();
+  if (!client) throw new Error("Media is unavailable.");
+  const results = await Promise.all([
+    client.from("media_assets").select("id", { count: "exact", head: true }),
+    client.from("media_assets").select("id", { count: "exact", head: true }).in("type", ["symbol-image", "activity-image"]),
+    client.from("media_assets").select("id", { count: "exact", head: true }).eq("type", "audio-file")
+  ]);
+  for (const result of results) if (result.error || result.count === null) throw new Error("Media counts are unavailable.");
+  return { all: results[0].count!, images: results[1].count!, audio: results[2].count! };
+}
+
+/** Material details can remove a stored file without downloading the Media library. */
+export async function fetchLinkedMedia(itemId: string, type: MediaAsset["type"], url: string) {
+  const client = getSupabaseBrowserClient();
+  if (!client) throw new Error("Media is unavailable.");
+  const { data, error } = await client.from("media_assets").select("*").eq("related_item_id", itemId).eq("type", type).eq("public_url", url).order("id").limit(1).maybeSingle();
+  if (error) throw error;
+  return data ? mapMediaAssetRow(data) : undefined;
+}
 
 type MediaAssetRow = Database["public"]["Tables"]["media_assets"]["Row"];
 

@@ -34,6 +34,12 @@ Use this file to coordinate work across terminal sessions in this repository. It
 
 ## Recently completed
 
+### 2026-10-27-media-pagination
+- Outcome: Content Media fetches 24 file records per page for All/Images/Audio instead of preloading the complete library. Full-library search, filters, stable ordering, count-only badges, retryable failures, late-response guards, and last-page deletion recovery are included. Material file removal uses a bounded lookup. Explicit square thumbnail containers fix tablet collapse, with responsive filters and pagination controls.
+- Files: Content view/Media tab, optional media omission in shared loader, Supabase media query helpers, five pagination regressions included in test:media, README/current-system notes.
+- Verification: TypeScript, lint, production build (23 pages), 19 media tests, 7 reliability tests, 63 activity tests, and whitespace passed. Chromium/WebKit fixtures passed ten phone/tablet/desktop sizes, plus stale-response and deleted-page recovery. Visually checked tablet screenshots. Artifacts: system temp makalearn-media-pagination directory.
+- Limits: Browser checks use sample records and query checks use mocked HTTP with the real Supabase client. No signed-in physical tablet or live Storage round trip, dev server, schema change, commit, or deployment.
+
 ### 2026-10-26-codebase-guide-pr
 - Outcome: Added the thesis feature-to-code guide, README link, and simple explanatory comments in 24 source files. Aligned Playground documentation with the current AI-first checker and local MSAV fallback. Runtime behavior and database schema are unchanged.
 - Scope: This PR excludes the separate AI implementation guide and concurrent reliability work.

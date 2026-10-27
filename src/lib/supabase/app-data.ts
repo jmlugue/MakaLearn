@@ -183,7 +183,7 @@ async function writeLessonRow(
 }
 
 // Load saved app records together and convert them into shared TypeScript models.
-export async function fetchMakaLearnData(scope: "all" | "content" | "activities" | "playground" | "gesture" = "all"): Promise<MakaLearnData> {
+export async function fetchMakaLearnData(scope: "all" | "content" | "activities" | "playground" | "gesture" = "all", options: { skipMedia?: boolean } = {}): Promise<MakaLearnData> {
   const supabase = getClientOrThrow();
   const smallLibrary = scope === "playground" || scope === "gesture";
   const [
@@ -203,7 +203,7 @@ export async function fetchMakaLearnData(scope: "all" | "content" | "activities"
       const query = supabase.from("learning_items").select("*").order("label").order("id");
       return smallLibrary ? query.eq("content_type", scope === "gesture" ? "gesture" : "pecs") : query;
     }),
-    smallLibrary || scope === "activities" ? [] as Tables["media_assets"]["Row"][] : awaitRows(() => supabase.from("media_assets").select("*").order("uploaded_at", { ascending: false }).order("id")),
+    smallLibrary || scope === "activities" || options.skipMedia ? [] as Tables["media_assets"]["Row"][] : awaitRows(() => supabase.from("media_assets").select("*").order("uploaded_at", { ascending: false }).order("id")),
     smallLibrary ? [] as LessonRow[] : awaitRows(() => supabase.from("collections").select("*").order("created_at", { ascending: false }).order("id")),
     smallLibrary ? [] as LessonItemRow[] : awaitRows(() => supabase.from("collection_items").select("*").order("collection_id").order("position").order("learning_item_id")),
     smallLibrary ? [] as ActivityRow[] : awaitRows(() => supabase.from("activities").select("*").order("created_at", { ascending: false }).order("id")),

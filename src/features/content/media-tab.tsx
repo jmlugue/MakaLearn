@@ -1,14 +1,19 @@
 "use client";
 
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Film, Image as ImageIcon, ImageOff, Layers, Volume2, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/common/load-error";
+import { LoadingState } from "@/components/common/loading-state";
+import { fetchMediaPage, fetchMediaCounts } from "@/lib/supabase/media";
+import { MEDIA_PAGE_SIZE } from "@/lib/supabase/media-library-query";
 import { Select } from "@/components/ui/form";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { EmptyState } from "@/components/common/empty-state";
 import { cn, formatDate } from "@/lib/utils";
 import { FilterSelect, SearchInput } from "@/features/admin/admin-shared";
 import { AudioButton, isVideoUrl } from "@/features/content/content-media";
-import { kindTone, nameFor, sortLabels, sortRecords, type SortOrder, type Tone } from "@/features/content/content-shared";
+import { kindTone, nameFor, sortLabels, type SortOrder, type Tone } from "@/features/content/content-shared";
 import { GuideTip } from "@/features/guide/guide-tip";
 import type { LearningItem, MediaAsset } from "@/types";
 
@@ -38,12 +43,14 @@ function isVideoAsset(asset: MediaAsset) {
 }
 
 export function MediaTab({
-  media,
+  revision,
+  counts,
   itemById,
   userNames,
   onOpenAsset
 }: {
-  media: MediaAsset[];
+  revision: number;
+  counts?: Awaited<ReturnType<typeof fetchMediaCounts>>;
   itemById: Map<string, LearningItem>;
   userNames: Map<string, string>;
   onOpenAsset: (asset: MediaAsset) => void;
@@ -53,26 +60,50 @@ export function MediaTab({
   const [sort, setSort] = useState<SortOrder>("newest");
   const [search, setSearch] = useState("");
 
-  const cardLabel = (asset: MediaAsset) => (asset.relatedItemId ? itemById.get(asset.relatedItemId)?.label : undefined);
-
-  const sorted = useMemo(() => {
+  const [page, setPage] = useState(1);
+  const [attempt, setAttempt] = useState(0);
+  const request = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const list = media.filter((asset) => {
-      if (filter === "symbol-image" && asset.type !== "symbol-image" && asset.type !== "activity-image") return false;
-      if (filter === "audio-file" && asset.type !== "audio-file") return false;
-      if (link === "linked" && !asset.relatedItemId) return false;
-      if (link === "unlinked" && asset.relatedItemId) return false;
-      if (!query) return true;
-      return [asset.title, asset.fileName, cardLabel(asset) ?? "", nameFor(userNames, asset.uploadedBy)].join(" ").toLowerCase().includes(query);
-    });
-    return sortRecords(list, sort, (asset) => asset.fileName, (asset) => asset.uploadedAt);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cardLabel only reads itemById.
-  }, [filter, itemById, link, media, search, sort, userNames]);
+    return { page, revision, attempt, filters: { type: filter, link, sort, search,
+      itemIds: query ? [...itemById.values()].filter((item) => item.label.toLowerCase().includes(query)).map((item) => item.id) : [],
+      userIds: query ? [...userNames].filter(([, name]) => name.toLowerCase().includes(query)).map(([id]) => id) : []
+    } };
+  }, [filter, link, sort, search, page, revision, itemById, userNames, attempt]);
+  const [result, setResult] = useState<{ request: typeof request; assets: MediaAsset[]; count: number; failed?: boolean }>();
+  // Hide old records in the same render as a page/filter change, before the request effect runs.
+  const loading = result?.request !== request;
+  const failed = !loading && Boolean(result?.failed);
 
+  useEffect(() => {
+    let active = true;
+    // Debounce searches and discard responses from an older page or filter.
+    const timer = setTimeout(() => {
+      fetchMediaPage(request.filters, request.page).then((next) => {
+        if (!active) return;
+        const lastPage = Math.max(1, Math.ceil(next.count / MEDIA_PAGE_SIZE));
+        if (page > lastPage) { setPage(lastPage); return; }
+        setResult({ ...next, request });
+      }).catch(() => { if (active) setResult({ request, assets: [], count: 0, failed: true }); });
+    }, search ? 250 : 0);
+    return () => { active = false; clearTimeout(timer); };
+  }, [request, page, search]);
+
+  const cardLabel = (asset: MediaAsset) => (asset.relatedItemId ? itemById.get(asset.relatedItemId)?.label : undefined);
+  const sorted = loading || failed ? [] : result?.assets ?? [];
   const visuals = sorted.filter((asset) => asset.type !== "audio-file");
   const audio = sorted.filter((asset) => asset.type === "audio-file");
-  const imageCount = media.filter((asset) => asset.type === "symbol-image" || asset.type === "activity-image").length;
-  const countOf = (type: LibraryMediaType) => media.filter((asset) => asset.type === type).length;
+  const total = result?.count ?? 0;
+  const pages = Math.max(1, Math.ceil(total / MEDIA_PAGE_SIZE));
+  const pagination = !loading && !failed && total > 0 ? (
+    <nav aria-label="Media pages" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-100 bg-white/70 p-3">
+      <p role="status" className="text-sm text-slate-600">{(page - 1) * MEDIA_PAGE_SIZE + 1} to {Math.min(page * MEDIA_PAGE_SIZE, total)} of {total} files</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button>
+        <span className="text-sm font-semibold text-slate-600">Page {page} of {pages}</span>
+        <Button type="button" variant="outline" disabled={page === pages} onClick={() => setPage(page + 1)}>Next</Button>
+      </div>
+    </nav>
+  ) : null;
 
   return (
     <section className="space-y-4">
@@ -81,26 +112,26 @@ export function MediaTab({
           id="media-type"
           label="Media type"
           value={filter}
-          onChange={setFilter}
+          onChange={(value) => { setFilter(value); setPage(1); }}
           options={[
-            { value: "all", label: "All", icon: Layers, count: media.length },
-            { value: "symbol-image", label: "Images", icon: ImageIcon, count: imageCount },
-            { value: "audio-file", label: "Audio", icon: Volume2, count: countOf("audio-file") }
+            { value: "all", label: "All", icon: Layers, count: counts?.all },
+            { value: "symbol-image", label: "Images", icon: ImageIcon, count: counts?.images },
+            { value: "audio-file", label: "Audio", icon: Volume2, count: counts?.audio }
           ]}
         />
       </GuideTip>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[12rem_minmax(0,1fr)]">
         <FilterSelect
           label="Linked"
-          className="w-48"
+          className="w-full"
           value={link}
-          onChange={setLink}
+          onChange={(value) => { setLink(value); setPage(1); }}
           options={(Object.keys(linkLabels) as LinkFilter[]).map((key) => ({ value: key, label: linkLabels[key] }))}
         />
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto lg:ml-auto">
-          <SearchInput label="Search media" placeholder="Search files, materials, or uploader" value={search} onChange={setSearch} />
+        <div className="flex min-w-0 flex-wrap items-center gap-2 [&>div:first-child]:sm:max-w-none">
+          <SearchInput label="Search media" placeholder="Search files, materials, or uploader" value={search} onChange={(value) => { setSearch(value); setPage(1); }} />
           <div className="w-44">
-            <Select aria-label="Sort media" value={sort} onChange={(event) => setSort(event.target.value as SortOrder)}>
+            <Select aria-label="Sort media" value={sort} onChange={(event) => { setSort(event.target.value as SortOrder); setPage(1); }}>
               {(Object.keys(sortLabels) as SortOrder[]).map((key) => (
                 <option key={key} value={key}>
                   {sortLabels[key]}
@@ -111,17 +142,20 @@ export function MediaTab({
         </div>
       </div>
 
-      {!sorted.length ? (
+      {loading ? <LoadingState label="Loading media" /> : null}
+      {failed ? <LoadError label="media" onRetry={() => setAttempt((value) => value + 1)} /> : null}
+      {pagination}
+      {!loading && !failed && !sorted.length ? (
         <EmptyState
           icon={ImageOff}
-          title={media.length ? "No media found" : "No media yet"}
-          description={media.length ? "Try another search or filter." : "Files uploaded to materials show up here."}
+          title={search || link !== "all" || filter !== "all" ? "No media found" : "No media yet"}
+          description={search || link !== "all" || filter !== "all" ? "Try another search or filter." : "Files uploaded to materials show up here."}
         />
       ) : null}
 
       {visuals.length ? (
-        <MediaPanel icon={ImageIcon} title="Images" count={visuals.length}>
-          <div className="grid grid-cols-3 gap-3 p-4 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+        <MediaPanel icon={ImageIcon} title="Images and videos on this page" count={visuals.length}>
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 lg:grid-cols-6">
             {visuals.map((asset) => {
               const url = asset.publicUrl ?? "";
               const linked = asset.relatedItemId ? itemById.get(asset.relatedItemId) : undefined;
@@ -140,15 +174,15 @@ export function MediaTab({
                     tone.hoverBorder
                   )}
                 >
-                  <span className="relative grid aspect-square place-items-center overflow-hidden rounded-lg bg-[#fff]">
+                  <span className="relative block w-full shrink-0 pb-[100%] overflow-hidden rounded-lg bg-[#fff]">
                     {isVideoAsset(asset) ? (
-                      <Film className="h-6 w-6 text-slate-300" aria-label="Old video file" />
+                      <Film className="absolute inset-0 m-auto h-6 w-6 text-slate-300" aria-label="Old video file" />
                     ) : url ? (
                       // Placed absolutely so a tall picture is never cut off at the bottom.
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={url} alt="" loading="lazy" className="absolute inset-1 h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)] object-contain" />
                     ) : (
-                      <ImageOff className="h-6 w-6 text-slate-300" aria-hidden="true" />
+                      <ImageOff className="absolute inset-0 m-auto h-6 w-6 text-slate-300" aria-hidden="true" />
                     )}
                   </span>
                   {asset.cleanupPending ? <span className="mt-1 rounded-lg bg-amber-50 px-1 py-1 text-xs font-semibold text-amber-800">Cleanup needed</span> : null}
@@ -160,7 +194,7 @@ export function MediaTab({
       ) : null}
 
       {audio.length ? (
-        <MediaPanel icon={Volume2} title="Audio" count={audio.length}>
+        <MediaPanel icon={Volume2} title="Audio on this page" count={audio.length}>
           <div className="relative overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-100 text-xs font-bold uppercase tracking-[0.06em] text-slate-400">
@@ -194,6 +228,7 @@ export function MediaTab({
           </div>
         </MediaPanel>
       ) : null}
+      {total > MEDIA_PAGE_SIZE ? pagination : null}
     </section>
   );
 }

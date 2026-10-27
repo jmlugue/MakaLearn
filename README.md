@@ -49,7 +49,7 @@ src/
 
 - `/` landing page
 - `/login` Supabase Auth sign-in
-- `/content` PECS and gesture content library with in-app media previews
+- `/content` PECS and gesture content library with in-app media previews. Media loads 24 files per page across All, Images, and Audio. Search, linked filters, and sorting cover the full library.
 - `/gesture-practice` guided practice with webcam preview, live MediaPipe hand-landmark outlines, trained local recognition, and Gemini-first corrective feedback with template fallback
 - `/activities` PECS activity library, player, manual creator, adaptive question generation, and draft helper
 - `/playground` PECS/AAC sentence builder with category filters, drag/drop or tap card selection, AI English checking with local fallback, and speech playback
