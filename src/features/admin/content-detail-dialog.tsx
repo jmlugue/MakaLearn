@@ -1,5 +1,7 @@
 "use client";
 
+import { mediaUploaderName } from "@/lib/media-display";
+
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { Clock, ExternalLink, FileText, FileVideo, FolderOpen, Hand, Image as ImageIcon, ImageOff, Layers, Pencil, Tag, Trash2, UserRound, Volume2, type LucideIcon } from "lucide-react";
@@ -398,7 +400,7 @@ export function MediaDetailDialog({
               )}
             </DetailRow>
             <DetailRow icon={UserRound} label="Uploaded by">
-              {nameFor(users, current.uploadedBy)}
+              {mediaUploaderName(users.find((user) => user.id === current.uploadedBy)?.name)}
             </DetailRow>
             <DetailRow icon={Clock} label="Uploaded">
               {formatDate(current.uploadedAt)}

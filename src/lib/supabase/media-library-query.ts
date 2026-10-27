@@ -9,6 +9,8 @@ export type MediaFilters = {
   search: string;
   itemIds: string[];
   userIds: string[];
+  /** When the fallback name matches, also find uploads without a named profile. */
+  namedUploaderIds?: string[];
 };
 
 /** Apply filters before the range, so search covers the library rather than only the visible page. */
@@ -25,6 +27,12 @@ export function mediaPageQuery(client: SupabaseClient<Database>, filters: MediaF
     const terms = [`title.ilike.${pattern}`, `file_name.ilike.${pattern}`];
     if (filters.itemIds.length) terms.push(`related_item_id.in.(${filters.itemIds.map((id) => JSON.stringify(id)).join(",")})`);
     if (filters.userIds.length) terms.push(`uploaded_by.in.(${filters.userIds.map((id) => JSON.stringify(id)).join(",")})`);
+    if (filters.namedUploaderIds) {
+      terms.push("uploaded_by.is.null");
+      terms.push(filters.namedUploaderIds.length
+        ? `uploaded_by.not.in.(${filters.namedUploaderIds.map((id) => JSON.stringify(id)).join(",")})`
+        : "uploaded_by.not.is.null");
+    }
     query = query.or(terms.join(","));
   }
   const byName = filters.sort.startsWith("name-");

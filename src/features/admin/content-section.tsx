@@ -1,5 +1,7 @@
 "use client";
 
+import { mediaUploaderName } from "@/lib/media-display";
+
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { FileAudio, FileVideo, Image as ImageIcon, ImageOff, Layers, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -141,7 +143,7 @@ export function ContentSection({
           !term ||
           asset.title.toLowerCase().includes(term) ||
           asset.fileName.toLowerCase().includes(term) ||
-          nameFor(users, asset.uploadedBy).toLowerCase().includes(term)
+          mediaUploaderName(users.find((user) => user.id === asset.uploadedBy)?.name).toLowerCase().includes(term)
       );
     return [...matches].sort((a, b) => {
       const nameA = a.title || a.fileName;
@@ -448,7 +450,7 @@ function MediaGrid({ media, users, onOpen }: { media: MediaAsset[]; users: AppUs
                 {asset.title || asset.fileName}
               </span>
               <span className="block truncate text-xs text-slate-500">
-                {nameFor(users, asset.uploadedBy)} · {formatDate(asset.uploadedAt)}
+                {mediaUploaderName(users.find((user) => user.id === asset.uploadedBy)?.name)} · {formatDate(asset.uploadedAt)}
               </span>
             </span>
           </button>
